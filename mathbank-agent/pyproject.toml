@@ -1,0 +1,17 @@
+[project]
+name = "mathbank-agent"
+version = "0.1.0"
+description = "Google ADK agentic backend for the MathBank tutor — OpenAI models via LiteLLM, tools call mathbank-rest for hybrid RAG over Postgres"
+requires-python = ">=3.11"
+dependencies = [
+  "google-adk>=1.0",
+  "litellm>=1.50",
+  "httpx>=0.27",
+  "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "pytest-asyncio>=0.24",
+]

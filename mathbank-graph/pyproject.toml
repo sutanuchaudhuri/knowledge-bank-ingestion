@@ -1,0 +1,9 @@
+[project]
+name = "mathbank-graph"
+version = "0.1.0"
+description = "Neo4j projection ETL — derives the corpus graph from the mathbank Postgres system of record"
+requires-python = ">=3.11"
+dependencies = [
+  "neo4j>=5.23",
+  "psycopg[binary]>=3.2",
+]

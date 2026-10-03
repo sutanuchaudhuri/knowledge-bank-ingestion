@@ -1,0 +1,59 @@
+# archived source material — large, not version-controlled
+archive/
+
+# Node (mathbank-web)
+node_modules/
+.next/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Byte-compiled
+*.pyc
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Editors
+.DS_Store
+.vscode/settings.json
+*.swp
+*.swo
+.idea/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Secrets / credentials
+credentials.json
+token.json
+service_account*.json
+*.pem
+
+# Background dev-server state (make start/stop pidfiles + logs)
+.server.pid
+.server.log
+
+# Pipeline runtime artefacts
+data/
+batches/
+logs/
+reports/
+
+# GCS / Drive receipts produced locally
+receipts/

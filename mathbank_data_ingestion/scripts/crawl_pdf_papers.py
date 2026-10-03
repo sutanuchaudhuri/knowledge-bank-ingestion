@@ -1,0 +1,354 @@
+"""
+Crawl and parse PDF-based competition papers (HMMT, SMT, PUMaC, CMM, CHMMC, MPG).
+
+Unlike crawl_unmapped.py (which fetches per-question AoPS wiki pages),
+this script processes whole-paper PDFs from competition archives.
+
+Workflow per paper:
+  1. Download problem PDF  → extract text → split by question number
+  2. Download solution PDF → extract text → split by question number
+  3. Render PDF pages to PNG for visual evidence
+  4. Upsert each question into the questions table
+  5. Add each question to unmapped_questions (status=CRAWLED) for classification
+  6. Update unparsed_papers.question_index_status = 'INDEXED'
+
+Usage:
+    python scripts/crawl_pdf_papers.py                       # all competitions, 20 papers
+    python scripts/crawl_pdf_papers.py --competition HMMT_FEB
+    python scripts/crawl_pdf_papers.py --limit 50 --delay 3
+    python scripts/crawl_pdf_papers.py --dry-run
+    python scripts/crawl_pdf_papers.py --retry-failed
+
+Supported competitions (PDF sources):
+    HMMT_FEB, HMMT_NOV, HMMT_INV, SMT, PUMAC, CMM, CHMMC, MPG_MAIN, MPG_OLY
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sqlite3
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from mathbank.db import DB_PATH
+from mathbank.db.migrations import apply_all as apply_migrations
+from mathbank.crawl.downloader import DownloadError, fetch_binary, make_session
+from mathbank.crawl.pdf_parser import (
+    parse_pdf_paper, render_pdf_pages, save_question_artifacts, CRAWL_DIR as PDF_ARTIFACT_DIR,
+)
+
+import requests
+from rich.console import Console
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+
+console = Console()
+
+PDF_CRAWL_DIR = ROOT / "data" / "crawl_pdf"
+
+PDF_COMPETITIONS = {
+    "HMMT_FEB", "HMMT_NOV", "HMMT_INV", "HMMT",
+    "SMT", "PUMAC", "CMM", "CHMMC",
+    "MPG_MAIN", "MPG_OLY", "MPG",
+}
+
+
+# ── HTTP fetch for binary PDFs ─────────────────────────────────────────────────
+
+_SESSION: requests.Session | None = None
+
+
+def _session() -> requests.Session:
+    global _SESSION
+    if _SESSION is None:
+        _SESSION = make_session()
+    return _SESSION
+
+
+def _fetch_pdf(url: str, delay: float) -> bytes:
+    import time
+    time.sleep(delay)
+    r = _session().get(url, timeout=60, allow_redirects=True)
+    if r.status_code >= 400:
+        raise DownloadError(f"HTTP {r.status_code} → {url}")
+    ct = r.headers.get("Content-Type", "")
+    if "pdf" not in ct.lower() and not url.lower().endswith(".pdf"):
+        raise DownloadError(f"Expected PDF, got {ct} from {url}")
+    return r.content
+
+
+# ── Artifact paths ─────────────────────────────────────────────────────────────
+
+def _paper_dir(competition_id: str, paper_id: str) -> Path:
+    return PDF_CRAWL_DIR / _slug(competition_id) / paper_id
+
+
+def _slug(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", s.lower()).strip("_")
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+# ── Queue ──────────────────────────────────────────────────────────────────────
+
+def _fetch_queue(
+    conn: sqlite3.Connection,
+    limit: int,
+    competition: str | None,
+    retry_failed: bool,
+) -> list[tuple]:
+    statuses = ("NOT_PARSED", "PENDING", "NOT_STARTED") + (("FAILED",) if retry_failed else ())
+    ph = ",".join("?" for _ in statuses)
+    # also match rows where question_index_status IS NULL
+    null_clause = "OR question_index_status IS NULL"
+    comp_ids = ",".join(f"'{c}'" for c in PDF_COMPETITIONS)
+
+    params: list = list(statuses)
+    sql = f"""
+        SELECT paper_id, competition_id, problem_url, solution_url,
+               question_count, tournament_event_id
+        FROM unparsed_papers
+        WHERE (question_index_status IN ({ph}) {null_clause})
+          AND competition_id IN ({comp_ids})
+          AND length(problem_url) > 0
+    """
+    if competition:
+        sql += " AND competition_id = ?"
+        params.append(competition)
+    sql += " ORDER BY competition_id, paper_id LIMIT ?"
+    params.append(limit)
+    return conn.execute(sql, params).fetchall()
+
+
+# ── DB writes ──────────────────────────────────────────────────────────────────
+
+def _upsert_question(
+    conn: sqlite3.Connection,
+    paper_id: str,
+    competition_id: str,
+    q_id: str,
+    q_number: int,
+    problem_text: str,
+    solution_text: str,
+    answer_value: str,
+    image_paths: list[str],
+    exam_level: str,
+    year: str,
+    tournament_event_id: str,
+    warnings: list[str],
+) -> None:
+    solutions_json = json.dumps([solution_text] if solution_text else [], ensure_ascii=False)
+    conn.execute(
+        """INSERT OR REPLACE INTO questions
+           (question_id, paper_id, competition_id, exam_level, year,
+            q_number, classification_status,
+            problem_text_latex, problem_text_raw,
+            solution_text_latex, all_solutions_json,
+            image_paths, answer_value, parse_warnings,
+            tournament_event_id, crawled_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'UNCLASSIFIED', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            q_id, paper_id, competition_id, exam_level, year,
+            q_number,
+            problem_text, problem_text,
+            solution_text, solutions_json,
+            json.dumps(image_paths, ensure_ascii=False),
+            answer_value,
+            json.dumps(warnings, ensure_ascii=False),
+            tournament_event_id,
+            _now(),
+        ),
+    )
+    # Add to unmapped_questions for classification pipeline.
+    conn.execute(
+        """INSERT OR IGNORE INTO unmapped_questions
+           (question_id, exam_level, mapping_status, next_action)
+           VALUES (?, ?, 'CRAWLED', 'CLASSIFY')""",
+        (q_id, exam_level),
+    )
+
+
+def _mark_paper(conn: sqlite3.Connection, paper_id: str, status: str, notes: str = "") -> None:
+    conn.execute(
+        "UPDATE unparsed_papers SET question_index_status = ?, agent_next_action = ? WHERE paper_id = ?",
+        (status, notes[:400], paper_id),
+    )
+
+
+# ── Per-paper processing ───────────────────────────────────────────────────────
+
+def _process_paper(
+    conn: sqlite3.Connection,
+    paper_id: str,
+    competition_id: str,
+    problem_url: str,
+    solution_url: str,
+    expected_count: int | None,
+    tournament_event_id: str,
+    delay: float,
+) -> tuple[int, str]:
+    """Download, parse, and store one paper. Returns (question_count, status)."""
+    pdir = _paper_dir(competition_id, paper_id)
+
+    # Derive metadata from paper_id (e.g. HMMT_FEB_2023_ALGEBRA → year=2023, level=HMMT_FEB)
+    year_match = re.search(r"(\d{4})", paper_id)
+    year = year_match.group(1) if year_match else ""
+    exam_level = competition_id
+
+    # Check if already done.
+    if (pdir / "index.json").exists():
+        existing = json.loads((pdir / "index.json").read_text())
+        n = len(existing.get("questions", []))
+        console.print(f"  [dim]SKIP (cached) {paper_id} — {n} questions")
+        return n, "INDEXED"
+
+    pdir.mkdir(parents=True, exist_ok=True)
+
+    # Download PDFs.
+    try:
+        console.print(f"  ↓ problem PDF {problem_url[-60:]}")
+        prob_bytes = _fetch_pdf(problem_url, delay)
+        (pdir / "problem.pdf").write_bytes(prob_bytes)
+    except Exception as exc:
+        return 0, f"FAILED: problem download — {exc}"
+
+    sol_bytes: bytes | None = None
+    if solution_url:
+        try:
+            console.print(f"  ↓ solution PDF {solution_url[-60:]}")
+            sol_bytes = _fetch_pdf(solution_url, delay)
+            (pdir / "solution.pdf").write_bytes(sol_bytes)
+        except Exception as exc:
+            console.print(f"  [yellow]WARN solution download failed: {exc}")
+
+    # Render pages to PNG.
+    prob_images = render_pdf_pages(prob_bytes, pdir / "visuals", "problem")
+    sol_images = render_pdf_pages(sol_bytes, pdir / "visuals", "solution") if sol_bytes else []
+
+    # Parse into questions — Docling extracts Markdown + figures; artifacts saved to data/crawl/.
+    parsed_questions = parse_pdf_paper(
+        paper_id, competition_id, prob_bytes, sol_bytes, expected_count,
+        save_artifacts=True,
+        exam_level=exam_level,
+        paper_url=problem_url,
+        visuals_dir=pdir / "visuals",
+    )
+
+    index: dict = {"paper_id": paper_id, "competition_id": competition_id,
+                   "year": year, "questions": []}
+
+    for pq in parsed_questions:
+        q_num_match = re.search(r"Q(\d+)$", pq.question_id)
+        q_num = int(q_num_match.group(1)) if q_num_match else 0
+
+        # Distribute page image paths to each question's artifact dir.
+        if len(parsed_questions) > 1 and q_num > 0:
+            pages_per_q = max(1, len(prob_images) // len(parsed_questions))
+            start = (q_num - 1) * pages_per_q
+            q_images = prob_images[start:start + pages_per_q]
+        else:
+            q_images = prob_images[:3]
+
+        # Update the parsed.json with the actual image paths now we have them.
+        if q_images:
+            import json as _json
+            from mathbank.crawl.pdf_parser import _q_slug, CRAWL_DIR
+            qdir = CRAWL_DIR / _q_slug(exam_level) / pq.question_id
+            pj = qdir / "parsed.json"
+            if pj.exists():
+                rec = _json.loads(pj.read_text())
+                rec["image_urls"] = q_images
+                pj.write_text(_json.dumps(rec, indent=2, ensure_ascii=False))
+
+        _upsert_question(
+            conn, paper_id, competition_id,
+            pq.question_id, q_num,
+            pq.problem_text, pq.solution_texts[0] if pq.solution_texts else "",
+            pq.answer_value, q_images,
+            exam_level, year, tournament_event_id,
+            pq.parse_warnings,
+        )
+        index["questions"].append(pq.question_id)
+
+    # Save index.json for resumability.
+    index["image_pages_problem"] = prob_images
+    index["image_pages_solution"] = sol_images
+    index["crawled_at"] = _now()
+    (pdir / "index.json").write_text(json.dumps(index, indent=2), encoding="utf-8")
+
+    return len(parsed_questions), "INDEXED"
+
+
+# ── Main ───────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    p = argparse.ArgumentParser(description="Crawl PDF-based competition papers")
+    p.add_argument("--competition", type=str, default=None,
+                   help="Filter by competition_id (e.g. HMMT_FEB, SMT, PUMAC)")
+    p.add_argument("--limit",  type=int,   default=20)
+    p.add_argument("--delay",  type=float, default=2.0)
+    p.add_argument("--db",     type=Path,  default=DB_PATH)
+    p.add_argument("--retry-failed", action="store_true")
+    p.add_argument("--dry-run",      action="store_true")
+    args = p.parse_args()
+
+    conn = sqlite3.connect(args.db)
+    apply_migrations(conn)
+
+    queue = _fetch_queue(conn, args.limit, args.competition, args.retry_failed)
+
+    if not queue:
+        console.print("[yellow]No PDF papers to process.")
+        rows = conn.execute(
+            "SELECT competition_id, COUNT(*) FROM unparsed_papers "
+            "GROUP BY competition_id ORDER BY 2 DESC"
+        ).fetchall()
+        for r in rows:
+            console.print(f"  {(r[0] or '?'):<15} {r[1]}")
+        conn.close()
+        return
+
+    console.print(f"\n[bold]PDF crawl:[/] {len(queue)} papers  "
+                  f"(delay={args.delay}s  dry_run={args.dry_run})\n")
+
+    if args.dry_run:
+        for paper_id, comp, prob_url, sol_url, qcount, _ in queue:
+            console.print(f"  [dim]{paper_id:<40} {comp:<12} q={qcount}  {prob_url[-50:]}")
+        conn.close()
+        return
+
+    total_q = 0
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"),
+                  BarColumn(), MofNCompleteColumn(), TimeElapsedColumn(),
+                  console=console) as progress:
+        task = progress.add_task("Papers", total=len(queue))
+
+        for paper_id, comp, prob_url, sol_url, qcount, event_id in queue:
+            progress.update(task, description=f"[cyan]{paper_id}")
+
+            n, status = _process_paper(
+                conn, paper_id, comp,
+                prob_url, sol_url or "",
+                qcount, event_id or "",
+                args.delay,
+            )
+            _mark_paper(conn, paper_id, status if status == "INDEXED" else "FAILED", status)
+            conn.commit()
+            total_q += n
+            progress.advance(task)
+
+    console.print(f"\n[bold green]Done.[/]  papers={len(queue)}  questions_created={total_q}")
+    console.print(f"Artifacts in: [cyan]{PDF_CRAWL_DIR}")
+    console.print("\nRun classify_crawled.py to classify the extracted questions.")
+    conn.close()
+
+
+if __name__ == "__main__":
+    main()
