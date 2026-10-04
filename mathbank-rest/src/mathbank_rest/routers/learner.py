@@ -106,3 +106,12 @@ def submit_attempt(
 @router.get("/mastery")
 def get_mastery_summary(student_id: UUID = Depends(security.get_current_student_id)) -> dict:
     return learner_db.get_mastery_summary(student_id)
+
+
+@router.get("/mastery/improvement-plan")
+def get_improvement_plan(
+    max_focus_areas: int = 5, student_id: UUID = Depends(security.get_current_student_id)
+) -> dict:
+    """Actionable 'what to improve next' view: weakest concepts/techniques
+    (not yet 'solid'), each with a few recommended practice problems."""
+    return mastery.build_improvement_plan(student_id, max_focus_areas=max_focus_areas)

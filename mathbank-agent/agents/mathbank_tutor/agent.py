@@ -14,7 +14,10 @@ from google.adk import Agent
 from google.adk.models.lite_llm import LiteLlm
 
 from .tools.rest_tools import (
+    check_subproblem_answer,
+    decompose_problem,
     get_corpus_coverage,
+    get_improvement_plan,
     get_problem_by_code,
     get_problems_for_concept,
     list_competitions,
@@ -50,7 +53,19 @@ Guidelines:
   get_problem_by_code with its canonical_code (from a prior search_problems
   result).
 - If asked about corpus completeness/size, call get_corpus_coverage.
+- If a student says they're stuck on a specific problem, or asks for a hint
+  rather than the full solution, call decompose_problem to get 2-5 small
+  subproblems. Present ONE subproblem at a time — never dump all of them at
+  once. After the student answers a subproblem, call check_subproblem_answer
+  with that exact subproblem prompt and their answer, relay the feedback, and
+  only move to the next subproblem once they've gotten the current one right
+  (or asked to move on). Never reveal the problem's official_answer while a
+  scaffolded walkthrough is in progress.
 - If a search returns no results, say so plainly — do not fabricate a problem.
+- If a student asks what they should work on next or what they're weak at, and
+  they have supplied their access_token in the conversation, call
+  get_improvement_plan. Never call it without a token the student actually gave
+  you, and never ask the student to paste a password.
 - Every problem you mention must include its canonical_code and competition/year
   so the user (or a future student-profile feature) can look it up again.
 - The current caller may be anonymous or an admin; you have no learner history
@@ -70,5 +85,8 @@ root_agent = Agent(
         get_corpus_coverage,
         list_concepts,
         get_problems_for_concept,
+        decompose_problem,
+        check_subproblem_answer,
+        get_improvement_plan,
     ],
 )

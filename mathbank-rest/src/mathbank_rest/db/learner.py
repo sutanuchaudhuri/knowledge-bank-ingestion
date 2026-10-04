@@ -130,7 +130,7 @@ def get_attempts_for_concept(student_id: UUID, concept_id: UUID) -> list[dict]:
     with engine.connect() as conn:
         rows = conn.execute(
             text(
-                "SELECT a.is_correct, a.attempted_at, p.difficulty_band "
+                "SELECT a.is_correct, a.attempted_at, a.hint_count, p.difficulty_band "
                 "FROM learner.attempt a "
                 "JOIN knowledge.problem_concept pc ON pc.problem_id = a.problem_id "
                 "JOIN core.problem p ON p.problem_id = a.problem_id "
@@ -146,7 +146,7 @@ def get_attempts_for_technique(student_id: UUID, technique_id: UUID) -> list[dic
     with engine.connect() as conn:
         rows = conn.execute(
             text(
-                "SELECT a.is_correct, a.attempted_at, p.difficulty_band "
+                "SELECT a.is_correct, a.attempted_at, a.hint_count, p.difficulty_band "
                 "FROM learner.attempt a "
                 "JOIN knowledge.problem_technique pt ON pt.problem_id = a.problem_id "
                 "JOIN core.problem p ON p.problem_id = a.problem_id "
@@ -233,3 +233,28 @@ def get_mastery_summary(student_id: UUID) -> dict:
             {"id": str(student_id)},
         ).mappings()
         return {"concepts": [dict(r) for r in concepts], "techniques": [dict(r) for r in techniques]}
+
+
+def get_cohort_weak_concepts(*, min_students: int = 1, limit: int = 20) -> list[dict]:
+    """Aggregate (no PII) view across every student's concept_mastery — surfaces
+    which concepts the whole cohort struggles with, lowest average mastery first.
+    Useful at the platform level (is this a hard concept, a thin corpus of
+    practice problems, or a retrieval gap?) rather than any one student's view.
+    """
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT c.slug, c.name, "
+                "       COUNT(DISTINCT m.student_id) AS student_count, "
+                "       CAST(AVG(m.mastery_score) AS DOUBLE PRECISION) AS avg_mastery_score, "
+                "       SUM(m.attempts_count) AS total_attempts "
+                "FROM learner.concept_mastery m "
+                "JOIN knowledge.concept c ON c.concept_id = m.concept_id "
+                "GROUP BY c.slug, c.name "
+                "HAVING COUNT(DISTINCT m.student_id) >= :min_students "
+                "ORDER BY avg_mastery_score ASC "
+                "LIMIT :limit"
+            ),
+            {"min_students": min_students, "limit": limit},
+        ).mappings()
+        return [dict(r) for r in rows]

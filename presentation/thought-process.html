@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How This Was Built — MathBank Platform</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="dot"></span> MathBank Platform</div>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="architecture.html">Ingestion &amp; Inference</a>
+    <a href="data-model.html">Data Model</a>
+    <a href="graph.html">Knowledge Graph</a>
+    <a href="use-cases.html">Use Cases</a>
+    <a href="tutor-interaction.html">Tutor Interaction</a>
+    <a href="student-impact.html">Student Impact</a>
+    <a href="thought-process.html">How This Was Built</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero reveal" style="padding-top:36px">
+    <span class="eyebrow">06 · Meta</span>
+    <h1>How this presentation was built</h1>
+    <p class="lede">Written by the agent that built it, as a record of the actual decisions made —
+    not a retrospective gloss. If you're evaluating whether to trust the content on the other six pages,
+    this is the page that explains where it came from.</p>
+  </section>
+
+  <h2 id="brief"><span class="section-no">A</span>The brief</h2>
+  <p>The request: a static HTML presentation, in the repo root, with clickable links, animation, an
+  entity-relationship view that can be drilled into, real Neo4j graph content (not a mockup), Cypher
+  queries mapped to concrete use cases, Postgres entity modelling, a student-impact framing for a
+  non-technical audience, and — explicitly — a record of the thought process behind building it. That
+  last requirement is this page.</p>
+
+  <h2 id="decisions"><span class="section-no">B</span>Decisions, and why</h2>
+
+  <div class="accordion reveal" open>
+    <summary>Why plain static HTML, not a framework</summary>
+    <div class="body">
+      <p>The repo already has a real Next.js app (<code>mathbank-web</code>) for the production UI.
+      Introducing a second frontend framework just to show a presentation would mean a second
+      <code>node_modules</code>, a second build step, and a second thing that can go out of date.
+      A presentation's job is to be opened and read — <code>.html</code> files that work by double-clicking
+      (or a one-line <code>python3 -m http.server</code>) serve that job better than a build pipeline would.</p>
+      <p><strong>Trade-off accepted:</strong> no component reuse across pages, so the nav/footer markup is
+      duplicated in all eight files. For eight static pages that's a non-issue; it would stop being one at
+      twenty-plus pages, at which point a static-site generator would earn its keep.</p>
+    </div>
+  </div>
+
+  <div class="accordion reveal">
+    <summary>Why a separate step-synced page for the tutor interaction, instead of one more static diagram</summary>
+    <div class="body">
+      <p>The ask was explicit: show what the student sees <em>and</em> what happens in the background,
+      <em>per interaction step</em>, with the real REST/SQL/Cypher/vector-search detail at each one — a
+      static sequence diagram (already on <a href="architecture.html#inference">the inference page</a>)
+      compresses all of that into one picture read top-to-bottom. <a href="tutor-interaction.html">The
+      tutor-interaction page</a> keeps the same underlying facts but lets you hold one step still, read the
+      actual SQL, then move to the next — autoplay exists for a passive walkthrough, step/dot navigation
+      exists for stopping on the one step you actually want to study.</p>
+      <p>The chat panel is explicitly labeled "illustrative mock" in its own header — the brief noted the
+      real UI will keep changing, so the page commits to keeping the <em>system sequence</em> accurate and
+      deliberately doesn't try to pixel-match <code>mathbank-web</code>'s actual chat component.</p>
+      <p>Turn 2 (mastery) mixes real and planned steps on purpose, with a visible <code>LIVE</code> /
+      <code>PLANNED</code> / <code>LIVE + PLANNED</code> badge per step — the same honesty convention as
+      every other page, applied at step granularity instead of page granularity.</p>
+    </div>
+  </div>
+
+  <div class="accordion reveal">
+    <summary>Why Mermaid for diagrams, vis-network for the graph, no other dependencies</summary>
+    <div class="body">
+      <p><strong>Mermaid</strong> was already the house style — every requirements doc in this repo
+      (<code>requirements/09_PIPELINE_SEQUENCE.md</code>, <code>10_*</code>, <code>11_*</code>) already has
+      Mermaid flowcharts and sequence diagrams written during earlier work. Reusing that syntax here means
+      the diagrams in this presentation and the diagrams in the markdown docs are the same source language —
+      several were copied near-verbatim rather than redrawn.</p>
+      <p><strong>vis-network</strong> was chosen for the one interactive element (the live graph canvas on
+      <a href="graph.html">graph.html</a>) specifically because it accepts plain <code>{id, label, group}</code>
+      node objects and <code>{from, to, label}</code> edge objects — no schema translation needed between
+      "what Neo4j returns" and "what the renderer wants" beyond a thin mapping function in
+      <code>assets/app.js</code>.</p>
+      <p>Both are loaded from CDN (<code>cdn.jsdelivr.net</code>, <code>unpkg.com</code>) rather than vendored
+      into the repo — this presentation needs network access to render diagrams. That's a real limitation,
+      documented here rather than silently assumed.</p>
+    </div>
+  </div>
+
+  <div class="accordion reveal">
+    <summary>Why the graph data is a real export, not hand-written JSON</summary>
+    <div class="body">
+      <p>The brief explicitly asked for "actual neo4j graphs," so a hand-authored sample graph would have
+      defeated the point. The data in <code>assets/data/graph-sample.json</code> was produced by a one-off
+      Python script run against the live AuraDB instance:</p>
+      <pre>MATCH (comp:Competition {external_code:'AMC10'})-[:HAS_PAPER]->(p:Paper)
+WHERE p.year >= 2023
+WITH comp, p LIMIT 2
+MATCH (p)-[:HAS_PROBLEM]->(pr:Problem)
+WITH comp, p, pr LIMIT 14
+OPTIONAL MATCH (pr)-[t:TESTS]->(c:Concept)
+OPTIONAL MATCH (pr)-[u:USES_TECHNIQUE]->(tech:Technique)
+RETURN comp, p, pr, collect(...) AS concepts, collect(...) AS techniques</pre>
+      <p>43 nodes, 65 edges — small enough to render cleanly in a force-directed layout, large enough to show
+      the real shape of the TESTS/USES_TECHNIQUE fan-out per problem. The export script itself was a
+      throwaway (<code>/tmp/export_graph_sample.py</code>), not added to the permanent codebase, since its
+      only job was producing this one static asset.</p>
+    </div>
+  </div>
+
+  <div class="accordion reveal">
+    <summary>Why every number and bug story is sourced from the actual codebase</summary>
+    <div class="body">
+      <p>Before writing a line of HTML, the exact current schema (all 5 Postgres schemas, every table and
+      column), the exact Neo4j node/relationship model, the exact REST endpoint list, and the exact Mermaid
+      diagrams already written in <code>requirements/</code> were pulled fresh from the live files — not
+      recalled from memory of earlier work in this session. The two "bug stories" on
+      <a href="architecture.html#inference">the inference page</a> (the pre-filter fix, the concept-hierarchy
+      fix) are both real incidents with real before/after precision numbers, documented in this repo's
+      <code>GOTCHAS.md</code> (#15 and #16) — nothing in those callouts is invented for narrative effect.</p>
+    </div>
+  </div>
+
+  <div class="accordion reveal">
+    <summary>Why an audience toggle instead of two separate presentations</summary>
+    <div class="body">
+      <p>The brief asked for one presentation that serves both a technical and a business audience. Two
+      separate documents would drift apart over time (the classic problem with "the deck" vs "the eng doc").
+      A single source of content with a CSS/JS toggle (<code>[data-audience-only]</code>, persisted in
+      <code>localStorage</code>) keeps one set of facts and only varies the framing — visible on
+      <a href="index.html">the overview</a> and inside the <a href="use-cases.html">use-case</a> accordions.</p>
+    </div>
+  </div>
+
+  <div class="accordion reveal">
+    <summary>Turn 3 went from mockup to real implementation (Round 11) — the decision trail</summary>
+    <div class="body">
+      <p>Turn 3's scaffolded problem-decomposition was deliberately the most speculative scenario on
+      <a href="tutor-interaction.html">the interaction page</a> — mostly <code>planned</code> badges, by
+      design, since nothing behind it existed yet. When asked to turn it into a real feature, the build order
+      was chosen to de-risk the most uncertain part last:</p>
+      <ol>
+        <li><strong>Hint-weighted mastery first (MST-09).</strong> <code>learner.attempt.hint_count</code>
+        already existed in the schema and was already flowing through <code>POST /v1/learner/attempts</code> —
+        it just wasn't read by <code>mastery.py</code>. Closing this gap required no new infrastructure, only
+        a new pure function (<code>hint_penalty(hint_count) = max(0.4, 1/(1+0.25*hint_count))</code>) wired
+        into the existing scoring loop, kept backward-compatible via <code>.get("hint_count", 0)</code> so
+        neither older callers nor existing tests needed to change.</li>
+        <li><strong>Then the OpenAI-backed decomposition/grading endpoints (AGT-11).</strong>
+        <code>mathbank_rest/tutor.py</code> follows the exact client-setup pattern already established by
+        <code>db/vector_search.py</code> for embeddings (<code>load_dotenv()</code>, an explicit
+        <code>OPENAI_API_KEY</code> presence check, a module-level <code>OpenAI()</code> client) — deliberately
+        not a new architectural pattern, just the chat-completions sibling of a pattern already proven in
+        this codebase. The decomposition prompt explicitly forbids revealing the final answer; the grading
+        prompt is told to judge reasoning, not pattern-match a number.</li>
+        <li><strong>Then the agent tools.</strong> <code>decompose_problem</code>/<code>check_subproblem_answer</code>
+        were added to <code>rest_tools.py</code> using the same typed-callable-with-docstring convention as
+        the other six tools (ADK reads the docstring as the tool description), and the agent's
+        <code>INSTRUCTION</code> was extended to tell it to present one subproblem at a time and never reveal
+        the official answer mid-walkthrough.</li>
+      </ol>
+      <p>Every claim above was verified, not assumed: 32/32 <code>pytest</code> passing in <code>mathbank-rest</code>
+      (12 of them new), a live <code>curl</code> against the real corpus that decomposed
+      <code>AIME_1992_Q06</code> into 3 genuine subproblems, and a live grading call that correctly marked a
+      wrong student answer (9) as incorrect against the true count (21) with substantive feedback — evidence
+      the grader checks the math rather than rubber-stamping. The agent module was also loaded directly to
+      confirm all 8 tools register cleanly. Full trail in
+      <code>mathematics_tutor_db_plan/00_implementation_progress.md</code> (Round 11) and
+      <code>requirements/10_AGENTIC_TUTOR_AND_STUDENT_MASTERY_REQUIREMENTS.md</code> (AGT-11, MST-09,
+      §5.3 sequence diagram). What's still honestly incomplete and said so on the interaction page: hints
+      aren't logged per-subproblem (no <code>core.subproblem</code> table), and the "detect a weak subskill,
+      then route to easier practice" hand-off relies on the agent's own reasoning rather than a scripted
+      pipeline.</p>
+    </div>
+  </div>
+
+  <div class="accordion reveal">
+    <summary>Known limitations, stated plainly</summary>
+    <div class="body">
+      <ul style="color:var(--text-dim)">
+        <li>Requires network access at <em>view</em> time (Mermaid/vis-network/MathJax load from CDN).</li>
+        <li><code>fetch()</code> of the local <code>graph-sample.json</code> is blocked by browsers under
+        a bare <code>file://</code> URL in some configurations — serve the <code>presentation/</code>
+        folder with any static file server (e.g. <code>python3 -m http.server</code>) if the graph canvas
+        shows an error instead of nodes.</li>
+        <li>The live graph export is a snapshot (AMC10 2023, 14 problems) taken on 2026-10-04 — it will not
+        reflect classification work that lands after that date. It's representative, not live-streaming.</li>
+        <li>Nav/footer markup is duplicated per page by design (see above) — a deliberate, bounded trade-off.</li>
+      </ul>
+    </div>
+  </div>
+
+
+  <h2 id="howrun"><span class="section-no">C</span>How to view this presentation</h2>
+  <pre>cd /Volumes/External/Developer/knowledge-bank-ingestion/presentation
+python3 -m http.server 8080
+# open http://localhost:8080/index.html</pre>
+  <p>Opening <code>index.html</code> directly via <code>file://</code> also works for every page except the
+  live graph canvas on <a href="graph.html">graph.html</a> (see the limitation above).</p>
+</main>
+
+<footer>
+  <a href="student-impact.html">&larr; Student Impact</a> ·
+  <a href="index.html">Back to overview</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

@@ -109,11 +109,19 @@ sequenceDiagram
 | AGT-08 | Graph projection must scale by re-running `project-remote`, not by hand-editing Neo4j — new `Concept`/`Technique` nodes and `TESTS`/`USES_TECHNIQUE`/`CONCEPT_RELATION` edges come from Postgres `knowledge.*`, never written directly to Neo4j. |
 | AGT-09 | New REST vector/AI endpoints (e.g. `/v1/search/similar-questions`, `/v1/analytics/technique-frequency`) must follow the existing contract shape in `mathematics_tutor_db_plan/agent/12_rest_contracts_for_agent.md` — versioned `/v1`, `effective_filters` in the response, REST (not the LLM) resolves ambiguity/time windows. |
 | AGT-10 | Each new REST endpoint that touches `search.embedding` must declare its retrieval profile/embedding model version explicitly (see `vector/06_embedding_pipeline_reembedding_and_versioning.md`) so re-embedding doesn't silently change past answers without a version bump. |
+| AGT-11 | Scaffolded problem decomposition: `POST /v1/tutor/decompose` (statement → 2-5 ordered subproblems, never reveals the final answer) and `POST /v1/tutor/check-subproblem` (grades one free-form subproblem answer), both backed by an OpenAI chat-completions call in `mathbank_rest/tutor.py` (same client pattern as `db/vector_search.py`'s embeddings call). Agent tools `decompose_problem`/`check_subproblem_answer` wrap these 1:1; the agent must present one subproblem at a time and never skip ahead. ✅ done — `mathbank-rest/src/mathbank_rest/tutor.py` + `routers/tutor.py`, `mathbank-agent/agents/mathbank_tutor/tools/rest_tools.py`. Verified live against Neon + OpenAI (see `00_implementation_progress.md` Round 11). |
+| AGT-12 | Agentic-layer eval: `mathbank-agent/scripts/evaluate_agent.py` + `golden_agent_cases.py` run golden prompts through the real ADK agent + OpenAI and assert tool-selection accuracy (expected tool called, forbidden tool not called), including one adversarial/security case, per `mathematics_tutor_db_plan/agent/16_observability_and_evaluation.md` §2-3/§6. ✅ done — first run 7/7 passed, results logged to `mathbank-agent/eval_history.csv`. |
+| AGT-13 | Ingestion-layer eval: `mathbank_data_ingestion/scripts/evaluate_classification.py` reports always-on corpus health (completeness %, status distribution, review coverage) plus opt-in blind reclassification accuracy against hand-reviewed gold labels from `review_classified.py` (not derived/self-referential ground truth). ✅ done — first run (n=3) measured 0.667 accuracy, surfacing a genuinely ambiguous classification case; results logged to `mathbank_data_ingestion/eval_history.csv`. |
 
 ---
 
-## 5. Student mastery extraction (MST-*) — not yet implemented
+## 5. Student mastery extraction (MST-*)
 
+MST-01..MST-04 and MST-09/MST-10 are implemented (see
+`mathematics_tutor_db_plan/00_implementation_progress.md`, "Student login +
+student state" and Round 11/12); MST-05 (Neo4j `Student` graph projection)
+remains a follow-up, not yet built. MST-06's agent tool is done, shipped as
+`get_improvement_plan` (see MST-10) rather than a bare mastery dump.
 Full design: [`mathematics_tutor_db_plan/agent/18_future_student_profile_and_mastery.md`](../mathematics_tutor_db_plan/agent/18_future_student_profile_and_mastery.md).
 Summary with requirement IDs below.
 
@@ -143,9 +151,38 @@ flowchart TD
 | MST-03 | Mastery score = time-decayed, difficulty-weighted accuracy (see formula in agent/18 §5), not a raw percentage — must support a configurable half-life and per-concept-role (`PRIMARY`/`SECONDARY`) weighting from `knowledge.problem_concept`. |
 | MST-04 | New Neo4j node label `Student` (`canonical_id` only — no PII) and edges `MASTERED`, `STRUGGLES_WITH`, `ATTEMPTED`, `MADE_ERROR`, projected into a **separate learner graph/subgraph**, never merged into the shared anonymous-readable corpus graph. |
 | MST-05 | `MASTERED`/`STRUGGLES_WITH` edges are threshold-projected (e.g. `score >= 0.8` / `score < 0.4`), not a raw score property on every concept edge, to keep the graph sparse and Cypher traversal natural (prerequisite-gap queries, recommendation queries). |
-| MST-06 | New agent tool `get_student_mastery_summary(student_id)` — the agent biases retrieval using its output (exclude mastered, prioritize struggling); the agent never computes mastery itself. |
+| MST-06 | New agent tool `get_student_mastery_summary(student_id)` — the agent biases retrieval using its output (exclude mastered, prioritize struggling); the agent never computes mastery itself. ✅ done, as `get_improvement_plan(access_token, ...)` — see MST-10. The agent still has no persistent student identity (AGT-03), so the student's own token is passed explicitly rather than inferred. |
+| MST-10 | Feedback/analytics layer: `GET /v1/learner/mastery/improvement-plan` (per-student, authenticated) ranks not-yet-"solid" concepts/techniques (`mastery.mastery_tier()`: critical < 0.4, developing 0.4-0.7, solid >= 0.7) with recommended practice problems attached from existing concept/technique lookups; `GET /v1/analytics/weak-concepts` (public, no PII) aggregates average mastery per concept across the whole student cohort — a platform-level "what to improve" signal distinct from any one student's view. ✅ done — `mathbank-rest/src/mathbank_rest/mastery.py` (`build_improvement_plan`), `db/learner.py` (`get_cohort_weak_concepts`), `routers/learner.py` + `routers/v1.py`. Verified live against Neon (test student created, attempt submitted, both endpoints checked, test data cleaned up). |
 | MST-07 | Corpus embeddings (`search.embedding`) remain shared across all students — mastery/personalization must work by filtering/boosting existing embeddings, never by creating per-student embeddings. |
 | MST-08 | `learner.student_profile.external_auth_subject` is the only PII-adjacent linkage; deleting a student is a single-row cascade, not a corpus-wide scrub — required for privacy/erasure compliance. |
+| MST-09 | Mastery scoring discounts a correct attempt by how many hints (`learner.attempt.hint_count`) it took to get there — `hint_penalty(hint_count) = max(0.4, 1/(1+0.25*hint_count))`, floored at 0.4 so a heavily-hinted correct answer still counts for more than an incorrect one, applied as a multiplier on `correctness_weight` inside `compute_mastery_score`. Backward compatible: attempts/test fixtures without a `hint_count` key default to 0 (no penalty). ✅ done — `mathbank-rest/src/mathbank_rest/mastery.py` (`hint_penalty`, updated `correctness_weight`/`compute_mastery_score`), `db/learner.py` (`hint_count` added to the two attempt-fetch queries), tests in `tests/test_mastery.py`. This closes the "honest gap" called out in the Turn 3 scaffolding scenario in `presentation/tutor-interaction.html`. |
+
+### 5.3 Turn 3 scaffolded-decomposition flow (AGT-11 / MST-09)
+
+```mermaid
+sequenceDiagram
+    participant S as Student (chat UI)
+    participant Ag as mathbank-agent
+    participant R as mathbank-rest
+    participant AI as OpenAI (gpt-4o-mini)
+    participant PG as Postgres (Neon)
+
+    S->>Ag: "I'm stuck on AIME_1992_Q06"
+    Ag->>R: POST /v1/tutor/decompose
+    R->>PG: get_problem_by_code (statement, difficulty, concepts)
+    R->>AI: chat.completions (decompose prompt, JSON mode)
+    AI-->>R: {subproblems: [...]}
+    R-->>Ag: subproblems
+    Ag-->>S: present subproblem #1 only
+    S->>Ag: free-form answer to #1
+    Ag->>R: POST /v1/tutor/check-subproblem
+    R->>AI: chat.completions (grading prompt, JSON mode)
+    AI-->>R: {correct, feedback}
+    R-->>Ag: grading result
+    Ag-->>S: feedback; advance to #2 only if correct
+    Note over S,Ag: on the real attempt submit (POST /v1/learner/attempts),
+    hint_count increments per subproblem revealed — feeds MST-09's hint_penalty
+```
 
 ---
 

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Student ↔ AI Tutor Interaction Flow — MathBank Platform</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="dot"></span> MathBank Platform</div>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="architecture.html">Ingestion &amp; Inference</a>
+    <a href="data-model.html">Data Model</a>
+    <a href="graph.html">Knowledge Graph</a>
+    <a href="use-cases.html">Use Cases</a>
+    <a href="tutor-interaction.html">Tutor Interaction</a>
+    <a href="student-impact.html">Student Impact</a>
+    <a href="thought-process.html">How This Was Built</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero reveal" style="padding-top:36px">
+    <span class="eyebrow">04b · Interaction</span>
+    <h1>What actually happens during a chat turn</h1>
+    <p class="lede">The UI on the left is a <strong>mock</strong> — the real <code>mathbank-web</code> chat
+    interface may look different and will keep changing. What this page holds fixed is the
+    <strong>sequence of real systems</strong> that fire for every message: which layer is active, what REST
+    call is made, what SQL or Cypher actually runs, and how the vector DB gets involved. Three conversations,
+    step through each or hit play — the third is almost entirely <strong>planned</strong>, and says so.</p>
+  </section>
+
+  <h2 id="turns"><span class="section-no">A</span>Pick a conversation to replay</h2>
+  <div class="turn-tabs">
+    <button data-turn="search" class="active">Turn 1 — "Find me combinatorics problems"<span class="badge">live</span></button>
+    <button data-turn="mastery">Turn 2 — "What should I practice next?"<span class="badge" data-status="planned">partly planned</span></button>
+    <button data-turn="scaffold">Turn 3 — "Help me break this problem down"<span class="badge" data-status="mixed">mostly live</span></button>
+  </div>
+
+  <div class="pipeline-strip" id="pipeline-strip">
+    <div class="layer" data-layer="web">Student UI</div>
+    <div class="layer" data-layer="agent">ADK Agent</div>
+    <div class="layer" data-layer="openai">OpenAI</div>
+    <div class="layer" data-layer="rest">mathbank-rest</div>
+    <div class="layer" data-layer="vector">Postgres · vector</div>
+    <div class="layer" data-layer="sql">Postgres · SQL</div>
+    <div class="layer" data-layer="neo4j">Neo4j · Cypher</div>
+  </div>
+
+  <div class="step-controls">
+    <button id="btn-prev">◂ Prev</button>
+    <button id="btn-play" class="primary">▶ Play</button>
+    <button id="btn-next">Next ▸</button>
+    <div class="step-progress"><div class="bar" id="step-bar"></div></div>
+    <span id="step-counter" style="font-size:12.5px;color:var(--text-dim);white-space:nowrap">1 / 9</span>
+  </div>
+  <div class="step-dots" id="step-dots"></div>
+
+  <div class="stage-grid">
+    <div>
+      <div class="chat-shell">
+        <div class="chat-header">mathbank-web — chat (illustrative mock)</div>
+        <div id="chat-transcript" style="display:flex; flex-direction:column; gap:10px; overflow-y:auto; flex:1"></div>
+      </div>
+    </div>
+    <div>
+      <div class="behind-shell">
+        <span class="layer-badge" id="behind-badge">LIVE</span>
+        <h3 class="behind-step-title" id="behind-title">—</h3>
+        <div class="behind-step-body" id="behind-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="why"><span class="section-no">B</span>Why show it this way</h2>
+  <p>A screenshot of the chat UI tells you nothing about <em>why</em> an answer took 2 seconds, or why a
+  competition filter does or doesn't return results, or what "mastery" actually means under the hood. Every
+  code block on this page is the real call shape or real (abbreviated) SQL/Cypher from this codebase — see
+  <a href="use-cases.html">Use Cases</a> for the full, unabridged versions and
+  <a href="architecture.html#inference">Ingestion &amp; Inference</a> for the sequence-diagram summary of
+  Turn 1. The honesty convention holds here too: Turn 2's graph-based prerequisite step is marked
+  <strong>planned</strong>, not live — the mastery math is real, the graph traversal on top of it isn't wired yet.
+  Turn 3 was originally a design sketch; as of Round 11 it's mostly <strong>built</strong>: a real
+  <code>POST /v1/tutor/decompose</code> (OpenAI JSON-mode call that breaks a fetched problem statement into
+  2-5 subproblems without revealing the answer) and <code>POST /v1/tutor/check-subproblem</code> (grades a
+  free-form answer to one subproblem), both wrapped 1:1 as agent tools
+  (<code>decompose_problem</code>/<code>check_subproblem_answer</code>) and verified live against the real
+  corpus and OpenAI. <code>learner.attempt.hint_count</code> now actually discounts mastery scoring too
+  (<code>mastery.hint_penalty()</code>, MST-09) — closing the gap this turn used to call out. What's still
+  marked <strong>mixed</strong>, not fully live: logging a hint against one specific subproblem (no
+  <code>core.subproblem</code> table exists, so hints still log against the parent problem), and whether the
+  agent reliably chains decompose → grade → detect-weakness → remediate end-to-end from its own reasoning
+  versus needing more explicit step-by-step instructions. See
+  <code>requirements/10_AGENTIC_TUTOR_AND_STUDENT_MASTERY_REQUIREMENTS.md</code> (AGT-11, MST-09) and
+  <code>mathematics_tutor_db_plan/00_implementation_progress.md</code> (Round 11) for the full implementation
+  record.</p>
+</main>
+
+<footer>
+  <a href="use-cases.html">&larr; Use Cases</a> ·
+  Next: <a href="student-impact.html">Student Impact</a>
+</footer>
+
+<script src="assets/app.js"></script>
+<script src="assets/tutor-interaction.js"></script>
+</body>
+</html>

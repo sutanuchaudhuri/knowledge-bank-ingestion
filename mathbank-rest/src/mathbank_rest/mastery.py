@@ -1,9 +1,11 @@
-"""Mastery score computation — time-decayed, difficulty-weighted accuracy.
+"""Mastery score computation — time-decayed, difficulty-weighted, hint-penalized accuracy.
 
 Formula per mathematics_tutor_db_plan/agent/18_future_student_profile_and_mastery.md
-section 5. Pure functions here are unit-tested directly (no DB); the
-recompute_* functions do the DB read/upsert round-trip and are what the
-learner router calls after each attempt is recorded.
+section 5, extended with a hint-count penalty (MST-09 — see
+requirements/10_AGENTIC_TUTOR_AND_STUDENT_MASTERY_REQUIREMENTS.md). Pure functions
+here are unit-tested directly (no DB); the recompute_* functions do the DB
+read/upsert round-trip and are what the learner router calls after each
+attempt is recorded.
 
 Simplifications vs the full design doc (tracked as follow-ups there):
 - `is_correct` is boolean in this schema (no PARTIAL credit yet).
@@ -18,6 +20,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from mathbank_rest.db import learner as learner_db
+from mathbank_rest.db import queries
 
 HALF_LIFE_DAYS = 45.0
 
@@ -48,8 +51,21 @@ def normalized_difficulty(difficulty_band: str | None) -> float:
     return 0.5
 
 
-def correctness_weight(is_correct: bool) -> float:
-    return 1.0 if is_correct else 0.0
+def correctness_weight(is_correct: bool, hint_count: int = 0) -> float:
+    """A correct answer reached only after several hints demonstrates less
+    mastery than one solved unaided — discount it, but never to zero (it still
+    shows more understanding than an incorrect attempt, which stays at 0.0).
+    hint_count defaults to 0 for backward compatibility with older callers.
+    """
+    if not is_correct:
+        return 0.0
+    return hint_penalty(hint_count)
+
+
+def hint_penalty(hint_count: int) -> float:
+    """1.0 at 0 hints, ~0.8 at 1, ~0.67 at 2, floored at 0.4 so a heavily-hinted
+    correct answer is still worth something (unlike an incorrect one)."""
+    return max(0.4, 1.0 / (1.0 + 0.25 * max(hint_count, 0)))
 
 
 def recency_weight(attempted_at: datetime, *, now: datetime | None = None) -> float:
@@ -65,7 +81,8 @@ def difficulty_weight(difficulty_band: str | None) -> float:
 
 
 def compute_mastery_score(attempts: list[dict], *, now: datetime | None = None) -> float:
-    """attempts: rows with is_correct / attempted_at / difficulty_band (see db/learner.py)."""
+    """attempts: rows with is_correct / attempted_at / difficulty_band / optional
+    hint_count (see db/learner.py) — hint_count defaults to 0 if a row omits it."""
     if not attempts:
         return 0.0
     numerator = 0.0
@@ -73,7 +90,7 @@ def compute_mastery_score(attempts: list[dict], *, now: datetime | None = None) 
     for a in attempts:
         rw = recency_weight(a["attempted_at"], now=now)
         dw = difficulty_weight(a.get("difficulty_band"))
-        numerator += correctness_weight(a["is_correct"]) * rw * dw
+        numerator += correctness_weight(a["is_correct"], a.get("hint_count", 0)) * rw * dw
         denominator += rw * dw
     if denominator == 0.0:
         return 0.0
@@ -123,3 +140,53 @@ def recompute_mastery_for_problem(student_id: UUID, problem_id: UUID) -> dict:
         str(tid): recompute_technique_mastery(student_id, tid) for tid in linked["technique_ids"]
     }
     return {"concepts": concept_scores, "techniques": technique_scores}
+
+
+# Feedback/analytics layer (AGT-11 follow-up, closes MST-06) — turns raw scores
+# into an actionable "what to improve next" plan. Pure aggregation/recommendation
+# on top of already-computed mastery; never computes a score itself.
+MASTERY_TIER_CRITICAL = 0.4
+MASTERY_TIER_DEVELOPING = 0.7
+
+
+def mastery_tier(score: float) -> str:
+    if score < MASTERY_TIER_CRITICAL:
+        return "critical"
+    if score < MASTERY_TIER_DEVELOPING:
+        return "developing"
+    return "solid"
+
+
+def build_improvement_plan(
+    student_id: UUID, *, max_focus_areas: int = 5, practice_problems_per_area: int = 3
+) -> dict:
+    """Ranks a student's weakest (not yet "solid") concepts/techniques and attaches
+    a few recommended practice problems to each, reusing the existing
+    GET /v1/concepts/{slug}/problems and /v1/techniques/{slug}/problems lookups
+    (knowledge.concept/technique hierarchy, already live) — no new retrieval path.
+    """
+    summary = learner_db.get_mastery_summary(student_id)
+    focus_areas: list[dict] = []
+    for kind, items, lookup in (
+        ("concept", summary["concepts"], queries.get_concept_problems),
+        ("technique", summary["techniques"], queries.get_technique_problems),
+    ):
+        for item in items:
+            tier = mastery_tier(item["mastery_score"])
+            if tier == "solid":
+                continue
+            focus_areas.append({
+                "kind": kind,
+                "slug": item["slug"],
+                "name": item["name"],
+                "mastery_score": item["mastery_score"],
+                "tier": tier,
+                "attempts_count": item["attempts_count"],
+                "recommended_problems": lookup(item["slug"], limit=practice_problems_per_area),
+            })
+    focus_areas.sort(key=lambda a: a["mastery_score"])
+    return {
+        "student_id": str(student_id),
+        "focus_areas": focus_areas[:max_focus_areas],
+        "total_struggling_areas": len(focus_areas),
+    }

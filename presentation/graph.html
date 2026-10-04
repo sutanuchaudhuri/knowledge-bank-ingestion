@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Knowledge Graph — MathBank Platform</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="dot"></span> MathBank Platform</div>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="architecture.html">Ingestion &amp; Inference</a>
+    <a href="data-model.html">Data Model</a>
+    <a href="graph.html">Knowledge Graph</a>
+    <a href="use-cases.html">Use Cases</a>
+    <a href="tutor-interaction.html">Tutor Interaction</a>
+    <a href="student-impact.html">Student Impact</a>
+    <a href="thought-process.html">How This Was Built</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero reveal" style="padding-top:36px">
+    <span class="eyebrow">03 · Graph</span>
+    <h1>Knowledge Graph (Neo4j AuraDB)</h1>
+    <p class="lede">Postgres is the system of record; this graph is a <strong>derived, re-buildable
+    projection</strong> — every node and edge below traces back to a Postgres row. The graph canvas further
+    down is <strong>real data</strong>, exported live from AuraDB (AMC10 2023, 14 problems and their
+    concepts/techniques), not a mockup.</p>
+  </section>
+
+  <h2 id="model"><span class="section-no">A</span>Node &amp; relationship model</h2>
+  <pre class="mermaid reveal">
+flowchart LR
+    Competition -->|HAS_PAPER| Paper
+    Paper -->|HAS_PROBLEM| Problem
+    Problem -->|HAS_SOLUTION| Solution
+    Problem -->|"TESTS {role, confidence}"| Concept
+    Problem -->|"USES_TECHNIQUE {role, confidence}"| Technique
+    Concept -->|"CONCEPT_RELATION {relation_type, strength}"| Concept
+    Student -.->|"MASTERED (score≥0.8) — planned"| Concept
+    Student -.->|"STRUGGLES_WITH (score<0.4) — planned"| Concept
+
+    classDef planned stroke-dasharray: 5 5,opacity:0.6
+    class Student planned
+  </pre>
+  <p style="font-size:13px">Dashed = designed but not yet projected (MST-05/06 — see
+  <a href="use-cases.html#mastery">the mastery use case</a> for the full plan).</p>
+
+  <h2 id="live"><span class="section-no">B</span>Live subgraph — click a node</h2>
+  <div class="graph-legend reveal">
+    <span class="item"><span class="swatch" style="background:#f5a623"></span> Competition</span>
+    <span class="item"><span class="swatch" style="background:#6d8dfd"></span> Paper</span>
+    <span class="item"><span class="swatch" style="background:#3ddc97"></span> Problem</span>
+    <span class="item"><span class="swatch" style="background:#ef5a6f"></span> Concept</span>
+    <span class="item"><span class="swatch" style="background:#b06ef5"></span> Technique</span>
+  </div>
+  <div class="grid cols-2 reveal" style="grid-template-columns: 2fr 1fr; align-items:start">
+    <div id="graph-canvas" class="diagram clickable-hint"></div>
+    <div>
+      <h3 style="margin-top:0">Node details</h3>
+      <div id="node-details"><em>Click a node to inspect its real properties (loaded from a live AuraDB export).</em></div>
+    </div>
+  </div>
+  <p style="font-size:13px">Exported with: <code>MATCH (c:Competition {external_code:'AMC10'})-[:HAS_PAPER]-&gt;(p:Paper)
+  WHERE p.year &gt;= 2023 ... MATCH (p)-[:HAS_PROBLEM]-&gt;(pr:Problem) ... OPTIONAL MATCH (pr)-[:TESTS]-&gt;(c:Concept)</code>
+  — 43 real nodes, 65 real edges, saved to <code>assets/data/graph-sample.json</code>.</p>
+
+  <h2 id="cypher"><span class="section-no">C</span>Cypher queries mapped to use cases</h2>
+
+  <div class="accordion reveal">
+    <summary>Use case: "Show me the knowledge graph around problem X" <span class="meta">graph browser detail view</span></summary>
+    <div class="body">
+      <pre>MATCH (pr:Problem {canonical_code: $code})
+OPTIONAL MATCH (pr)-[t:TESTS]->(c:Concept)
+OPTIONAL MATCH (pr)-[u:USES_TECHNIQUE]->(tech:Technique)
+OPTIONAL MATCH (pr)<-[:HAS_PROBLEM]-(p:Paper)<-[:HAS_PAPER]-(comp:Competition)
+RETURN pr, collect(DISTINCT c) AS concepts, collect(DISTINCT tech) AS techniques, p, comp</pre>
+      <p>Powers mathbank-web's <code>/graph</code> problem detail panel — one query, full context.</p>
+    </div>
+  </div>
+
+  <div class="accordion reveal">
+    <summary>Use case: "What else tests the same concept?" <span class="meta">related-practice recommendation</span></summary>
+    <div class="body">
+      <pre>MATCH (pr:Problem {canonical_code: $code})-[:TESTS]->(c:Concept)<-[:TESTS]-(related:Problem)
+WHERE related.canonical_code <> $code
+RETURN DISTINCT related.canonical_code, related.difficulty_band
+ORDER BY related.difficulty_band
+LIMIT 10</pre>
+      <p>This is the Cypher-native equivalent of "find similar questions" — and it's what a
+      personalization layer would filter by mastery score once <code>MASTERED</code>/<code>STRUGGLES_WITH</code>
+      edges exist (see the dashed edges above).</p>
+    </div>
+  </div>
+
+  <div class="accordion reveal">
+    <summary>Use case: concept prerequisite / gap detection <span class="meta">planned — needs CONCEPT_RELATION traversal</span></summary>
+    <div class="body">
+      <pre>// Hypothetical once MASTERED edges exist:
+MATCH (s:Student {canonical_id: $studentId})
+MATCH (weak:Concept)<-[:STRUGGLES_WITH]-(s)
+MATCH (weak)<-[:HAS_SUBCONCEPT]-(parent:Concept)
+WHERE NOT (s)-[:MASTERED]->(parent)
+RETURN parent.name AS prerequisite_gap, weak.name AS specific_weak_spot</pre>
+      <p>Traverses the concept hierarchy (the same <code>HAS_SUBCONCEPT</code> tree that fixed the
+      combinatorics search bug) to recommend <em>prerequisite</em> review, not just more of the same
+      problem type.</p>
+    </div>
+  </div>
+
+  <div class="accordion reveal">
+    <summary>Use case: coverage audit — which competitions are under-classified? <span class="meta">operational, used in GOTCHAS #16</span></summary>
+    <div class="body">
+      <pre>MATCH (comp:Competition)-[:HAS_PAPER]->(:Paper)-[:HAS_PROBLEM]->(pr:Problem)
+OPTIONAL MATCH (pr)-[:TESTS]->(:Concept)
+WITH comp.name AS competition, count(DISTINCT pr) AS problems,
+     count(DISTINCT pr) FILTER (WHERE EXISTS { (pr)-[:TESTS]->(:Concept) }) AS tagged
+RETURN competition, problems, tagged, round(100.0 * tagged / problems, 1) AS pct_tagged
+ORDER BY pct_tagged</pre>
+      <p>This exact pattern (run against Postgres, not Cypher, for the production check) is what surfaced
+      that SMT/CHMMC/PUMaC/CMM were 0-5% classified vs ~99% for AMC/AIME — directly motivating the
+      parallel classification batches covered in the ingestion page.</p>
+    </div>
+  </div>
+
+  <h2 id="constraints"><span class="section-no">D</span>Constraints — what keeps the graph consistent</h2>
+  <pre class="diagram reveal">CREATE CONSTRAINT competition_id IF NOT EXISTS FOR (n:Competition) REQUIRE n.canonical_id IS UNIQUE
+CREATE CONSTRAINT paper_id       IF NOT EXISTS FOR (n:Paper)       REQUIRE n.canonical_id IS UNIQUE
+CREATE CONSTRAINT problem_id     IF NOT EXISTS FOR (n:Problem)     REQUIRE n.canonical_id IS UNIQUE
+CREATE CONSTRAINT concept_id     IF NOT EXISTS FOR (n:Concept)     REQUIRE n.canonical_id IS UNIQUE
+CREATE CONSTRAINT technique_id   IF NOT EXISTS FOR (n:Technique)   REQUIRE n.canonical_id IS UNIQUE
+CREATE CONSTRAINT solution_id    IF NOT EXISTS FOR (n:Solution)    REQUIRE n.canonical_id IS UNIQUE</pre>
+  <p>Every <code>canonical_id</code> is the Postgres UUID itself — the constraint is what makes
+  <code>MERGE</code>-based re-projection safe to run an unlimited number of times.</p>
+</main>
+
+<footer>
+  <a href="data-model.html">&larr; Postgres Data Model</a> ·
+  Next: <a href="use-cases.html">Use Cases</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://unpkg.com/vis-network@9/standalone/umd/vis-network.min.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

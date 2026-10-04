@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MathBank — Competition Math Intelligence Platform</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="dot"></span> MathBank Platform</div>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="architecture.html">Ingestion &amp; Inference</a>
+    <a href="data-model.html">Data Model</a>
+    <a href="graph.html">Knowledge Graph</a>
+    <a href="use-cases.html">Use Cases</a>
+    <a href="tutor-interaction.html">Tutor Interaction</a>
+    <a href="student-impact.html">Student Impact</a>
+    <a href="thought-process.html">How This Was Built</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero reveal">
+    <span class="eyebrow">Competition Math Intelligence Platform</span>
+    <h1>From a crawled PDF to a personalized tutor<br/>— every stage, logged.</h1>
+    <p class="lede">
+      MathBank turns raw competition-math papers (AMC/AIME/AIME-style PDFs and AoPS wiki pages)
+      into a queryable corpus, a knowledge graph, a hybrid search engine, and an agentic tutor —
+      with every ingestion stage tracked in Postgres and every graph fact traceable back to its source.
+      This presentation is a clickable walkthrough built directly from the live system.
+    </p>
+    <div class="audience-toggle" role="tablist" aria-label="Audience">
+      <button data-audience="technical">Technical view</button>
+      <button data-audience="business">Business view</button>
+    </div>
+  </section>
+
+  <div data-audience-only="business" class="reveal">
+    <p style="font-size:15px; color:var(--text-dim); max-width:760px">
+      <strong style="color:var(--text)">In plain terms:</strong> this system takes thousands of
+      real competition math problems, figures out <em>what each one is really testing</em>
+      (which topic, which technique), and uses that understanding to power a tutoring agent that can
+      answer a student's question with real, cited problems — and eventually track what each student
+      has and hasn't mastered, so practice becomes targeted instead of random.
+    </p>
+  </div>
+
+  <div class="stats reveal">
+    <div class="stat"><div class="num">9</div><div class="label">Competitions ingested</div></div>
+    <div class="stat"><div class="num">5,960+</div><div class="label">Problems in Postgres</div></div>
+    <div class="stat"><div class="num">13,168+</div><div class="label">Solutions linked</div></div>
+    <div class="stat"><div class="num">526</div><div class="label">Concepts in taxonomy</div></div>
+    <div class="stat"><div class="num">12,600+</div><div class="label">TESTS edges in Neo4j</div></div>
+    <div class="stat"><div class="num">5</div><div class="label">Postgres schemas</div></div>
+  </div>
+
+  <h2 id="map"><span class="section-no">00</span>Map of this presentation</h2>
+  <div class="grid cols-3 reveal">
+    <a class="nav-card" href="architecture.html">
+      <span class="step">01 → Pipeline</span>
+      <h3>Ingestion &amp; Inference</h3>
+      <p>Animated, click-through pipeline: crawl → classify → ETL → graph → embed → agent query, with the exact scripts and tables at each stage.</p>
+    </a>
+    <a class="nav-card" href="data-model.html">
+      <span class="step">02 → Schema</span>
+      <h3>Postgres Data Model</h3>
+      <p>Entity-relationship diagrams for all 5 schemas — core, knowledge, search, learner, pipeline — expandable per table.</p>
+    </a>
+    <a class="nav-card" href="graph.html">
+      <span class="step">03 → Graph</span>
+      <h3>Knowledge Graph</h3>
+      <p>The Neo4j node/edge model, <strong>a real exported subgraph you can click through</strong>, and Cypher queries mapped to concrete use cases.</p>
+    </a>
+    <a class="nav-card" href="use-cases.html">
+      <span class="step">04 → Scenarios</span>
+      <h3>Use Cases</h3>
+      <p>Four worked flows end-to-end: hybrid search, agent tutoring, student mastery, admin ingestion — each with the real SQL/Cypher/REST calls.</p>
+    </a>
+    <a class="nav-card" href="tutor-interaction.html">
+      <span class="step">04b → Replay</span>
+      <h3>Tutor Interaction, Step by Step</h3>
+      <p>A chat UI mock synced to an animated "behind the scenes" panel — every step's real REST call, SQL, vector search, or Cypher, one at a time or on autoplay.</p>
+    </a>
+    <a class="nav-card" href="student-impact.html">
+      <span class="step">05 → Value</span>
+      <h3>Student Impact</h3>
+      <p>Why this matters for learners and institutions — framed for a non-technical audience, with the roadmap to full personalization.</p>
+    </a>
+    <a class="nav-card" href="thought-process.html">
+      <span class="step">06 → Meta</span>
+      <h3>How This Was Built</h3>
+      <p>The design decisions behind this very presentation — why static HTML, why these diagram tools, how the graph data was sourced live.</p>
+    </a>
+  </div>
+
+  <h2 id="layers"><span class="section-no">01</span>The five layers, at a glance</h2>
+  <p>Every later page drills into one of these. The boundary rule that holds the whole system together:
+     <strong style="color:var(--text)">the agent never touches a database directly</strong> — it only calls mathbank-rest,
+     which is the single boundary onto Postgres and Neo4j.</p>
+  <pre class="mermaid reveal">
+flowchart LR
+    subgraph Ingestion["Ingestion (mathbank_data_ingestion + mathbank-db)"]
+        CR[Crawl PDFs / AoPS wiki]
+        CL[Classify via OpenAI]
+        ETL[Load into Postgres]
+    end
+    subgraph Storage["Storage"]
+        PG[(Postgres / Neon)]
+        N4[(Neo4j / AuraDB)]
+    end
+    subgraph Serving["Serving (mathbank-rest)"]
+        API[FastAPI boundary]
+    end
+    subgraph Experience["Experience"]
+        AGENT[ADK Agent + OpenAI]
+        WEB[mathbank-web UI]
+    end
+    CR --> CL --> ETL --> PG
+    ETL -.project.-> N4
+    PG --> API
+    N4 -.read-only views.-> WEB
+    API --> AGENT --> WEB
+    API --> WEB
+  </pre>
+
+  <h2 id="principles"><span class="section-no">02</span>Principles that show up everywhere</h2>
+  <div class="grid cols-2 reveal">
+    <div class="card">
+      <span class="tag">Idempotency</span>
+      <h3>Nothing duplicates on re-run</h3>
+      <p>Every loader upserts on a natural key (canonical_code, slug, external_code).
+      Re-running the whole pipeline from a clean checkout never creates a duplicate row — verified
+      via duplicate-key audits in the classification export step.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Traceability</span>
+      <h3>Every stage is logged in a table</h3>
+      <p><code>pipeline.run</code>, <code>pipeline.graph_projection</code>, <code>pipeline.pdf_source</code>,
+      and a local <code>ingestion_runs</code> SQLite table mean you can answer
+      "did this actually finish, and when" months later, not just by scrollback through a terminal.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Postgres is the system of record</span>
+      <h3>Neo4j is a derived view</h3>
+      <p>The graph is never hand-edited — it's re-projected from Postgres by Cypher <code>MERGE</code>,
+      so it's always safe to wipe and rebuild it.</p>
+    </div>
+    <div class="card">
+      <span class="tag">REST is the only door</span>
+      <h3>The agent cannot query the DB directly</h3>
+      <p>Every tool the tutoring agent can call is a narrow, versioned REST endpoint — this is what makes
+      prompt-injection containment and query governance possible.</p>
+    </div>
+  </div>
+</main>
+
+<footer>
+  MathBank Platform presentation — generated from the live system on 2026-10-04.
+  Source: <a href="../requirements/00_INDEX.md">requirements/</a> ·
+  <a href="../mathematics_tutor_db_plan/00_implementation_progress.md">implementation progress log</a> ·
+  <a href="thought-process.html">how this page was built</a>.
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

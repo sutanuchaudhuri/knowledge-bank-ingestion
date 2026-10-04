@@ -192,9 +192,27 @@ def main() -> None:
     p.add_argument("--db", type=Path, default=DB_PATH)
     p.add_argument("--retry-failed", action="store_true")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument(
+        "--shard-count", type=int, default=1,
+        help="Split a large competition's queue across N concurrent processes (see --shard-index)",
+    )
+    p.add_argument(
+        "--shard-index", type=int, default=0,
+        help="Which 0-based shard this process handles (0 <= shard-index < shard-count)",
+    )
     args = p.parse_args()
+    if not (0 <= args.shard_index < max(args.shard_count, 1)):
+        p.error("--shard-index must be 0 <= shard-index < shard-count")
 
     conn = sqlite3.connect(args.db)
+    # WAL + a generous busy_timeout let multiple `classify_pdf_corpus.py --competition X`
+    # processes run concurrently against the same data/mathbank.db — the slow part
+    # (OpenAI call) holds no lock; only the brief per-item INSERT/UPDATE does, and
+    # WAL readers never block writers. Without this, parallel runs intermittently
+    # hit "database is locked" since SQLite's default rollback-journal mode only
+    # allows one writer at a time with no wait.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     apply_migrations(conn)
 
     run = IngestionRun(conn, "classify_pdf_corpus", params=vars(args) | {"db": str(args.db)})
@@ -206,6 +224,17 @@ def main() -> None:
         run.__exit__(None, None, None)
         conn.close()
         return
+
+    if args.shard_count > 1:
+        # discover_questions() iterates sorted() paper/question dirs, so this
+        # slice is stable across processes/runs regardless of how many rows
+        # have since been classified — unlike an OFFSET on the dynamic
+        # "still pending" queue, which would shift under concurrent workers.
+        all_questions = all_questions[args.shard_index :: args.shard_count]
+        console.print(
+            f"[dim]shard {args.shard_index}/{args.shard_count}: "
+            f"{len(all_questions)} of the full discovered set"
+        )
 
     for q in all_questions:
         _ensure_question_row(conn, q)

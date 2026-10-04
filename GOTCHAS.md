@@ -324,6 +324,100 @@ with `make progress` / `make progress-remote` in `mathbank-db/`.
 the run crashed or was killed — that's the signal to look for, not a
 missing log file.
 
+## 18. `etl/pdf_pipeline.py` and `etl/embed_corpus.py` only ever connected to local Postgres
+
+Both scripts' `_connect()` hardcoded `host=127.0.0.1` — unlike
+`etl/load_corpus.py`, which already supported `PG_ENV_FILE=.../remote.env`
+to target Neon. This went unnoticed because `make etl`/`make etl-remote`
+(load_corpus.py) were the only ETL paths exercised against Neon until the
+admin pipeline work needed `pdf_pipeline.py fetch`/`reconcile`/`ingest` and
+`embed_corpus.py backfill` to run against the same remote rows an admin had
+just registered via `POST /v1/admin/papers` (which writes straight to Neon
+through mathbank-rest). Running either script with `PG_ENV_FILE=...` set
+silently still connected to `127.0.0.1:5433` and failed with a password/auth
+error instead of reaching Neon.
+
+**Fix**: both `_connect()` functions now mirror `load_corpus.py`'s
+`NEON_PG_*`-first-then-local-fallback precedence. **Takeaway**: any new
+`etl/*.py` script in `mathbank-db` needs this same `_connect()` pattern from
+day one if it might ever run against Neon — copy it from `load_corpus.py`,
+don't hardcode `127.0.0.1`.
+
+## 19. Admin-registered papers: PENDING rows, PDF vs HTML fetch paths, every stage logged
+
+Built per the ask: "tables automatically have rows PENDING once an admin
+adds a new competition with page urls" + a pipeline covering
+download/parse/populate-Postgres/populate-graph/vector-recalibration/
+classification, "competition specific" (some competitions publish PDFs,
+others a single HTML page per paper).
+
+**What already existed and was reused as-is** (no rebuild): `pipeline.pdf_source`
+(PENDING-by-default columns for download/parse/ingest, one row per paper) and
+`etl/pdf_pipeline.py`'s `reconcile`/`ingest` commands — both are **format-agnostic**,
+they only ever check for `questions/Qnn/problem.md` on disk, so a new fetch
+path for HTML papers needed zero changes to either.
+
+**What was added**:
+- `source_kind` column (`PDF` | `HTML`, `sql/004_admin_pipeline.sql`) on
+  `pipeline.pdf_source` — not a CHECK constraint (`ADD CONSTRAINT IF NOT EXISTS`
+  isn't idempotent in Postgres), validated at the REST layer instead.
+- `mathbank-rest` `/v1/admin/*` (new `routers/admin.py` + `db/admin.py`) —
+  `POST /v1/admin/competitions`, `POST /v1/admin/papers` (single/batch,
+  inserts the PENDING row immediately), `GET /v1/admin/papers` (status
+  dashboard), `POST /v1/admin/papers/{code}/retry`, `GET /v1/admin/pipeline/runs`
+  (merges `pipeline.run` + `pipeline.graph_projection`). Single shared
+  `X-Admin-Api-Key` header, not a per-user role system — deliberately scoped
+  down for the current one-operator reality; see the module docstring for
+  the "add real admin accounts later" follow-up.
+- `etl/pdf_pipeline.py::cmd_fetch_html` — a **generic**, stdlib-only
+  (`urllib` + `html.parser`, no Docling/extra deps) fetcher for `source_kind=HTML`
+  rows: treats the whole page as one `questions/Q01/problem.md` (+ `solution.md`
+  if a solution URL is set), since generic HTML can't be assumed to have the
+  AoPS-wiki or Docling-PDF per-question structure. A competition whose HTML
+  actually has multiple sub-pages per paper needs its own small parser
+  following the same contract (write `questions/Qnn/problem.md`), not a
+  change to `reconcile`/`ingest`. `cmd_fetch` (existing PDF path) now only
+  queries `source_kind='PDF'` rows; `fetch` runs both.
+- `etl/embed_corpus.py backfill` wired into `pipeline.run` (run_type
+  `EMBED_BACKFILL`) for parity with `load_corpus.py`/`pdf_pipeline.py` —
+  "vector db recalibration" is now one of the logged stages too.
+- `mathbank-web/app/admin` — form to add a competition, form to register a
+  paper (code/year/URLs/source_kind), live paper-status dashboard, live
+  pipeline-runs table. Proxies through new `app/api/rest/admin/*` routes that
+  attach `X-Admin-Api-Key` **server-side** (`MATHBANK_ADMIN_API_KEY` env var,
+  never sent to the browser) — same "browser only calls our own /api/rest/*"
+  boundary as the rest of `mathbank-web`.
+
+**Verified live against Neon**: competition create → paper register (both
+`PDF` and `HTML` source_kind) → PENDING row appears immediately via both
+`curl` and the web UI → `fetch` (HTML path only, using `https://example.com`
+as a safe test target) → `DOWNLOADED`/`PARSED` → `reconcile` confirms it on
+disk. (`ingest` for that specific test paper hit the **unrelated**, pre-existing
+`PAPER_ID_RE` limitation below — not a new bug.) Test rows deleted after
+verification.
+
+**Separate, pre-existing limitation surfaced (not fixed, out of scope here)**:
+`load_corpus.py`/`pdf_pipeline.py`'s `PAPER_ID_RE = r"^PAPER_[A-Z]+_(\d{4})_(.+)$"`
+requires the competition-code segment to be letters only — no underscore. Real
+per-question-split competitions (CHMMC/CMM/PUMAC/SMT) happen to have
+no-underscore codes so this never surfaced before; a test competition named
+`TEST_HTML_COMP` hit it immediately. If a future competition's natural code
+needs an underscore (unlike `MPG_OLY`, which is NOT per-question-split and so
+never goes through this ingest path), this regex needs widening.
+
+## 20. Postgres `AVG()` over an exact-zero `NUMERIC` column serializes as `"0E-20"` in JSON
+
+Hit while verifying the new `GET /v1/analytics/weak-concepts` cohort analytics
+endpoint (`db/learner.py::get_cohort_weak_concepts`) — `AVG(m.mastery_score)`
+where `mastery_score` is `NUMERIC` and every row happens to be exactly `0`
+returns a `Decimal` with a large negative exponent (`Decimal('0E-20')`), which
+then serializes in the JSON response as the *string* `"0E-20"` instead of a
+clean `0.0` — technically correct but confusing for any client doing numeric
+comparisons/formatting on it. Same risk applies to any `AVG()`/`SUM()` over a
+`NUMERIC` column in this codebase, not just this one query. Fix: explicitly
+cast in SQL, e.g. `CAST(AVG(m.mastery_score) AS DOUBLE PRECISION)`, rather
+than relying on the driver/FastAPI's default `Decimal` handling.
+
 ## Single-command recreation
 
 ```bash

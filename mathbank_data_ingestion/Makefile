@@ -184,6 +184,18 @@ review-dry:                 ## Preview review queue without API calls
 review-retry:               ## Re-review NEEDS_HUMAN_REVIEW questions
 	$(BIN)/python scripts/review_classified.py --retry-failed --limit $(or $(LIMIT),20)
 
+# ── Eval (classification quality + corpus health) ─────────────────────────────
+
+.PHONY: eval-classification
+eval-classification:        ## Corpus health + blind reclassification accuracy vs hand-reviewed gold (set LIMIT= LEVEL=)
+	$(BIN)/python scripts/evaluate_classification.py --reclassify \
+	  --limit $(or $(LIMIT),20) \
+	  $(if $(LEVEL),--level "$(LEVEL)",)
+
+.PHONY: eval-classification-dry
+eval-classification-dry:    ## Corpus health only — no OpenAI calls
+	$(BIN)/python scripts/evaluate_classification.py
+
 .PHONY: db
 db:                            ## Build / refresh the local SQLite corpus database
 	$(BIN)/python scripts/build_sqlite.py

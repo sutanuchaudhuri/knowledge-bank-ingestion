@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Use Cases — MathBank Platform</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="dot"></span> MathBank Platform</div>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="architecture.html">Ingestion &amp; Inference</a>
+    <a href="data-model.html">Data Model</a>
+    <a href="graph.html">Knowledge Graph</a>
+    <a href="use-cases.html">Use Cases</a>
+    <a href="tutor-interaction.html">Tutor Interaction</a>
+    <a href="student-impact.html">Student Impact</a>
+    <a href="thought-process.html">How This Was Built</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero reveal" style="padding-top:36px">
+    <span class="eyebrow">04 · Scenarios</span>
+    <h1>Four worked use cases, end to end</h1>
+    <p class="lede">Each card below expands into the real SQL, Cypher, and REST calls involved —
+    not a simplified diagram. Two are fully implemented and verified live; two are designed and partially
+    built, clearly marked.</p>
+  </section>
+
+  <div class="grid cols-4 reveal" style="margin-bottom:10px">
+    <div class="card"><span class="pill pg">Live</span><h3 style="margin-top:8px">Hybrid Search</h3><p>Implemented</p></div>
+    <div class="card"><span class="pill ai">Live</span><h3 style="margin-top:8px">Agent Tutoring</h3><p>Implemented</p></div>
+    <div class="card"><span class="pill pg">Live</span><h3 style="margin-top:8px">Admin Ingestion</h3><p>Implemented</p></div>
+    <div class="card"><span class="pill neo">Designed</span><h3 style="margin-top:8px" id="mastery">Student Mastery</h3><p>Backend done, graph pending</p></div>
+  </div>
+
+  <h2 id="search"><span class="section-no">A</span>Use case 1 — Hybrid search ("find me combinatorics problems from AIME")</h2>
+  <div class="accordion reveal" open>
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For a student or teacher:</strong> type a topic in plain
+      English, get back real problems — no need to know the exact taxonomy name or browse by competition manually.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> Reciprocal Rank Fusion (RRF) over
+      two candidate lists — pgvector cosine-similarity ANN search and Postgres full-text search — combined
+      with a pre-filter CTE so competition/year filters narrow the candidate pool <em>before</em> ranking,
+      not after.</p>
+      <pre>POST /v1/search/problems
+{
+  "query": "combinatorics counting problems",
+  "filters": {"competition": "AIME"},
+  "retrieval": {"semantic": true, "lexical": true},
+  "order_by": "year_desc",
+  "limit": 10
+}</pre>
+      <pre>-- the pre-filter CTE that fixed a real empty-results bug
+WITH eligible_problem AS (
+    SELECT p.problem_id FROM core.problem p
+    JOIN core.paper pa ON pa.paper_id = p.paper_id
+    JOIN core.competition_edition ed ON ed.edition_id = pa.edition_id
+    JOIN core.competition comp ON comp.competition_id = ed.competition_id
+    WHERE comp.external_code = 'AIME'
+),
+semantic AS (
+    SELECT e.chunk_id, row_number() OVER (ORDER BY e.embedding <=> :query_vector) AS rnk
+    FROM search.embedding e JOIN search.chunk c ON c.chunk_id = e.chunk_id
+    JOIN eligible_problem ep ON ep.problem_id = c.problem_id
+    ORDER BY e.embedding <=> :query_vector LIMIT 100
+)
+-- ... lexical CTE mirrors this, then RRF: 1/(60+rank_semantic) + 1/(60+rank_lexical)</pre>
+    </div>
+  </div>
+
+  <h2 id="tutor"><span class="section-no">B</span>Use case 2 — Agent tutoring ("explain why the answer to this is 17")</h2>
+  <div class="accordion reveal">
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For a student:</strong> a chat interface that answers
+      with <em>real, cited</em> problems and solutions — never a hallucinated problem, because the agent is
+      structurally forbidden from answering without evidence from a tool call.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> Google ADK <code>LlmAgent</code> +
+      <code>LiteLlm</code> connector to OpenAI (not Gemini). The agent's only capability is calling
+      narrow, versioned REST tools — it cannot query Postgres/Neo4j directly, which is also the primary
+      prompt-injection containment boundary.</p>
+      <table class="data"><tbody>
+        <tr><td>Tool</td><td><code>search_problems(query, filters, order_by)</code> → <code>POST /v1/search/problems</code></td></tr>
+        <tr><td>Tool</td><td><code>get_problem(canonical_code)</code> → <code>GET /v1/problems/by-code/{code}</code></td></tr>
+        <tr><td>Tool (planned)</td><td><code>get_student_mastery_summary(student_id)</code> → <code>GET /v1/learner/mastery</code></td></tr>
+        <tr><td>Grounding rule</td><td>Final answer may only cite problems that appeared in a tool response this turn</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h2 id="ingestion"><span class="section-no">C</span>Use case 3 — Admin adds a new competition</h2>
+  <div class="accordion reveal">
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For a content operator:</strong> paste a competition's
+      page URLs into a form — the system tracks every paper's progress (downloaded? parsed? loaded?) without
+      needing a developer to run scripts by hand.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> <code>POST /v1/admin/papers</code>
+      writes straight to <code>pipeline.pdf_source</code> with <code>status=PENDING</code> — the existing
+      <code>reconcile</code>/<code>ingest</code> commands are <strong>format-agnostic</strong> (they only
+      check for <code>questions/Qnn/problem.md</code> on disk), so a brand-new stdlib-only HTML fetch path
+      needed zero changes to either.</p>
+      <pre>curl -X POST /v1/admin/competitions -H "X-Admin-Api-Key: $KEY" \
+  -d '{"external_code":"NEW_COMP","name":"New Competition"}'
+
+curl -X POST /v1/admin/papers -H "X-Admin-Api-Key: $KEY" \
+  -d '{"paper_external_code":"PAPER_NEW_COMP_2027_TEAM",
+       "competition_external_code":"NEW_COMP","year":2027,
+       "problem_url":"https://...","source_kind":"PDF"}'
+# → pipeline.pdf_source row created instantly: download_status=PENDING</pre>
+      <p>Then: <code>make pdf-fetch</code> (PDF via Docling, HTML via stdlib) →
+      <code>make pdf-reconcile</code> → <code>make pdf-ingest</code> — each stage updates its own status
+      column, visible live in the admin dashboard.</p>
+    </div>
+  </div>
+
+  <h2 id="mastery-detail"><span class="section-no">D</span>Use case 4 — Student mastery tracking <span class="pill neo" style="vertical-align:middle">backend live, graph pending</span></h2>
+  <div class="accordion reveal">
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For a student:</strong> instead of random practice, the
+      system remembers what you've gotten right and wrong recently, and weights recommendations toward
+      what you're actually struggling with — recent performance counts more than something you got right
+      six months ago.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> time-decayed, difficulty-weighted
+      accuracy, recomputed inline after every attempt. Fully implemented in Postgres; the Neo4j
+      <code>MASTERED</code>/<code>STRUGGLES_WITH</code> projection is designed (threshold-based, score ≥0.8
+      / &lt;0.4) but not yet wired — the mastery math works today, the graph-based recommendation doesn't yet.</p>
+      <pre>POST /v1/learner/attempts  (Authorization: Bearer &lt;jwt&gt;)
+{"problem_code": "AIME_1983_Q01", "is_correct": true, "time_spent_seconds": 120}
+→ recomputes learner.concept_mastery / technique_mastery inline, returns updated scores
+
+GET /v1/learner/mastery → {"concepts": [...], "techniques": [...]}</pre>
+      <p style="font-size:13.5px">
+      $$ \text{mastery}(s,c) = \dfrac{\sum_a \text{correct}(a)\cdot e^{-\text{days}/45}\cdot(1+0.5\cdot\text{difficulty}(a))}{\sum_a e^{-\text{days}/45}\cdot(1+0.5\cdot\text{difficulty}(a))} $$
+      </p>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="graph.html">&larr; Knowledge Graph</a> ·
+  Next: <a href="student-impact.html">Student Impact</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

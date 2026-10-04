@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import sqlite3
 import textwrap
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -179,10 +181,14 @@ def _build_user_prompt(
 
 # ── API call ──────────────────────────────────────────────────────────────────
 
+_MAX_RATE_LIMIT_RETRIES = 6
+_BASE_BACKOFF_SECONDS = 5.0
+
+
 def _call_openai(system: str, user: str, model: str) -> str:
     # Import lazily to avoid hard dependency if openai is not installed.
     try:
-        from openai import OpenAI  # type: ignore
+        from openai import OpenAI, RateLimitError  # type: ignore
     except ImportError as exc:
         raise RuntimeError("openai package not installed — run: pip install openai>=1.30") from exc
 
@@ -191,17 +197,33 @@ def _call_openai(system: str, user: str, model: str) -> str:
         raise RuntimeError("OPENAI_API_KEY environment variable is not set")
 
     client = OpenAI(api_key=api_key)
-    resp = client.chat.completions.create(
-        model=model,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user",   "content": user},
-        ],
-        temperature=0.1,   # near-deterministic for classification
-        max_tokens=1024,
-    )
-    return resp.choices[0].message.content or "{}"
+    # TPM (tokens-per-minute) is an org-wide limit shared across every concurrent
+    # classify_crawled.py/classify_pdf_corpus.py process — running more parallel
+    # batches than the account's TPM allows doesn't raise total throughput, it
+    # just produces more 429s. Retry with exponential backoff + jitter so a
+    # transient rate-limit window turns into a short wait instead of a permanent
+    # PARTIAL/failed classification (see GOTCHAS.md for the incident this fixed).
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RATE_LIMIT_RETRIES):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                temperature=0.1,  # near-deterministic for classification
+                max_tokens=1024,
+            )
+            return resp.choices[0].message.content or "{}"
+        except RateLimitError as exc:
+            last_exc = exc
+            if attempt == _MAX_RATE_LIMIT_RETRIES - 1:
+                break
+            delay = _BASE_BACKOFF_SECONDS * (2**attempt) + random.uniform(0, 2.0)
+            time.sleep(delay)
+    raise last_exc  # type: ignore[misc] - loop always sets last_exc before falling through
 
 
 # ── Response parser ───────────────────────────────────────────────────────────

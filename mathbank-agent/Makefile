@@ -63,6 +63,10 @@ chat:                            ## Chat with the agent directly in the terminal
 test:                            ## Run the test suite
 	$(BIN)/pytest
 
+.PHONY: eval-agent
+eval-agent:                      ## Tool-selection accuracy against golden cases (needs mathbank-rest running + OPENAI_API_KEY; costs credits)
+	$(BIN)/python scripts/evaluate_agent.py
+
 .PHONY: help
 help:                            ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \

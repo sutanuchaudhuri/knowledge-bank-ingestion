@@ -1,0 +1,25 @@
+run_at,git_sha,metric,value,n,details
+2026-10-04T15:15:31.781989+00:00,6ca1a76,corpus_total_questions,6564,6564,
+2026-10-04T15:15:31.781989+00:00,6ca1a76,pct_with_problem_text,0.7655,6564,5025/6564 non-empty
+2026-10-04T15:15:31.781989+00:00,6ca1a76,pct_with_solution_text,0.7421,6564,4871/6564 non-empty
+2026-10-04T15:15:31.781989+00:00,6ca1a76,pct_with_answer_value,0.4516,6564,2964/6564 non-empty
+2026-10-04T15:15:31.781989+00:00,6ca1a76,status_count__SOLUTION_REVIEWED,5021,6564,
+2026-10-04T15:15:31.781989+00:00,6ca1a76,status_count__UNMAPPED,847,6564,
+2026-10-04T15:15:31.781989+00:00,6ca1a76,status_count__FINE_CONCEPT_MAPPED,587,6564,
+2026-10-04T15:15:31.781989+00:00,6ca1a76,status_count__BROAD_OR_OTHER_ONLY,96,6564,
+2026-10-04T15:15:31.781989+00:00,6ca1a76,status_count__PARTIAL,13,6564,
+2026-10-04T15:15:31.781989+00:00,6ca1a76,pct_fine_complete_human_reviewed,0.0,0,0/0 FINE_COMPLETE rows have a review_status
+2026-10-04T15:15:31.781989+00:00,6ca1a76,pct_reviewed_that_were_corrected,0.0,0,high values signal the classifier prompt/taxonomy needs attention
+2026-10-04T15:16:09.228973+00:00,6ca1a76,corpus_total_questions,6564,6564,
+2026-10-04T15:16:09.228973+00:00,6ca1a76,pct_with_problem_text,0.7655,6564,5025/6564 non-empty
+2026-10-04T15:16:09.228973+00:00,6ca1a76,pct_with_solution_text,0.7421,6564,4871/6564 non-empty
+2026-10-04T15:16:09.228973+00:00,6ca1a76,pct_with_answer_value,0.4516,6564,2964/6564 non-empty
+2026-10-04T15:16:09.228973+00:00,6ca1a76,status_count__SOLUTION_REVIEWED,5018,6564,
+2026-10-04T15:16:09.228973+00:00,6ca1a76,status_count__UNMAPPED,847,6564,
+2026-10-04T15:16:09.228973+00:00,6ca1a76,status_count__FINE_CONCEPT_MAPPED,587,6564,
+2026-10-04T15:16:09.228973+00:00,6ca1a76,status_count__BROAD_OR_OTHER_ONLY,96,6564,
+2026-10-04T15:16:09.228973+00:00,6ca1a76,status_count__PARTIAL,13,6564,
+2026-10-04T15:16:09.228973+00:00,6ca1a76,status_count__FINE_COMPLETE,3,6564,
+2026-10-04T15:16:09.228973+00:00,6ca1a76,pct_fine_complete_human_reviewed,1.0,3,3/3 FINE_COMPLETE rows have a review_status
+2026-10-04T15:16:09.228973+00:00,6ca1a76,pct_reviewed_that_were_corrected,0.6667,3,high values signal the classifier prompt/taxonomy needs attention
+2026-10-04T15:16:19.738178+00:00,6ca1a76,primary_concept_reclassification_accuracy,0.6667,3,AIME_1983_Q05: predicted='CX_POLY_TRANSFORM' gold='ALG_EQ'

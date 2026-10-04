@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from mathbank_rest.db import learner as learner_db
 from mathbank_rest.db import queries, vector_search
 
 router = APIRouter(prefix="/v1")
@@ -98,6 +99,17 @@ def get_technique_problems(
 @router.get("/corpus/coverage")
 def get_corpus_coverage() -> list[dict]:
     return queries.corpus_coverage()
+
+
+@router.get("/analytics/weak-concepts")
+def get_weak_concepts(
+    min_students: int = Query(1, ge=1), limit: int = Query(20, le=100)
+) -> list[dict]:
+    """Cohort-level (no PII — concept-level aggregates only), lowest average
+    mastery first. Signals what to improve at the platform level: genuinely
+    hard material, a thin bank of practice problems, or a retrieval gap —
+    not any individual student's data."""
+    return learner_db.get_cohort_weak_concepts(min_students=min_students, limit=limit)
 
 
 @router.post("/search/problems")

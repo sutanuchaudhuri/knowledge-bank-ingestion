@@ -54,12 +54,17 @@ _encoding = tiktoken.get_encoding("cl100k_base")
 
 
 def _connect():
+    # NEON_PG_* (from mathbank-graph/remote.env, via PG_ENV_FILE) target the
+    # remote Neon instance; falls back to the local mathbank-db cluster when
+    # absent — same precedence as etl/load_corpus.py::main().
     env = _load_env()
     conninfo = (
-        f"host=127.0.0.1 port={env.get('PG_PORT', '5433')} "
-        f"dbname={env.get('APP_DB', 'mathbank')} "
-        f"user={env.get('APP_USER', 'mathbank_app')} "
-        f"password={env.get('APP_DB_PASSWORD', '')}"
+        f"host={env.get('NEON_PG_HOST', '127.0.0.1')} "
+        f"port={env.get('NEON_PG_PORT') or env.get('PG_PORT', '5433')} "
+        f"dbname={env.get('NEON_PG_DATABASE') or env.get('APP_DB', 'mathbank')} "
+        f"user={env.get('NEON_PG_USER') or env.get('APP_USER', 'mathbank_app')} "
+        f"password={env.get('NEON_PG_PASSWORD') or env.get('APP_DB_PASSWORD', '')}"
+        + (f" sslmode={env['NEON_PG_SSLMODE']}" if env.get("NEON_PG_SSLMODE") else "")
     )
     return psycopg.connect(conninfo)
 
@@ -352,11 +357,33 @@ def main() -> None:
 
             if args.command == "backfill":
                 _ensure_openai_api_key()
-                reps, chunks = build_representations_and_chunks(cur, profile_id, args.limit)
+                cur.execute(
+                    "INSERT INTO pipeline.run (run_type, status, started_at) "
+                    "VALUES ('EMBED_BACKFILL', 'IN_PROGRESS', now()) RETURNING run_id"
+                )
+                run_id = cur.fetchone()[0]
                 conn.commit()
-                print(f"representations: {reps} chunks: {chunks}")
-                embedded, failed = embed_pending_chunks(cur, conn, model_id, args.limit)
-                print(f"embedded: {embedded} failed: {failed}")
+                try:
+                    reps, chunks = build_representations_and_chunks(cur, profile_id, args.limit)
+                    conn.commit()
+                    print(f"representations: {reps} chunks: {chunks}")
+                    embedded, failed = embed_pending_chunks(cur, conn, model_id, args.limit)
+                    print(f"embedded: {embedded} failed: {failed}")
+                except Exception as exc:
+                    cur.execute(
+                        "UPDATE pipeline.run SET status = 'FAILED', completed_at = now(), "
+                        "metadata = metadata || jsonb_build_object('error', %s) WHERE run_id = %s",
+                        (str(exc)[:2000], run_id),
+                    )
+                    conn.commit()
+                    raise
+                else:
+                    cur.execute(
+                        "UPDATE pipeline.run SET status = 'COMPLETED', completed_at = now(), "
+                        "completed_items = %s, failed_items = %s WHERE run_id = %s",
+                        (embedded, failed, run_id),
+                    )
+                    conn.commit()
             elif args.command == "index":
                 create_hnsw_index(cur, model_id)
                 conn.commit()

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Student Impact — MathBank Platform</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="dot"></span> MathBank Platform</div>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="architecture.html">Ingestion &amp; Inference</a>
+    <a href="data-model.html">Data Model</a>
+    <a href="graph.html">Knowledge Graph</a>
+    <a href="use-cases.html">Use Cases</a>
+    <a href="tutor-interaction.html">Tutor Interaction</a>
+    <a href="student-impact.html">Student Impact</a>
+    <a href="thought-process.html">How This Was Built</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero reveal" style="padding-top:36px">
+    <span class="eyebrow">05 · Value</span>
+    <h1>Why this matters for a student</h1>
+    <p class="lede">This page is intentionally written for a non-technical audience — a teacher,
+    a parent, a program director. Every claim here links back to something real and working,
+    not a roadmap promise.</p>
+  </section>
+
+  <h2 id="problem"><span class="section-no">A</span>The problem with generic practice sets</h2>
+  <div class="grid cols-2 reveal">
+    <div class="card">
+      <h3>"More problems" isn't the same as "the right problems"</h3>
+      <p>A student who's shaky on casework (combinatorics) doesn't improve by grinding geometry problems,
+      no matter how many of them they do. Most practice platforms can't tell the difference because they
+      don't actually know what a problem is testing.</p>
+    </div>
+    <div class="card">
+      <h3>Competitions don't come with their own index</h3>
+      <p>AMC, AIME, SMT, PUMaC, CHMMC — each publishes problems and official solutions, but none of them
+      tag "this problem is really about the Pigeonhole Principle." Building that index by hand for
+      thousands of problems isn't realistic. Building it with AI, and <em>checking the AI's work</em>, is
+      what this system does.</p>
+    </div>
+  </div>
+
+  <h2 id="how"><span class="section-no">B</span>How MathBank is different</h2>
+  <div class="grid cols-3 reveal">
+    <div class="card">
+      <span class="tag">Today</span>
+      <h3>Ask in plain English</h3>
+      <p>"Show me recent AIME problems about combinatorics" returns real, cited problems — not a
+      keyword match, a genuine understanding of what each problem tests.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Today</span>
+      <h3>Every answer is grounded</h3>
+      <p>The tutoring agent can only cite problems it actually retrieved this turn — it is structurally
+      unable to invent a problem that doesn't exist in the corpus.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Coming next</span>
+      <h3>Personalized to what <em>you</em> struggle with</h3>
+      <p>The mastery-tracking backend already computes a decaying, difficulty-aware score per student per
+      concept — the next step is having the tutor actually use it to steer recommendations.</p>
+    </div>
+  </div>
+
+  <h2 id="honest"><span class="section-no">C</span>An honest look at where quality is still improving</h2>
+  <p>This platform is built to show its work rather than hide weak spots behind a demo. Two real examples,
+  found by the system's own quality checks:</p>
+  <div class="grid cols-2 reveal">
+    <div class="card">
+      <h3>Classification coverage varies by competition</h3>
+      <p>AMC/AIME are ~99% tagged with a concept; smaller archives like CHMMC/PUMaC/SMT started at 0-5% and
+      are being brought up to parity with dedicated classification batches (in progress as of this page).
+      Search quality for those competitions improves directly as coverage grows — it's measurable, not vague.</p>
+    </div>
+    <div class="card">
+      <h3>Search quality is measured, not assumed</h3>
+      <p>Precision/Recall/MRR are computed against a real golden-query set after every change, and trended
+      over time — so a change that looks fine in a demo but quietly regresses search quality gets caught.</p>
+    </div>
+  </div>
+
+  <h2 id="roadmap"><span class="section-no">D</span>What "fully personalized" looks like</h2>
+  <pre class="mermaid reveal">
+flowchart LR
+    A[Student answers a problem] --> B[Mastery score updates instantly]
+    B --> C{Score trend}
+    C -->|Improving| D[Tutor: more of this, slightly harder]
+    C -->|Struggling| E[Tutor: find the prerequisite gap]
+    E --> F[Graph traversal: which earlier concept is this built on?]
+    F --> G[Recommend that instead of more of the same]
+  </pre>
+  <p>The honest status: <strong>A and B are live today.</strong> C/D/E/F/G are designed (see the
+  <a href="use-cases.html#mastery">mastery use case</a> and the dashed edges on the
+  <a href="graph.html#model">graph model page</a>) and are the next concrete build target, not a vague
+  future promise — the prerequisite-gap Cypher query is already written and tested conceptually against
+  the current <code>HAS_SUBCONCEPT</code> hierarchy.</p>
+</main>
+
+<footer>
+  <a href="use-cases.html">&larr; Use Cases</a> ·
+  Next: <a href="thought-process.html">How This Was Built</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

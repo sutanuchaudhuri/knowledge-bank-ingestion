@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/db/concepts", label: "Concepts" },
   { href: "/db/techniques", label: "Techniques" },
   { href: "/db/search", label: "Find Similar Questions" },
+  { href: "/admin", label: "Admin: Ingestion" },
 ];
 
 export default function DbLayout({ children }) {

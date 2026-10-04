@@ -48,6 +48,39 @@ export async function restPost(path, payload) {
   return body;
 }
 
+// Admin endpoints (/v1/admin/*) need the shared X-Admin-Api-Key header,
+// attached here server-side — the browser never sees MATHBANK_ADMIN_API_KEY.
+function adminHeaders() {
+  return { "Content-Type": "application/json", "X-Admin-Api-Key": process.env.MATHBANK_ADMIN_API_KEY || "" };
+}
+
+export async function restAdminGet(path, searchParams) {
+  const res = await fetch(buildUrl(path, searchParams), { headers: adminHeaders(), cache: "no-store" });
+  const body = await parseJsonSafely(res);
+  if (!res.ok) {
+    const err = new Error(body?.detail ? JSON.stringify(body.detail) : `mathbank-rest GET ${path} failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
+export async function restAdminPost(path, payload) {
+  const res = await fetch(buildUrl(path), {
+    method: "POST",
+    headers: adminHeaders(),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  const body = await parseJsonSafely(res);
+  if (!res.ok) {
+    const err = new Error(body?.detail ? JSON.stringify(body.detail) : `mathbank-rest POST ${path} failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
 /**
  * Fetches `limit+1` rows from a list endpoint and trims to `limit`, so the UI can
  * offer prev/next pagination via a `hasMore` flag without a backend count query.
