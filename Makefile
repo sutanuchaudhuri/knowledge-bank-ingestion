@@ -5,8 +5,7 @@
 # Individual service lifecycle:  make <svc>-start | <svc>-stop | <svc>-restart | <svc>-status
 #   where <svc> is one of: db, graph, rest, agent, web
 # Whole-stack lifecycle:         make up | make down | make status
-# rest/agent/web "start" runs as a background daemon and auto-kills anything
-# already bound to its port first (see each sub-project's Makefile).
+# rest/agent/web "start" verifies HTTP readiness and refuses occupied ports.
 
 .DEFAULT_GOAL := help
 
@@ -59,7 +58,7 @@ rest-run:                        ## Run mathbank-rest in the foreground on :8000
 	$(MAKE) -C mathbank-rest run
 
 .PHONY: rest-start
-rest-start:                      ## Start mathbank-rest as a background daemon on :8000 (kills whatever holds the port)
+rest-start:                      ## Start mathbank-rest on :8000 and verify HTTP readiness
 	$(MAKE) -C mathbank-rest start
 
 .PHONY: rest-stop
@@ -87,7 +86,7 @@ agent-run:                        ## Run mathbank-agent in the foreground on :80
 	$(MAKE) -C mathbank-agent run
 
 .PHONY: agent-start
-agent-start:                      ## Start mathbank-agent as a background daemon on :8001 (kills whatever holds the port)
+agent-start:                     ## Start mathbank-agent on :8001 and verify HTTP readiness
 	$(MAKE) -C mathbank-agent start
 
 .PHONY: agent-stop
@@ -111,7 +110,7 @@ web-run:                          ## Run mathbank-web in the foreground on :5173
 	$(MAKE) -C mathbank-web dev
 
 .PHONY: web-start
-web-start:                        ## Start mathbank-web as a background daemon on :5173 (kills whatever holds the port)
+web-start:                       ## Start mathbank-web on :5173 and verify HTTP readiness
 	$(MAKE) -C mathbank-web start
 
 .PHONY: web-stop
@@ -148,6 +147,13 @@ up:                               ## Start every service. Local Postgres/Neo4j (
 
 .PHONY: up-local-db
 up-local-db: db-start graph-start rest-start agent-start web-start  ## Same as `up`, but local Postgres/Neo4j failures are fatal — use this only if you intend to run a fully local (non-Neon/AuraDB) stack
+	@$(MAKE) --no-print-directory access
+
+.PHONY: up-app
+up-app:                          ## Start REST/agent/web only; use configured Neon/AuraDB, without local DB startup
+	$(MAKE) -C mathbank-rest start
+	$(MAKE) -C mathbank-agent start
+	$(MAKE) -C mathbank-web start
 	@$(MAKE) --no-print-directory access
 
 .PHONY: access

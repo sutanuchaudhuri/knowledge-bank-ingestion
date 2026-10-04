@@ -47,11 +47,9 @@ run:                            ## Start the FastAPI dev server on :$(PORT) in t
 	$(UVICORN) mathbank_rest.main:app --app-dir src --reload --port $(PORT)
 
 .PHONY: start
-start:                          ## Start as a background daemon on :$(PORT) (kills whatever already holds the port)
-	@lsof -ti:$(PORT) | xargs kill -9 2>/dev/null || true
-	@nohup $(UVICORN) mathbank_rest.main:app --app-dir src --port $(PORT) > $(LOG_FILE) 2>&1 & echo $$! > $(PID_FILE)
-	@sleep 1
-	@echo "mathbank-rest started on :$(PORT) (pid $$(cat $(PID_FILE))), logs in $(LOG_FILE)"
+start:                          ## Start on :$(PORT), verify HTTP readiness, and report failures (never kills an occupied port)
+	@bash ../scripts/start-service.sh mathbank-rest "$(PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
+	  "http://127.0.0.1:$(PORT)/docs" "$(BIN)/python" -m uvicorn mathbank_rest.main:app --app-dir src --port $(PORT)
 
 .PHONY: stop
 stop:                           ## Stop the background daemon (by pidfile, then by port as a fallback)

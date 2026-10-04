@@ -70,6 +70,7 @@ set-password:                   ## Set the initial neo4j user password (must run
 
 .PHONY: start
 start:                          ## Start Neo4j as a background daemon — no-op if already running
+	@test -x "$(NEO4J_BIN)/neo4j" || (echo "Local Neo4j is not installed. For AuraDB use root 'make up-app'; for local graph run 'make setup' after configuring .env." >&2; exit 1)
 	@"$(NEO4J_BIN)/neo4j" status >/dev/null 2>&1 && echo "Neo4j already running" || "$(NEO4J_BIN)/neo4j" start
 
 .PHONY: stop

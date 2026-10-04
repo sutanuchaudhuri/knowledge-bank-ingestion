@@ -67,6 +67,62 @@ make setup
 make up
 ```
 
+For a machine using Neon/AuraDB, prefer `make up-app`: it starts only
+REST, agent and web, without trying to start local Postgres/Neo4j.
+These service start targets now wait for HTTP readiness (up to 60 seconds,
+override with `START_TIMEOUT=120`) and fail if the process exits or never
+responds with HTTP 200. They do not kill an unrelated process holding a port.
+An access summary confirms startup HTTP readiness, not database connectivity,
+model credentials, or successful tutoring.
+
+#### Another developer Mac: startup troubleshooting
+
+`pg_ctl` / `neo4j` missing only means local database software is absent.
+It does not explain why Swagger or the web server cannot be reached when
+the service configuration uses Neon/AuraDB. The older start targets printed
+"started" after one second even if the process had already crashed.
+
+On the affected Mac, use the current code, configure per-service environment
+files securely, and install dependencies **on that machine**. Never copy
+`.venv`, `node_modules`, `.next`, PID files or runtime logs from another Mac;
+Python entrypoints contain absolute interpreter paths.
+
+```sh
+make setup
+# If environments/dependencies were copied or are broken, rebuild only those:
+make rest-install agent-install web-install
+make up-app
+
+# Diagnose crashes locally. Redact credentials before sharing log excerpts.
+tail -n 80 mathbank-rest/.server.log
+tail -n 80 mathbank-agent/.server.log
+tail -n 80 mathbank-web/.server.log
+
+# Foreground commands expose import/configuration/dependency errors directly.
+# Run each in its own terminal after stopping the corresponding owned service.
+make rest-run
+make agent-run
+make web-run
+```
+
+Check access from a terminal **on that same Mac**:
+
+```sh
+curl --noproxy '*' -I http://127.0.0.1:8000/docs
+curl --noproxy '*' http://127.0.0.1:8000/health
+curl --noproxy '*' http://127.0.0.1:8001/list-apps
+curl --noproxy '*' -I http://127.0.0.1:5173/login
+```
+
+If these fail, inspect the relevant log rather than treating the startup PID
+as proof of success. If they succeed but the browser fails, try `127.0.0.1`
+instead of `localhost` and check proxy/VPN settings and the exact browser error.
+`localhost` always means the machine running the browser, not a teammate's
+Mac. Do not expose the development services to the network just to troubleshoot.
+After HTTP works, run `make test-connectivity` to verify the configured
+Postgres and Neo4j backends separately. Do not paste environment files,
+API keys or passwords into an issue or chat.
+
 `sync-env.sh` backs up any existing per-service `.env` to
 `<file>.bak.<timestamp>` before overwriting it, and clearly flags any key
 that's missing/empty in the root `.env` (writes the rest anyway, exits

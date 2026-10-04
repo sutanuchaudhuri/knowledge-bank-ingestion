@@ -85,6 +85,7 @@ harden-hba:                    ## Require scram-sha-256 for TCP connections (loc
 
 .PHONY: start
 start:                          ## Start Postgres (background) on $(PG_PORT) — no-op if already running
+	@test -x "$(PG_BIN)/pg_ctl" || (echo "Local PostgreSQL $(PG_VERSION) is not installed. For Neon use root 'make up-app'; for local DB run 'make install' and configure/init the cluster." >&2; exit 1)
 	@if "$(PG_BIN)/pg_ctl" -D "$(PGDATA)" status >/dev/null 2>&1; then \
 	  echo "Postgres already running on $(PGDATA)"; \
 	else \

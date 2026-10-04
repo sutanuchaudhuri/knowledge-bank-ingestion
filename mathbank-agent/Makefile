@@ -37,11 +37,9 @@ run:                             ## Serve the agent as a REST API on :$(AGENT_PO
 	$(BIN)/adk api_server agents --port $(AGENT_PORT) $(AGENT_ALLOW_ORIGINS)
 
 .PHONY: start
-start:                           ## Start as a background daemon on :$(AGENT_PORT) (kills whatever already holds the port)
-	@lsof -ti:$(AGENT_PORT) | xargs kill -9 2>/dev/null || true
-	@nohup $(BIN)/adk api_server agents --port $(AGENT_PORT) $(AGENT_ALLOW_ORIGINS) > $(LOG_FILE) 2>&1 & echo $$! > $(PID_FILE)
-	@sleep 1
-	@echo "mathbank-agent started on :$(AGENT_PORT) (pid $$(cat $(PID_FILE))), logs in $(LOG_FILE)"
+start:                           ## Start on :$(AGENT_PORT), verify HTTP readiness, and report failures (never kills an occupied port)
+	@bash ../scripts/start-service.sh mathbank-agent "$(AGENT_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
+	  "http://127.0.0.1:$(AGENT_PORT)/list-apps" "$(BIN)/adk" api_server agents --port $(AGENT_PORT) $(AGENT_ALLOW_ORIGINS)
 
 .PHONY: stop
 stop:                            ## Stop the background daemon (by pidfile, then by port as a fallback)

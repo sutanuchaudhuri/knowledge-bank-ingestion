@@ -73,6 +73,18 @@ Production readiness.
 - AC-006: Full pipeline is reproducible from a clean GCS and Firestore state using only the source spreadsheet.
 - AC-007: API p95 latency <= 2.5s under 20 concurrent requests.
 - AC-008: No secrets are visible in code, logs, or API responses.
+- AC-009: On a collaborator machine, `make up-app` starts REST/agent/web using
+  configured databases without requiring local Postgres/Neo4j installations.
+  Each service reports ready only after its process is alive and its readiness
+  URL returns HTTP 200; early exit, missing executable, occupied port and timeout
+  fail explicitly without killing an unrelated listener. Readiness is not
+  certification of database/model connectivity.
+- AC-010: Startup regression tests (`node --test scripts/start-service.test.mjs`)
+  cover missing dependencies, stale copied-environment entrypoints, early
+  crashes, delayed HTTP readiness, idempotent owned-process reuse, occupied
+  ports and non-200 timeouts. The [collaborator troubleshooting guide](../README.md#another-developer-mac-startup-troubleshooting)
+  distinguishes server startup failures from browser/network failures and
+  documents rebuilding machine-local dependencies without sharing secrets.
 
 ## Future Phases (Out Of Scope For v1)
 

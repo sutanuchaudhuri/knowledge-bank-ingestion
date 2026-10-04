@@ -17,8 +17,8 @@ LOG_FILE := .server.log
 
 .PHONY: access
 access:                         ## Show frontend access URLs
-	@printf '  %-20s %s\n' 'Web (student)' 'http://localhost:5173/login' \
-	  'Web (admin)' 'http://localhost:5173/admin/login'
+	@printf '  %-20s %s\n' 'Web (student)' 'http://localhost:$(WEB_PORT)/login' \
+	  'Web (admin)' 'http://localhost:$(WEB_PORT)/admin/login'
 
 .PHONY: install
 install:                        ## npm install
@@ -26,14 +26,13 @@ install:                        ## npm install
 
 .PHONY: dev
 dev:                             ## Start the Next.js dev server on :$(WEB_PORT) in the foreground
-	npm run dev
+	node node_modules/next/dist/bin/next dev -p $(WEB_PORT)
 
 .PHONY: start
-start:                           ## Start as a background daemon on :$(WEB_PORT) (kills whatever already holds the port)
-	@lsof -ti:$(WEB_PORT) | xargs kill -9 2>/dev/null || true
-	@nohup npm run dev > $(LOG_FILE) 2>&1 & echo $$! > $(PID_FILE)
-	@sleep 1
-	@echo "mathbank-web started on :$(WEB_PORT) (pid $$(cat $(PID_FILE))), logs in $(LOG_FILE)"
+start:                           ## Start on :$(WEB_PORT), verify HTTP readiness, and report failures (never kills an occupied port)
+	@test -f node_modules/next/dist/bin/next || (echo "ERROR: Next.js is missing. Run make install in mathbank-web." >&2; exit 1)
+	@bash ../scripts/start-service.sh mathbank-web "$(WEB_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
+	  "http://127.0.0.1:$(WEB_PORT)/login" node node_modules/next/dist/bin/next dev -p $(WEB_PORT)
 
 .PHONY: stop
 stop:                            ## Stop the background daemon (by pidfile, then by port as a fallback)
