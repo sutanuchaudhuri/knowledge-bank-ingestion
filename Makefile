@@ -144,9 +144,24 @@ up:                               ## Start every service. Local Postgres/Neo4j (
 	$(MAKE) -C mathbank-rest start
 	$(MAKE) -C mathbank-agent start
 	$(MAKE) -C mathbank-web start
+	@$(MAKE) --no-print-directory access
 
 .PHONY: up-local-db
 up-local-db: db-start graph-start rest-start agent-start web-start  ## Same as `up`, but local Postgres/Neo4j failures are fatal — use this only if you intend to run a fully local (non-Neon/AuraDB) stack
+	@$(MAKE) --no-print-directory access
+
+.PHONY: access
+access:                           ## Show web/API URLs and local database connection details (no restart)
+	@printf '\nMathBank access\n\n'
+	@$(MAKE) --no-print-directory -s -C mathbank-web access
+	@$(MAKE) --no-print-directory -s -C mathbank-rest access
+	@$(MAKE) --no-print-directory -s -C mathbank-agent access
+	@$(MAKE) --no-print-directory -s -C mathbank-graph access
+	@$(MAKE) --no-print-directory -s -C mathbank-db access
+	@printf '\n  Database addresses above are LOCAL and require running local services.\n'
+	@printf '  The app may instead use Neon/AuraDB configured in each service .env.\n'
+	@printf '  Passwords are not displayed; use your configured database credentials.\n'
+	@printf '  Check running services: make status | Show this again: make access\n\n'
 
 .PHONY: down
 down:                             ## Stop every service

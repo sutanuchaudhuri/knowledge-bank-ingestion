@@ -11,6 +11,11 @@ LOG_FILE  := .server.log
 
 .DEFAULT_GOAL := help
 
+.PHONY: access
+access:                         ## Show REST API and Swagger URLs
+	@printf '  %-20s %s\n' 'REST API (base)' 'http://localhost:$(PORT)' \
+	  'REST Swagger' 'http://localhost:$(PORT)/docs'
+
 # ── Environment ────────────────────────────────────────────────────────────
 # Uses `uv` (https://docs.astral.sh/uv/) to manage the venv — plain
 # `python3.11 -m venv` can produce a broken interpreter on this machine when

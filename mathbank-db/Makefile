@@ -24,6 +24,11 @@ PG_LOG    := $(EXTERNAL_DB_ROOT)/postgres$(PG_VERSION)/postgres.log
 
 .DEFAULT_GOAL := help
 
+.PHONY: access
+access:                         ## Show local Postgres connection details (without passwords)
+	@printf '  %-20s %s\n' 'Postgres (local)' 'localhost:$(PG_PORT) / database: $(APP_DB) / user: $(APP_USER)' \
+	  'Postgres shell' 'make -C mathbank-db psql (local admin)'
+
 # ── Lifecycle ────────────────────────────────────────────────────────────
 
 .PHONY: install

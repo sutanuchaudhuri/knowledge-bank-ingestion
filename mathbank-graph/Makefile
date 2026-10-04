@@ -27,6 +27,12 @@ NEO4J_TX := $(EXTERNAL_DB_ROOT)/neo4j/transactions
 
 .DEFAULT_GOAL := help
 
+.PHONY: access
+access:                         ## Show local graph connection details (without passwords)
+	@printf '  %-20s %s\n' 'Graph Browser (local)' 'http://localhost:$(NEO4J_HTTP_PORT)/browser/' \
+	  'Graph Bolt (local)' 'bolt://localhost:$(NEO4J_BOLT_PORT)' \
+	  'Graph shell (local)' 'make -C mathbank-graph cypher-shell'
+
 # ── Lifecycle ────────────────────────────────────────────────────────────
 
 .PHONY: install

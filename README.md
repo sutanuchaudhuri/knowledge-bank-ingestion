@@ -82,6 +82,31 @@ make status   # confirm everything is running
 make down     # stop everything
 ```
 
+After starting the services, `make up` (and `make up-local-db`) prints a
+labeled access summary. Run `make access` to display it again without
+restarting anything. Default addresses:
+
+| Access | URL or command |
+|---|---|
+| Student web UI | http://localhost:5173/login |
+| Admin web UI | http://localhost:5173/admin/login |
+| REST API base | http://localhost:8000 |
+| REST Swagger UI | http://localhost:8000/docs |
+| Agent API base | http://localhost:8001 |
+| Agent Swagger UI | http://localhost:8001/docs |
+| Local Neo4j Browser | http://localhost:7474/browser/ |
+| Local Neo4j Bolt | `bolt://localhost:7687` |
+| Local graph shell | `make -C mathbank-graph cypher-shell` |
+| Local Postgres | `localhost:5433`, database `mathbank`, user `mathbank_app` |
+| Local Postgres admin shell | `make -C mathbank-db psql` |
+
+The summary uses each service Makefile's effective API/database settings;
+the web URLs use port 5173, fixed by the frontend's npm scripts. Local
+database addresses are not necessarily the app's active databases: the app
+may use remote Neon/AuraDB through its service `.env` files. The summary
+does not check readiness or display passwords; use `make status` to check
+running services and your configured database credentials to connect.
+
 `make setup` is the first thing to run on a new machine (or after pulling
 changes that touch dependencies) — it never reinstalls something that's
 already present, it just reports what's missing. Typical first-run output on

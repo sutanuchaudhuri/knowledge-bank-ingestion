@@ -22,6 +22,11 @@ AGENT_ALLOW_ORIGINS ?= --allow_origins=http://localhost:5173 --allow_origins=htt
 
 .DEFAULT_GOAL := help
 
+.PHONY: access
+access:                         ## Show agent API and Swagger URLs
+	@printf '  %-20s %s\n' 'Agent API (base)' 'http://localhost:$(AGENT_PORT)' \
+	  'Agent Swagger' 'http://localhost:$(AGENT_PORT)/docs'
+
 .PHONY: install
 install:                        ## Create venv + install google-adk/litellm/httpx
 	uv venv $(VENV) --python $(PYTHON_VERSION)

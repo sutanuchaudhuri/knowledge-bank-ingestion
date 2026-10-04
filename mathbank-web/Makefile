@@ -15,6 +15,11 @@ LOG_FILE := .server.log
 
 .DEFAULT_GOAL := help
 
+.PHONY: access
+access:                         ## Show frontend access URLs
+	@printf '  %-20s %s\n' 'Web (student)' 'http://localhost:5173/login' \
+	  'Web (admin)' 'http://localhost:5173/admin/login'
+
 .PHONY: install
 install:                        ## npm install
 	npm install
