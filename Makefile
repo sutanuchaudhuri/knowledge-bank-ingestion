@@ -13,6 +13,10 @@
 sync-env:                        ## Distribute the shared root .env into every service's own .env (backs up existing files first)
 	@bash sync-env.sh
 
+.PHONY: sync-openai-key
+sync-openai-key:                  ## Copy OPENAI_API_KEY from root .env (or shell fallback) to service env files, without printing it
+	@node scripts/sync-openai-key.mjs
+
 .PHONY: setup
 setup:                           ## Check/create .env files, flag missing secrets (OPENAI_API_KEY etc.), install every venv/node_modules not already present
 	@bash scripts/setup.sh
@@ -137,7 +141,7 @@ bootstrap:                        ## Single-command rebuild of the ENTIRE stack 
 	@echo "Full stack bootstrapped. Start everything with: make up"
 
 .PHONY: up
-up:                               ## Start every service. Local Postgres/Neo4j (db/graph) are best-effort — harmless to skip if your .env points at remote Neon/AuraDB (the common case after `make sync-env`)
+up: sync-openai-key                ## Sync model key and start every service; local databases are best-effort
 	-$(MAKE) -C mathbank-db start
 	-$(MAKE) -C mathbank-graph start
 	$(MAKE) -C mathbank-rest start
@@ -146,11 +150,11 @@ up:                               ## Start every service. Local Postgres/Neo4j (
 	@$(MAKE) --no-print-directory access
 
 .PHONY: up-local-db
-up-local-db: db-start graph-start rest-start agent-start web-start  ## Same as `up`, but local Postgres/Neo4j failures are fatal — use this only if you intend to run a fully local (non-Neon/AuraDB) stack
+up-local-db: sync-openai-key db-start graph-start rest-start agent-start web-start  ## Local stack; local Postgres/Neo4j failures are fatal
 	@$(MAKE) --no-print-directory access
 
 .PHONY: up-app
-up-app:                          ## Start REST/agent/web only; use configured Neon/AuraDB, without local DB startup
+up-app: sync-openai-key           ## Sync model key and start REST/agent/web only; use configured Neon/AuraDB
 	$(MAKE) -C mathbank-rest start
 	$(MAKE) -C mathbank-agent start
 	$(MAKE) -C mathbank-web start

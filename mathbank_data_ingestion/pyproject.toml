@@ -26,6 +26,7 @@ dependencies = [
   "requests>=2.32",
   "tenacity>=8.3",
   "rich>=13.7",
+  "python-dotenv>=1.0",
   # Document parsing — Docling for PDF layout + formula + figure extraction
   "docling>=2.0",
 ]

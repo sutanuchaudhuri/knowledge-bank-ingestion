@@ -57,8 +57,9 @@ chat that isn't end-to-end secured), set up with:
 # 2. Distribute it into every service's own .env (mathbank-db/.env,
 #    mathbank-rest/.env, etc. — each service only ever reads its own):
 make sync-env            # or: ./sync-env.sh
-# 3. Export your own OPENAI_API_KEY in your shell (~/.zshrc) — this is
-#    intentionally NOT in the shared .env, never written to any file.
+# 3. Set your own OPENAI_API_KEY in the gitignored root .env, or export it in
+#    your shell as a fallback. Never share it through an unsecured channel.
+#    make sync-openai-key copies it without printing it.
 # 4. Install whatever isn't already installed, and see what (if anything) is
 #    still missing:
 make setup
@@ -122,6 +123,21 @@ Mac. Do not expose the development services to the network just to troubleshoot.
 After HTTP works, run `make test-connectivity` to verify the configured
 Postgres and Neo4j backends separately. Do not paste environment files,
 API keys or passwords into an issue or chat.
+
+#### Model-key synchronization
+
+`make sync-openai-key` copies `OPENAI_API_KEY` from the root `.env` (preferred)
+or the exported shell environment (fallback) into REST, agent and ingestion
+`.env` files, creating those files if absent. It also updates existing database,
+graph and web `.env` files. It preserves unrelated settings, removes duplicate
+key assignments, writes atomically with owner-only permissions (`0600`), and
+never prints the value. The key is server-side only, never `NEXT_PUBLIC_*`.
+
+`make sync-env`, `make up`, `make up-app` and `make up-local-db` include this
+sync. Existing running services must be restarted to load changed values;
+syncing alone does not restart them or change their inherited shell environment.
+Runtime shell values still override dotenv values. Ingestion classification
+loads its project `.env` when no shell key is set.
 
 `sync-env.sh` backs up any existing per-service `.env` to
 `<file>.bak.<timestamp>` before overwriting it, and clearly flags any key

@@ -18,8 +18,8 @@
 #   5. Then run `make setup` to verify every venv/node_modules is installed,
 #      and `make up` to start the stack.
 #
-# OPENAI_API_KEY is intentionally never written to any file — export it in
-# your own shell (~/.zshrc), per GOTCHAS.md #6.
+# OPENAI_API_KEY is synced separately after writing service settings, without
+# printing it. The root .env is preferred; an exported shell key is a fallback.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -160,5 +160,7 @@ if [ "$MISSING" -eq 1 ]; then
   exit 1
 fi
 
+if ! node scripts/sync-openai-key.mjs; then
+  exit 1
+fi
 echo "Done. Every service .env is now in sync with the root .env."
-echo "OPENAI_API_KEY was NOT written anywhere — export it in your shell (~/.zshrc), then run: make setup"

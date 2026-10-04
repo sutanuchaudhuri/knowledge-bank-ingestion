@@ -186,6 +186,9 @@ _BASE_BACKOFF_SECONDS = 5.0
 
 
 def _call_openai(system: str, user: str, model: str) -> str:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[3] / ".env")
     # Import lazily to avoid hard dependency if openai is not installed.
     try:
         from openai import OpenAI, RateLimitError  # type: ignore
@@ -194,7 +197,9 @@ def _call_openai(system: str, user: str, model: str) -> str:
 
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY environment variable is not set")
+        raise RuntimeError(
+            "OPENAI_API_KEY is not set in the shell or ingestion .env; run make sync-openai-key"
+        )
 
     client = OpenAI(api_key=api_key)
     # TPM (tokens-per-minute) is an org-wide limit shared across every concurrent

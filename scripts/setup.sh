@@ -66,7 +66,16 @@ section "Shell environment"
 if [ -n "${OPENAI_API_KEY:-}" ]; then
   ok "OPENAI_API_KEY is exported in this shell"
 else
-  warn "OPENAI_API_KEY is NOT set — required by mathbank-rest (embeddings), mathbank-agent (chat), mathbank_data_ingestion (classification). Export it in ~/.zshrc, then open a new terminal."
+  if grep -Eq '^[[:space:]]*(export[[:space:]]+)?OPENAI_API_KEY[[:space:]]*=[[:space:]]*[^[:space:]]+' .env 2>/dev/null; then
+    info "OPENAI_API_KEY found in root .env; synchronizing without displaying it."
+    if node scripts/sync-openai-key.mjs; then
+      ok "OPENAI_API_KEY synchronized to service environment files"
+    else
+      warn "OPENAI_API_KEY synchronization failed; fix the root .env before startup."
+    fi
+  else
+    warn "OPENAI_API_KEY is missing — add it to root .env and run make sync-openai-key, or export it in your shell."
+  fi
 fi
 
 # ── 3. Python virtual environments ──────────────────────────────────────────

@@ -79,15 +79,20 @@ FIXED_CPPFLAGS=$(pg_config --cppflags | sed "s#MacOSX26.sdk#$(basename $(xcrun -
 
 `install-pgvector` does this automatically.
 
-## 6. `OPENAI_API_KEY` must be in the environment — never in a file or command line
+## 6. `OPENAI_API_KEY`: secure local sync and shell precedence
 
 Both `mathbank-db/etl/embed_corpus.py` and `mathbank-rest`'s
 `vector_search.py` (and `mathbank-agent`'s LiteLLM model) read `OPENAI_API_KEY`
-via the OpenAI/LiteLLM SDK defaults (`os.environ`). **Never** pass it as a
-`--flag`, write it into `.env` if it's already exported globally (e.g.
-`~/.zshrc`), or echo it in a terminal command — `python-dotenv`/`load_dotenv()`
-only fills in variables that aren't already set, so an already-exported shell
-variable always wins safely.
+via the OpenAI/LiteLLM SDK defaults (`os.environ`). Set it in the gitignored
+root `.env`, then run `make sync-openai-key`. This writes owner-only service
+environment files without displaying the key, including REST, agent and
+ingestion. `make up` / `make up-app` also perform this sync.
+An exported shell key is used for synchronization only when the root key is
+absent. At runtime, `python-dotenv`/`load_dotenv()` only fills unset variables,
+so an already-exported shell key still wins over service `.env` values.
+Restart running services after changing the key. Never commit the key, pass
+it as a command-line argument, expose it through `NEXT_PUBLIC_*`, or share
+environment files/logs through unsecured channels.
 
 ## 7. OCR/PDF-parsed text can contain NUL (`\x00`) bytes
 

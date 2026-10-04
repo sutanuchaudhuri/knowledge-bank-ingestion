@@ -45,6 +45,7 @@ htmlcov/
 # match the *.env pattern above since they don't end in .env, but they
 # contain the same live credentials and must never be committed.
 *.bak.*
+*.sync-*
 
 # Secrets / credentials
 credentials.json
