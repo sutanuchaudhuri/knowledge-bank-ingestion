@@ -5,10 +5,39 @@ using **OpenAI models via LiteLLM** (not Gemini) to answer questions about the
 competition-math corpus stored in Postgres (`mathbank-db`) and served over
 REST (`mathbank-rest`).
 
-The agent never queries Postgres directly — all data access goes through
+The agent's corpus tools never query Postgres directly — corpus data access goes through
 `mathbank-rest`'s hybrid (semantic + lexical) search and lookup endpoints,
 keeping Postgres as the single source of truth and the REST API as the only
 read/write boundary (see `mathematics_tutor_db_plan/` for why).
+ADK conversation sessions, events and state are stored directly in Postgres
+in the isolated `agent_sessions` schema, not in corpus tables.
+
+## Persistent server sessions
+
+`make run`, `make start` and `make web` use `server.py` with ADK's
+`DatabaseSessionService` and the psycopg async driver. Connection settings are
+`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`,
+`POSTGRES_PASSWORD`, and `POSTGRES_SSLMODE`. Precedence is shell, agent `.env`,
+root `.env`, then REST `.env`. `make sync-env` also copies these settings into
+the agent `.env`. SSL defaults to `require`; set `disable` explicitly for a
+local server without TLS.
+
+Startup verifies connectivity and creates the isolated schema and ADK tables
+if needed. The configured database role needs CREATE permission on the database
+for the initial schema creation, and ownership/access to its ADK tables.
+Initialization errors stop startup; there is no SQLite/in-memory fallback.
+Credentials are not passed in command-line arguments or printed.
+
+Session state and events survive server restarts, keyed by ADK application,
+user and session IDs. These are conversation records, not measured learner
+mastery. Existing `.adk/session.db` files are preserved but are not automatically
+migrated; old sessions are not available through the Postgres-backed server.
+The CLI `make chat`, evaluation and smoke-test runners remain ephemeral.
+Back up and apply retention controls to `agent_sessions` as conversation data.
+
+Run focused tests with `.venv/bin/python -m pytest tests/test_session_storage.py`.
+Set `MATHBANK_TEST_POSTGRES=1` to additionally verify live event/state persistence
+across two separate database-service instances; the test deletes its own session.
 
 ## Architecture
 
@@ -43,7 +72,8 @@ cd ../mathbank-agent
 cp .env.example .env            # edit if you want a different model/REST URL
 make install
 
-# OPENAI_API_KEY must be set in your shell (already exported in ~/.zshrc on this machine)
+# Set OPENAI_API_KEY in root .env and run make sync-openai-key from the root,
+# or export it in your shell. Configure Postgres as described above.
 make chat                        # talk to the agent directly in the terminal
 # or
 make run                         # serve it as a REST API on :8001 (for mathbank-web)

@@ -136,6 +136,12 @@ write_file "mathbank-rest/.env" "FastAPI service — points at the remote Neon/A
 echo
 echo "mathbank-agent/.env"
 write_file "mathbank-agent/.env" "Google ADK agentic backend." \
+  "POSTGRES_HOST=$(require POSTGRES_HOST)" \
+  "POSTGRES_PORT=$(require POSTGRES_PORT)" \
+  "POSTGRES_DB=$(require POSTGRES_DB)" \
+  "POSTGRES_USER=$(require POSTGRES_USER)" \
+  "POSTGRES_PASSWORD=$(require POSTGRES_PASSWORD)" \
+  "POSTGRES_SSLMODE=$(require POSTGRES_SSLMODE)" \
   "MATHBANK_AGENT_MODEL=$(require MATHBANK_AGENT_MODEL)" \
   "MATHBANK_REST_BASE_URL=$(require MATHBANK_REST_BASE_URL)" \
   "MATHBANK_AGENT_DEFAULT_ROLE=$(require MATHBANK_AGENT_DEFAULT_ROLE)"

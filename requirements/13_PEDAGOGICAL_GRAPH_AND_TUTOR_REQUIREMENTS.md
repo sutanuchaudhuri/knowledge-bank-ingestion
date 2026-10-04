@@ -15,6 +15,17 @@ Existing corpus relationships, retrieval, authentication, and learner records
 are preserved. Presentation pages document the implemented workflow, live
 rollout evidence, review limitations, and P1/P2 roadmap.
 
+### Conversation persistence
+
+The agent API and ADK web server persist conversation sessions, events and
+state in the configured Postgres server's isolated `agent_sessions` schema.
+Startup must verify database access and fail explicitly rather than silently
+falling back to SQLite or memory. Corpus access still passes through REST;
+conversation state is not measured mastery or reviewed pedagogical metadata.
+Acceptance requires state and event retrieval through a new service instance,
+user isolation and deletion of the integration test's session. Legacy SQLite
+sessions are retained locally but are not automatically migrated.
+
 ### Current admin approval status
 
 On 2026-10-04, after the initial pending rollout below, the operator explicitly

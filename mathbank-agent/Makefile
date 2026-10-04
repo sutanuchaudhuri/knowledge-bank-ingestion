@@ -34,12 +34,12 @@ install:                        ## Create venv + install google-adk/litellm/http
 
 .PHONY: run
 run:                             ## Serve the agent as a REST API on :$(AGENT_PORT) in the foreground
-	$(BIN)/adk api_server agents --port $(AGENT_PORT) $(AGENT_ALLOW_ORIGINS)
+	$(BIN)/python server.py --port $(AGENT_PORT) $(AGENT_ALLOW_ORIGINS)
 
 .PHONY: start
 start:                           ## Start on :$(AGENT_PORT), verify HTTP readiness, and report failures (never kills an occupied port)
 	@bash ../scripts/start-service.sh mathbank-agent "$(AGENT_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
-	  "http://127.0.0.1:$(AGENT_PORT)/list-apps" "$(BIN)/adk" api_server agents --port $(AGENT_PORT) $(AGENT_ALLOW_ORIGINS)
+	  "http://127.0.0.1:$(AGENT_PORT)/list-apps" "$(BIN)/python" server.py --port $(AGENT_PORT) $(AGENT_ALLOW_ORIGINS)
 
 .PHONY: stop
 stop:                            ## Stop the background daemon (by pidfile, then by port as a fallback)
@@ -56,7 +56,7 @@ status:                          ## Show whether the agent server is listening o
 
 .PHONY: web
 web:                             ## ADK's built-in interactive dev UI (manual testing)
-	$(BIN)/adk web agents
+	$(BIN)/python server.py --web --port $(AGENT_PORT) $(AGENT_ALLOW_ORIGINS)
 
 .PHONY: chat
 chat:                            ## Chat with the agent directly in the terminal (no HTTP)
@@ -64,7 +64,7 @@ chat:                            ## Chat with the agent directly in the terminal
 
 .PHONY: test
 test:                            ## Run the test suite
-	$(BIN)/pytest
+	$(BIN)/python -m pytest
 
 .PHONY: eval-agent
 eval-agent:                      ## Tool-selection accuracy against golden cases (needs mathbank-rest running + OPENAI_API_KEY; costs credits)
