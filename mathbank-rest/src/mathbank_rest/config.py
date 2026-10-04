@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     postgres_db: str = "mathbank"
     postgres_user: str = "mathbank_app"
     postgres_password: str = ""
+    postgres_sslmode: str = ""  # "require" for Neon/managed Postgres; empty = libpq default (prefer)
 
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
@@ -19,10 +20,13 @@ class Settings(BaseSettings):
 
     @property
     def postgres_dsn(self) -> str:
-        return (
+        dsn = (
             f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+        if self.postgres_sslmode:
+            dsn += f"?sslmode={self.postgres_sslmode}"
+        return dsn
 
 
 settings = Settings()

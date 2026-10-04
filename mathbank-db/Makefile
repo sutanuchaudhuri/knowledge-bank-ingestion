@@ -132,6 +132,10 @@ etl: migrate                    ## Load the maths_corpus CSV mirror into Postgre
 	@test -n "$(APP_DB_PASSWORD)" || (echo "Set APP_DB_PASSWORD in .env first" && exit 1)
 	.venv/bin/python etl/load_corpus.py
 
+.PHONY: etl-remote
+etl-remote:                     ## Load the maths_corpus CSV mirror into the remote Neon Postgres (see ../mathbank-graph/remote.env)
+	PG_ENV_FILE=$(CURDIR)/../mathbank-graph/remote.env .venv/bin/python etl/load_corpus.py
+
 # ── PDF download/parse/ingest pipeline tracker (Python) ─────────────────────
 
 .PHONY: vector-backfill

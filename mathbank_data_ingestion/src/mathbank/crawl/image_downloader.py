@@ -34,13 +34,21 @@ _DIAGRAM_HOSTS = {
 }
 _LATEX_HOST_FRAGMENT = "latex.artofproblemsolving.com"
 
+# Site chrome reused on nearly every wiki page (e.g. wiki/images/d/d1/AMC_Logo.png
+# shows up in ~87% of crawled problem pages) — not a per-problem diagram.
+_DECORATIVE_FILENAME_RE = re.compile(r"logo|footer|header|banner|wordmark|badge", re.IGNORECASE)
+
 ROOT = Path(__file__).resolve().parents[3]
 CRAWL_DIR = ROOT / "data" / "crawl"
 
 
 def _is_diagram_image(src: str) -> bool:
-    """True for actual diagram/figure images; False for LaTeX-rendered math PNGs."""
+    """True for actual diagram/figure images; False for LaTeX-rendered math PNGs
+    or reused site chrome (logos, footers, banners)."""
     if _LATEX_HOST_FRAGMENT in src:
+        return False
+    basename = urlparse(src).path.rsplit("/", 1)[-1]
+    if _DECORATIVE_FILENAME_RE.search(basename):
         return False
     host = urlparse(src).netloc
     return any(h in host for h in _DIAGRAM_HOSTS) or src.startswith("/")

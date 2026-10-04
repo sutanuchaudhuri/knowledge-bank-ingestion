@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -41,7 +42,9 @@ CONFIDENCE_MAP = {"high": 0.9, "medium": 0.6, "low": 0.3}
 
 
 def _load_env() -> dict[str, str]:
-    env_path = Path(__file__).resolve().parents[1] / ".env"
+    # PG_ENV_FILE lets `PG_ENV_FILE=../mathbank-graph/remote.env python
+    # etl/load_corpus.py` target Neon instead of the local .env.
+    env_path = Path(os.environ.get("PG_ENV_FILE") or Path(__file__).resolve().parents[1] / ".env")
     env: dict[str, str] = {}
     if env_path.exists():
         for line in env_path.read_text().splitlines():
@@ -220,11 +223,28 @@ def _upsert_solution(cur, problem_id: str, solution_kind: str, revision: int, bo
     )
 
 
+# Image filenames are sha256(source_url)[:12] (see image_downloader.py), so an
+# identical filename reused across many different problem directories means the
+# same source URL — i.e. shared site chrome (logo/footer/banner), not a unique
+# per-problem diagram. Anything over this threshold is excluded from ingestion.
+DECORATIVE_IMAGE_REPEAT_THRESHOLD = 5
+
+
+def _find_decorative_image_filenames(crawl_dir: Path) -> set[str]:
+    counts: dict[str, int] = {}
+    for images_dir in crawl_dir.glob("*/*/images"):
+        for image_path in images_dir.iterdir():
+            if image_path.is_file():
+                counts[image_path.name] = counts.get(image_path.name, 0) + 1
+    return {name for name, n in counts.items() if n > DECORATIVE_IMAGE_REPEAT_THRESHOLD}
+
+
 def enrich_problems_from_aops_crawl(cur) -> tuple[int, int]:
     """Backfill real statement/answer/solutions from data/crawl/*/*/parsed.json
     (AoPS wiki pages — the question_index.csv mirror has no full problem text)."""
     cur.execute("SELECT canonical_code, problem_id FROM core.problem")
     problem_by_code = {code: pid for code, pid in cur.fetchall()}
+    decorative_filenames = _find_decorative_image_filenames(AOPS_CRAWL_DIR)
 
     updated = skipped = 0
     for parsed_path in sorted(AOPS_CRAWL_DIR.glob("*/*/parsed.json")):
@@ -252,6 +272,25 @@ def enrich_problems_from_aops_crawl(cur) -> tuple[int, int]:
         for i, solution_text in enumerate(record.get("solution_texts") or [], start=1):
             if solution_text and solution_text.strip():
                 _upsert_solution(cur, problem_id, "AOPS_COMMUNITY", i, solution_text.strip().replace("\x00", ""))
+
+        # Diagram images saved by crawl_unmapped.py's save_aops_images() alongside
+        # parsed.json — same page as the solutions, so this covers both problem
+        # and solution figures (AoPS wiki pages render them on one page).
+        images_dir = parsed_path.parent / "images"
+        if images_dir.is_dir():
+            real_images = [
+                p for p in sorted(images_dir.iterdir())
+                if p.is_file() and p.name not in decorative_filenames
+            ]
+            for ordinal, image_path in enumerate(real_images, start=1):
+                cur.execute(
+                    """
+                    INSERT INTO core.problem_image (problem_id, ordinal, local_path, source)
+                    VALUES (%s, %s, %s, 'AOPS_CRAWL')
+                    ON CONFLICT (problem_id, ordinal) DO UPDATE SET local_path = EXCLUDED.local_path
+                    """,
+                    (problem_id, ordinal, str(image_path.resolve())),
+                )
 
         updated += 1
     return updated, skipped
@@ -405,7 +444,7 @@ def load_concepts(cur) -> tuple[int, int]:
             """,
             (slugify(raw_id), name, row.get("Definition") or None, level_by_node_type[node_type]),
         )
-        inserted += 1
+        inserted += cur.rowcount
 
     for row in read_rows("topic_taxonomy.csv"):
         raw_id = (row.get("Concept_ID") or "").strip()
@@ -421,7 +460,7 @@ def load_concepts(cur) -> tuple[int, int]:
             """,
             (slugify(raw_id), name, row.get("Evidence_Basis") or None, None),
         )
-        inserted += 1
+        inserted += cur.rowcount
 
     return inserted, skipped
 
@@ -443,7 +482,7 @@ def load_techniques(cur) -> tuple[int, int]:
             """,
             (slugify(raw_id), name, row.get("Definition") or None),
         )
-        inserted += 1
+        inserted += cur.rowcount
     return inserted, skipped
 
 
@@ -476,7 +515,10 @@ def load_problem_concepts(cur) -> tuple[int, int]:
                 "PENDING",
             ),
         )
-        inserted += 1
+        if cur.rowcount:
+            inserted += 1
+        else:
+            skipped += 1
     return inserted, skipped
 
 
@@ -510,7 +552,10 @@ def load_problem_techniques(cur) -> tuple[int, int]:
                 "PENDING",
             ),
         )
-        inserted += 1
+        if cur.rowcount:
+            inserted += 1
+        else:
+            skipped += 1
     return inserted, skipped
 
 
@@ -548,17 +593,24 @@ def load_concept_relations(cur) -> tuple[int, int]:
                 "PENDING",
             ),
         )
-        inserted += 1
+        if cur.rowcount:
+            inserted += 1
+        else:
+            skipped += 1
     return inserted, skipped
 
 
 def main() -> None:
     env = _load_env()
+    # NEON_PG_* (from mathbank-graph/remote.env) target the remote Neon
+    # instance; falls back to the local mathbank-db cluster when absent.
     conninfo = (
-        f"host=127.0.0.1 port={env.get('PG_PORT', '5433')} "
-        f"dbname={env.get('APP_DB', 'mathbank')} "
-        f"user={env.get('APP_USER', 'mathbank_app')} "
-        f"password={env.get('APP_DB_PASSWORD', '')}"
+        f"host={env.get('NEON_PG_HOST', '127.0.0.1')} "
+        f"port={env.get('NEON_PG_PORT') or env.get('PG_PORT', '5433')} "
+        f"dbname={env.get('NEON_PG_DATABASE') or env.get('APP_DB', 'mathbank')} "
+        f"user={env.get('NEON_PG_USER') or env.get('APP_USER', 'mathbank_app')} "
+        f"password={env.get('NEON_PG_PASSWORD') or env.get('APP_DB_PASSWORD', '')}"
+        + (f" sslmode={env['NEON_PG_SSLMODE']}" if env.get("NEON_PG_SSLMODE") else "")
     )
 
     with psycopg.connect(conninfo) as conn:

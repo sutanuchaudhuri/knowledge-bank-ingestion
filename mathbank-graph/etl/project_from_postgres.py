@@ -8,6 +8,7 @@ Run via `make project` in mathbank-graph/.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import psycopg
@@ -17,7 +18,9 @@ BATCH_SIZE = 500
 
 
 def _load_env() -> dict[str, str]:
-    env_path = Path(__file__).resolve().parents[1] / ".env"
+    # GRAPH_ENV_FILE lets `make project ENV_FILE=remote.env` point this at the
+    # Neon/AuraDB remote credentials instead of the local .env (see remote.env).
+    env_path = Path(os.environ.get("GRAPH_ENV_FILE") or Path(__file__).resolve().parents[1] / ".env")
     env: dict[str, str] = {}
     if env_path.exists():
         for line in env_path.read_text().splitlines():
@@ -310,15 +313,20 @@ def project_concept_relation(driver, pg_cur) -> int:
 def main() -> None:
     env = _load_env()
     pg_conninfo = (
-        f"host=127.0.0.1 port={env.get('PG_PORT', '5433')} "
-        f"dbname={env.get('APP_DB', 'mathbank')} "
-        f"user={env.get('APP_USER', 'mathbank_app')} "
-        f"password={env.get('APP_DB_PASSWORD', '')}"
+        f"host={env.get('NEON_PG_HOST', '127.0.0.1')} port={env.get('NEON_PG_PORT') or env.get('PG_PORT', '5433')} "
+        f"dbname={env.get('NEON_PG_DATABASE') or env.get('APP_DB', 'mathbank')} "
+        f"user={env.get('NEON_PG_USER') or env.get('APP_USER', 'mathbank_app')} "
+        f"password={env.get('NEON_PG_PASSWORD') or env.get('APP_DB_PASSWORD', '')}"
+        + (f" sslmode={env['NEON_PG_SSLMODE']}" if env.get("NEON_PG_SSLMODE") else "")
     )
-    neo4j_uri = f"bolt://localhost:{env.get('NEO4J_BOLT_PORT', '7687')}"
+    # Remote (AuraDB) creds use the NEO4J_URI/NEO4J_USERNAME/NEO4J_DATABASE names
+    # Aura's console download uses verbatim; local dev uses bolt://localhost + NEO4J_PASSWORD only.
+    neo4j_uri = env.get("NEO4J_URI") or f"bolt://localhost:{env.get('NEO4J_BOLT_PORT', '7687')}"
+    neo4j_user = env.get("NEO4J_USERNAME", "neo4j")
     neo4j_password = env.get("NEO4J_PASSWORD", "")
+    neo4j_database = env.get("NEO4J_DATABASE")
 
-    driver = GraphDatabase.driver(neo4j_uri, auth=("neo4j", neo4j_password))
+    driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
     with psycopg.connect(pg_conninfo) as pg_conn:
         with pg_conn.cursor() as pg_cur:
             pg_cur.execute(

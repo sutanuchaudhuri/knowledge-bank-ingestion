@@ -4,11 +4,12 @@
 
 This repository is the implementation blueprint for turning a large mathematics corpus—competition papers, problems, solutions, concepts, techniques, prerequisite chains, taxonomy labels, source metadata, and learner interactions—into a durable queryable platform.
 
-The architecture has three principal layers:
+The architecture has four principal layers:
 
 1. **PostgreSQL — system of record.** All authoritative content, ingestion state, provenance, taxonomy assignments, solution structure, and audit data live here first.
 2. **Graph database — derived semantic projection.** Concepts, techniques, problems, prerequisites, similarity links, and learning-path relationships are projected from PostgreSQL into a property graph.
-3. **REST API — controlled read/write boundary.** Corpus ingestion, taxonomy edits, problem lookup, graph traversal, search, tutor retrieval, and batch operations are exposed through versioned API contracts.
+3. **PostgreSQL vector/search subsystem — pgvector + lexical retrieval.** Semantic chunks, model-versioned embeddings, HNSW/IVFFlat indexes, full-text search, hybrid ranking, retrieval evaluation, and re-embedding state live under `search.*` while remaining derived from canonical PostgreSQL data.
+4. **REST API — controlled read/write boundary.** Corpus ingestion, taxonomy edits, problem lookup, graph traversal, semantic/hybrid search, tutor retrieval, and batch operations are exposed through versioned API contracts.
 
 The governing rule is: **nothing exists only in the graph.** Every durable graph node and edge must be reproducible from PostgreSQL or be recorded there as an asserted relationship before projection.
 
@@ -37,6 +38,23 @@ The governing rule is: **nothing exists only in the graph.** Every durable graph
 - `postgres/08_query_patterns_and_materialized_views.md`
 - `postgres/09_migrations_operations_and_scaling.md`
 
+
+### Vector database — PostgreSQL + pgvector
+
+- `vector/01_postgres_pgvector_architecture.md`
+- `vector/02_embedding_and_chunk_schema.md`
+- `vector/03_math_aware_chunking_and_representations.md`
+- `vector/04_pgvector_indexing_and_physical_design.md`
+- `vector/05_hybrid_search_ranking_and_filters.md`
+- `vector/06_embedding_pipeline_reembedding_and_versioning.md`
+- `vector/07_vector_relational_graph_integration.md`
+- `vector/08_tutor_rag_query_flows.md`
+- `vector/09_scaling_monitoring_and_retrieval_evaluation.md`
+- `vector/10_reference_sql_and_query_examples.md`
+- `vector/11_rest_vector_search_contracts.md`
+- `vector/12_implementation_sequence.md`
+- `vector/INTEGRATION_WITH_EXISTING_DB_PLAN.md`
+
 ### Graph database
 
 - `graph/01_graph_architecture.md`
@@ -64,21 +82,6 @@ The governing rule is: **nothing exists only in the graph.** Every durable graph
 - `crosscut/03_implementation_roadmap.md`
 - `crosscut/04_testing_and_acceptance.md`
 
-### Agentic layer (implemented — Google ADK + OpenAI, React frontend)
-
-- `agent/00_index.md` — start here
-- `agent/01_architecture_and_design.md`
-- `agent/02_ingestion_pipeline_flow.md`
-- `agent/03_inference_and_retrieval_flow.md`
-- `agent/04_example_queries.md`
-- `agent/05_frontend_and_api_contract.md`
-- `agent/06_security_and_access_model.md`
-
-Implementation: `mathbank-agent/` (ADK agent + tools), `mathbank-web/`
-(React chat UI), both consuming `mathbank-rest/`. See
-`00_implementation_progress.md` for the full build log of every layer
-(Postgres through vector/RAG).
-
 ## Recommended implementation order
 
-Implement PostgreSQL first through migrations and ingestion state. Load a representative slice of the corpus, validate provenance and taxonomy, then implement REST reads/writes. Only after those contracts stabilize should the graph projection be built. This prevents graph schema churn from becoming the source of truth.
+Implement canonical PostgreSQL first through migrations and ingestion state. Then build the PostgreSQL-native vector/search subsystem and load a representative corpus slice so chunking, provenance, hybrid retrieval, and embedding versioning can be evaluated. Next stabilize REST contracts. Build the graph projection after canonical IDs and knowledge assertions are stable. PostgreSQL remains the system of record throughout.

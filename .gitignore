@@ -37,12 +37,15 @@ htmlcov/
 # Env files
 .env
 .env.*
+*.env
 !.env.example
+!*.env.example
 
 # Secrets / credentials
 credentials.json
 token.json
 service_account*.json
+Neo4j-*-Created-*.txt
 *.pem
 
 # Background dev-server state (make start/stop pidfiles + logs)

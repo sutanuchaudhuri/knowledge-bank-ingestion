@@ -6,16 +6,9 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { createSession, newSessionId, sendMessage } from "./agentClient.js";
+import { normalizeMathDelimiters } from "../lib/markdown.js";
 
 const USER_ID = "anonymous"; // replaced by a real student id once profiles exist
-
-// The agent emits LaTeX-style \( \) / \[ \] delimiters; remark-math only
-// recognizes $ $ / $$ $$, so translate before handing text to ReactMarkdown.
-function normalizeMathDelimiters(text) {
-  return text
-    .replace(/\\\[([\s\S]*?)\\\]/g, (_, expr) => `$$${expr}$$`)
-    .replace(/\\\(([\s\S]*?)\\\)/g, (_, expr) => `$${expr}$`);
-}
 
 export default function Page() {
   const [sessionId] = useState(newSessionId);
@@ -57,7 +50,10 @@ export default function Page() {
     <div style={{ maxWidth: 720, margin: "0 auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
       <h1 style={{ fontSize: 20 }}>MathBank Tutor</h1>
       <p style={{ color: "#666", fontSize: 13 }}>
-        Anonymous session · hybrid RAG over mathbank-rest + Postgres
+        Anonymous session · hybrid RAG over mathbank-rest + Postgres ·{" "}
+        <a href="/db" style={{ color: "#2563eb" }}>browse the corpus</a>
+        {" · "}
+        <a href="/graph" style={{ color: "#2563eb" }}>view the graph</a>
       </p>
 
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, minHeight: 360, marginBottom: 12 }}>

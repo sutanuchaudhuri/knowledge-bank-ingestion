@@ -143,6 +143,14 @@ classify:                   ## Classify crawled questions with OpenAI (set LIMIT
 classify-dry:               ## Preview classify queue without API calls
 	$(BIN)/python scripts/classify_crawled.py --dry-run --limit 10
 
+.PHONY: export-classifications
+export-classifications:     ## Bridge SQLite classification results into the CSV corpus mirror (idempotent)
+	$(BIN)/python scripts/export_classifications_to_csv.py
+
+.PHONY: export-classifications-dry
+export-classifications-dry: ## Preview the classification export without writing
+	$(BIN)/python scripts/export_classifications_to_csv.py --dry-run
+
 # ── Review (second-pass GPT-4o quality check with vision) ─────────────────────
 
 .PHONY: review

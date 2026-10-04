@@ -84,14 +84,32 @@ def search_problems(
         "year_asc": "ed.year ASC NULLS LAST, combined.rrf_score DESC",
     }.get(order_by, "combined.rrf_score DESC")
 
+    # Filters are applied here, BEFORE the top-N ANN/lexical ranking, not after.
+    # Ranking first and filtering the resulting top-`candidate_limit` rows would
+    # silently return zero results for any competition whose chunks don't happen
+    # to fall in the global top-N nearest neighbors for a given query (e.g. a
+    # competition filter narrowing to a small/underrepresented subset).
+    eligible_cte = f"""
+        eligible_problem AS (
+            SELECT p.problem_id
+            FROM core.problem p
+            JOIN core.paper pa ON pa.paper_id = p.paper_id
+            JOIN core.competition_edition ed ON ed.edition_id = pa.edition_id
+            JOIN core.competition comp ON comp.competition_id = ed.competition_id
+            WHERE TRUE {filter_sql}
+        )
+    """
+
     semantic_cte = (
         """
         semantic AS (
             SELECT e.chunk_id,
-                   row_number() OVER (ORDER BY e.embedding::vector(1536) <=> CAST(:query_vector AS vector(1536))) AS rnk
+                   row_number() OVER (ORDER BY e.embedding::public.vector(1536) OPERATOR(public.<=>) CAST(:query_vector AS public.vector(1536))) AS rnk
             FROM search.embedding e
+            JOIN search.chunk c ON c.chunk_id = e.chunk_id
+            JOIN eligible_problem ep ON ep.problem_id = c.problem_id
             WHERE e.embedding_model_id = :model_id AND e.status = 'ACTIVE'
-            ORDER BY e.embedding::vector(1536) <=> CAST(:query_vector AS vector(1536))
+            ORDER BY e.embedding::public.vector(1536) OPERATOR(public.<=>) CAST(:query_vector AS public.vector(1536))
             LIMIT :candidate_limit
         )
         """
@@ -104,6 +122,7 @@ def search_problems(
             SELECT c.chunk_id,
                    row_number() OVER (ORDER BY ts_rank_cd(c.textsearch, websearch_to_tsquery('english', :query_text)) DESC) AS rnk
             FROM search.chunk c
+            JOIN eligible_problem ep ON ep.problem_id = c.problem_id
             WHERE c.textsearch @@ websearch_to_tsquery('english', :query_text)
             LIMIT :candidate_limit
         )
@@ -114,7 +133,8 @@ def search_problems(
 
     query = text(
         f"""
-        WITH {semantic_cte},
+        WITH {eligible_cte},
+        {semantic_cte},
         {lexical_cte},
         combined AS (
             SELECT coalesce(s.chunk_id, l.chunk_id) AS chunk_id,
@@ -132,7 +152,7 @@ def search_problems(
         JOIN core.paper pa ON pa.paper_id = p.paper_id
         JOIN core.competition_edition ed ON ed.edition_id = pa.edition_id
         JOIN core.competition comp ON comp.competition_id = ed.competition_id
-        WHERE c.problem_id IS NOT NULL {filter_sql}
+        WHERE c.problem_id IS NOT NULL
         ORDER BY {order_sql}
         LIMIT :limit
         """

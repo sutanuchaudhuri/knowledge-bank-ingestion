@@ -191,6 +191,58 @@ Two fixes exist:
    `mathbank-agent` needs zero CORS configuration, which matters once it's
    no longer "run on a trusted network only" per its own `--help` text.
 
+## 14. `set -a; source .env; set +a` in a terminal leaks vars into every later command
+
+Real exported environment variables always win over `.env` file values in
+pydantic-settings / python-dotenv (the `.env` file is only a fallback). If
+you `set -a; source some.env; set +a` in a persistent terminal to test one
+command, those vars stay exported in that shell for every command you run
+afterward — including a `nohup ... &` background server you launch later,
+which silently inherits the stale values instead of reading its own `.env`.
+Hit this migrating `mathbank-rest` from local Postgres/Neo4j to remote
+Neon/AuraDB: after updating `.env` to the new Aura password, the running
+service kept authenticating with the old local Neo4j password because an
+earlier `source mathbank-graph/.env` in the same terminal had exported it.
+**Fix**: `unset VAR1 VAR2 ...` before relying on `.env` again, open a fresh
+terminal, or prefer `VAR=val command` (scoped to one line) over `set -a`.
+
+## 15. Neon's `neondb_owner` role has an EMPTY `search_path` — unqualified pgvector operators/types fail
+
+After migrating `mathbank-db` to Neon, `/v1/search/problems` started 500ing:
+
+```
+psycopg.errors.UndefinedObject: type "vector" does not exist
+```
+
+and after schema-qualifying the type:
+
+```
+psycopg.errors.UndefinedFunction: operator does not exist: public.vector <=> public.vector
+```
+
+`SHOW search_path;` on this Neon role returns **blank** — not even the
+default `"$user", public`. Any unqualified reference to something pgvector
+installs into the `public` schema (the `vector` type itself, and operators
+like `<=>`) fails to resolve, even though `CREATE EXTENSION vector` succeeded
+and `pg_available_extensions`/`pg_extension` show it present. This only
+breaks raw SQL that doesn't schema-qualify — table references like
+`core.problem` were unaffected since they're already schema-qualified.
+
+Tried **`ALTER ROLE neondb_owner IN DATABASE neondb SET search_path = public;`**
+first — it reports success but `SHOW search_path;` on a fresh connection
+through Neon's pooler endpoint still comes back empty, so it does not
+reliably fix this for pooled connections.
+
+**Fix**: schema-qualify explicitly in the SQL itself (`mathbank-rest/src/
+mathbank_rest/db/vector_search.py`), don't rely on `search_path`:
+- Type casts: `public.vector(1536)` instead of `vector(1536)`.
+- The distance operator: `OPERATOR(public.<=>)` instead of bare `<=>`
+  (Postgres's schema-qualification syntax for operators, not just
+  `public.<=>` — operators aren't resolved like function/type names).
+
+Verified fixed against the original AMC10-combinatorics repro case post-fix.
+Any other new raw-SQL pgvector usage against Neon should do the same.
+
 ## Single-command recreation
 
 ```bash

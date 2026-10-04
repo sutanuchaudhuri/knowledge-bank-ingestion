@@ -107,6 +107,10 @@ project:                          ## Project Postgres (mathbank-db) into the Neo
 	@test -n "$(NEO4J_PASSWORD)" || (echo "Set NEO4J_PASSWORD in .env first" && exit 1)
 	.venv/bin/python etl/project_from_postgres.py
 
+.PHONY: project-remote
+project-remote:                   ## Project the remote Neon Postgres into the remote AuraDB graph (see remote.env)
+	GRAPH_ENV_FILE=$(CURDIR)/remote.env .venv/bin/python etl/project_from_postgres.py
+
 .PHONY: destroy
 destroy:                        ## Stop server and DELETE the external data directory
 	-"$(NEO4J_BIN)/neo4j" stop

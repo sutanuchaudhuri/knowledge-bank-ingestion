@@ -17,6 +17,15 @@ Recommended hierarchy:
 
 The first four may form a curated hierarchy. Concepts and techniques should support a graph/DAG, not only parent-child trees.
 
+## Implementation status
+
+`knowledge.concept`, `knowledge.technique`, `knowledge.problem_concept`,
+`knowledge.problem_technique`, and `knowledge.concept_relation` are implemented
+(see `mathbank-db/sql/001_schema.sql`). `knowledge.taxonomy_node` and
+`knowledge.taxonomy_edge` below are **not yet created** — the L0-L3 hierarchy is
+currently only approximated by `knowledge.concept.level` (an int, not a separate
+table). Treat the taxonomy tables as planned work, not current schema.
+
 ## Tables
 
 ### `knowledge.taxonomy_node`
