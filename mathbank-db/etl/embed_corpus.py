@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import sys
 from pathlib import Path
 
@@ -33,6 +34,21 @@ MODEL_REVISION = "v1"
 DIMENSIONS = 1536
 BATCH_SIZE = 100
 MAX_CHARS_PER_CHUNK = 6000  # ~1500 tokens; our statements/solutions are short enough to rarely split
+
+
+def _ensure_openai_api_key() -> None:
+    """Checks the shell environment (e.g. ~/.zshrc) first, then falls back to
+    mathbank-db/.env — never overrides an already-exported key."""
+    if os.environ.get("OPENAI_API_KEY"):
+        return
+    env_key = _load_env().get("OPENAI_API_KEY")
+    if env_key:
+        os.environ["OPENAI_API_KEY"] = env_key
+        return
+    raise RuntimeError(
+        "OPENAI_API_KEY not found in the shell environment (~/.zshrc) or mathbank-db/.env. "
+        "Export it in your shell, or set OPENAI_API_KEY=... in .env (see .env.example)."
+    )
 
 _encoding = tiktoken.get_encoding("cl100k_base")
 
@@ -185,7 +201,7 @@ def build_representations_and_chunks(cur, profile_id: str, limit: int | None) ->
 
 
 def embed_pending_chunks(cur, conn, model_id: str, limit: int | None) -> tuple[int, int]:
-    client = OpenAI()  # reads OPENAI_API_KEY from the environment
+    client = OpenAI()  # reads OPENAI_API_KEY from the environment (see _ensure_openai_api_key)
 
     cur.execute(
         """
@@ -335,6 +351,7 @@ def main() -> None:
             conn.commit()
 
             if args.command == "backfill":
+                _ensure_openai_api_key()
                 reps, chunks = build_representations_and_chunks(cur, profile_id, args.limit)
                 conn.commit()
                 print(f"representations: {reps} chunks: {chunks}")

@@ -16,6 +16,7 @@ dependencies = [
   "psycopg[binary]>=3.2",
   "neo4j>=5.23",
   "openai>=1.50",
+  "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]

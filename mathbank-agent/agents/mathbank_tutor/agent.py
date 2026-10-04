@@ -24,6 +24,14 @@ from .tools.rest_tools import (
 
 load_dotenv()
 
+# Checks the shell environment (e.g. ~/.zshrc) first; load_dotenv() above only
+# fills OPENAI_API_KEY from .env if it isn't already set, never overrides it.
+if not os.environ.get("OPENAI_API_KEY"):
+    raise RuntimeError(
+        "OPENAI_API_KEY not found in the shell environment (~/.zshrc) or mathbank-agent/.env. "
+        "Export it in your shell, or set OPENAI_API_KEY=... in .env (see .env.example)."
+    )
+
 MODEL = os.environ.get("MATHBANK_AGENT_MODEL", "openai/gpt-4o-mini")
 
 INSTRUCTION = """\

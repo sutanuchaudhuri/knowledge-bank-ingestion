@@ -6,8 +6,10 @@ Per mathematics_tutor_db_plan_v2/vector/10_reference_sql_and_query_examples.md
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
+from dotenv import load_dotenv
 from openai import OpenAI
 from sqlalchemy import text
 
@@ -15,6 +17,15 @@ from mathbank_rest.db.postgres import engine
 
 EMBEDDING_MODEL_NAME = "text-embedding-3-small"
 EMBEDDING_DIMENSIONS = 1536
+
+# Checks the shell environment (e.g. ~/.zshrc) first; load_dotenv() only fills
+# OPENAI_API_KEY from .env if it isn't already set, never overrides it.
+load_dotenv()
+if not os.environ.get("OPENAI_API_KEY"):
+    raise RuntimeError(
+        "OPENAI_API_KEY not found in the shell environment (~/.zshrc) or mathbank-rest/.env. "
+        "Export it in your shell, or set OPENAI_API_KEY=... in .env (see .env.example)."
+    )
 
 _client = OpenAI()  # reads OPENAI_API_KEY from the environment
 
