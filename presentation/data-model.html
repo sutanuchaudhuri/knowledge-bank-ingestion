@@ -15,6 +15,7 @@
     <a href="architecture.html">Ingestion &amp; Inference</a>
     <a href="data-model.html">Data Model</a>
     <a href="graph.html">Knowledge Graph</a>
+    <a href="pedagogy.html">Pedagogy</a>
     <a href="use-cases.html">Use Cases</a>
     <a href="tutor-interaction.html">Tutor Interaction</a>
     <a href="student-profile-ui.html">Student &amp; Admin UI</a>
@@ -30,12 +31,44 @@
     <p class="lede">Five schemas, one Postgres database (Neon, serverless). <code>core</code> and
     <code>knowledge</code> are the corpus; <code>search</code> is the vector/FTS index; <code>learner</code>
     is student state; <code>pipeline</code> is operational metadata. Click a schema tab, then a table, to
-    drill into its exact columns.</p>
+    drill into the legacy corpus columns. The P0 pedagogical extension is documented separately below;
+    applying the migration and auditing live population are distinct from defining the schema.</p>
   </section>
 
-  <h2 id="er"><span class="section-no">A</span>Entity-relationship diagram</h2>
-  <p>This is the live schema — generated from <code>mathbank-db/sql/001_schema.sql</code> through
-  <code>004_admin_pipeline.sql</code>, not a simplification.</p>
+  <h2 id="pedagogical-records"><span class="section-no">P0</span>Pedagogical system-of-record contract</h2>
+  <div class="grid cols-2 reveal">
+    <div class="card"><h3>Learning objectives and relations</h3><p>Skill objectives carry optional levels 1–5,
+    stable identifiers, unique slugs, names and measurable objectives.
+    Skill-to-Concept membership, Skill-to-Skill composition, and prior-to-dependent prerequisites
+    are separate facts. Projection must preserve their identity and provenance; a hierarchy alone
+    cannot establish a prerequisite.</p></div>
+    <div class="card"><h3>Problem associations</h3><p><code>REQUIRES</code>, <code>PRACTICES</code>, and
+    <code>TESTS</code> keep their distinct meanings and retain <code>role</code>,
+    <code>required_level</code>, <code>importance</code>, <code>confidence</code>,
+    <code>source</code>, and <code>review_status</code>. Level is an objective requirement,
+    not measured learner mastery.</p></div>
+    <div class="card"><h3>Multidimensional difficulty</h3><p><code>conceptual_depth</code>,
+    <code>technical_load</code>, <code>algebraic_load</code>, <code>insight_required</code> (nullable 1–5),
+    <code>number_of_steps</code>, <code>prerequisite_depth</code>, and <code>estimated_contest_level</code>
+    retain provenance and approval status. Preserve unknowns; do not coerce missing dimensions to zero
+    or treat the existing <code>difficulty_band</code> as complete pedagogical evidence.</p></div>
+    <div class="card"><h3>Review is an explicit gate</h3><p>Generated records remain <code>PENDING</code>
+    until separately reviewed. Stored provenance, populated rows, graph projection success, and
+    human approval are different checks. Generated confidence is never approval. The derived graph
+    inventories PENDING, REVIEWED and REJECTED metadata, while tutor evidence filters remain reviewed-only.</p></div>
+  </div>
+  <p><a href="graph.html#skills">Relationship directions and query contract</a> ·
+  <a href="pedagogy.html#evidence">Teaching evidence semantics</a> ·
+  <a href="../requirements/13_PEDAGOGICAL_GRAPH_AND_TUTOR_REQUIREMENTS.md">Detailed P0/P1/P2 requirements</a>.
+  P1 steps, stored hints, misconceptions and courses, and P2 skill-level learner personalization remain planned.</p>
+  <p class="pedagogy-note">Direct Neon audit, 2026-10-04 20:17 UTC: migration 006 applied to the app target;
+  counting-foundations seed imported idempotently with 6 Skills, 6 Skill–Concept links, 6 Skill relations,
+  6 problem mappings and 3 difficulty assessments, all PENDING. Corpus remains 5,960 problems / 13,168
+  solutions. This is remote data rollout, not human review or production hosting.</p>
+
+  <h2 id="er"><span class="section-no">A</span>Legacy entity-relationship diagram</h2>
+  <p>This historical schema view was generated from <code>mathbank-db/sql/001_schema.sql</code> through
+  <code>004_admin_pipeline.sql</code>. It does not include the P0 extension and is not a fresh live schema audit.</p>
   <pre class="mermaid reveal">
 erDiagram
     COMPETITION ||--o{ COMPETITION_EDITION : "has editions"

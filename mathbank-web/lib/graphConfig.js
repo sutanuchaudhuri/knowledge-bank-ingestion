@@ -9,6 +9,15 @@ export const RELATIONSHIPS = {
   "tests": { type: "TESTS", from: "Problem", to: "Concept", title: "Problem → Concept (tests)" },
   "uses-technique": { type: "USES_TECHNIQUE", from: "Problem", to: "Technique", title: "Problem → Technique" },
   "concept-relation": { type: "CONCEPT_RELATION", from: "Concept", to: "Concept", title: "Concept → Concept" },
+  "requires-skill": { type: "REQUIRES", from: "Problem", to: "Skill", title: "Required skills", pedagogical: true },
+  "practices-skill": { type: "PRACTICES", from: "Problem", to: "Skill", title: "Practiced skills", pedagogical: true },
+  "tests-skill": { type: "TESTS", from: "Problem", to: "Skill", title: "Tested skills", pedagogical: true },
+  "skill-concepts": { type: "PART_OF", from: "Skill", to: "Concept", title: "Skill → Concept", pedagogical: true },
+  "skill-prerequisites": { type: "PREREQUISITE_OF", from: "Skill", to: "Skill", title: "Skill prerequisites", pedagogical: true },
+  "skill-hierarchy": { type: "PART_OF", from: "Skill", to: "Skill", title: "Skill hierarchy", pedagogical: true },
+  "concept-hierarchy": { type: "PART_OF", from: "Concept", to: "Concept", title: "Concept hierarchy", pedagogical: true },
+  "concept-prerequisites": { type: "PREREQUISITE_OF", from: "Concept", to: "Concept", title: "Concept prerequisites", pedagogical: true },
+  "skill-builds-on": { type: "BUILDS_ON", from: "Skill", to: "Skill", title: "Useful prior skills", pedagogical: true },
 };
 
 export const GRAPH_DEFAULT_LIMIT = 1000;
@@ -27,6 +36,7 @@ export function labelOf(label, props) {
     case "Solution":
       return `${props.solution_kind || "Solution"} (rev ${props.revision ?? "?"})`;
     case "Concept":
+    case "Skill":
       return props.name || "Concept";
     case "Technique":
       return props.name || "Technique";

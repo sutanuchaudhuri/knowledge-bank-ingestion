@@ -2,6 +2,12 @@
 
 ## Core Entities
 
+For the additive teaching-graph model (Skill, reviewed prerequisite/hierarchy
+edges, problem-skill roles, and multidimensional difficulty), see
+[pedagogical requirements](13_PEDAGOGICAL_GRAPH_AND_TUTOR_REQUIREMENTS.md).
+Versioned Course/Module/Lesson sequences are P1; the Course grouping below
+is not a deployed pedagogical curriculum.
+
 ### Course
 A study track that groups competitions for a student (e.g. "AMC10 Prep", "AIME Intensive").
 

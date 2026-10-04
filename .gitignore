@@ -59,6 +59,9 @@ Neo4j-*-Created-*.txt
 
 # Pipeline runtime artefacts
 data/
+!mathbank-db/data/
+mathbank-db/data/*
+!mathbank-db/data/pedagogy/
 batches/
 logs/
 reports/

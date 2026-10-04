@@ -5,6 +5,7 @@ export const NODE_COLORS = {
   Solution: "#d97706",
   Concept: "#dc2626",
   Technique: "#0891b2",
+  Skill: "#be185d",
 };
 
 export const FALLBACK_NODE_COLOR = "#64748b";

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { GRAPH_DEFAULT_LIMIT, GRAPH_LIMIT_OPTIONS, RELATIONSHIPS } from "../../../lib/graphConfig.js";
 import { colorFor } from "../_components/graphColors.js";
 import styles from "../graph.module.css";
@@ -19,11 +20,12 @@ const endpointId = (end) => (typeof end === "object" && end !== null ? end.id : 
 
 export default function GraphRelationshipPage() {
   const { rel } = useParams();
-  const config = RELATIONSHIPS[rel];
+  const config = Object.hasOwn(RELATIONSHIPS, rel) ? RELATIONSHIPS[rel] : null;
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [limit, setLimit] = useState(GRAPH_DEFAULT_LIMIT);
   const [reloadKey, setReloadKey] = useState(0);
+  const [reviewedOnly, setReviewedOnly] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
   const [paused, setPaused] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -39,14 +41,14 @@ export default function GraphRelationshipPage() {
     setSelectedId(null);
     setPaused(false);
     fittedRef.current = false;
-    fetch(`/api/graph/relationship/${rel}?limit=${limit}`, { signal: controller.signal })
+    fetch(`/api/graph/relationship/${rel}?limit=${limit}&reviewed=${reviewedOnly}`, { signal: controller.signal })
       .then((res) =>
         res.ok ? res.json() : res.json().then((body) => Promise.reject(new Error(body.error || `status ${res.status}`)))
       )
       .then(setData)
       .catch((err) => { if (err.name !== "AbortError") setError(err.message); });
     return () => controller.abort();
-  }, [rel, limit, reloadKey]);
+  }, [rel, limit, reloadKey, reviewedOnly]);
 
   // Size the canvas to its container so the graph fills the full-width workspace.
   useEffect(() => {
@@ -183,6 +185,17 @@ export default function GraphRelationshipPage() {
         </label>
       </div>
 
+      {config?.pedagogical && (
+        <div className="alert alert-light border small d-flex flex-wrap justify-content-between gap-2">
+          <span>Teaching graph: only reviewed metadata is used by the tutor. Missing relationships are an enrichment gap, not inferred prerequisites.</span>
+          <label className="form-check">
+            <input type="checkbox" className="form-check-input" checked={reviewedOnly} onChange={(event) => setReviewedOnly(event.target.checked)} />
+            Reviewed only
+          </label>
+          {!reviewedOnly && <strong className="text-warning-emphasis">Inventory view includes unreviewed assertions; do not treat them as teaching facts.</strong>}
+        </div>
+      )}
+
       {error && (
         <div className="alert alert-danger d-flex align-items-center justify-content-between gap-2" role="alert">
           <span>Could not load view: {error}</span>
@@ -255,7 +268,7 @@ export default function GraphRelationshipPage() {
                   graphData={graphData}
                   width={size.width}
                   height={size.height}
-                  nodeLabel={(n) => `${n.label}: ${n.name}`}
+                  nodeLabel={(n) => `${n.label}: ${n.name}${n.properties?.review_status ? ` (${n.properties.review_status})` : ""}`}
                   nodeColor={(n) => (highlightIds && !highlightIds.has(n.id) ? DIM_COLOR : colorFor(n.label))}
                   nodeVal={(n) => (n.id === selectedId ? 4 : 1)}
                   nodeRelSize={4}
@@ -296,11 +309,32 @@ export default function GraphRelationshipPage() {
             </div>
             <div className="small text-body-secondary mb-1">Canonical ID</div>
             <div className={`${styles.mono} mb-3`}>{selected.id}</div>
+            {selected.label === "Problem" && selected.properties?.canonical_code && (
+              <Link className="btn btn-sm btn-outline-primary mb-3" href={`/learn?problem=${encodeURIComponent(selected.properties.canonical_code)}`}>Practice with hints</Link>
+            )}
+            <h4 className="h6">Metadata</h4>
+            {Object.keys(selected.properties || {}).length ? (
+              <dl className="small">
+                {Object.entries(selected.properties).map(([key, value]) => (
+                  <div key={key}><dt>{key.replaceAll("_", " ")}</dt><dd style={{ overflowWrap: "anywhere" }}>{String(value)}</dd></div>
+                ))}
+              </dl>
+            ) : <p className="small text-secondary">No additional metadata recorded.</p>}
             <div className="small mb-3">
               Degree in sample: <strong>{(selectedAdj?.out.size ?? 0) + (selectedAdj?.in.size ?? 0)}</strong>
             </div>
             {renderNeighbors(`Outgoing → ${config?.to ?? ""}`, selectedAdj?.out ?? new Set())}
             {renderNeighbors(`Incoming ← ${config?.from ?? ""}`, selectedAdj?.in ?? new Set())}
+            <h4 className="h6">Relationship evidence</h4>
+            {graphData.links.filter((link) => endpointId(link.source) === selectedId || endpointId(link.target) === selectedId).slice(0, 30).map((link, index) => (
+              <div className="border rounded-3 p-2 small mb-2" key={index}>
+                <strong>{link.type || config?.type}</strong>
+                <div>{nodesById.get(endpointId(link.source))?.name} → {nodesById.get(endpointId(link.target))?.name}</div>
+                {Object.entries(link.properties || {}).map(([key, value]) => <div key={key}>{key.replaceAll("_", " ")}: {String(value)}</div>)}
+                {!Object.keys(link.properties || {}).length && <span className="text-secondary">Provenance not recorded.</span>}
+              </div>
+            ))}
+            <p className="small text-secondary">Showing up to 30 incident relationships.</p>
             <div className="small text-body-secondary">Neighbors are limited to the loaded sample.</div>
           </aside>
         )}

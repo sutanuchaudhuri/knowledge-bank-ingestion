@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { POST } from "../app/api/agent/run/route.js";
-import { readSse } from "../lib/agentStream.mjs";
+import { GENERATED_COACHING_NOTICE, readSse } from "../lib/agentStream.mjs";
 
 function request(body) {
   return new Request("http://localhost/api/agent/run", {
@@ -82,4 +82,15 @@ test("returns explicit errors for upstream HTTP and connection failures", async 
   response = await POST(request({ ...input, stream: true }));
   assert.equal(response.status, 502);
   assert.match((await response.json()).error, /Connection refused/);
+});
+
+test("non-streaming generated hints have the same deterministic review notice", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json([
+    { content: { parts: [{ functionResponse: {
+      name: "get_next_hint", response: { provenance: { review_status: "PENDING" } },
+    } }] } },
+    { author: "tutor", content: { parts: [{ text: "Try counting." }] } },
+  ]));
+  const response = await POST(request(input));
+  assert.deepEqual(await response.json(), { reply: `${GENERATED_COACHING_NOTICE}\n\nTry counting.` });
 });

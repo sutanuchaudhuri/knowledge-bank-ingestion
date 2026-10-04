@@ -43,3 +43,79 @@ graph is large, or check sizes first:
 MATCH (n) RETURN labels(n) AS label, count(*) AS n ORDER BY n DESC;
 MATCH ()-[r]->() RETURN type(r) AS rel, count(*) AS n ORDER BY n DESC;
 ```
+# P0 skills and semantic projection
+
+The existing `make project` / `make project-remote` behavior remains usable before
+pedagogy migration. Explicitly opt in with
+`.venv/bin/python etl/project_from_postgres.py --pedagogy`, or from the repo root
+`make -C mathbank-db project-pedagogy`. Apply PostgreSQL
+`mathbank-db/sql/006_pedagogy.sql` first; missing tables produce an actionable
+error before projection tracking/graph writes, not swallowed database exceptions.
+Use `GRAPH_ENV_FILE` as in the existing projector. These are operator write
+commands. The authorized remote rollout was completed on 2026-10-04; use
+`make -C mathbank-db project-pedagogy-remote` for the matching Neon/Aura pair.
+The projector honors `NEO4J_DATABASE` for every projection session.
+
+Skill nodes MERGE by PostgreSQL UUID `canonical_id`, not generated names, and
+retain `slug`, `name`, `objective`, nullable `level`, `source`, `confidence`,
+`review_status`. Problem-skill edges use `REQUIRES`, `PRACTICES`, `TESTS`
+and preserve lowercase `role`, nullable `required_level`, `importance` and
+provenance. Skill-concept edges are Skill `PART_OF` Concept; skill-skill
+edges allow `PREREQUISITE_OF` (prior -> dependent), `PART_OF` (child -> parent),
+and `BUILDS_ON` (authored direction).
+
+Original Concept `CONCEPT_RELATION` edges remain generic for every relation
+type. Only the exact whitelist above creates additional semantic Concept
+edges. The explicitly named `HAS_SUBCONCEPT` reverses parent -> child to child
+`PART_OF` parent. No synonyms, case folding, or direction guessing are used.
+Original problem-Concept `TESTS`, `USES_TECHNIQUE`, and generic concept edges
+retain snake_case `source`, `confidence`, uppercase `review_status`;
+concept confidence is the existing SQL `strength`, which also stays projected.
+
+Pedagogy dimensions are optional properties on Problem nodes; their provenance
+is namespaced as `pedagogy_source`, `pedagogy_confidence`, `pedagogy_review_status`
+to avoid overwriting corpus provenance. Managed semantic edges carry
+`projection_kind: pedagogy`; each opt-in run reconciles these edges and dimensions
+so deleted/downgraded assertions cannot retain an old approved edge after a
+successful run. Removed owned skills are marked REJECTED rather than deleting
+unrelated graph references. The graph is a rebuildable projection, not the
+authoring store. Repeated runs cannot duplicate Skill nodes/role edges.
+
+All PENDING, REVIEWED, and REJECTED assertions are projected for inspection.
+Tutoring and the graph's default **Reviewed only** filter require reviewed
+nodes/relationships; unchecking it exposes the inventory with an explicit
+warning. Confidence does not override review status.
+
+The owned pedagogical edges and difficulty properties are reconciled atomically
+in one Neo4j transaction, with batched statements inside that transaction.
+A failure rolls back the replacement. The surrounding corpus projection and
+Postgres run log are not a cross-database atomic transaction; retry failed runs
+and verify source/projection consistency before certifying teaching coverage.
+
+### Live audit
+
+The 2026-10-04 rollout produced 6 PENDING Skill nodes, 83 owned pedagogical
+relationships, and 3 PENDING problem-difficulty assessments:
+
+| Projected metadata | Count |
+|---|---:|
+| Existing Concept hierarchy projected as PART_OF | 65 |
+| Skill PART_OF Concept | 6 |
+| Skill PREREQUISITE_OF Skill | 5 |
+| Skill BUILDS_ON Skill | 1 |
+| Problem REQUIRES Skill | 3 |
+| Problem PRACTICES Skill | 2 |
+| Problem TESTS Skill | 1 |
+
+All 83 are PENDING. No skill-skill hierarchy or concept prerequisite assertions
+have been authored in this starter set; their supported views are correctly
+empty. Inventory endpoints return all source/confidence/review/role/level
+metadata; Problem inspection also shows dimensions and namespaced provenance.
+No official answers or solution bodies are exposed by graph metadata APIs.
+
+The live graph contains 20,942 nodes and 35,529 relationships. These are dated
+audit counts, not guarantees about future ingestion. Overview/sample APIs cache
+for five minutes. Repeated projection retained 6 Skill nodes and 83 owned edges.
+The integration suite also verified that a deliberate failure after deleting
+owned edges rolled back completely. Production assertions remained PENDING.
+P1/P2 semantic steps, hint ladders, courses, and adaptive inference are deferred.

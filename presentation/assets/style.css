@@ -19,6 +19,52 @@
   font-size: 16px;
 }
 
+/* Pedagogical stages remain readable without diagram libraries. */
+.pedagogy-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding-left: 24px;
+}
+.pedagogy-flow li {
+  padding: 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.pedagogy-flow strong, .pedagogy-flow span { display: block; }
+.pedagogy-flow span, .pedagogy-note { color: var(--text-dim); font-size: 14px; }
+.pedagogy-link { display: inline-block; margin: 0 16px 8px 0; }
+.pedagogy-page table.data, table.pedagogy-table {
+  table-layout: fixed;
+  overflow-wrap: anywhere;
+}
+.pedagogy-demo label { display: block; margin: 12px 0 6px; font-weight: 600; }
+.pedagogy-demo select, .pedagogy-demo textarea {
+  width: 100%;
+  padding: 10px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+}
+.pedagogy-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.pedagogy-controls button {
+  padding: 10px 14px;
+  background: var(--bg-panel-2);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.pedagogy-controls button:disabled { opacity: 0.55; cursor: not-allowed; }
+.pedagogy-demo :focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+#learning-feedback { border-left: 3px solid var(--accent-2); padding: 12px; }
+@media (max-width: 700px) {
+  .pedagogy-flow { grid-template-columns: 1fr; }
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -596,4 +642,3 @@ footer a { color: var(--text-dim); }
 }
 .step-dots .dot.done { background: var(--accent); }
 .step-dots .dot.current { background: var(--accent-2); transform: scale(1.3); }
-

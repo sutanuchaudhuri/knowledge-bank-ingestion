@@ -6,7 +6,10 @@ import { RELATIONSHIPS } from "../../lib/graphConfig.js";
 import { colorFor } from "./_components/graphColors.js";
 import styles from "./graph.module.css";
 
-const SLUG_BY_TYPE = Object.fromEntries(Object.entries(RELATIONSHIPS).map(([slug, cfg]) => [cfg.type, slug]));
+const VIEWS_BY_TYPE = Object.entries(RELATIONSHIPS).reduce((views, [slug, config]) => {
+  (views[config.type] ||= []).push({ slug, title: config.title });
+  return views;
+}, {});
 
 const sum = (rows) => rows.reduce((total, row) => total + row.count, 0);
 
@@ -50,6 +53,17 @@ export default function GraphOverviewPage() {
 
   return (
     <>
+      <div className="alert alert-light border d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <strong>Teaching graph readiness</strong>
+          <p className="small mb-0">
+            {data.teaching ? `${data.teaching.reviewedSkills} reviewed skills of ${data.teaching.skills} collected.` : "Teaching metadata totals are unavailable."}
+            {data.teaching?.reviewedSkills === 0 && " No reviewed skill metadata has been projected yet."}
+            {" "}Corpus tags alone are not a prerequisite curriculum.
+          </p>
+        </div>
+        <Link href="/learn" className="btn btn-sm btn-outline-primary">Start guided practice</Link>
+      </div>
       <div className={styles.metrics}>
         <div className={styles.metric}>
           <div className={styles.metricLabel}>Total nodes</div>
@@ -97,11 +111,16 @@ export default function GraphOverviewPage() {
             <table className={`table table-sm table-hover mb-0 ${styles.simpleTable}`}>
               <tbody>
                 {relationshipCounts.map((row) => {
-                  const slug = SLUG_BY_TYPE[row.type];
+                  const views = VIEWS_BY_TYPE[row.type] || [];
                   return (
                     <tr key={row.type}>
                       <td>
-                        {slug ? <Link href={`/graph/${slug}`}>{row.type}</Link> : row.type}
+                        {views.length === 1 ? <Link href={`/graph/${views[0].slug}`}>{row.type}</Link> : row.type}
+                        {views.length > 1 && (
+                          <div className="d-flex flex-wrap gap-2 small">
+                            {views.map((view) => <Link key={view.slug} href={`/graph/${view.slug}`}>{view.title}</Link>)}
+                          </div>
+                        )}
                       </td>
                       <td className="text-end" style={{ textAlign: "right" }}>{row.count.toLocaleString()}</td>
                     </tr>

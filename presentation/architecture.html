@@ -15,6 +15,7 @@
     <a href="architecture.html">Ingestion &amp; Inference</a>
     <a href="data-model.html">Data Model</a>
     <a href="graph.html">Knowledge Graph</a>
+    <a href="pedagogy.html">Pedagogy</a>
     <a href="use-cases.html">Use Cases</a>
     <a href="tutor-interaction.html">Tutor Interaction</a>
     <a href="student-profile-ui.html">Student &amp; Admin UI</a>
@@ -31,6 +32,32 @@
     progress is tracked. This is the real pipeline, not a simplification — every command shown is a
     <code>make</code> target that exists in this repo today.</p>
   </section>
+
+  <h2 id="pedagogical-serving"><span class="section-no">P0</span>Pedagogical serving, not answer delivery</h2>
+  <ol class="pedagogy-flow reveal">
+    <li><strong>Web /learn</strong><span>Anonymous problem selection, obstacle category and attempt input.</span></li>
+    <li><strong>REST boundary</strong><span>Fetch problem statement, skill metadata and eligible reviewed evidence.</span></li>
+    <li><strong>Draft generation</strong><span>Generate a PENDING hint or micro-lesson from permitted context, without official answers or solutions.</span></li>
+    <li><strong>Progressive response</strong><span>Reveal only the requested hint level, from 1 through 3.</span></li>
+    <li><strong>Evidence-aware remediation</strong><span>Prefer reviewed prerequisites or easier same-skill practice; disclose missing evidence.</span></li>
+    <li><strong>Return prompt</strong><span>Ask the learner to apply the small lesson to the original attempt.</span></li>
+  </ol>
+  <p>Postgres owns pedagogical records and review status; Neo4j is a derived Skill-aware view.
+  Projection inventories all PENDING, REVIEWED and REJECTED edge metadata. Atomic pedagogical-layer
+  replacement protects the prior live layer on failure and applies review downgrades on success;
+  the tutor separately uses reviewed evidence only. No direct database access is added to the agent.
+  Schema/code implementation, Neon migration,
+  Aura projection, content review, and app deployment are independent rollout gates.
+  <a href="pedagogy.html">See the full P0 interaction and P1/P2 boundaries</a>.</p>
+  <p class="pedagogy-note">Rollout audit, 2026-10-04 20:17 UTC: migration 006 applied to the remote Neon
+  app target; PENDING counting-foundations seed imported repeatably; 6 Skills / 83 pedagogical edges
+  projected to Aura. No reviewed Skill evidence yet. Final runtime coaching checks passed at
+  20:35 UTC: context-first ADK tutoring, attempt-gated hints, no solution retrieval, and deterministic
+  web provisional notices from structured provenance. Remote database rollout and local runtime
+  validation are not production web hosting. Production Next.js build passed at 20:37 UTC with all
+  34 static pages, including /learn and proxies; final live CLI reprojection consistency and
+  missing-target checks also passed. Latest REST restart readiness is a separate pending check.
+  <a href="pedagogy.html#runtime">Full runtime validation record</a>.</p>
 
   <h2 id="pipeline"><span class="section-no">A</span>The ingestion pipeline (click to expand each stage)</h2>
   <div data-flow-root>

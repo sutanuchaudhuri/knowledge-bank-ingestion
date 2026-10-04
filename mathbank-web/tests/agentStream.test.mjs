@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createAgentEventMapper, readSse } from "../lib/agentStream.mjs";
+import { createAgentEventMapper, GENERATED_COACHING_NOTICE, readSse } from "../lib/agentStream.mjs";
 
 function streamBytes(text, chunkSize = 1) {
   const bytes = new TextEncoder().encode(text);
@@ -74,4 +74,19 @@ test("deduplicates streamed tool calls by ID without hiding separate invocations
   assert.deepEqual(map(call("one", true)), []);
   assert.deepEqual(map(call("one", false)), []);
   assert.equal(map(call("two", false)).length, 1);
+});
+
+test("labels generated coaching deterministically even when the model omits its status", () => {
+  const map = createAgentEventMapper();
+  map({ content: { parts: [{ functionResponse: {
+    name: "get_next_hint",
+    response: { provenance: { review_status: "PENDING" }, hint: "Private raw tool value" },
+  } }] } });
+  const event = (text, partial) => ({ author: "tutor", partial, content: { parts: [{ text }] } });
+  assert.deepEqual(map(event("Try", true)), [
+    { type: "answer", text: `${GENERATED_COACHING_NOTICE}\n\nTry` },
+  ]);
+  assert.deepEqual(map(event("Try counting.", false)), [
+    { type: "answer", text: `${GENERATED_COACHING_NOTICE}\n\nTry counting.` },
+  ]);
 });

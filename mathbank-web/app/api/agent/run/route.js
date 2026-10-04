@@ -1,4 +1,4 @@
-import { createAgentEventMapper, readSse } from "../../../../lib/agentStream.mjs";
+import { createAgentEventMapper, GENERATED_COACHING_NOTICE, hasGeneratedCoaching, readSse } from "../../../../lib/agentStream.mjs";
 
 const AGENT_BASE_URL = process.env.MATHBANK_AGENT_BASE_URL || "http://127.0.0.1:8001";
 const APP_NAME = "mathbank_tutor";
@@ -100,5 +100,6 @@ export async function POST(request) {
     }
   }
   if (!replyParts.length) return Response.json({ error: "Agent finished without an answer" }, { status: 502 });
-  return Response.json({ reply: replyParts.join("\n") });
+  const reply = replyParts.join("\n");
+  return Response.json({ reply: events.some(hasGeneratedCoaching) ? `${GENERATED_COACHING_NOTICE}\n\n${reply}` : reply });
 }

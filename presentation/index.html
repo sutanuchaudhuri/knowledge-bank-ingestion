@@ -15,6 +15,7 @@
     <a href="architecture.html">Ingestion &amp; Inference</a>
     <a href="data-model.html">Data Model</a>
     <a href="graph.html">Knowledge Graph</a>
+    <a href="pedagogy.html">Pedagogy</a>
     <a href="use-cases.html">Use Cases</a>
     <a href="tutor-interaction.html">Tutor Interaction</a>
     <a href="student-profile-ui.html">Student &amp; Admin UI</a>
@@ -26,12 +27,13 @@
 <main>
   <section class="hero reveal">
     <span class="eyebrow">Competition Math Intelligence Platform</span>
-    <h1>From a crawled PDF to a personalized tutor<br/>— every stage, logged.</h1>
+    <h1>From a crawled PDF to evidence-based help<br/>— one learning step at a time.</h1>
     <p class="lede">
       MathBank turns raw competition-math papers (AMC/AIME/AIME-style PDFs and AoPS wiki pages)
       into a queryable corpus, a knowledge graph, a hybrid search engine, and an agentic tutor —
       with every ingestion stage tracked in Postgres and every graph fact traceable back to its source.
-      This presentation is a clickable walkthrough built directly from the live system.
+      This presentation distinguishes historical corpus snapshots, the P0 pedagogical implementation
+      scope, and planned learner personalization. Start with <a href="pedagogy.html">the learning loop</a>.
     </p>
     <div class="audience-toggle" role="tablist" aria-label="Audience">
       <button data-audience="technical">Technical view</button>
@@ -49,17 +51,29 @@
     </p>
   </div>
 
+  <p class="pedagogy-note">Direct Neon/Aura audit and refreshed overview supplied by the implementation coordinator,
+  2026-10-04 20:35 UTC: 20,942 nodes / 35,529 relationships; migration 006 applied, corpus unchanged,
+  6 Skills and 83 pedagogical edges projected, all PENDING; 0 reviewed Skills. Remote rollout and
+  runtime checks passed, not expert approval or production hosting. Production build passed at
+  20:37 UTC (34 static pages); latest REST restart readiness remains a separate check.
+  <a href="pedagogy.html#runtime">See the final runtime verification</a>.</p>
   <div class="stats reveal">
-    <div class="stat"><div class="num">9</div><div class="label">Competitions ingested</div></div>
-    <div class="stat"><div class="num">5,960+</div><div class="label">Problems in Postgres</div></div>
-    <div class="stat"><div class="num">13,168+</div><div class="label">Solutions linked</div></div>
+    <div class="stat"><div class="num">12</div><div class="label">Competition nodes</div></div>
+    <div class="stat"><div class="num">5,960</div><div class="label">Problem nodes</div></div>
+    <div class="stat"><div class="num">13,168</div><div class="label">Solution nodes</div></div>
     <div class="stat"><div class="num">526</div><div class="label">Concepts in taxonomy</div></div>
-    <div class="stat"><div class="num">12,600+</div><div class="label">TESTS edges in Neo4j</div></div>
-    <div class="stat"><div class="num">5</div><div class="label">Postgres schemas</div></div>
+    <div class="stat"><div class="num">12,615</div><div class="label">Concept TESTS edges</div></div>
+    <div class="stat"><div class="num">0</div><div class="label">Reviewed Skill nodes</div></div>
   </div>
 
   <h2 id="map"><span class="section-no">00</span>Map of this presentation</h2>
   <div class="grid cols-3 reveal">
+    <a class="nav-card" href="pedagogy.html">
+      <span class="step">P0 → Learn</span>
+      <h3>Pedagogical Workflow &amp; Evidence</h3>
+      <p>Five obstacle categories, an attempt-first interaction, progressive hints, a micro-lesson and return prompt,
+      with explicit PENDING versus REVIEWED semantics and P1/P2 boundaries.</p>
+    </a>
     <a class="nav-card" href="architecture.html">
       <span class="step">01 → Pipeline</span>
       <h3>Ingestion &amp; Inference</h3>

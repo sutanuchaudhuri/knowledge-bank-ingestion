@@ -16,9 +16,13 @@ from google.adk.models.lite_llm import LiteLlm
 from .tools.rest_tools import (
     check_subproblem_answer,
     decompose_problem,
+    find_easier_same_skill_problems,
     get_corpus_coverage,
     get_improvement_plan,
+    get_next_hint,
+    get_prerequisite_path,
     get_problem_by_code,
+    get_problem_learning_context,
     get_problems_for_concept,
     list_competitions,
     list_concepts,
@@ -53,14 +57,22 @@ Guidelines:
   get_problem_by_code with its canonical_code (from a prior search_problems
   result).
 - If asked about corpus completeness/size, call get_corpus_coverage.
-- If a student says they're stuck on a specific problem, or asks for a hint
-  rather than the full solution, call decompose_problem to get 2-5 small
-  subproblems. Present ONE subproblem at a time — never dump all of them at
-  once. After the student answers a subproblem, call check_subproblem_answer
-  with that exact subproblem prompt and their answer, relay the feedback, and
-  only move to the next subproblem once they've gotten the current one right
-  (or asked to move on). Never reveal the problem's official_answer while a
-  scaffolded walkthrough is in progress.
+- If a learner is stuck or requests a hint, FIRST call get_problem_learning_context.
+  Ask for what they have tried and ONE diagnostic question to distinguish
+  concept recognition, strategy selection, execution, calculation, or connection
+  between steps. Do not assume self-report is a measured mastery fact.
+  Do not fetch get_problem_by_code or full solutions in this guided mode.
+  After the learner gives an attempt and diagnosis, use get_next_hint for ONE
+  level-1 hint and brief micro-lesson. Label it generated/provisional, not reviewed.
+  Ask the learner to try it before advancing; levels 2 and 3 require an explicit
+  request after a new attempt. Never reveal an official answer during coaching.
+  Use only reviewed prerequisites returned by get_prerequisite_path. State
+  enrichment gaps plainly. find_easier_same_skill_problems supplies lower-level
+  shared-skill evidence, not a promise of lower overall problem difficulty.
+  Stored solution steps, hint ladders, misconception models and courses are
+  planned, not available tools. Legacy decompose_problem is available only for
+  an explicit decomposition request; present one subproblem at a time and use
+  check_subproblem_answer when the learner responds.
 - If a search returns no results, say so plainly — do not fabricate a problem.
 - If a student asks what they should work on next or what they're weak at, and
   they have supplied their access_token in the conversation, call
@@ -88,5 +100,9 @@ root_agent = Agent(
         decompose_problem,
         check_subproblem_answer,
         get_improvement_plan,
+        get_problem_learning_context,
+        get_prerequisite_path,
+        get_next_hint,
+        find_easier_same_skill_problems,
     ],
 )

@@ -15,6 +15,7 @@
     <a href="architecture.html">Ingestion &amp; Inference</a>
     <a href="data-model.html">Data Model</a>
     <a href="graph.html">Knowledge Graph</a>
+    <a href="pedagogy.html">Pedagogy</a>
     <a href="use-cases.html">Use Cases</a>
     <a href="tutor-interaction.html">Tutor Interaction</a>
     <a href="student-profile-ui.html">Student &amp; Admin UI</a>
@@ -28,12 +29,78 @@
     <span class="eyebrow">03 · Graph</span>
     <h1>Knowledge Graph (Neo4j AuraDB)</h1>
     <p class="lede">Postgres is the system of record; this graph is a <strong>derived, re-buildable
-    projection</strong> — every node and edge below traces back to a Postgres row. The graph canvas further
-    down is <strong>real data</strong>, exported live from AuraDB (AMC10 2023, 14 problems and their
-    concepts/techniques), not a mockup.</p>
+    projection</strong>. The canvas is a historical AuraDB export (AMC10 2023, 14 problems and their
+    concepts/techniques), not a mockup or a continuously refreshed live view. P0 adds Skill-level
+    pedagogical metadata; the legacy canvas does not demonstrate its population or review coverage.</p>
   </section>
 
-  <h2 id="model"><span class="section-no">A</span>Node &amp; relationship model</h2>
+  <h2 id="skills"><span class="section-no">P0</span>Skill-level graph contract</h2>
+  <p>A <strong>Skill</strong> is an actionable learning objective with an optional ordinal level from 1 to 5.
+  A <strong>Concept</strong> is its subject area. The new relationship contract supplements, rather than
+  replaces, the legacy Concept and Technique projection shown below.</p>
+  <table class="data reveal pedagogy-table">
+    <thead><tr><th scope="col">Relationship direction</th><th scope="col">Pedagogical meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>Skill → PART_OF → Concept</code></td><td>Topic membership; not evidence of prerequisite ordering.</td></tr>
+      <tr><td><code>prior Skill → PREREQUISITE_OF → dependent Skill</code></td><td>The prior skill is needed before the dependent skill. Incoming traversal finds prerequisites.</td></tr>
+      <tr><td><code>child Skill → PART_OF → parent Skill</code></td><td>Objective decomposition. Distinct from prerequisite ordering.</td></tr>
+      <tr><td><code>Problem → REQUIRES → Skill</code></td><td>A skill needed to engage with the problem.</td></tr>
+      <tr><td><code>Problem → PRACTICES → Skill</code></td><td>A skill exercised by working through the problem.</td></tr>
+      <tr><td><code>Problem → TESTS → Skill</code></td><td>An assessed objective. The target label matters: legacy <code>TESTS → Concept</code> is not a Skill edge.</td></tr>
+    </tbody>
+  </table>
+  <p>Problem–Skill associations retain <code>role</code>, <code>required_level</code> (1–5),
+  <code>importance</code>, <code>confidence</code>, <code>source</code>, and <code>review_status</code>.
+  Source and review metadata must survive projection; missing approval is not implicitly
+  <code>REVIEWED</code>. The projection inventories all <code>PENDING</code>, <code>REVIEWED</code>,
+  and <code>REJECTED</code> edge metadata; graph visibility is not tutor eligibility.
+  Tutor retrieval admits reviewed evidence only. Difficulty dimensions retain provenance rather than being inferred from graph
+  position. Generated metadata starts <code>PENDING</code>, even when confidence is high;
+  <code>REJECTED</code> remains distinguishable and is not eligible reviewed evidence.</p>
+  <div class="grid cols-2 reveal">
+    <div class="card"><h3>Reviewed prerequisites</h3><p>Match the dependent skill, then follow incoming
+    <code>PREREQUISITE_OF</code> relations. Filter the relationship evidence for review approval.
+    Do not substitute <code>HAS_SUBCONCEPT</code> or <code>PART_OF</code> ancestry for a learning dependency.</p></div>
+    <div class="card"><h3>Easier, same-skill practice</h3><p>Keep the target skill fixed, require reviewed
+    skills and Problem–Skill associations, then compare required levels on the same skill.
+    No qualifying evidence means “unavailable”, not a made-up prerequisite or practice recommendation.</p></div>
+  </div>
+  <p><a href="pedagogy.html#flow">Follow the teaching loop</a> ·
+  <a href="pedagogy.html#status">P0 implementation versus rollout gates</a> ·
+  <a href="http://localhost:5173/graph">Open the running local graph app ↗</a></p>
+  <div class="card reveal">
+    <span class="tag">Direct audit + refreshed overview · 2026-10-04 20:35 UTC</span>
+    <h3>Teaching inventory populated; approval still pending</h3>
+    <p>The unchanged corpus contains 20,936 nodes and 35,446 relationships:
+    5,960 Problems, 13,168 Solutions, 1,068 Papers, 526 Concepts, 202 Techniques and 12 Competitions.
+    Migration 006 and the initial metadata import add <strong>6 Skill nodes and 83 pedagogical
+    edges</strong> in Aura: 71 <code>PART_OF</code> (65 concept hierarchy + 6 Skill–Concept),
+    5 <code>PREREQUISITE_OF</code>, 1 <code>BUILDS_ON</code>, 3 <code>REQUIRES</code>,
+    2 <code>PRACTICES</code> and 1 Skill-targeted <code>TESTS</code>.
+    All seeded pedagogical metadata is <code>PENDING</code>; teaching coverage is
+    <strong>6 Skills / 0 reviewed Skills</strong>.</p>
+    <p>The refreshed <code>/api/graph/overview</code> now corroborates <strong>20,942 total nodes and
+    35,529 total relationships</strong>. All nine pedagogical views were runtime-verified for review
+    filters and source properties. Reviewed selection is empty; the PENDING REQUIRES inventory
+    renders three edges / four nodes without overflow at 1280px.</p>
+    <p>The existing 12,615 <code>TESTS</code> edges target Concepts, not Skills; they also have
+    PENDING status with provenance now surfaced. Select inventory statuses including PENDING to
+    inspect the projected layer. The default reviewed graph is empty, by design.</p>
+    <p>The running local app offers nine pedagogical views, including required, practiced and tested
+    skills, concept membership, prerequisite and hierarchy views, and useful prior skills
+    (<code>BUILDS_ON</code>). View definitions alone do not prove stored relationships. A useful prior
+    skill is also not automatically a hard prerequisite.</p>
+    <p><a href="http://localhost:5173/graph/skill-prerequisites">Inspect skill prerequisites ↗</a> ·
+    <a href="http://localhost:5173/graph/practices-skill">Inspect practice associations ↗</a> ·
+    <a href="http://localhost:5173/graph/tests-skill">Inspect assessed skills ↗</a></p>
+    <p class="pedagogy-note">Direct database audit and refreshed overview supplied by the implementation coordinator.
+    Remote Neon migration and Aura projection are complete; the web links are the local app, not
+    production hosting. Runtime coaching and graph checks passed; production Next.js build and
+    final live CLI reprojection checks passed at 20:37 UTC. Post-restart REST readiness remains a
+    separate check. The overview API has a five-minute cache.</p>
+  </div>
+
+  <h2 id="model"><span class="section-no">A</span>Legacy corpus model + planned learner edges</h2>
   <pre class="mermaid reveal">
 flowchart LR
     Competition -->|HAS_PAPER| Paper
@@ -51,7 +118,7 @@ flowchart LR
   <p style="font-size:13px">Dashed = designed but not yet projected (MST-05/06 — see
   <a href="use-cases.html#mastery">the mastery use case</a> for the full plan).</p>
 
-  <h2 id="live"><span class="section-no">B</span>Live subgraph — click a node</h2>
+  <h2 id="live"><span class="section-no">B</span>Exported corpus subgraph — click a node</h2>
   <div class="graph-legend reveal">
     <span class="item"><span class="swatch" style="background:#f5a623"></span> Competition</span>
     <span class="item"><span class="swatch" style="background:#6d8dfd"></span> Paper</span>
@@ -99,17 +166,17 @@ LIMIT 10</pre>
   </div>
 
   <div class="accordion reveal">
-    <summary>Use case: concept prerequisite / gap detection <span class="meta">planned — needs CONCEPT_RELATION traversal</span></summary>
+    <summary>Use case: reviewed Skill prerequisites <span class="meta">P0 query contract — requires populated reviewed evidence</span></summary>
     <div class="body">
-      <pre>// Hypothetical once MASTERED edges exist:
-MATCH (s:Student {canonical_id: $studentId})
-MATCH (weak:Concept)<-[:STRUGGLES_WITH]-(s)
-MATCH (weak)<-[:HAS_SUBCONCEPT]-(parent:Concept)
-WHERE NOT (s)-[:MASTERED]->(parent)
-RETURN parent.name AS prerequisite_gap, weak.name AS specific_weak_spot</pre>
-      <p>Traverses the concept hierarchy (the same <code>HAS_SUBCONCEPT</code> tree that fixed the
-      combinatorics search bug) to recommend <em>prerequisite</em> review, not just more of the same
-      problem type.</p>
+      <pre>// Illustrative query contract; not evidence of live coverage.
+MATCH (prior:Skill)-[r:PREREQUISITE_OF]->(dependent:Skill {slug: $skill_slug})
+WHERE r.review_status = 'REVIEWED'
+  AND prior.review_status = 'REVIEWED'
+  AND dependent.review_status = 'REVIEWED'
+RETURN prior, r.source AS source, r.confidence AS confidence, r.review_status AS review_status</pre>
+      <p>No learner node is needed for anonymous prerequisite lookup. P2 personalization would add
+      learner-specific evidence later. An empty result does not prove there are no prerequisites:
+      metadata may be absent, PENDING, or not yet projected.</p>
     </div>
   </div>
 
@@ -136,7 +203,10 @@ CREATE CONSTRAINT concept_id     IF NOT EXISTS FOR (n:Concept)     REQUIRE n.can
 CREATE CONSTRAINT technique_id   IF NOT EXISTS FOR (n:Technique)   REQUIRE n.canonical_id IS UNIQUE
 CREATE CONSTRAINT solution_id    IF NOT EXISTS FOR (n:Solution)    REQUIRE n.canonical_id IS UNIQUE</pre>
   <p>Every <code>canonical_id</code> is the Postgres UUID itself — the constraint is what makes
-  <code>MERGE</code>-based re-projection safe to run an unlimited number of times.</p>
+  <code>MERGE</code>-based corpus projection idempotent. The pedagogical layer uses atomic replacement:
+  a failed refresh protects the previous live layer, while successful refreshes propagate review
+  downgrades instead of retaining stale REVIEWED edges. Projection inventory and tutor approval
+  filters remain separate responsibilities.</p>
 </main>
 
 <footer>

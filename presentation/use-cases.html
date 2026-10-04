@@ -15,6 +15,7 @@
     <a href="architecture.html">Ingestion &amp; Inference</a>
     <a href="data-model.html">Data Model</a>
     <a href="graph.html">Knowledge Graph</a>
+    <a href="pedagogy.html">Pedagogy</a>
     <a href="use-cases.html">Use Cases</a>
     <a href="tutor-interaction.html">Tutor Interaction</a>
     <a href="student-profile-ui.html">Student &amp; Admin UI</a>
@@ -26,11 +27,29 @@
 <main>
   <section class="hero reveal" style="padding-top:36px">
     <span class="eyebrow">04 · Scenarios</span>
-    <h1>Four worked use cases, end to end</h1>
+    <h1>Corpus workflows and the P0 learning loop</h1>
     <p class="lede">Each card below expands into the real SQL, Cypher, and REST calls involved —
     not a simplified diagram. Two are fully implemented and verified live; two are designed and partially
-    built, clearly marked.</p>
+    built, clearly marked. These historical examples are separate from the new anonymous pedagogical
+    workflow and do not certify its deployment or metadata population.</p>
   </section>
+
+  <h2 id="anonymous-learning"><span class="section-no">P0</span>“Help me with what is blocking me”</h2>
+  <div class="grid cols-2 reveal">
+    <div class="card"><h3>Anonymous, attempt-first support</h3><p>Select a problem at <code>/learn</code>,
+    identify concept / strategy / execution / calculation / connection, and share an attempt or
+    explanation. Request hints 1–3 one at a time; each asks the learner to try again rather than
+    delivering the official answer.</p></div>
+    <div class="card"><h3>Evidence-aware detour, then return</h3><p>Use reviewed prerequisite or easier
+    same-skill practice when available. Generated hints and micro-lessons remain <code>PENDING</code>,
+    exclude official answer context, and include a <code>return_prompt</code>. No student-specific
+    mastery claim is needed.</p></div>
+  </div>
+  <p><a href="pedagogy.html#walkthrough">Try the staged illustration</a> ·
+  <a href="graph.html#skills">Inspect the graph contract</a> ·
+  <a href="http://localhost:5173/learn">Open the running local app ↗</a>.
+  Structured solution steps, stored hint libraries, misconception catalogues and courses are P1;
+  learner-specific skill personalization is P2, not an implied capability of P0.</p>
 
   <div class="grid cols-4 reveal" style="margin-bottom:10px">
     <div class="card"><span class="pill pg">Live</span><h3 style="margin-top:8px">Hybrid Search</h3><p>Implemented</p></div>

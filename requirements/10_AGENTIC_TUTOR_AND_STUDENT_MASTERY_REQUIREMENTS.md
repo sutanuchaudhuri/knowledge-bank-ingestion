@@ -15,6 +15,11 @@ requirement IDs, per the `00_INDEX.md` naming convention.
 
 ## Naming
 
+The anonymous diagnostic-first coaching extension is specified in
+[PED-01 through PED-16](13_PEDAGOGICAL_GRAPH_AND_TUTOR_REQUIREMENTS.md).
+It adds reviewed learning context and progressive, explicitly provisional
+hints without recording anonymous attempts or changing authenticated mastery.
+
 - `AGT-*` — agentic tutor / agent-layer requirements
 - `MST-*` — student mastery extraction requirements
 

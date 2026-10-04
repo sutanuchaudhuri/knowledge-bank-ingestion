@@ -113,7 +113,7 @@ the number of sampled nodes and relationships alongside the total available
 relationships. Snapshots are cached for five minutes per view and limit.
 
 The live app uses locally bundled Bootstrap styling and a responsive,
-full-width workspace (presentation pages are unchanged). Graph views provide
+full-width workspace. Graph views provide
 zoom/fit controls, a node legend, and node inspection.
 
 Tutor responses stream through the same-origin `/api/agent/run` proxy to
@@ -123,6 +123,43 @@ Use **Stop** to cancel an active response; failures are displayed explicitly.
 The non-streaming API response remains available for existing callers.
 Streaming parser and event-mapping tests run with
 `node --test mathbank-web/tests/*.test.mjs`.
+
+### Guided pedagogical practice
+
+Open http://localhost:5173/learn, or choose **Learn with diagnosis and hints**
+from a corpus problem. The anonymous workspace loads an answer-free learning
+context, asks where you are stuck, and offers one provisional hint at a time.
+Update your attempt before requesting the next level (up to three). These
+requests do not record learner attempts or mastery.
+
+The teaching graph adds measurable `Skill` nodes, reviewed prerequisite and
+hierarchy edges, problem-skill roles/levels, and multidimensional difficulty.
+Graph views show metadata and relationship evidence; pedagogical views
+default to reviewed-only data. Before metadata is reviewed and projected,
+the UI explicitly reports missing enrichment instead of inventing skills,
+prerequisites, or lower-level same-skill practice. Lower required levels on a
+shared skill are not a guarantee of lower overall problem difficulty.
+
+The explicitly authorized 2026-10-04 Neon/Aura rollout is complete: migration
+006, 6 starter skills, 18 skill-related edges, 65 additional concept-hierarchy
+projections, and 3 problem-difficulty assessments. Every assertion remains
+**PENDING**, with provenance; no reviewed curriculum was fabricated.
+Uncheck **Reviewed only** in teaching graph views to inspect this inventory.
+The starter set covers three counting problems, not the entire corpus.
+
+See [the pedagogical requirements and phased plan](requirements/13_PEDAGOGICAL_GRAPH_AND_TUTOR_REQUIREMENTS.md)
+for the implemented P0 scope and planned P1 solution steps, hint ladders,
+misconceptions, and versioned courses. The additive migration, validated
+metadata import, and opt-in graph projection are explicit rollout steps
+described in [mathbank-db/README.md](mathbank-db/README.md) and
+[mathbank-graph/README.md](mathbank-graph/README.md); they are not automatically
+applied to shared databases by app startup.
+
+The [pedagogical presentation](presentation/pedagogy.html) explains the
+diagnostic/micro-lesson/hint/return-to-problem flow and distinguishes deployed
+P0 metadata from P1/P2 plans. Runtime validation includes real model coaching,
+streamed ADK tool selection, browser hint gating, idempotent writes, and
+rolled-back SQL/Neo4j failure tests; see the requirements' live-rollout section.
 
 `make setup` is the first thing to run on a new machine (or after pulling
 changes that touch dependencies) — it never reinstalls something that's

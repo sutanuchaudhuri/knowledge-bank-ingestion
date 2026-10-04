@@ -177,6 +177,46 @@ progress-remote:                ## Show recent pipeline.run / pipeline.graph_pro
 
 # ── Corpus ETL (Python) ────────────────────────────────────────────────────
 
+PEDAGOGY_PYTHON ?= $(CURDIR)/.venv/bin/python
+PEDAGOGY_GRAPH_PYTHON ?= $(CURDIR)/../mathbank-graph/.venv/bin/python
+GRAPH_ENV_FILE ?= $(CURDIR)/../mathbank-graph/.env
+
+.PHONY: migrate-pedagogy migrate-pedagogy-remote pedagogy-validate pedagogy-dry-run pedagogy-import project-pedagogy
+migrate-pedagogy:               ## Explicit local-only migration 006 (no automatic import/projection)
+	@test -n "$(APP_DB_PASSWORD)" || (echo "Set APP_DB_PASSWORD in .env first" && exit 1)
+	PGPASSWORD="$(APP_DB_PASSWORD)" "$(PG_BIN)/psql" -h 127.0.0.1 -p $(PG_PORT) -U "$(APP_USER)" -d $(APP_DB) \
+	  -v ON_ERROR_STOP=1 -f sql/006_pedagogy.sql
+
+migrate-pedagogy-remote:        ## Explicit migration 006 on the remote Neon app database
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/006_pedagogy.sql
+
+pedagogy-validate:              ## Offline manifest validation; set MANIFEST=path.json
+	@test -n "$(MANIFEST)" || (echo "Set MANIFEST=path/to/authoring.json" && exit 1)
+	"$(PEDAGOGY_PYTHON)" etl/import_pedagogy.py validate "$(MANIFEST)"
+
+pedagogy-dry-run:               ## Read-only DB FK/cycle validation; set MANIFEST=path.json
+	@test -n "$(MANIFEST)" || (echo "Set MANIFEST=path/to/authoring.json" && exit 1)
+	"$(PEDAGOGY_PYTHON)" etl/import_pedagogy.py import "$(MANIFEST)" --dry-run
+
+pedagogy-import:                ## Explicit atomic authoring upsert; set MANIFEST=path.json
+	@test -n "$(MANIFEST)" || (echo "Set MANIFEST=path/to/authoring.json" && exit 1)
+	"$(PEDAGOGY_PYTHON)" etl/import_pedagogy.py import "$(MANIFEST)"
+
+project-pedagogy:               ## Explicit Neo4j projection including migration-006 skills
+	GRAPH_ENV_FILE="$(GRAPH_ENV_FILE)" "$(PEDAGOGY_GRAPH_PYTHON)" ../mathbank-graph/etl/project_from_postgres.py --pedagogy
+
+.PHONY: pedagogy-dry-run-remote pedagogy-import-remote project-pedagogy-remote
+pedagogy-dry-run-remote:        ## Read-only manifest check against remote Neon
+	PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" $(MAKE) pedagogy-dry-run
+
+pedagogy-import-remote:         ## Explicit atomic manifest import into remote Neon
+	PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" $(MAKE) pedagogy-import
+
+project-pedagogy-remote:        ## Explicit remote Neon to AuraDB metadata projection
+	$(MAKE) project-pedagogy GRAPH_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env"
+
 .PHONY: etl-venv
 etl-venv:                       ## Create the Python venv used by etl/load_corpus.py
 	uv venv .venv --python 3.11

@@ -7,6 +7,7 @@ docstring IS the tool description the LLM sees. Keep it accurate.
 from __future__ import annotations
 
 import os
+from urllib.parse import quote
 
 import httpx
 
@@ -195,3 +196,62 @@ def get_improvement_plan(access_token: str, max_focus_areas: int = 5) -> dict:
         response.raise_for_status()
         return response.json()
 
+
+def get_problem_learning_context(problem_code: str) -> dict:
+    """Get answer-free statement, reviewed skills/prerequisites and diagnostic choices.
+
+    Call FIRST when a learner is stuck or wants hints. Unenriched means no reviewed
+    skill evidence: do not invent it. Never calls full-solution retrieval.
+    """
+    with _client() as client:
+        response = client.get(f"/v1/tutor/learning-context/{quote(problem_code, safe='')}")
+        if response.status_code == 404:
+            return {"error": f"No problem with code {problem_code!r}"}
+        response.raise_for_status()
+        return response.json()
+
+
+def get_prerequisite_path(skill_slug: str, max_depth: int = 4) -> dict:
+    """Read reviewed prior skills, bounded to 1-8 levels; not a course or mastery score."""
+    with _client() as client:
+        response = client.get(
+            f"/v1/tutor/prerequisites/{quote(skill_slug, safe='')}",
+            params={"max_depth": max_depth},
+        )
+        if response.status_code == 404:
+            return {"error": f"No reviewed skill {skill_slug!r}"}
+        response.raise_for_status()
+        return response.json()
+
+
+def get_next_hint(
+    problem_code: str, diagnosis: str, student_attempt: str, hint_level: int = 1,
+) -> dict:
+    """Generate ONE provisional hint after asking for the learner's attempt/diagnosis.
+
+    diagnosis: concept, strategy, execution, calculation, or connection.
+    hint_level: 1 directional, 2 conceptual, 3 strategic (never complete solution).
+    Only escalate on explicit request after the learner tries the previous hint.
+    Generated content is PENDING, not an expert-reviewed hint ladder.
+    """
+    with _client() as client:
+        response = client.post("/v1/tutor/coach", json={
+            "problem_code": problem_code, "diagnosis": diagnosis,
+            "student_attempt": student_attempt, "hint_level": hint_level,
+        }, timeout=60.0)
+        response.raise_for_status()
+        return response.json()
+
+
+def find_easier_same_skill_problems(problem_code: str, limit: int = 5) -> dict:
+    """Find lower reviewed levels on shared skills, NOT guaranteed easier overall.
+
+    Respect returned evidence and warnings. No results means unavailable, not
+    permission to invent analogous problems or infer difficulty from year/contest.
+    """
+    with _client() as client:
+        response = client.get(
+            f"/v1/tutor/practice/{quote(problem_code, safe='')}", params={"limit": limit},
+        )
+        response.raise_for_status()
+        return response.json()

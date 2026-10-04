@@ -8,15 +8,23 @@ const TTL_MS = 5 * 60 * 1000; // 5 min — matches all /api/graph/* cache TTLs
 
 export async function GET() {
   try {
-    const data = await withCache("graph:overview", TTL_MS, async () => {
-      const [labelRows, relRows] = await Promise.all([
+    const data = await withCache("graph:overview:v2", TTL_MS, async () => {
+      const [labelRows, relRows, teachingRows] = await Promise.all([
         runQuery("MATCH (n) RETURN labels(n)[0] AS label, count(*) AS n ORDER BY n DESC"),
         runQuery("MATCH ()-[r]->() RETURN type(r) AS rel, count(*) AS n ORDER BY n DESC"),
+        runQuery(
+          "MATCH (s:Skill) RETURN count(s) AS total, " +
+          "count(CASE WHEN s.review_status = 'REVIEWED' THEN 1 END) AS reviewed"
+        ),
       ]);
       return {
         nodeCounts: labelRows.map((r) => ({ label: r.get("label"), count: r.get("n").toNumber() })),
         relationshipCounts: relRows.map((r) => ({ type: r.get("rel"), count: r.get("n").toNumber() })),
         views: Object.entries(RELATIONSHIPS).map(([slug, cfg]) => ({ slug, ...cfg })),
+        teaching: {
+          skills: teachingRows[0].get("total").toNumber(),
+          reviewedSkills: teachingRows[0].get("reviewed").toNumber(),
+        },
       };
     });
     return Response.json(data);

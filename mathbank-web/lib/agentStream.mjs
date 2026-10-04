@@ -1,3 +1,12 @@
+export const GENERATED_COACHING_NOTICE = "Generated coaching (PENDING, not expert reviewed).";
+
+export function hasGeneratedCoaching(event) {
+  return (event.content?.parts ?? []).some((part) =>
+    !part.thought && part.functionResponse?.name === "get_next_hint" &&
+    part.functionResponse.response?.provenance?.review_status === "PENDING"
+  );
+}
+
 export async function* readSse(body) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -42,11 +51,13 @@ export function createAgentEventMapper() {
   const toolCalls = new Set();
   const toolResponses = new Set();
   let draft = "";
+  let generatedCoaching = false;
   return (event) => {
     if (event.errorCode || event.errorMessage || event.error) {
       throw new Error(event.errorMessage || (typeof event.error === "string" ? event.error : event.error?.message) || `Agent error: ${event.errorCode || "stream failed"}`);
     }
     const updates = [];
+    generatedCoaching ||= hasGeneratedCoaching(event);
     const parts = event.content?.parts ?? [];
     for (const part of parts) {
       if (part.thought) continue;
@@ -75,7 +86,8 @@ export function createAgentEventMapper() {
         completed.push(text);
         draft = "";
       }
-      updates.push({ type: "answer", text: [...completed, draft].filter(Boolean).join("\n\n") });
+      const answer = [...completed, draft].filter(Boolean).join("\n\n");
+      updates.push({ type: "answer", text: generatedCoaching ? `${GENERATED_COACHING_NOTICE}\n\n${answer}` : answer });
     }
     return updates;
   };

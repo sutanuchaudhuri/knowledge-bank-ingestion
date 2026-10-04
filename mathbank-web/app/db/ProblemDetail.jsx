@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -32,6 +33,9 @@ export default function ProblemDetail({ code }) {
   return (
     <div className={panel}>
       <h3 className="h5 fw-bold">{problem.canonical_code}</h3>
+      <Link className="btn btn-sm btn-outline-primary mb-3" href={`/learn?problem=${encodeURIComponent(problem.canonical_code)}`}>
+        Learn with diagnosis and hints
+      </Link>
       <p style={{ color: "#666", fontSize: 13 }}>
         {problem.competition} {problem.year} · {problem.paper_code} · Problem {problem.problem_number}
         {problem.source_url && (

@@ -15,6 +15,7 @@
     <a href="architecture.html">Ingestion &amp; Inference</a>
     <a href="data-model.html">Data Model</a>
     <a href="graph.html">Knowledge Graph</a>
+    <a href="pedagogy.html">Pedagogy</a>
     <a href="use-cases.html">Use Cases</a>
     <a href="tutor-interaction.html">Tutor Interaction</a>
     <a href="student-profile-ui.html">Student &amp; Admin UI</a>
@@ -28,9 +29,24 @@
     <span class="eyebrow">05 · Value</span>
     <h1>Why this matters for a student</h1>
     <p class="lede">This page is intentionally written for a non-technical audience — a teacher,
-    a parent, a program director. Every claim here links back to something real and working,
-    not a roadmap promise.</p>
+    a parent, a program director. Historical corpus/profile features, the current P0 teaching scope,
+    and future P1/P2 capabilities are distinguished rather than presented as equally deployed.</p>
   </section>
+
+  <h2 id="pedagogical-value"><span class="section-no">P0</span>Teach the next step, not just the answer</h2>
+  <div class="grid cols-3 reveal">
+    <div class="card"><span class="tag">P0 scope</span><h3>Name the obstacle</h3><p>A student can say
+    “I don't know how to start” or “my calculation fails”. Five obstacle categories guide help without
+    claiming to diagnose a lasting weakness.</p></div>
+    <div class="card"><span class="tag">P0 scope</span><h3>Make room for an attempt</h3><p>Ask what the
+    student tried, reveal only one requested hint, then pause. A short lesson returns the student to
+    the original work instead of replacing it with the answer.</p></div>
+    <div class="card"><span class="tag">Review matters</span><h3>Be honest about the help</h3><p>Reviewed
+    skill evidence and generated PENDING help are visibly different. When prerequisite or easier
+    practice evidence is missing, say so rather than inventing a learning path.</p></div>
+  </div>
+  <p><a href="pedagogy.html">Try the teaching loop</a>. Code implementation and deployment are separate;
+  learning-effectiveness gains require evaluation, not inference from a demo.</p>
 
   <h2 id="problem"><span class="section-no">A</span>The problem with generic practice sets</h2>
   <div class="grid cols-2 reveal">
@@ -59,9 +75,9 @@
     </div>
     <div class="card">
       <span class="tag">Today</span>
-      <h3>Every answer is grounded</h3>
-      <p>The tutoring agent can only cite problems it actually retrieved this turn — it is structurally
-      unable to invent a problem that doesn't exist in the corpus.</p>
+      <h3>Grounding is checked, not assumed</h3>
+      <p>Retrieved corpus problems provide source evidence. Generated explanations still require
+      review; a citation or a confidence score does not guarantee pedagogical correctness.</p>
     </div>
     <div class="card">
       <span class="tag">Coming next</span>
@@ -101,8 +117,10 @@ flowchart LR
   <p>The honest status: <strong>A and B are live today.</strong> C/D/E/F/G are designed (see the
   <a href="use-cases.html#mastery">mastery use case</a> and the dashed edges on the
   <a href="graph.html#model">graph model page</a>) and are the next concrete build target, not a vague
-  future promise — the prerequisite-gap Cypher query is already written and tested conceptually against
-  the current <code>HAS_SUBCONCEPT</code> hierarchy.</p>
+  future promise. This is a historical concept-mastery roadmap, not the anonymous P0 learning loop.
+  Concept hierarchy is not prerequisite evidence: P0 uses explicit reviewed
+  <code>Skill → PREREQUISITE_OF → Skill</code> relations. Durable skill-level personalized paths remain
+  P2; P1 steps, stored hints, misconceptions and courses also remain planned.</p>
 </main>
 
 <footer>

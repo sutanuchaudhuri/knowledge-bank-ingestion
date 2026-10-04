@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "skills": [
+    {"slug":"counting-identify-outcomes","name":"Identify distinct outcomes","objective":"State what one counted outcome represents and decide when two outcomes are distinct.","level":1,"source":"assistant-draft:counting-foundations-v1","confidence":0.85,"review_status":"PENDING"},
+    {"slug":"counting-order-relevance","name":"Decide whether order matters","objective":"Compare two arrangements and explain whether exchanging selected objects changes the outcome.","level":1,"source":"assistant-draft:counting-foundations-v1","confidence":0.85,"review_status":"PENDING"},
+    {"slug":"counting-product-rule","name":"Apply the multiplication principle","objective":"Count a sequence of choices by multiplying the valid options at each stage.","level":2,"source":"assistant-draft:counting-foundations-v1","confidence":0.85,"review_status":"PENDING"},
+    {"slug":"counting-unordered-selection","name":"Count unordered selections","objective":"Choose a fixed-size subset of distinct objects without counting order as a new outcome.","level":2,"source":"assistant-draft:counting-foundations-v1","confidence":0.85,"review_status":"PENDING"},
+    {"slug":"counting-restricted-selection","name":"Count selections under constraints","objective":"Combine selection and arrangement counts while checking that every imposed restriction holds.","level":3,"source":"assistant-draft:counting-foundations-v1","confidence":0.75,"review_status":"PENDING"},
+    {"slug":"counting-probability-ratio","name":"Build a probability from counts","objective":"Express the probability of an event as favorable outcomes divided by equally likely total outcomes.","level":3,"source":"assistant-draft:counting-foundations-v1","confidence":0.8,"review_status":"PENDING"}
+  ],
+  "skill_concepts": [
+    {"skill_slug":"counting-identify-outcomes","concept_slug":"count","source":"assistant-draft:counting-foundations-v1","confidence":0.85,"review_status":"PENDING"},
+    {"skill_slug":"counting-order-relevance","concept_slug":"count-perm","source":"assistant-draft:counting-foundations-v1","confidence":0.85,"review_status":"PENDING"},
+    {"skill_slug":"counting-product-rule","concept_slug":"count-mult","source":"assistant-draft:counting-foundations-v1","confidence":0.85,"review_status":"PENDING"},
+    {"skill_slug":"counting-unordered-selection","concept_slug":"count-comb","source":"assistant-draft:counting-foundations-v1","confidence":0.85,"review_status":"PENDING"},
+    {"skill_slug":"counting-restricted-selection","concept_slug":"count-comb","source":"assistant-draft:counting-foundations-v1","confidence":0.75,"review_status":"PENDING"},
+    {"skill_slug":"counting-probability-ratio","concept_slug":"count-comb","source":"assistant-draft:counting-foundations-v1","confidence":0.75,"review_status":"PENDING"}
+  ],
+  "skill_relations": [
+    {"from_skill_slug":"counting-identify-outcomes","to_skill_slug":"counting-order-relevance","relation_type":"PREREQUISITE_OF","source":"assistant-draft:counting-foundations-v1","confidence":0.8,"review_status":"PENDING"},
+    {"from_skill_slug":"counting-identify-outcomes","to_skill_slug":"counting-product-rule","relation_type":"PREREQUISITE_OF","source":"assistant-draft:counting-foundations-v1","confidence":0.8,"review_status":"PENDING"},
+    {"from_skill_slug":"counting-order-relevance","to_skill_slug":"counting-unordered-selection","relation_type":"PREREQUISITE_OF","source":"assistant-draft:counting-foundations-v1","confidence":0.8,"review_status":"PENDING"},
+    {"from_skill_slug":"counting-unordered-selection","to_skill_slug":"counting-restricted-selection","relation_type":"PREREQUISITE_OF","source":"assistant-draft:counting-foundations-v1","confidence":0.75,"review_status":"PENDING"},
+    {"from_skill_slug":"counting-product-rule","to_skill_slug":"counting-restricted-selection","relation_type":"BUILDS_ON","source":"assistant-draft:counting-foundations-v1","confidence":0.7,"review_status":"PENDING"},
+    {"from_skill_slug":"counting-identify-outcomes","to_skill_slug":"counting-probability-ratio","relation_type":"PREREQUISITE_OF","source":"assistant-draft:counting-foundations-v1","confidence":0.8,"review_status":"PENDING"}
+  ],
+  "problem_skills": [
+    {"problem_code":"AMC10_2005B_Q18","skill_slug":"counting-unordered-selection","relation_type":"REQUIRES","role":"primary","required_level":2,"importance":0.9,"source":"assistant-draft:statement-analysis:AMC10_2005B_Q18:v1","confidence":0.85,"review_status":"PENDING"},
+    {"problem_code":"AMC10_2005B_Q18","skill_slug":"counting-order-relevance","relation_type":"PRACTICES","role":"supporting","required_level":1,"importance":0.8,"source":"assistant-draft:statement-analysis:AMC10_2005B_Q18:v1","confidence":0.85,"review_status":"PENDING"},
+    {"problem_code":"AMC10_2007B_Q20","skill_slug":"counting-unordered-selection","relation_type":"REQUIRES","role":"primary","required_level":3,"importance":0.9,"source":"assistant-draft:statement-analysis:AMC10_2007B_Q20:v1","confidence":0.8,"review_status":"PENDING"},
+    {"problem_code":"AMC10_2007B_Q20","skill_slug":"counting-restricted-selection","relation_type":"PRACTICES","role":"primary","required_level":3,"importance":0.95,"source":"assistant-draft:statement-analysis:AMC10_2007B_Q20:v1","confidence":0.8,"review_status":"PENDING"},
+    {"problem_code":"AMC10_2005B_Q21","skill_slug":"counting-unordered-selection","relation_type":"REQUIRES","role":"primary","required_level":3,"importance":0.9,"source":"assistant-draft:statement-analysis:AMC10_2005B_Q21:v1","confidence":0.8,"review_status":"PENDING"},
+    {"problem_code":"AMC10_2005B_Q21","skill_slug":"counting-probability-ratio","relation_type":"TESTS","role":"primary","required_level":3,"importance":0.95,"source":"assistant-draft:statement-analysis:AMC10_2005B_Q21:v1","confidence":0.85,"review_status":"PENDING"}
+  ],
+  "problem_pedagogy": [
+    {"problem_code":"AMC10_2005B_Q18","conceptual_depth":2,"technical_load":1,"algebraic_load":1,"insight_required":2,"estimated_contest_level":"AMC10","source":"assistant-draft:statement-analysis:AMC10_2005B_Q18:v1","confidence":0.65,"review_status":"PENDING"},
+    {"problem_code":"AMC10_2007B_Q20","conceptual_depth":3,"technical_load":3,"algebraic_load":1,"insight_required":3,"estimated_contest_level":"AMC10","source":"assistant-draft:statement-analysis:AMC10_2007B_Q20:v1","confidence":0.6,"review_status":"PENDING"},
+    {"problem_code":"AMC10_2005B_Q21","conceptual_depth":3,"technical_load":3,"algebraic_load":2,"insight_required":3,"estimated_contest_level":"AMC10","source":"assistant-draft:statement-analysis:AMC10_2005B_Q21:v1","confidence":0.6,"review_status":"PENDING"}
+  ]
+}

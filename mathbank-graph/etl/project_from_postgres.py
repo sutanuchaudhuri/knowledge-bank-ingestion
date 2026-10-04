@@ -8,6 +8,7 @@ Run via `make project` in mathbank-graph/.
 """
 from __future__ import annotations
 
+import argparse
 import os
 from pathlib import Path
 
@@ -15,6 +16,20 @@ import psycopg
 from neo4j import GraphDatabase
 
 BATCH_SIZE = 500
+
+
+class GraphTarget:
+    """Apply the configured database consistently to every projection session."""
+
+    def __init__(self, driver, database: str | None):
+        self.driver = driver
+        self.database = database
+
+    def session(self):
+        return self.driver.session(database=self.database)
+
+    def close(self) -> None:
+        self.driver.close()
 
 
 def _load_env() -> dict[str, str]:
@@ -47,10 +62,12 @@ CONSTRAINTS = [
 ]
 
 
-def ensure_constraints(driver) -> None:
+def ensure_constraints(driver, pedagogy: bool = False) -> None:
     with driver.session() as session:
         for stmt in CONSTRAINTS:
             session.run(stmt)
+        if pedagogy:
+            session.run("CREATE CONSTRAINT skill_id IF NOT EXISTS FOR (n:Skill) REQUIRE n.canonical_id IS UNIQUE")
 
 
 def project_competitions(driver, pg_cur) -> int:
@@ -228,7 +245,7 @@ def project_techniques(driver, pg_cur) -> int:
 
 def project_problem_concept(driver, pg_cur) -> int:
     pg_cur.execute(
-        "SELECT problem_id, concept_id, role, confidence FROM knowledge.problem_concept"
+        "SELECT problem_id, concept_id, role, confidence, assertion_source, review_status FROM knowledge.problem_concept"
     )
     rows = [
         {
@@ -236,6 +253,8 @@ def project_problem_concept(driver, pg_cur) -> int:
             "concept_id": str(r[1]),
             "role": r[2],
             "confidence": float(r[3]) if r[3] is not None else None,
+            "source": r[4],
+            "review_status": r[5],
         }
         for r in pg_cur.fetchall()
     ]
@@ -247,7 +266,8 @@ def project_problem_concept(driver, pg_cur) -> int:
                 MATCH (p:Problem {canonical_id: row.problem_id})
                 MATCH (c:Concept {canonical_id: row.concept_id})
                 MERGE (p)-[r:TESTS {role: row.role}]->(c)
-                SET r.confidence = row.confidence
+                SET r.confidence = row.confidence, r.source = row.source,
+                    r.review_status = row.review_status
                 """,
                 rows=batch,
             )
@@ -256,7 +276,7 @@ def project_problem_concept(driver, pg_cur) -> int:
 
 def project_problem_technique(driver, pg_cur) -> int:
     pg_cur.execute(
-        "SELECT problem_id, technique_id, role, confidence FROM knowledge.problem_technique"
+        "SELECT problem_id, technique_id, role, confidence, assertion_source, review_status FROM knowledge.problem_technique"
     )
     rows = [
         {
@@ -264,6 +284,8 @@ def project_problem_technique(driver, pg_cur) -> int:
             "technique_id": str(r[1]),
             "role": r[2],
             "confidence": float(r[3]) if r[3] is not None else None,
+            "source": r[4],
+            "review_status": r[5],
         }
         for r in pg_cur.fetchall()
     ]
@@ -275,7 +297,8 @@ def project_problem_technique(driver, pg_cur) -> int:
                 MATCH (p:Problem {canonical_id: row.problem_id})
                 MATCH (t:Technique {canonical_id: row.technique_id})
                 MERGE (p)-[r:USES_TECHNIQUE {role: row.role}]->(t)
-                SET r.confidence = row.confidence
+                SET r.confidence = row.confidence, r.source = row.source,
+                    r.review_status = row.review_status
                 """,
                 rows=batch,
             )
@@ -284,7 +307,7 @@ def project_problem_technique(driver, pg_cur) -> int:
 
 def project_concept_relation(driver, pg_cur) -> int:
     pg_cur.execute(
-        "SELECT from_concept_id, to_concept_id, relation_type, strength FROM knowledge.concept_relation"
+        "SELECT from_concept_id, to_concept_id, relation_type, strength, assertion_source, review_status FROM knowledge.concept_relation"
     )
     rows = [
         {
@@ -292,6 +315,9 @@ def project_concept_relation(driver, pg_cur) -> int:
             "to_id": str(r[1]),
             "relation_type": r[2],
             "strength": float(r[3]) if r[3] is not None else None,
+            "confidence": float(r[3]) if r[3] is not None else None,
+            "source": r[4],
+            "review_status": r[5],
         }
         for r in pg_cur.fetchall()
     ]
@@ -303,14 +329,151 @@ def project_concept_relation(driver, pg_cur) -> int:
                 MATCH (a:Concept {canonical_id: row.from_id})
                 MATCH (b:Concept {canonical_id: row.to_id})
                 MERGE (a)-[r:CONCEPT_RELATION {relation_type: row.relation_type}]->(b)
-                SET r.strength = row.strength
+                SET r.strength = row.strength, r.confidence = row.confidence,
+                    r.source = row.source, r.review_status = row.review_status
                 """,
                 rows=batch,
             )
     return len(rows)
 
 
+PEDAGOGY_TABLES = ("skill", "skill_concept", "skill_relation", "problem_skill", "problem_pedagogy")
+SEMANTIC_RELATIONS = frozenset({"PREREQUISITE_OF", "PART_OF", "BUILDS_ON"})
+
+
+def require_pedagogy_schema(pg_cur) -> None:
+    for table in PEDAGOGY_TABLES:
+        pg_cur.execute("SELECT to_regclass(%s)", (f"knowledge.{table}",))
+        if pg_cur.fetchone()[0] is None:
+            raise RuntimeError("--pedagogy requires mathbank-db/sql/006_pedagogy.sql; "
+                               "apply it explicitly with make -C mathbank-db migrate-pedagogy")
+
+
+def semantic_relation(kind: str, from_id: str, to_id: str):
+    """Only explicit, case-sensitive semantics; never infer unknown vocabulary."""
+    if kind == "HAS_SUBCONCEPT":
+        return "PART_OF", to_id, from_id
+    if kind in SEMANTIC_RELATIONS:
+        return kind, from_id, to_id
+    return None
+
+
+def _dict_rows(pg_cur, query: str, columns: list[str]) -> list[dict]:
+    pg_cur.execute(query)
+    rows = []
+    for values in pg_cur.fetchall():
+        row = dict(zip(columns, values))
+        for key, value in row.items():
+            if key.endswith("_id"):
+                row[key] = str(value)
+            elif key in {"confidence", "importance"} and value is not None:
+                row[key] = float(value)
+        rows.append(row)
+    return rows
+
+
+def project_pedagogy(driver, pg_cur) -> tuple[int, int]:
+    require_pedagogy_schema(pg_cur)
+    jobs: list[tuple[str, list[dict]]] = []
+
+    def queue(query: str, rows: list[dict]) -> int:
+        jobs.append((query, rows))
+        return len(rows)
+
+    skill_columns = ["skill_id", "slug", "name", "objective", "level", "source", "confidence", "review_status"]
+    skill_rows = _dict_rows(pg_cur, "SELECT " + ", ".join(skill_columns) + " FROM knowledge.skill", skill_columns)
+    nodes = queue("""
+        UNWIND $rows AS row
+        MERGE (s:Skill {canonical_id: row.skill_id})
+        SET s.slug = row.slug, s.name = row.name, s.objective = row.objective,
+            s.level = row.level, s.source = row.source,
+            s.confidence = row.confidence, s.review_status = row.review_status,
+            s.projection_kind = 'pedagogy'
+        RETURN count(s) AS written
+    """, skill_rows)
+    edges = 0
+    specs = [
+        ("skill_concept", "Skill", "Concept", "skill_id", "concept_id", ["source", "confidence", "review_status"]),
+        ("skill_relation", "Skill", "Skill", "from_skill_id", "to_skill_id", ["relation_type", "source", "confidence", "review_status"]),
+        ("problem_skill", "Problem", "Skill", "problem_id", "skill_id",
+         ["relation_type", "role", "required_level", "importance", "source", "confidence", "review_status"]),
+    ]
+    for table, start_label, end_label, start, end, properties in specs:
+        columns = [start, end] + properties
+        rows = _dict_rows(pg_cur, "SELECT " + ", ".join(columns) +
+                          f" FROM knowledge.{table}", columns)
+        types = {"PART_OF"} if table == "skill_concept" else (
+            {"REQUIRES", "PRACTICES", "TESTS"} if table == "problem_skill" else SEMANTIC_RELATIONS
+        )
+        for kind in sorted(types):
+            selected = [row for row in rows if row.get("relation_type", "PART_OF") == kind]
+            role_key = " {role: row.role}" if table == "problem_skill" else ""
+            assignments = ", ".join(f"r.{prop} = row.{prop}" for prop in properties if prop != "relation_type")
+            edges += queue(f"""
+                UNWIND $rows AS row
+                MATCH (a:{start_label} {{canonical_id: row.{start}}})
+                MATCH (b:{end_label} {{canonical_id: row.{end}}})
+                MERGE (a)-[r:{kind}{role_key}]->(b)
+                SET {assignments}, r.projection_kind = 'pedagogy'
+                RETURN count(r) AS written
+            """, selected)
+    columns = ["from_id", "to_id", "relation_type", "confidence", "source", "review_status"]
+    rows = _dict_rows(pg_cur, """
+        SELECT from_concept_id, to_concept_id, relation_type, strength, assertion_source, review_status
+        FROM knowledge.concept_relation
+    """, columns)
+    for kind in sorted(SEMANTIC_RELATIONS):
+        selected = []
+        for row in rows:
+            semantic = semantic_relation(row["relation_type"], row["from_id"], row["to_id"])
+            if semantic and semantic[0] == kind:
+                selected.append({**row, "from_id": semantic[1], "to_id": semantic[2]})
+        edges += queue(f"""
+            UNWIND $rows AS row
+            MATCH (a:Concept {{canonical_id: row.from_id}})
+            MATCH (b:Concept {{canonical_id: row.to_id}})
+            MERGE (a)-[r:{kind}]->(b)
+            SET r.source = row.source, r.confidence = row.confidence,
+                r.review_status = row.review_status, r.projection_kind = 'pedagogy'
+            RETURN count(r) AS written
+        """, selected)
+    columns = ["problem_id", "conceptual_depth", "technical_load", "algebraic_load", "insight_required",
+               "number_of_steps", "prerequisite_depth", "estimated_contest_level",
+               "source", "confidence", "review_status"]
+    # Keep assertion provenance names scoped to pedagogy on the shared Problem node.
+    assignments = ", ".join(f"p.pedagogy_{c} = row.{c}" if c in {"source", "confidence", "review_status"}
+                            else f"p.{c} = row.{c}" for c in columns[1:])
+    names = ["pedagogy_" + c if c in {"source", "confidence", "review_status"} else c for c in columns[1:]]
+    queue(f"UNWIND $rows AS row MATCH (p:Problem {{canonical_id: row.problem_id}}) SET {assignments} RETURN count(p) AS written",
+          _dict_rows(pg_cur, "SELECT " + ", ".join(columns) + " FROM knowledge.problem_pedagogy", columns))
+
+    def write(tx) -> None:
+        # Atomic replacement: a failed import cannot erase the previous live layer.
+        tx.run("MATCH ()-[r]->() WHERE r.projection_kind = 'pedagogy' DELETE r").consume()
+        tx.run("MATCH (p:Problem) REMOVE " + ", ".join("p." + c for c in names)).consume()
+        tx.run("""
+            MATCH (s:Skill) WHERE s.projection_kind = 'pedagogy'
+              AND NOT s.canonical_id IN $ids
+            SET s.review_status = 'REJECTED'
+        """, ids=[row["skill_id"] for row in skill_rows]).consume()
+        for query, rows in jobs:
+            for batch in chunks(rows, BATCH_SIZE):
+                result = tx.run(query, rows=batch).single()
+                if result is None or result["written"] != len(batch):
+                    raise RuntimeError(
+                        "Pedagogy projection has missing or duplicate canonical graph targets; "
+                        "project the corpus first. The replacement was rolled back."
+                    )
+
+    with driver.session() as session:
+        session.execute_write(write)
+    return nodes, edges
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--pedagogy", action="store_true", help="Opt in to migration-006 skills and provenance-bearing semantic inventory")
+    args = parser.parse_args()
     env = _load_env()
     pg_conninfo = (
         f"host={env.get('NEON_PG_HOST', '127.0.0.1')} port={env.get('NEON_PG_PORT') or env.get('PG_PORT', '5433')} "
@@ -322,13 +485,16 @@ def main() -> None:
     # Remote (AuraDB) creds use the NEO4J_URI/NEO4J_USERNAME/NEO4J_DATABASE names
     # Aura's console download uses verbatim; local dev uses bolt://localhost + NEO4J_PASSWORD only.
     neo4j_uri = env.get("NEO4J_URI") or f"bolt://localhost:{env.get('NEO4J_BOLT_PORT', '7687')}"
-    neo4j_user = env.get("NEO4J_USERNAME", "neo4j")
+    neo4j_user = env.get("NEO4J_USERNAME") or env.get("NEO4J_USER", "neo4j")
     neo4j_password = env.get("NEO4J_PASSWORD", "")
-    neo4j_database = env.get("NEO4J_DATABASE")
-
-    driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+    driver = GraphTarget(
+        GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password)),
+        env.get("NEO4J_DATABASE") or None,
+    )
     with psycopg.connect(pg_conninfo) as pg_conn:
         with pg_conn.cursor() as pg_cur:
+            if args.pedagogy:
+                require_pedagogy_schema(pg_cur)
             pg_cur.execute(
                 """
                 INSERT INTO pipeline.graph_projection (graph_name, status)
@@ -340,7 +506,8 @@ def main() -> None:
             pg_conn.commit()
 
             try:
-                ensure_constraints(driver)
+                pg_cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+                ensure_constraints(driver, args.pedagogy)
 
                 node_counts = {
                     "Competition": project_competitions(driver, pg_cur),
@@ -358,6 +525,10 @@ def main() -> None:
                     "USES_TECHNIQUE": project_problem_technique(driver, pg_cur),
                     "CONCEPT_RELATION": project_concept_relation(driver, pg_cur),
                 }
+                if args.pedagogy:
+                    skill_count, pedagogy_edges = project_pedagogy(driver, pg_cur)
+                    node_counts["Skill"] = skill_count
+                    edge_counts["PEDAGOGY"] = pedagogy_edges
                 for label, count in edge_counts.items():
                     print(f"{label}: {count} edges upserted")
 
@@ -372,6 +543,7 @@ def main() -> None:
                 )
                 pg_conn.commit()
             except Exception as exc:
+                pg_conn.rollback()
                 pg_cur.execute(
                     """
                     UPDATE pipeline.graph_projection
