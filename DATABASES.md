@@ -136,7 +136,7 @@ counts verified identical post-migration:
   `.env` file values). Prefer `VAR=val command` scoped to one line, or open a
   fresh terminal.
 
-### Full corpus pipeline (crawl → classify → export → ETL → graph)
+### Full corpus pipeline (crawl → classify → export → ETL → graph → vector)
 
 ```
 crawl-unmapped  → data/crawl/<level>/<question_id>/parsed.json  (AoPS text + images)
@@ -145,6 +145,7 @@ export-classifications → CSV corpus mirror (topic_taxonomy.csv, technique_cata
                           question_taxonomy_map.csv, question_technique_map.csv)
 etl / etl-remote → Postgres (core.*, knowledge.*)
 project / project-remote → Neo4j graph (TESTS, USES_TECHNIQUE, CONCEPT_RELATION edges)
+vector-backfill-remote → Postgres search.* (representations, chunks, pgvector embeddings for hybrid RAG)
 ```
 
 ```bash
@@ -158,6 +159,9 @@ make etl-remote                          # CSV -> remote Neon Postgres (idempote
 
 cd ../mathbank-graph
 make project-remote                      # remote Neon -> remote AuraDB graph (idempotent)
+
+cd ../mathbank-db
+make vector-backfill-remote              # remote Neon core.* -> search.* embeddings (idempotent; needs OPENAI_API_KEY)
 ```
 
 `classify_crawled.py` writes new concepts/techniques and problem mappings
@@ -166,8 +170,25 @@ into **local SQLite only** — `scripts/export_classifications_to_csv.py`
 Postgres/Neo4j. It's append-only and keys off `Concept_ID`/`Technique_ID`/
 `Mapping_ID` already present in each target CSV, so it's safe to re-run as
 classification proceeds in batches — rerun it (then `etl-remote` then
-`project-remote`) whenever you want the latest classifications reflected
-remotely.
+`project-remote` then `vector-backfill-remote`) whenever you want the latest
+classifications reflected remotely and searchable.
+
+**`vector-backfill-remote` reprocesses the whole corpus every run, not just
+new rows** — `embed_corpus.py backfill` queries ALL of `core.problem`/
+`core.solution` (no "only rows without a representation yet" filter), and
+the representation/chunk phase runs inside a single uncommitted transaction
+until it finishes, so nothing in `search.*` changes until that entire pass
+completes. On a corpus with ~19k problems+solutions, each needing 2 Neon
+round-trips just for the representation step, expect this to take tens of
+minutes even though most rows are already up to date (the row-level
+`content_hash` check makes re-processing unchanged rows a no-op, but it's
+still a full table scan + round-trip per row, not a skip). Check progress
+via `pipeline.run` (`status='IN_PROGRESS'`, `run_type='EMBED_BACKFILL'`) —
+`completed_items`/`expected_items` only populate once the job finishes, so
+mid-run the only signal is "still IN_PROGRESS, started_at is X minutes ago."
+Run `make vector-status-remote` afterward to confirm
+`search.representation`/`search.embedding` counts now match
+`core.problem`/`core.solution` counts.
 
 ### Idempotency checks and balances
 
@@ -190,4 +211,10 @@ remotely.
   write is a Cypher `MERGE` keyed on `canonical_id` (nodes) or the matched
   endpoint pair (edges) — also structurally idempotent, re-running
   `project`/`project-remote` never creates duplicate nodes or edges.
+- **Vector/RAG** (`mathbank-db/etl/embed_corpus.py`): representations are
+  keyed on `(source_entity_type, source_entity_id, representation_kind,
+  preprocessing_profile_id, content_hash)` — unchanged text re-processes as
+  a no-op (`ON CONFLICT DO UPDATE` just re-marks it `ACTIVE`), changed text
+  inserts a new row and marks the old one `SUPERSEDED`. Idempotent, but see
+  the "reprocesses the whole corpus every run" performance caveat above.
 

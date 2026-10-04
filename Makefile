@@ -10,6 +10,14 @@
 
 .DEFAULT_GOAL := help
 
+.PHONY: sync-env
+sync-env:                        ## Distribute the shared root .env into every service's own .env (backs up existing files first)
+	@bash sync-env.sh
+
+.PHONY: setup
+setup:                           ## Check/create .env files, flag missing secrets (OPENAI_API_KEY etc.), install every venv/node_modules not already present
+	@bash scripts/setup.sh
+
 .PHONY: db-setup
 db-setup:                       ## Bootstrap Postgres on the external drive (install+init+start+create-db)
 	$(MAKE) -C mathbank-db setup

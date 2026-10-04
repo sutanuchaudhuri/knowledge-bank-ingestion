@@ -41,6 +41,11 @@ htmlcov/
 !.env.example
 !*.env.example
 
+# sync-env.sh backups (e.g. remote.env.bak.20261004121149) — these don't
+# match the *.env pattern above since they don't end in .env, but they
+# contain the same live credentials and must never be committed.
+*.bak.*
+
 # Secrets / credentials
 credentials.json
 token.json

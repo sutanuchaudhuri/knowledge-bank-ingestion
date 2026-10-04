@@ -200,6 +200,18 @@ vector-index:                   ## Create the HNSW index for the active embeddin
 vector-status:                  ## Show representation/chunk/embedding counts
 	.venv/bin/python etl/embed_corpus.py status
 
+.PHONY: vector-backfill-remote
+vector-backfill-remote:         ## Build representations/chunks + embed via OpenAI, against remote Neon (set LIMIT=; needs OPENAI_API_KEY)
+	PG_ENV_FILE=$(CURDIR)/../mathbank-graph/remote.env .venv/bin/python etl/embed_corpus.py backfill $(if $(LIMIT),--limit $(LIMIT),)
+
+.PHONY: vector-index-remote
+vector-index-remote:            ## Create the HNSW index for the active embedding model, on remote Neon
+	PG_ENV_FILE=$(CURDIR)/../mathbank-graph/remote.env .venv/bin/python etl/embed_corpus.py index
+
+.PHONY: vector-status-remote
+vector-status-remote:           ## Show representation/chunk/embedding counts on remote Neon
+	PG_ENV_FILE=$(CURDIR)/../mathbank-graph/remote.env .venv/bin/python etl/embed_corpus.py status
+
 .PHONY: pdf-discover
 pdf-discover:                   ## Track all direct-link PDF papers from paper_registry.csv
 	.venv/bin/python etl/pdf_pipeline.py discover
