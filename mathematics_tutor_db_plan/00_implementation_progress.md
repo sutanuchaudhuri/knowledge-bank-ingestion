@@ -743,6 +743,72 @@ make start                                      # :8000
 make eval-retrieval                             # Precision/Recall/MRR/nDCG@10, appends to eval_history.csv
 ```
 
+## Round 9 — Classification-coverage gap (GOTCHAS #16 follow-up) + ingestion progress tracker
+
+### `classify_pdf_corpus.py` — classifies the PDF-archive competitions
+
+- [x] New `mathbank_data_ingestion/scripts/classify_pdf_corpus.py` — sibling
+      of `classify_crawled.py` for SMT/CHMMC/PUMaC/CMM/MPG_OLY, whose
+      problem/solution text was never routed through `unmapped_questions`
+      (that table is AoPS-only, i.e. AMC/AIME). Reads problem/solution
+      markdown directly from `data/crawl_pdf/<dir>/PAPER_*/questions/Q*/`
+      (same source `load_pdf_crawl_problems()` reads), reuses
+      `classify_crawled.py`'s concept/mapping-writer functions so
+      `export_classifications_to_csv.py` bridges its output identically —
+      no changes needed there. Idempotent via `questions.classification_status`.
+- [x] Discovery confirmed 1,899 total unmapped questions across the 5
+      PDF-archive competitions. Verified end-to-end on a 5-question test
+      batch (CHMMC): classify → export (clean duplicate audit) → `etl-remote`
+      → `project-remote`, confirming the whole bridge works before scaling
+      to the full batch.
+- [ ] NOT yet done: the full 1,899-question classification run (~$19 at
+      gpt-4o pricing) and the corresponding `etl-remote`/`project-remote`
+      refresh. `make -C mathbank_data_ingestion classify-pdf LIMIT=1899`
+      is the next command to run.
+
+### Ingestion run progress tracker (table + logs, every ingestion script)
+
+- [x] `mathbank_data_ingestion/src/mathbank/db/tracking.py` — new
+      `ingestion_runs` SQLite table (in the existing `data/mathbank.db`,
+      no new DB file) + a per-run text log file under `mathbank_data_ingestion/logs/`
+      (gitignored). `IngestionRun` context-manager class: one row per script
+      invocation (run_id, script, params, status, started_at, finished_at,
+      processed/succeeded/failed counts, log_path, error). A row left stuck
+      at `RUNNING` (no `finished_at`) means the process crashed/was killed —
+      cross-check with `ps aux`.
+- [x] Wired into all 4 local ingestion scripts: `crawl_unmapped.py`,
+      `classify_crawled.py`, `classify_pdf_corpus.py`,
+      `export_classifications_to_csv.py` — every exit path (empty queue,
+      dry-run, normal completion) now records a row.
+- [x] New `mathbank_data_ingestion/scripts/show_progress.py` +
+      `make progress` — prints a Rich table of recent runs; `--tail-log <run_id>`
+      prints that run's full log file.
+- [x] `mathbank-db/etl/load_corpus.py` wired into the **existing**
+      (previously-unused) `pipeline.run` Postgres table instead of a new
+      SQLite table, since it already has a live DB connection — inserts a
+      `RUNNING` row at start, `COMPLETED`/`FAILED` at the end with total
+      rows inserted. `mathbank-graph/etl/project_from_postgres.py` already
+      had equivalent tracking via `pipeline.graph_projection` (pre-existing,
+      undocumented until now). New `make progress` / `make progress-remote`
+      targets in `mathbank-db/Makefile` print both tables (local or Neon).
+- [x] Verified live: dry-runs of all 4 local scripts recorded correctly
+      (`make progress` showed 3 SUCCESS rows with correct params/log paths);
+      log file content confirmed readable via `--tail-log`.
+
+### Recreate Round 9 from scratch
+
+```bash
+cd mathbank_data_ingestion
+make classify-pdf-dry                     # preview the PDF-archive classify queue
+make classify-pdf LIMIT=1899              # full run (~$19, gpt-4o) — NOT yet executed
+make progress                             # local SQLite ingestion_runs table
+make progress SCRIPT=classify_pdf_corpus  # filter by script
+
+cd ../mathbank-db
+make progress                             # local pipeline.run / pipeline.graph_projection
+make progress-remote                      # same, against Neon
+```
+
 
 
 

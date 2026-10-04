@@ -132,6 +132,32 @@ migrate-learner-remote:         ## Apply sql/003_learner_schema.sql to the remot
 	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
 	  -v ON_ERROR_STOP=1 -f sql/003_learner_schema.sql
 
+.PHONY: migrate-admin
+migrate-admin:                  ## Apply sql/004_admin_pipeline.sql (source_kind column, idempotent)
+	@test -n "$(APP_DB_PASSWORD)" || (echo "Set APP_DB_PASSWORD in .env first" && exit 1)
+	PGPASSWORD="$(APP_DB_PASSWORD)" "$(PG_BIN)/psql" -h 127.0.0.1 -p $(PG_PORT) -U "$(APP_USER)" -d $(APP_DB) \
+	  -v ON_ERROR_STOP=1 -f sql/004_admin_pipeline.sql
+
+.PHONY: migrate-admin-remote
+migrate-admin-remote:           ## Apply sql/004_admin_pipeline.sql to the remote Neon Postgres
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/004_admin_pipeline.sql
+
+.PHONY: progress
+progress:                       ## Show recent pipeline.run / pipeline.graph_projection rows (local Postgres)
+	@test -n "$(APP_DB_PASSWORD)" || (echo "Set APP_DB_PASSWORD in .env first" && exit 1)
+	PGPASSWORD="$(APP_DB_PASSWORD)" "$(PG_BIN)/psql" -h 127.0.0.1 -p $(PG_PORT) -U "$(APP_USER)" -d $(APP_DB) \
+	  -c "SELECT run_type, status, started_at, completed_at, completed_items, failed_items FROM pipeline.run ORDER BY started_at DESC LIMIT 20;" \
+	  -c "SELECT graph_name, status, started_at, completed_at, nodes_upserted, edges_upserted FROM pipeline.graph_projection ORDER BY started_at DESC LIMIT 20;"
+
+.PHONY: progress-remote
+progress-remote:                ## Show recent pipeline.run / pipeline.graph_projection rows (remote Neon)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -c "SELECT run_type, status, started_at, completed_at, completed_items, failed_items FROM pipeline.run ORDER BY started_at DESC LIMIT 20;" \
+	  -c "SELECT graph_name, status, started_at, completed_at, nodes_upserted, edges_upserted FROM pipeline.graph_projection ORDER BY started_at DESC LIMIT 20;"
+
 # ── Corpus ETL (Python) ────────────────────────────────────────────────────
 
 .PHONY: etl-venv
@@ -183,7 +209,7 @@ pdf-pipeline: migrate           ## discover -> reconcile -> ingest -> status (id
 	.venv/bin/python etl/pdf_pipeline.py run
 
 .PHONY: pdf-fetch
-pdf-fetch:                      ## Opt-in: real PDF downloads via mathbank_data_ingestion's crawler (set LIMIT=)
+pdf-fetch:                      ## Opt-in: real downloads for PENDING papers — PDF via Docling crawler, HTML via stdlib fetch (set LIMIT=)
 	.venv/bin/python etl/pdf_pipeline.py fetch --limit $(or $(LIMIT),10)
 
 .PHONY: setup

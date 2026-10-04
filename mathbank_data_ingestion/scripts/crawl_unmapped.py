@@ -39,6 +39,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from mathbank.db import DB_PATH
 from mathbank.db.migrations import apply_all as apply_migrations
+from mathbank.db.tracking import IngestionRun
 from mathbank.crawl.downloader import DownloadError, fetch_html, make_session, save_html
 from mathbank.crawl.aops_parser import ParsedQuestion, parse_aops_page
 from mathbank.crawl.image_downloader import save_aops_images
@@ -162,11 +163,14 @@ def main() -> None:
     args = p.parse_args()
 
     conn = sqlite3.connect(args.db)
+    run = IngestionRun(conn, "crawl_unmapped", params=vars(args) | {"db": str(args.db)})
+    run.__enter__()
     queue = _fetch_queue(conn, args.limit, args.level, args.retry_failed)
 
     if not queue:
         console.print("[yellow]No unmapped questions to process.[/]")
         _print_db_summary(conn)
+        run.__exit__(None, None, None)
         conn.close()
         return
 
@@ -177,6 +181,7 @@ def main() -> None:
         for qid, level, url in queue:
             console.print(f"  [dim]{qid:<30} {level:<10} {url}")
         _print_db_summary(conn)
+        run.__exit__(None, None, None)
         conn.close()
         return
 
@@ -221,6 +226,8 @@ def main() -> None:
 
         console.print(f"\n[bold green]Reparse done.[/]  ok={ok}  failed={failed}")
         _print_db_summary(conn)
+        run.update(processed=ok + failed, succeeded=ok, failed=failed)
+        run.__exit__(None, None, None)
         conn.close()
         return
 
@@ -302,6 +309,8 @@ def main() -> None:
     )
     _print_db_summary(conn)
     console.print(f"\nArtifacts in: [cyan]{CRAWL_DIR}")
+    run.update(processed=ok + failed + skipped, succeeded=ok, failed=failed)
+    run.__exit__(None, None, None)
     conn.close()
 
 

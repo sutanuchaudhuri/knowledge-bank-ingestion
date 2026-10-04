@@ -161,6 +161,12 @@ export-classifications:     ## Bridge SQLite classification results into the CSV
 export-classifications-dry: ## Preview the classification export without writing
 	$(BIN)/python scripts/export_classifications_to_csv.py --dry-run
 
+.PHONY: progress
+progress:                   ## Show recent ingestion runs (crawl/classify/export) — set SCRIPT= LIMIT=
+	$(BIN)/python scripts/show_progress.py \
+	  $(if $(SCRIPT),--script "$(SCRIPT)",) \
+	  --limit $(or $(LIMIT),20)
+
 # ── Review (second-pass GPT-4o quality check with vision) ─────────────────────
 
 .PHONY: review

@@ -10,7 +10,7 @@ from uuid import UUID
 
 import bcrypt
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from mathbank_rest.config import settings
@@ -65,3 +65,11 @@ def get_current_student_id(
             detail="invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
+
+
+def require_admin_api_key(x_admin_api_key: str | None = Header(default=None)) -> None:
+    """FastAPI dependency guarding /v1/admin/* — single shared key, not a per-user
+    role system (see routers/admin.py module docstring for the follow-up plan).
+    """
+    if not x_admin_api_key or x_admin_api_key != settings.admin_api_key:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid admin API key")

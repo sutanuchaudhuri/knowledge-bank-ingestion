@@ -36,6 +36,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from mathbank.db import DB_PATH
 from mathbank.db.migrations import apply_all as apply_migrations
+from mathbank.db.tracking import IngestionRun
 from mathbank.classify.concept_classifier import (
     ClassificationResult,
     ConceptMapping,
@@ -294,11 +295,14 @@ def main() -> None:
     conn = sqlite3.connect(args.db)
     apply_migrations(conn)
 
+    run = IngestionRun(conn, "classify_crawled", params=vars(args) | {"db": str(args.db)})
+    run.__enter__()
     queue = _fetch_queue(conn, args.limit, args.level, args.retry_failed)
 
     if not queue:
         console.print("[yellow]No CRAWLED questions to classify. Run crawl_unmapped.py first.")
         _print_summary(conn)
+        run.__exit__(None, None, None)
         conn.close()
         return
 
@@ -308,6 +312,7 @@ def main() -> None:
         for qid, level, url in queue[:10]:
             console.print(f"  [dim]{qid:<35} {level}")
         _print_summary(conn)
+        run.__exit__(None, None, None)
         conn.close()
         return
 
@@ -412,6 +417,8 @@ def main() -> None:
         f"classified={ok}  failed={failed}  new_concepts_created={new_concepts}"
     )
     _print_summary(conn)
+    run.update(processed=ok + failed, succeeded=ok, failed=failed)
+    run.__exit__(None, None, None)
     conn.close()
 
 

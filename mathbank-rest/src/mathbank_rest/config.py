@@ -6,6 +6,7 @@ import warnings
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 INSECURE_DEFAULT_JWT_SECRET = "dev-only-insecure-secret-change-me"
+INSECURE_DEFAULT_ADMIN_API_KEY = "dev-only-insecure-admin-key-change-me"
 
 
 class Settings(BaseSettings):
@@ -30,6 +31,12 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = 60 * 24 * 7  # 7 days
 
+    # Admin endpoints (routers/admin.py) — register competitions/papers,
+    # retry pipeline stages. Single shared key via X-Admin-Api-Key header;
+    # no per-admin-user accounts yet (tracked as a follow-up, see
+    # requirements/11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md).
+    admin_api_key: str = INSECURE_DEFAULT_ADMIN_API_KEY
+
     @property
     def postgres_dsn(self) -> str:
         dsn = (
@@ -48,5 +55,12 @@ if settings.jwt_secret == INSECURE_DEFAULT_JWT_SECRET:
         "JWT_SECRET is using the insecure built-in default — set a long random "
         "value in .env before issuing tokens anyone relies on (student logins "
         "signed with this default are forgeable by anyone reading this source).",
+        stacklevel=1,
+    )
+
+if settings.admin_api_key == INSECURE_DEFAULT_ADMIN_API_KEY:
+    warnings.warn(
+        "ADMIN_API_KEY is using the insecure built-in default — set a long "
+        "random value in .env before exposing /v1/admin/* beyond localhost.",
         stacklevel=1,
     )

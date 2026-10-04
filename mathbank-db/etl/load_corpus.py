@@ -16,6 +16,7 @@ import re
 from pathlib import Path
 
 import psycopg
+from psycopg.types.json import Json
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INGESTION_ROOT = REPO_ROOT / "mathbank_data_ingestion"
@@ -615,52 +616,95 @@ def main() -> None:
 
     with psycopg.connect(conninfo) as conn:
         with conn.cursor() as cur:
-            steps = [
-                ("competitions", lambda: load_competitions(cur)),
-            ]
-            for label, fn in steps:
-                inserted, skipped = fn()
-                print(f"{label}: inserted={inserted} skipped={skipped}")
+            # Progress tracking — see pipeline.run (mathematics_tutor_db_plan's
+            # system-of-record for ingestion runs, previously unused by this
+            # script). A row left stuck at RUNNING (no completed_at) means the
+            # process crashed/was killed mid-run — check the log/error output
+            # from that invocation, not this table, for the cause.
+            cur.execute(
+                "INSERT INTO pipeline.run (run_type, status, started_at, metadata) "
+                "VALUES (%s, 'RUNNING', now(), %s) RETURNING run_id",
+                ("load_corpus", Json({"target": env.get("NEON_PG_HOST", "local")})),
+            )
+            run_id = cur.fetchone()[0]
             conn.commit()
+            total_inserted = 0
+            total_failed = 0
 
-            papers_inserted, papers_skipped, paper_ids = load_editions_and_papers(cur)
-            print(f"editions+papers: inserted={papers_inserted} skipped={papers_skipped}")
-            conn.commit()
+            try:
+                steps = [
+                    ("competitions", lambda: load_competitions(cur)),
+                ]
+                for label, fn in steps:
+                    inserted, skipped = fn()
+                    print(f"{label}: inserted={inserted} skipped={skipped}")
+                    total_inserted += inserted
+                conn.commit()
 
-            problems_inserted, problems_skipped = load_problems(cur, paper_ids)
-            print(f"problems: inserted={problems_inserted} skipped={problems_skipped}")
-            conn.commit()
+                papers_inserted, papers_skipped, paper_ids = load_editions_and_papers(cur)
+                print(f"editions+papers: inserted={papers_inserted} skipped={papers_skipped}")
+                total_inserted += papers_inserted
+                conn.commit()
 
-            cur.execute("SELECT external_code, competition_id FROM core.competition")
-            competition_by_code = {code: str(cid) for code, cid in cur.fetchall() if code}
+                problems_inserted, problems_skipped = load_problems(cur, paper_ids)
+                print(f"problems: inserted={problems_inserted} skipped={problems_skipped}")
+                total_inserted += problems_inserted
+                conn.commit()
 
-            pdf_inserted, pdf_skipped = load_pdf_crawl_problems(cur, competition_by_code)
-            print(f"pdf_crawl_problems: inserted={pdf_inserted} skipped={pdf_skipped}")
-            conn.commit()
+                cur.execute("SELECT external_code, competition_id FROM core.competition")
+                competition_by_code = {code: str(cid) for code, cid in cur.fetchall() if code}
 
-            aops_updated, aops_skipped = enrich_problems_from_aops_crawl(cur)
-            print(f"aops_crawl_enrichment: updated={aops_updated} skipped={aops_skipped}")
-            conn.commit()
+                pdf_inserted, pdf_skipped = load_pdf_crawl_problems(cur, competition_by_code)
+                print(f"pdf_crawl_problems: inserted={pdf_inserted} skipped={pdf_skipped}")
+                total_inserted += pdf_inserted
+                conn.commit()
 
-            concepts_inserted, concepts_skipped = load_concepts(cur)
-            print(f"concepts: inserted={concepts_inserted} skipped={concepts_skipped}")
-            conn.commit()
+                aops_updated, aops_skipped = enrich_problems_from_aops_crawl(cur)
+                print(f"aops_crawl_enrichment: updated={aops_updated} skipped={aops_skipped}")
+                total_inserted += aops_updated
+                conn.commit()
 
-            techniques_inserted, techniques_skipped = load_techniques(cur)
-            print(f"techniques: inserted={techniques_inserted} skipped={techniques_skipped}")
-            conn.commit()
+                concepts_inserted, concepts_skipped = load_concepts(cur)
+                print(f"concepts: inserted={concepts_inserted} skipped={concepts_skipped}")
+                total_inserted += concepts_inserted
+                conn.commit()
 
-            pc_inserted, pc_skipped = load_problem_concepts(cur)
-            print(f"problem_concept: inserted={pc_inserted} skipped={pc_skipped}")
-            conn.commit()
+                techniques_inserted, techniques_skipped = load_techniques(cur)
+                print(f"techniques: inserted={techniques_inserted} skipped={techniques_skipped}")
+                total_inserted += techniques_inserted
+                conn.commit()
 
-            pt_inserted, pt_skipped = load_problem_techniques(cur)
-            print(f"problem_technique: inserted={pt_inserted} skipped={pt_skipped}")
-            conn.commit()
+                pc_inserted, pc_skipped = load_problem_concepts(cur)
+                print(f"problem_concept: inserted={pc_inserted} skipped={pc_skipped}")
+                total_inserted += pc_inserted
+                conn.commit()
 
-            cr_inserted, cr_skipped = load_concept_relations(cur)
-            print(f"concept_relation: inserted={cr_inserted} skipped={cr_skipped}")
-            conn.commit()
+                pt_inserted, pt_skipped = load_problem_techniques(cur)
+                print(f"problem_technique: inserted={pt_inserted} skipped={pt_skipped}")
+                total_inserted += pt_inserted
+                conn.commit()
+
+                cr_inserted, cr_skipped = load_concept_relations(cur)
+                print(f"concept_relation: inserted={cr_inserted} skipped={cr_skipped}")
+                total_inserted += cr_inserted
+                conn.commit()
+            except Exception as exc:
+                total_failed += 1
+                cur.execute(
+                    "UPDATE pipeline.run SET status='FAILED', completed_at=now(), "
+                    "completed_items=%s, failed_items=%s, metadata = metadata || %s "
+                    "WHERE run_id=%s",
+                    (total_inserted, total_failed, Json({"error": str(exc)[:2000]}), run_id),
+                )
+                conn.commit()
+                raise
+            else:
+                cur.execute(
+                    "UPDATE pipeline.run SET status='COMPLETED', completed_at=now(), "
+                    "completed_items=%s WHERE run_id=%s",
+                    (total_inserted, run_id),
+                )
+                conn.commit()
 
 
 if __name__ == "__main__":

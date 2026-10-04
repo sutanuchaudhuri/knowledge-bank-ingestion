@@ -293,6 +293,37 @@ taxonomy is a tree (`knowledge.concept_relation.relation_type = 'HAS_SUBCONCEPT'
 before assuming a flat tag match is correct — `knowledge.technique` has no
 such hierarchy table, so `get_technique_problems` does NOT need this fix.
 
+## 17. Ingestion scripts had no persistent progress record — background runs were invisible after the fact
+
+Every classify/crawl/export script in `mathbank_data_ingestion` printed a
+summary to stdout and nothing else. When run via `nohup ... &` (the norm for
+anything that takes more than a couple minutes — see the `make etl-remote`/
+`make classify-pdf` pattern used throughout this project), that summary is
+only in the `/tmp/*.log` file you happened to redirect to, if any — there was
+no queryable, persistent record of what ran, when, with what params, or
+whether it actually finished vs. got silently killed.
+
+**Fix**: `mathbank_data_ingestion/src/mathbank/db/tracking.py` — an
+`IngestionRun` context-manager class that writes one row per script
+invocation to a new `ingestion_runs` table in the *existing* `data/mathbank.db`
+(no new DB file) plus a full-detail text log under `logs/` (gitignored).
+Wired into all 4 local scripts (`crawl_unmapped.py`, `classify_crawled.py`,
+`classify_pdf_corpus.py`, `export_classifications_to_csv.py`) at every exit
+path. View with `make progress` (`mathbank_data_ingestion/scripts/show_progress.py`).
+
+For scripts that already hold a live Postgres connection
+(`mathbank-db/etl/load_corpus.py`, `mathbank-graph/etl/project_from_postgres.py`),
+use the **existing** `pipeline.run` / `pipeline.graph_projection` tables
+instead of a second SQLite tracker — `load_corpus.py` was wired into
+`pipeline.run` (it previously existed in the schema but nothing wrote to it);
+`project_from_postgres.py` already used `pipeline.graph_projection`. View
+with `make progress` / `make progress-remote` in `mathbank-db/`.
+
+**Takeaway for any new ingestion script**: a `RUNNING` row with no
+`finished_at`/`completed_at` and no matching live process (`ps aux`) means
+the run crashed or was killed — that's the signal to look for, not a
+missing log file.
+
 ## Single-command recreation
 
 ```bash

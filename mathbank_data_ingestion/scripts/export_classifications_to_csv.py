@@ -35,6 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from mathbank.db import DB_PATH  # noqa: E402
+from mathbank.db.tracking import IngestionRun  # noqa: E402
 from rich.console import Console  # noqa: E402
 from rich.table import Table  # noqa: E402
 
@@ -213,16 +214,18 @@ def main() -> None:
     p.add_argument("--dry-run", action="store_true", help="Report counts only, write nothing")
     args = p.parse_args()
 
+    conn = sqlite3.connect(DB_PATH)
+    run = IngestionRun(conn, "export_classifications_to_csv", params={"dry_run": args.dry_run})
+    run.__enter__()
+
     pre_existing_dupes = {k: v for k, v in _check_for_duplicates().items() if v}
     if pre_existing_dupes:
         console.print("[bold red]Pre-existing duplicate keys found (not caused by this run):[/]")
         for csv_name, keys in pre_existing_dupes.items():
             console.print(f"  {csv_name}: {keys[:10]}{' ...' if len(keys) > 10 else ''}")
 
-    conn = sqlite3.connect(DB_PATH)
     concept_counts = export_concepts_and_techniques(conn, args.dry_run)
     mapping_counts = export_problem_mappings(conn, args.dry_run)
-    conn.close()
 
     table = Table(title=f"Export {'(dry run)' if args.dry_run else ''}".strip())
     table.add_column("Target CSV")
@@ -233,7 +236,15 @@ def main() -> None:
     table.add_row("question_technique_map.csv", str(mapping_counts["new_technique_maps"]))
     console.print(table)
 
+    new_rows = (
+        concept_counts["new_concepts"] + concept_counts["new_techniques"]
+        + mapping_counts["new_concept_maps"] + mapping_counts["new_technique_maps"]
+    )
+    run.update(processed=new_rows, succeeded=new_rows)
+
     if args.dry_run:
+        run.__exit__(None, None, None)
+        conn.close()
         return
 
     post_dupes = {k: v for k, v in _check_for_duplicates().items() if v}
@@ -246,8 +257,13 @@ def main() -> None:
         console.print("[bold red]This run introduced duplicate keys:[/]")
         for csv_name, keys in new_dupes.items():
             console.print(f"  {csv_name}: {keys}")
+        run.update(failed=sum(len(v) for v in new_dupes.values()))
+        run.__exit__(SystemExit, SystemExit("duplicate keys introduced"), None)
+        conn.close()
         raise SystemExit(1)
     console.print("[green]Post-export duplicate check: clean (no new duplicate keys introduced).[/]")
+    run.__exit__(None, None, None)
+    conn.close()
 
 
 if __name__ == "__main__":

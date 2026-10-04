@@ -47,6 +47,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from mathbank.db import DB_PATH  # noqa: E402
 from mathbank.db.migrations import apply_all as apply_migrations  # noqa: E402
+from mathbank.db.tracking import IngestionRun  # noqa: E402
 from mathbank.classify.concept_classifier import classify_question, load_taxonomy_prompt_block  # noqa: E402
 from classify_crawled import _insert_new_concept, _upsert_taxonomy_map  # noqa: E402
 from rich.console import Console  # noqa: E402
@@ -196,9 +197,14 @@ def main() -> None:
     conn = sqlite3.connect(args.db)
     apply_migrations(conn)
 
+    run = IngestionRun(conn, "classify_pdf_corpus", params=vars(args) | {"db": str(args.db)})
+    run.__enter__()
+
     all_questions = discover_questions(args.competition)
     if not all_questions:
         console.print(f"[yellow]No PDF-archive questions found under {PDF_CRAWL_DIR}")
+        run.__exit__(None, None, None)
+        conn.close()
         return
 
     for q in all_questions:
@@ -209,6 +215,7 @@ def main() -> None:
     if not queue:
         console.print("[yellow]No PDF-archive questions left to classify.")
         _print_summary(conn, all_questions)
+        run.__exit__(None, None, None)
         conn.close()
         return
 
@@ -217,6 +224,7 @@ def main() -> None:
         for q in queue[:10]:
             console.print(f"  [dim]{q.question_id:<35} {q.exam_level}")
         _print_summary(conn, all_questions)
+        run.__exit__(None, None, None)
         conn.close()
         return
 
@@ -272,6 +280,8 @@ def main() -> None:
 
     console.print(f"\nDone.  classified={ok}  failed={failed}  new_concepts_created={new_concepts}\n")
     _print_summary(conn, all_questions)
+    run.update(processed=ok + failed, succeeded=ok, failed=failed)
+    run.__exit__(None, None, None)
     conn.close()
 
 

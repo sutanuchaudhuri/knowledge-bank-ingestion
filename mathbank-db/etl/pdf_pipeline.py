@@ -1,9 +1,17 @@
 """PDF download → parse → ingest pipeline tracker.
 
 Tracks per-paper progress through three stages in `pipeline.pdf_source`
-(one row per `paper_registry.csv` direct-link "PAPER_*" row):
+(one row per `paper_registry.csv` direct-link "PAPER_*" row, or one row per
+admin-registered paper via mathbank-rest's `POST /v1/admin/papers`):
 
     PENDING -> DOWNLOADED -> PARSED -> INGESTED   (per stage column)
+
+Some competitions publish PDFs (CHMMC/CMM/SMT/PUMaC/MPG_OLY — need Docling
+parsing); others publish a single HTML page per paper. `source_kind`
+(`PDF` | `HTML`, see sql/004_admin_pipeline.sql) controls which fetch path a
+row goes through at the `fetch` stage — `reconcile`/`ingest` are format-agnostic
+(both just look for `questions/Qnn/problem.md` on disk) so neither needs to
+know or care which fetch path produced those files.
 
 Subcommands (safe, local-only — no network calls):
     discover    upsert pipeline.pdf_source from paper_registry.csv
@@ -17,8 +25,11 @@ Subcommands (safe, local-only — no network calls):
     run         discover -> reconcile -> ingest -> status
 
 Fetch subcommand (NOT run by `run` — triggers real network downloads):
-    fetch       shell out to mathbank_data_ingestion/scripts/crawl_pdf_papers.py
-                for PENDING papers (requires that project's own .venv)
+    fetch       PENDING PDF rows: shell out to
+                mathbank_data_ingestion/scripts/crawl_pdf_papers.py (Docling,
+                needs that project's own .venv). PENDING HTML rows: fetch +
+                strip tags directly here (stdlib urllib/html.parser, no extra
+                deps) — see cmd_fetch_html.
 
 Usage:
     python etl/pdf_pipeline.py discover
@@ -33,9 +44,12 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import html
 import re
 import subprocess
 import sys
+import urllib.request
+from html.parser import HTMLParser
 from pathlib import Path
 
 import psycopg
@@ -59,12 +73,17 @@ DIRECT_LINK_SCOPES = {
 
 
 def _connect():
+    # NEON_PG_* (from mathbank-graph/remote.env, via PG_ENV_FILE) target the
+    # remote Neon instance; falls back to the local mathbank-db cluster when
+    # absent — same precedence as etl/load_corpus.py::main().
     env = _load_env()
     conninfo = (
-        f"host=127.0.0.1 port={env.get('PG_PORT', '5433')} "
-        f"dbname={env.get('APP_DB', 'mathbank')} "
-        f"user={env.get('APP_USER', 'mathbank_app')} "
-        f"password={env.get('APP_DB_PASSWORD', '')}"
+        f"host={env.get('NEON_PG_HOST', '127.0.0.1')} "
+        f"port={env.get('NEON_PG_PORT') or env.get('PG_PORT', '5433')} "
+        f"dbname={env.get('NEON_PG_DATABASE') or env.get('APP_DB', 'mathbank')} "
+        f"user={env.get('NEON_PG_USER') or env.get('APP_USER', 'mathbank_app')} "
+        f"password={env.get('NEON_PG_PASSWORD') or env.get('APP_DB_PASSWORD', '')}"
+        + (f" sslmode={env['NEON_PG_SSLMODE']}" if env.get("NEON_PG_SSLMODE") else "")
     )
     return psycopg.connect(conninfo)
 
@@ -348,12 +367,14 @@ def cmd_status(cur) -> None:
 
 
 def cmd_fetch(cur, limit: int) -> None:
-    """Opt-in: shells out to the real downloader for PENDING papers. Makes real
-    HTTP requests to competition archive sites — run deliberately, not via `run`."""
+    """Opt-in: shells out to the real downloader for PENDING PDF papers. Makes
+    real HTTP requests to competition archive sites — run deliberately, not via
+    `run`. PENDING HTML papers are handled by cmd_fetch_html instead (no
+    Docling/PDF dependency needed for those) — see main()'s dispatch."""
     cur.execute(
         """
         SELECT DISTINCT competition_external_code FROM pipeline.pdf_source
-        WHERE download_status = 'PENDING'
+        WHERE download_status = 'PENDING' AND source_kind = 'PDF'
         ORDER BY 1
         LIMIT %s
         """,
@@ -380,6 +401,113 @@ def cmd_fetch(cur, limit: int) -> None:
         )
 
 
+class _HtmlTextExtractor(HTMLParser):
+    """Minimal stdlib tag-stripper — good enough for a single-paper HTML page
+    without assuming any competition-specific markup. Drops <script>/<style>
+    content entirely; everything else's text is kept, block-level tags insert
+    a newline so paragraphs/problem numbers don't run together."""
+
+    _BLOCK_TAGS = {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "section", "article"}
+    _SKIP_TAGS = {"script", "style", "nav", "header", "footer"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._skip_depth = 0
+        self.chunks: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag in self._SKIP_TAGS:
+            self._skip_depth += 1
+        elif tag in self._BLOCK_TAGS:
+            self.chunks.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in self._SKIP_TAGS and self._skip_depth > 0:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth == 0 and data.strip():
+            self.chunks.append(data)
+
+    def text(self) -> str:
+        raw = " ".join("".join(self.chunks).split("\n"))
+        # Collapse runs of whitespace left over from stripped tags/attrs.
+        return re.sub(r" {2,}", " ", re.sub(r"\n{2,}", "\n\n", "".join(self.chunks))).strip()
+
+
+def _fetch_url_text(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": "mathbank-ingestion/1.0"})
+    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - operator-provided admin URLs
+        raw_html = resp.read().decode(resp.headers.get_content_charset() or "utf-8", errors="replace")
+    parser = _HtmlTextExtractor()
+    parser.feed(html.unescape(raw_html))
+    return parser.text()
+
+
+def cmd_fetch_html(cur, limit: int) -> None:
+    """Opt-in: fetches PENDING HTML papers directly (stdlib urllib + html.parser,
+    no Docling/extra deps). Treats the whole page as a single question
+    (questions/Q01/problem.md) since generic HTML can't be assumed to have a
+    per-question structure the way the AoPS wiki parser (crawl_unmapped.py) or
+    Docling PDF splitter (crawl_pdf_papers.py) can rely on for their specific
+    sources. A competition whose HTML page genuinely has multiple per-question
+    sub-pages needs its own small parser following this same contract
+    (write questions/Qnn/problem.md + optional solution.md under crawl_dir),
+    not a change to reconcile/ingest."""
+    cur.execute(
+        """
+        SELECT paper_external_code, crawl_dir, problem_url, solution_url
+        FROM pipeline.pdf_source
+        WHERE download_status = 'PENDING' AND source_kind = 'HTML'
+        ORDER BY paper_external_code
+        LIMIT %s
+        """,
+        (limit,),
+    )
+    rows = cur.fetchall()
+    if not rows:
+        print("fetch-html: nothing PENDING")
+        return
+
+    ok = failed = 0
+    for paper_external_code, crawl_dir, problem_url, solution_url in rows:
+        q_dir = PDF_CRAWL_DIR / crawl_dir / paper_external_code / "questions" / "Q01"
+        try:
+            q_dir.mkdir(parents=True, exist_ok=True)
+            problem_text = _fetch_url_text(problem_url)
+            if not problem_text:
+                raise ValueError("fetched page had no extractable text")
+            (q_dir / "problem.md").write_text(problem_text, encoding="utf-8")
+            if solution_url:
+                solution_text = _fetch_url_text(solution_url)
+                if solution_text:
+                    (q_dir / "solution.md").write_text(solution_text, encoding="utf-8")
+            cur.execute(
+                """
+                UPDATE pipeline.pdf_source
+                SET download_status = 'DOWNLOADED', downloaded_at = now(),
+                    parse_status = 'PARSED', parsed_at = now(),
+                    questions_found = 1, last_error = NULL, updated_at = now()
+                WHERE paper_external_code = %s
+                """,
+                (paper_external_code,),
+            )
+            ok += 1
+            print(f"fetch-html: OK {paper_external_code}")
+        except Exception as exc:  # noqa: BLE001 - recorded per-row, loop continues
+            cur.execute(
+                """
+                UPDATE pipeline.pdf_source
+                SET download_status = 'FAILED', last_error = %s, updated_at = now()
+                WHERE paper_external_code = %s
+                """,
+                (str(exc)[:500], paper_external_code),
+            )
+            failed += 1
+            print(f"fetch-html: FAIL {paper_external_code}: {exc}")
+    print(f"fetch-html: ok={ok} failed={failed}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
@@ -400,6 +528,8 @@ def main() -> None:
                 cmd_status(cur)
             elif args.command == "fetch":
                 cmd_fetch(cur, args.limit)
+                conn.commit()
+                cmd_fetch_html(cur, args.limit)
             elif args.command == "run":
                 cmd_discover(cur)
                 conn.commit()
