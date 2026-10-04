@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { panel, table, th, td, input, button, primaryButton } from "../db/dbStyles.js";
+import { panel, table, th, td, input, button, primaryButton } from "../../db/dbStyles.js";
 
 const STATUS_COLOUR = {
   PENDING: "#92400e",
@@ -239,12 +239,21 @@ export default function AdminPage() {
   const [refreshToken, setRefreshToken] = useState(0);
   const bump = () => setRefreshToken((n) => n + 1);
 
+  async function logout() {
+    await fetch("/api/auth/admin-logout", { method: "POST" });
+    window.location.href = "/admin/login";
+  }
+
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
       <p style={{ marginTop: 0 }}>
         <Link href="/" style={{ fontSize: 13, color: "#2563eb" }}>&larr; Back to chat</Link>
         {" · "}
         <Link href="/db" style={{ fontSize: 13, color: "#2563eb" }}>Corpus browser</Link>
+        {" · "}
+        <button onClick={logout} style={{ fontSize: 13, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+          Log out
+        </button>
       </p>
       <h1 style={{ fontSize: 20 }}>Corpus ingestion admin</h1>
       <p style={{ color: "#666", fontSize: 13 }}>

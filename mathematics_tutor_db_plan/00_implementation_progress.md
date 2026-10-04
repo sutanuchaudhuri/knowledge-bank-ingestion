@@ -1064,6 +1064,101 @@ curl -s localhost:8000/v1/learner/mastery/improvement-plan -H "Authorization: Be
 curl -s localhost:8000/v1/analytics/weak-concepts
 ```
 
+## Round 13 — Student profile UI + admin login (SPL-*)
+
+Real UI, not just endpoints: login/register, a profile dashboard (past
+attempts, strength/weakness by concept, improvement plan), and a
+predefined-credential admin login gating the existing `/admin` corpus UI —
+all an explicit bridge until real OAuth, per the user's ask.
+
+1. **Schema**: `mathbank-db/sql/005_student_profile_names.sql` adds
+   `first_name`/`last_name` to `learner.student_profile` (idempotent
+   `ADD COLUMN IF NOT EXISTS`). Applied to Neon via the new
+   `migrate-student-names-remote` Makefile target.
+2. **mathbank-rest**:
+   - `db/learner.py`: `create_student`/`get_student_by_email`/
+     `get_student_profile` now read/write `first_name`/`last_name`
+     (`display_name` derived as `f"{first_name} {last_name}"` at write time);
+     new `list_attempts(student_id, limit, offset)` — past attempts joined
+     with problem/competition/year.
+   - `routers/learner.py`: `RegisterRequest` requires `first_name`/
+     `last_name`; `AuthResponse` surfaces them; new `GET /v1/learner/attempts`.
+   - Tests updated (`test_learner_auth_contract.py`) — 38/38 passing.
+   - New `scripts/seed_demo_students.py` — idempotent, seeds 3 realistic demo
+     profiles (Maya Chen "strong", Daniel Osei "struggling", Priya Patel
+     "mixed") against real AIME problems, simulating attempts + hints per a
+     per-profile correctness/hint-rate shape, recomputing mastery after each.
+     Shared demo password `Demo1234!`.
+3. **mathbank-web** (all new — no prior auth/session code existed in this app):
+   - `lib/session.js` — httpOnly cookie helpers. Student cookie
+     (`mb_student_token`) holds the *real* `mathbank-rest` JWT (that token
+     already is the student's REST credential). Admin cookie
+     (`mb_admin_session`) holds an HMAC-SHA256-signed marker, verified with
+     `crypto.timingSafeEqual` — independent of `mathbank-rest`'s own
+     `X-Admin-Api-Key`, which is completely unchanged (existing admin proxy
+     routes keep injecting the static env key server-side as before).
+   - `lib/restClient.js`: added `restAuthGet`/`restAuthPost` (bearer-token
+     variants of the existing `restGet`/`restPost`).
+   - Auth routes: `api/auth/{student-login,student-register,student-logout,
+     admin-login,admin-logout}/route.js`.
+   - Learner proxy routes: `api/rest/learner/{me,attempts,mastery,
+     mastery/improvement-plan}/route.js` — read the student cookie, attach
+     `Authorization: Bearer`, call the real endpoints from Round 11/12.
+   - Pages: `/login` (tabbed login/register, one-click demo-account fill),
+     `/profile` (dashboard — layout-guarded, redirects to `/login` if no
+     session), `/admin/login` (predefined username/password).
+   - `/admin` moved into a route group (`app/admin/(protected)/page.jsx`,
+     same URL) wrapped by `app/admin/(protected)/layout.jsx`, which redirects
+     to `/admin/login` if the HMAC session cookie is missing/invalid — the
+     login page itself deliberately sits *outside* the protected group as a
+     sibling to avoid a circular redirect.
+   - [x] `make test` n/a (no JS test suite yet — see `requirements/11` §5
+     follow-up #2); verified entirely via live browser (Playwright) below.
+- [x] **Caught via live browser testing, both fixed immediately**:
+     (a) `app/api/rest/learner/me/route.js` had a relative import one level
+     too shallow (`../../../../lib/restClient.js` instead of
+     `../../../../../lib/restClient.js`) — the exact mistake pattern already
+     recorded from Round 10, caught again because it's an easy one to make;
+     (b) `mastery_score` comes back from REST as a numeric-string (Postgres
+     `NUMERIC` → JSON), so `score.toFixed(2)` in the profile UI's `TierBadge`
+     threw `score.toFixed is not a function` until coerced with `Number(score)`.
+- [x] **Verified live end-to-end with Playwright** against the real running
+     stack (mathbank-rest on Neon + mathbank-web dev server):
+     - Clicked a demo-account button on `/login` → real login → `/profile`
+       rendered Priya Patel's actual name/email/student_id, her real
+       improvement-plan focus areas with real recommended problems, the full
+       concept/technique mastery table correctly tiered and colour-coded
+       (critical/developing/solid), and her real past-attempts table.
+     - Registered a brand-new account (`alex.kim.browsertest@example.com`)
+       end-to-end → correctly showed all-empty states ("no attempts recorded
+       yet", "No mastery data yet", "Nothing below the solid tier") — deleted
+       afterward.
+     - Admin login with the default dev credentials (`admin` /
+       `ChangeMe123!`) → redirected into the protected `/admin` dashboard;
+       confirmed unauthenticated `GET /admin` and `GET /profile` both 307
+       redirect to their respective login pages via `curl`.
+     - Both "Log out" buttons (student + admin) confirmed to clear their
+       cookie and redirect to the correct login page.
+- [ ] NOT yet done (follow-ups, scoped not built): real OAuth for either
+     login (SPL-10); per-admin-user accounts (still one shared login,
+     mirroring the one shared `ADMIN_API_KEY`); a manual "log an attempt"
+     form in `/profile` (today attempts come from the agent chat or the seed
+     script, not a UI form); no JS test suite for the new pages/routes yet.
+
+### Recreate Round 13 from scratch
+
+```bash
+cd mathbank-db && make migrate-student-names-remote
+cd ../mathbank-rest && .venv/bin/pytest -q          # 38 passed
+make restart
+.venv/bin/python scripts/seed_demo_students.py       # idempotent, 3 demo students
+
+cd ../mathbank-web && make restart
+open http://localhost:5173/login                    # click a demo account button
+open http://localhost:5173/admin/login               # admin / ChangeMe123!
+```
+
+
 
 
 

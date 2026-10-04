@@ -89,3 +89,37 @@ export async function restGetPage(path, searchParams, limit, offset) {
   const rows = await restGet(path, { ...searchParams, limit: limit + 1, offset });
   return { items: rows.slice(0, limit), hasMore: rows.length > limit };
 }
+
+// Learner endpoints (/v1/learner/*) need the student's own bearer token —
+// read from the httpOnly session cookie server-side (see lib/session.js),
+// never sent to/read by the browser directly.
+function bearerHeaders(token) {
+  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+}
+
+export async function restAuthGet(path, token, searchParams) {
+  const res = await fetch(buildUrl(path, searchParams), { headers: bearerHeaders(token), cache: "no-store" });
+  const body = await parseJsonSafely(res);
+  if (!res.ok) {
+    const err = new Error(body?.detail ? JSON.stringify(body.detail) : `mathbank-rest GET ${path} failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
+export async function restAuthPost(path, token, payload) {
+  const res = await fetch(buildUrl(path), {
+    method: "POST",
+    headers: bearerHeaders(token),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  const body = await parseJsonSafely(res);
+  if (!res.ok) {
+    const err = new Error(body?.detail ? JSON.stringify(body.detail) : `mathbank-rest POST ${path} failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}

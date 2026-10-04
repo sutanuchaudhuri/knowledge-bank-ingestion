@@ -418,6 +418,34 @@ comparisons/formatting on it. Same risk applies to any `AVG()`/`SUM()` over a
 cast in SQL, e.g. `CAST(AVG(m.mastery_score) AS DOUBLE PRECISION)`, rather
 than relying on the driver/FastAPI's default `Decimal` handling.
 
+## 21. Any raw Postgres `NUMERIC` column (not just `AVG()`) comes back as a JSON string
+
+Broader than #20: `learner.concept_mastery.mastery_score` is a plain
+`NUMERIC` column — no aggregate involved — and `GET /v1/learner/mastery`
+still serializes it as the *string* `"0.6667"`, not a JSON number, because
+FastAPI/psycopg round-trips `NUMERIC` as Python `Decimal` and the default
+JSON encoder renders `Decimal` as a string to avoid float-precision loss.
+Hit in the student-profile UI (`mathbank-web/app/profile/page.jsx`):
+`score.toFixed(2)` threw `score.toFixed is not a function` until every
+mastery-score value was coerced with `Number(score)` first. Rule of thumb for
+any new frontend code consuming a `mathbank-rest` endpoint that returns a
+`NUMERIC`/`mastery_score`/similar field: always `Number(...)` it before doing
+arithmetic or calling number methods — don't assume REST JSON numbers are
+JS numbers.
+
+## 22. Next.js API route relative-import depth is easy to miscount — recurring mistake
+
+Hit a second time this session (`app/api/rest/learner/me/route.js` used
+`../../../../lib/restClient.js`, one level too shallow, caught immediately by
+the Next.js build-error overlay: `Module not found`). Pattern: count directory
+segments from the route file to the project root precisely —
+`app/api/rest/<a>/<b>/route.js` needs 5 `../` to reach `lib/`, one level
+deeper (`app/api/rest/<a>/<b>/<c>/route.js`) needs 6. Sibling route files at
+the exact same depth (e.g. `attempts/route.js` and `mastery/route.js` next to
+`me/route.js`) are the fastest sanity check — if they already import `lib/`
+correctly, copy their exact `../` count rather than recounting from scratch.
+
+
 ## Single-command recreation
 
 ```bash

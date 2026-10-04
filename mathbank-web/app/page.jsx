@@ -54,6 +54,10 @@ export default function Page() {
         <a href="/db" style={{ color: "#2563eb" }}>browse the corpus</a>
         {" · "}
         <a href="/graph" style={{ color: "#2563eb" }}>view the graph</a>
+        {" · "}
+        <a href="/login" style={{ color: "#2563eb" }}>student login</a>
+        {" · "}
+        <a href="/admin/login" style={{ color: "#2563eb" }}>admin login</a>
       </p>
 
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, minHeight: 360, marginBottom: 12 }}>

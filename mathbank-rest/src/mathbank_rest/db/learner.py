@@ -17,7 +17,7 @@ def get_student_by_email(email: str) -> dict | None:
     with engine.connect() as conn:
         row = conn.execute(
             text(
-                "SELECT student_id, email, password_hash, display_name, status "
+                "SELECT student_id, email, password_hash, first_name, last_name, display_name, status "
                 "FROM learner.student_profile WHERE email = :email"
             ),
             {"email": email},
@@ -25,15 +25,19 @@ def get_student_by_email(email: str) -> dict | None:
         return dict(row) if row else None
 
 
-def create_student(*, email: str, password_hash: str, display_name: str | None) -> dict:
+def create_student(*, email: str, password_hash: str, first_name: str, last_name: str) -> dict:
+    display_name = f"{first_name} {last_name}".strip()
     with engine.begin() as conn:
         row = conn.execute(
             text(
-                "INSERT INTO learner.student_profile (email, password_hash, display_name) "
-                "VALUES (:email, :password_hash, :display_name) "
-                "RETURNING student_id, email, display_name, status, created_at"
+                "INSERT INTO learner.student_profile (email, password_hash, first_name, last_name, display_name) "
+                "VALUES (:email, :password_hash, :first_name, :last_name, :display_name) "
+                "RETURNING student_id, email, first_name, last_name, display_name, status, created_at"
             ),
-            {"email": email, "password_hash": password_hash, "display_name": display_name},
+            {
+                "email": email, "password_hash": password_hash,
+                "first_name": first_name, "last_name": last_name, "display_name": display_name,
+            },
         ).mappings().first()
         return dict(row)
 
@@ -52,7 +56,7 @@ def get_student_profile(student_id: UUID) -> dict | None:
     with engine.connect() as conn:
         row = conn.execute(
             text(
-                "SELECT student_id, email, display_name, status, created_at, last_login_at "
+                "SELECT student_id, email, first_name, last_name, display_name, status, created_at, last_login_at "
                 "FROM learner.student_profile WHERE student_id = :id"
             ),
             {"id": str(student_id)},
@@ -100,6 +104,30 @@ def insert_attempt(
             },
         ).mappings().first()
         return dict(row)
+
+
+def list_attempts(student_id: UUID, *, limit: int = 50, offset: int = 0) -> list[dict]:
+    """Past attempts for a student, most recent first, with problem context
+    joined in so the UI doesn't need a second round-trip per row."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT a.attempt_id, a.is_correct, a.submitted_answer, a.time_spent_seconds, "
+                "       a.hint_count, a.attempted_at, a.source, "
+                "       p.canonical_code, p.problem_number, p.difficulty_band, "
+                "       comp.name AS competition, ed.year "
+                "FROM learner.attempt a "
+                "JOIN core.problem p ON p.problem_id = a.problem_id "
+                "JOIN core.paper pa ON pa.paper_id = p.paper_id "
+                "JOIN core.competition_edition ed ON ed.edition_id = pa.edition_id "
+                "JOIN core.competition comp ON comp.competition_id = ed.competition_id "
+                "WHERE a.student_id = :id "
+                "ORDER BY a.attempted_at DESC "
+                "LIMIT :limit OFFSET :offset"
+            ),
+            {"id": str(student_id), "limit": limit, "offset": offset},
+        ).mappings()
+        return [dict(r) for r in rows]
 
 
 def get_concepts_and_techniques_for_problem(problem_id: UUID) -> dict:

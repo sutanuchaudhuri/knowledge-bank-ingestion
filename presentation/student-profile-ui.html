@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Student &amp; Admin UI — MathBank Platform</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="dot"></span> MathBank Platform</div>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="architecture.html">Ingestion &amp; Inference</a>
+    <a href="data-model.html">Data Model</a>
+    <a href="graph.html">Knowledge Graph</a>
+    <a href="use-cases.html">Use Cases</a>
+    <a href="tutor-interaction.html">Tutor Interaction</a>
+    <a href="student-profile-ui.html">Student &amp; Admin UI</a>
+    <a href="student-impact.html">Student Impact</a>
+    <a href="thought-process.html">How This Was Built</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero reveal" style="padding-top:36px">
+    <span class="eyebrow">04c · Interaction</span>
+    <h1>Student profile &amp; admin login — real screens, real data</h1>
+    <p class="lede">Every screenshot on this page is a live capture of the actual running
+    <code>mathbank-web</code> app against real Neon data — not a mockup. The honesty convention
+    holds here too: both logins are an explicit <strong>bridge until real OAuth</strong> is built, and
+    the page says exactly where that line is.</p>
+  </section>
+
+  <h2 id="student"><span class="section-no">A</span>Student: login → profile dashboard</h2>
+  <p>Three demo profiles were seeded with deliberately different attempt histories
+  (<code>mathbank-rest/scripts/seed_demo_students.py</code>) so the dashboard has something real to
+  show on first use — not an empty state. One click on <code>/login</code> fills in a demo account.</p>
+
+  <div class="grid cols-2 reveal">
+    <div class="card">
+      <h3>1 · Login / register</h3>
+      <img src="assets/screenshots/login-demo-accounts.png" alt="Student login page with demo account buttons" style="width:100%;border-radius:8px;border:1px solid var(--border)" />
+      <p>Tabbed login/register at <code>/login</code>. The three demo buttons (Maya Chen — strong,
+      Daniel Osei — struggling, Priya Patel — mixed) pre-fill the email/password so a reviewer never
+      has to invent credentials to see real data.</p>
+    </div>
+    <div class="card">
+      <h3>2 · Profile header + "what to improve next"</h3>
+      <img src="assets/screenshots/profile-header-plan.png" alt="Profile header and improvement plan for Priya Patel" style="width:100%;border-radius:8px;border:1px solid var(--border)" />
+      <p>Real name, email, and student_id from <code>learner.student_profile</code> (SPL-01's new
+      <code>first_name</code>/<code>last_name</code> columns). Below it, <code>GET
+      /v1/learner/mastery/improvement-plan</code> (MST-10) ranks Priya's weakest concepts with
+      recommended practice problems attached — not a static list.</p>
+    </div>
+    <div class="card">
+      <h3>3 · Strength &amp; weakness by concept</h3>
+      <img src="assets/screenshots/profile-mastery.png" alt="Mastery breakdown table with tier badges" style="width:100%;border-radius:8px;border:1px solid var(--border)" />
+      <p>Every concept and technique Priya has attempted, tiered critical/developing/solid
+      (<code>mastery.mastery_tier()</code>, MST-09/MST-10) and colour-coded — sourced from
+      <code>GET /v1/learner/mastery</code>, the same endpoint Turn 2 of the
+      <a href="tutor-interaction.html">tutor chat</a> uses.</p>
+    </div>
+    <div class="card">
+      <h3>4 · Past attempts</h3>
+      <img src="assets/screenshots/profile-attempts.png" alt="Past attempts table" style="width:100%;border-radius:8px;border:1px solid var(--border)" />
+      <p>The one genuinely new REST endpoint this page needed:
+      <code>GET /v1/learner/attempts</code> (SPL-02) — it didn't exist until this round; every other
+      prior survey of the learner API had flagged "submit an attempt" but never "list your own
+      attempts back."</p>
+    </div>
+  </div>
+
+  <h2 id="admin"><span class="section-no">B</span>Admin: predefined login → existing ingestion UI</h2>
+  <div class="grid cols-2 reveal">
+    <div class="card">
+      <h3>5 · Admin login</h3>
+      <img src="assets/screenshots/admin-login.png" alt="Admin login page" style="width:100%;border-radius:8px;border:1px solid var(--border)" />
+      <p>A single predefined username/password
+      (<code>ADMIN_LOGIN_USERNAME</code>/<code>ADMIN_LOGIN_PASSWORD</code> in
+      <code>mathbank-web/.env</code>) — explicitly a bridge, not a permanent design. The page says so
+      plainly, including the exact env vars to change before deploying anywhere but localhost.</p>
+    </div>
+    <div class="card">
+      <h3>6 · Protected <code>/admin</code> dashboard</h3>
+      <img src="assets/screenshots/admin-dashboard.png" alt="Admin dashboard after login, with Log out link" style="width:100%;border-radius:8px;border:1px solid var(--border)" />
+      <p>The exact same competition/paper registration UI from <a href="architecture.html">the
+      ingestion pipeline page</a> — now gated behind login, with a "Log out" link. Nothing about the
+      admin pipeline itself changed.</p>
+    </div>
+  </div>
+
+  <h2 id="honesty"><span class="section-no">C</span>Where the bridge is, precisely</h2>
+  <div class="grid cols-2 reveal">
+    <div class="card">
+      <span class="tag">Live</span>
+      <h3>Student session = the real JWT</h3>
+      <p>The <code>mb_student_token</code> cookie <em>is</em> the actual
+      <code>mathbank-rest</code>-issued bearer token from <code>POST /v1/learner/login</code> —
+      httpOnly, never read by browser JS, attached server-side to every
+      <code>/api/rest/learner/*</code> proxy call. This is real authentication, not a placeholder.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Bridge</span>
+      <h3>Admin session ≠ mathbank-rest's admin auth</h3>
+      <p>The <code>mb_admin_session</code> cookie is an HMAC-signed marker checked entirely inside
+      <code>mathbank-web</code>. The actual <code>/v1/admin/*</code> REST authorization is still the
+      pre-existing, completely unchanged <code>X-Admin-Api-Key</code> static key. Logging into the web
+      UI doesn't touch <code>mathbank-rest</code>'s security model at all — deliberately, to keep this
+      round's blast radius small.</p>
+    </div>
+  </div>
+  <p>Full requirement-by-requirement detail, the entity-relationship diagram for the extended
+  <code>learner.*</code> schema, and both login sequence diagrams are in
+  <code>requirements/12_STUDENT_PROFILE_AND_ADMIN_LOGIN_UI_REQUIREMENTS.md</code>. The real next step
+  (SPL-10, not built): replace both predefined-credential logins with actual OAuth.</p>
+</main>
+
+<footer>
+  <a href="tutor-interaction.html">&larr; Tutor Interaction</a> ·
+  Next: <a href="student-impact.html">Student Impact</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

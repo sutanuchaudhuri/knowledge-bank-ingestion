@@ -19,7 +19,8 @@ router = APIRouter(prefix="/v1/learner", tags=["learner"])
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
-    display_name: str | None = None
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
 
 
 class LoginRequest(BaseModel):
@@ -31,6 +32,8 @@ class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     student_id: UUID
+    first_name: str | None = None
+    last_name: str | None = None
     display_name: str | None = None
 
 
@@ -49,11 +52,13 @@ def register(body: RegisterRequest) -> AuthResponse:
         raise HTTPException(status_code=409, detail="an account with this email already exists")
     password_hash = security.hash_password(body.password)
     student = learner_db.create_student(
-        email=body.email, password_hash=password_hash, display_name=body.display_name
+        email=body.email, password_hash=password_hash,
+        first_name=body.first_name, last_name=body.last_name,
     )
     token = security.create_access_token(student["student_id"])
     return AuthResponse(
-        access_token=token, student_id=student["student_id"], display_name=student["display_name"]
+        access_token=token, student_id=student["student_id"],
+        first_name=student["first_name"], last_name=student["last_name"], display_name=student["display_name"],
     )
 
 
@@ -68,7 +73,8 @@ def login(body: LoginRequest) -> AuthResponse:
     learner_db.touch_last_login(student["student_id"])
     token = security.create_access_token(student["student_id"])
     return AuthResponse(
-        access_token=token, student_id=student["student_id"], display_name=student["display_name"]
+        access_token=token, student_id=student["student_id"],
+        first_name=student["first_name"], last_name=student["last_name"], display_name=student["display_name"],
     )
 
 
@@ -101,6 +107,13 @@ def submit_attempt(
     # an async queue yet. Revisit if/when bulk "import past attempts" lands.
     updated_mastery = mastery.recompute_mastery_for_problem(student_id, problem_id)
     return {"attempt": attempt, "updated_mastery": updated_mastery}
+
+
+@router.get("/attempts")
+def get_attempts(
+    limit: int = 50, offset: int = 0, student_id: UUID = Depends(security.get_current_student_id)
+) -> list[dict]:
+    return learner_db.list_attempts(student_id, limit=min(limit, 200), offset=max(offset, 0))
 
 
 @router.get("/mastery")
