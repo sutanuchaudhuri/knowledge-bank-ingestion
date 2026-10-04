@@ -4,12 +4,13 @@
 
 This repository is the implementation blueprint for turning a large mathematics corpus—competition papers, problems, solutions, concepts, techniques, prerequisite chains, taxonomy labels, source metadata, and learner interactions—into a durable queryable platform.
 
-The architecture has four principal layers:
+The architecture has five principal layers:
 
 1. **PostgreSQL — system of record.** All authoritative content, ingestion state, provenance, taxonomy assignments, solution structure, and audit data live here first.
 2. **Graph database — derived semantic projection.** Concepts, techniques, problems, prerequisites, similarity links, and learning-path relationships are projected from PostgreSQL into a property graph.
 3. **PostgreSQL vector/search subsystem — pgvector + lexical retrieval.** Semantic chunks, model-versioned embeddings, HNSW/IVFFlat indexes, full-text search, hybrid ranking, retrieval evaluation, and re-embedding state live under `search.*` while remaining derived from canonical PostgreSQL data.
 4. **REST API — controlled read/write boundary.** Corpus ingestion, taxonomy edits, problem lookup, graph traversal, semantic/hybrid search, tutor retrieval, and batch operations are exposed through versioned API contracts.
+5. **Agentic layer — Google ADK + OpenAI.** A conversational query agent that calls REST-only typed tools (never direct SQL), synthesizing grounded answers from hybrid-RAG evidence. Student mastery/personalization is designed but deferred to a later bounded context (see `agent/18_future_student_profile_and_mastery.md`).
 
 The governing rule is: **nothing exists only in the graph.** Every durable graph node and edge must be reproducible from PostgreSQL or be recorded there as an asserted relationship before projection.
 
@@ -81,6 +82,20 @@ The governing rule is: **nothing exists only in the graph.** Every durable graph
 - `crosscut/02_end_to_end_data_flow.md`
 - `crosscut/03_implementation_roadmap.md`
 - `crosscut/04_testing_and_acceptance.md`
+
+### Agentic layer — Google ADK + OpenAI (implemented, plus fuller design)
+
+- `agent/00_index.md` — start here (as-implemented docs 01-06, fuller-design docs 07-21)
+- `agent/01_architecture_and_design.md` through `agent/06_security_and_access_model.md` — matches the running `mathbank-agent`/`mathbank-rest`/`mathbank-web`
+- `agent/07_system_architecture_and_boundaries.md` through `agent/21_adk_openai_version_notes.md` — fuller design depth (tool catalog, security, observability, deployment, reference skeleton), each flagged with an implementation-status banner
+- `agent/18_future_student_profile_and_mastery.md` — **student mastery extraction**: new `learner.*` Postgres schema, new `Student`/`MASTERED`/`STRUGGLES_WITH` graph attributes, mastery-score formula, end-to-end Mermaid flow
+
+Implementation: `mathbank-agent/` (ADK agent + tools), `mathbank-web/`
+(chat UI + `/graph`/`/db` browsing views), both consuming `mathbank-rest/`.
+See `00_implementation_progress.md` for the full build log of every layer
+(Postgres through vector/RAG through the Neon/AuraDB migration), and
+`../requirements/10_AGENTIC_TUTOR_AND_STUDENT_MASTERY_REQUIREMENTS.md` for
+the requirements-level summary with Mermaid diagrams.
 
 ## Recommended implementation order
 

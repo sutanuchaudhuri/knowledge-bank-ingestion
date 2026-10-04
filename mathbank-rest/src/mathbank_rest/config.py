@@ -1,7 +1,11 @@
 """Typed settings loaded from the environment / .env file."""
 from __future__ import annotations
 
+import warnings
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+INSECURE_DEFAULT_JWT_SECRET = "dev-only-insecure-secret-change-me"
 
 
 class Settings(BaseSettings):
@@ -18,6 +22,14 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
 
+    # Student login (learner.* schema) — HS256 JWT bearer tokens.
+    # Must be set to a long random value via env/JWT_SECRET in every real
+    # deployment — the checked-in default only exists so local dev/tests work
+    # without a .env; see the warning emitted below when it's left unchanged.
+    jwt_secret: str = INSECURE_DEFAULT_JWT_SECRET
+    jwt_algorithm: str = "HS256"
+    jwt_expiry_minutes: int = 60 * 24 * 7  # 7 days
+
     @property
     def postgres_dsn(self) -> str:
         dsn = (
@@ -30,3 +42,11 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if settings.jwt_secret == INSECURE_DEFAULT_JWT_SECRET:
+    warnings.warn(
+        "JWT_SECRET is using the insecure built-in default — set a long random "
+        "value in .env before issuing tokens anyone relies on (student logins "
+        "signed with this default are forgeable by anyone reading this source).",
+        stacklevel=1,
+    )

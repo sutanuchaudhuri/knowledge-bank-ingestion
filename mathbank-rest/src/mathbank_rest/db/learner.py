@@ -1,0 +1,235 @@
+"""Read/write queries against the learner.* schema (student login + state).
+
+Raw SQL via SQLAlchemy Core, same convention as db/queries.py — the schema is
+managed by mathbank-db/sql/003_learner_schema.sql, not by this service.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from uuid import UUID
+
+from sqlalchemy import text
+
+from mathbank_rest.db.postgres import engine
+
+
+def get_student_by_email(email: str) -> dict | None:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT student_id, email, password_hash, display_name, status "
+                "FROM learner.student_profile WHERE email = :email"
+            ),
+            {"email": email},
+        ).mappings().first()
+        return dict(row) if row else None
+
+
+def create_student(*, email: str, password_hash: str, display_name: str | None) -> dict:
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                "INSERT INTO learner.student_profile (email, password_hash, display_name) "
+                "VALUES (:email, :password_hash, :display_name) "
+                "RETURNING student_id, email, display_name, status, created_at"
+            ),
+            {"email": email, "password_hash": password_hash, "display_name": display_name},
+        ).mappings().first()
+        return dict(row)
+
+
+def touch_last_login(student_id: UUID) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE learner.student_profile SET last_login_at = :now WHERE student_id = :id"
+            ),
+            {"now": datetime.now(timezone.utc), "id": str(student_id)},
+        )
+
+
+def get_student_profile(student_id: UUID) -> dict | None:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT student_id, email, display_name, status, created_at, last_login_at "
+                "FROM learner.student_profile WHERE student_id = :id"
+            ),
+            {"id": str(student_id)},
+        ).mappings().first()
+        return dict(row) if row else None
+
+
+def get_problem_id_by_code(canonical_code: str) -> UUID | None:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT problem_id FROM core.problem WHERE canonical_code = :code"),
+            {"code": canonical_code},
+        ).first()
+        return row[0] if row else None
+
+
+def insert_attempt(
+    *,
+    student_id: UUID,
+    problem_id: UUID,
+    is_correct: bool,
+    submitted_answer: str | None,
+    time_spent_seconds: int | None,
+    hint_count: int,
+    source: str,
+) -> dict:
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                "INSERT INTO learner.attempt "
+                "(student_id, problem_id, is_correct, submitted_answer, time_spent_seconds, "
+                " hint_count, source) "
+                "VALUES (:student_id, :problem_id, :is_correct, :submitted_answer, "
+                " :time_spent_seconds, :hint_count, :source) "
+                "RETURNING attempt_id, attempted_at"
+            ),
+            {
+                "student_id": str(student_id),
+                "problem_id": str(problem_id),
+                "is_correct": is_correct,
+                "submitted_answer": submitted_answer,
+                "time_spent_seconds": time_spent_seconds,
+                "hint_count": hint_count,
+                "source": source,
+            },
+        ).mappings().first()
+        return dict(row)
+
+
+def get_concepts_and_techniques_for_problem(problem_id: UUID) -> dict:
+    """Which concepts/techniques a problem is tagged with — mastery fans out to these."""
+    with engine.connect() as conn:
+        concept_ids = [
+            r[0]
+            for r in conn.execute(
+                text(
+                    "SELECT concept_id FROM knowledge.problem_concept WHERE problem_id = :id"
+                ),
+                {"id": str(problem_id)},
+            ).all()
+        ]
+        technique_ids = [
+            r[0]
+            for r in conn.execute(
+                text(
+                    "SELECT technique_id FROM knowledge.problem_technique WHERE problem_id = :id"
+                ),
+                {"id": str(problem_id)},
+            ).all()
+        ]
+    return {"concept_ids": concept_ids, "technique_ids": technique_ids}
+
+
+def get_attempts_for_concept(student_id: UUID, concept_id: UUID) -> list[dict]:
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT a.is_correct, a.attempted_at, p.difficulty_band "
+                "FROM learner.attempt a "
+                "JOIN knowledge.problem_concept pc ON pc.problem_id = a.problem_id "
+                "JOIN core.problem p ON p.problem_id = a.problem_id "
+                "WHERE a.student_id = :student_id AND pc.concept_id = :concept_id "
+                "ORDER BY a.attempted_at"
+            ),
+            {"student_id": str(student_id), "concept_id": str(concept_id)},
+        ).mappings()
+        return [dict(r) for r in rows]
+
+
+def get_attempts_for_technique(student_id: UUID, technique_id: UUID) -> list[dict]:
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT a.is_correct, a.attempted_at, p.difficulty_band "
+                "FROM learner.attempt a "
+                "JOIN knowledge.problem_technique pt ON pt.problem_id = a.problem_id "
+                "JOIN core.problem p ON p.problem_id = a.problem_id "
+                "WHERE a.student_id = :student_id AND pt.technique_id = :technique_id "
+                "ORDER BY a.attempted_at"
+            ),
+            {"student_id": str(student_id), "technique_id": str(technique_id)},
+        ).mappings()
+        return [dict(r) for r in rows]
+
+
+def upsert_concept_mastery(
+    *, student_id: UUID, concept_id: UUID, mastery_score: float, attempts_count: int, correct_count: int,
+    last_attempt_at: datetime,
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO learner.concept_mastery "
+                "(student_id, concept_id, mastery_score, attempts_count, correct_count, last_attempt_at) "
+                "VALUES (:student_id, :concept_id, :mastery_score, :attempts_count, :correct_count, :last_attempt_at) "
+                "ON CONFLICT (student_id, concept_id) DO UPDATE SET "
+                " mastery_score = EXCLUDED.mastery_score, "
+                " attempts_count = EXCLUDED.attempts_count, "
+                " correct_count = EXCLUDED.correct_count, "
+                " last_attempt_at = EXCLUDED.last_attempt_at, "
+                " updated_at = now()"
+            ),
+            {
+                "student_id": str(student_id),
+                "concept_id": str(concept_id),
+                "mastery_score": mastery_score,
+                "attempts_count": attempts_count,
+                "correct_count": correct_count,
+                "last_attempt_at": last_attempt_at,
+            },
+        )
+
+
+def upsert_technique_mastery(
+    *, student_id: UUID, technique_id: UUID, mastery_score: float, attempts_count: int,
+    correct_count: int, last_attempt_at: datetime,
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO learner.technique_mastery "
+                "(student_id, technique_id, mastery_score, attempts_count, correct_count, last_attempt_at) "
+                "VALUES (:student_id, :technique_id, :mastery_score, :attempts_count, :correct_count, :last_attempt_at) "
+                "ON CONFLICT (student_id, technique_id) DO UPDATE SET "
+                " mastery_score = EXCLUDED.mastery_score, "
+                " attempts_count = EXCLUDED.attempts_count, "
+                " correct_count = EXCLUDED.correct_count, "
+                " last_attempt_at = EXCLUDED.last_attempt_at, "
+                " updated_at = now()"
+            ),
+            {
+                "student_id": str(student_id),
+                "technique_id": str(technique_id),
+                "mastery_score": mastery_score,
+                "attempts_count": attempts_count,
+                "correct_count": correct_count,
+                "last_attempt_at": last_attempt_at,
+            },
+        )
+
+
+def get_mastery_summary(student_id: UUID) -> dict:
+    with engine.connect() as conn:
+        concepts = conn.execute(
+            text(
+                "SELECT c.slug, c.name, m.mastery_score, m.attempts_count, m.correct_count, m.last_attempt_at "
+                "FROM learner.concept_mastery m JOIN knowledge.concept c ON c.concept_id = m.concept_id "
+                "WHERE m.student_id = :id ORDER BY m.mastery_score ASC"
+            ),
+            {"id": str(student_id)},
+        ).mappings()
+        techniques = conn.execute(
+            text(
+                "SELECT t.slug, t.name, m.mastery_score, m.attempts_count, m.correct_count, m.last_attempt_at "
+                "FROM learner.technique_mastery m JOIN knowledge.technique t ON t.technique_id = m.technique_id "
+                "WHERE m.student_id = :id ORDER BY m.mastery_score ASC"
+            ),
+            {"id": str(student_id)},
+        ).mappings()
+        return {"concepts": [dict(r) for r in concepts], "techniques": [dict(r) for r in techniques]}

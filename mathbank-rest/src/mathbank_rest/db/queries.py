@@ -160,17 +160,39 @@ def list_concepts(*, domain: str | None = None, limit: int = 50, offset: int = 0
 
 
 def get_concept_problems(slug: str, *, limit: int = 25, offset: int = 0) -> list[dict]:
+    # Concepts form a hierarchy (knowledge.concept_relation, HAS_SUBCONCEPT —
+    # e.g. 'count' -> 'count-subset'/'count-pie'/...). Classification always
+    # tags the most specific leaf concept, never the broad parent, so a plain
+    # `WHERE c.slug = :slug` match against a parent slug like 'count' returns
+    # ~0 rows even though hundreds of problems are tagged with its children.
+    # See GOTCHAS.md #16 for the regression this caused in retrieval eval.
     query = text(
         """
+        WITH RECURSIVE concept_closure AS (
+            SELECT concept_id, ARRAY[concept_id] AS path
+            FROM knowledge.concept WHERE slug = :slug
+            UNION ALL
+            SELECT cr.to_concept_id, cc.path || cr.to_concept_id
+            FROM knowledge.concept_relation cr
+            JOIN concept_closure cc ON cc.concept_id = cr.from_concept_id
+            WHERE cr.relation_type = 'HAS_SUBCONCEPT'
+              AND NOT cr.to_concept_id = ANY(cc.path)
+        ),
+        matched AS (
+            SELECT DISTINCT ON (pc.problem_id)
+                   pc.problem_id, pc.role, pc.confidence, c.slug AS matched_concept_slug
+            FROM knowledge.problem_concept pc
+            JOIN concept_closure cc ON cc.concept_id = pc.concept_id
+            JOIN knowledge.concept c ON c.concept_id = pc.concept_id
+            ORDER BY pc.problem_id, (pc.role = 'PRIMARY') DESC, pc.confidence DESC NULLS LAST
+        )
         SELECT p.canonical_code, p.problem_number, comp.name AS competition, ed.year,
-               pc.role, pc.confidence
-        FROM knowledge.problem_concept pc
-        JOIN knowledge.concept c ON c.concept_id = pc.concept_id
-        JOIN core.problem p ON p.problem_id = pc.problem_id
+               matched.role, matched.confidence, matched.matched_concept_slug
+        FROM matched
+        JOIN core.problem p ON p.problem_id = matched.problem_id
         JOIN core.paper pa ON pa.paper_id = p.paper_id
         JOIN core.competition_edition ed ON ed.edition_id = pa.edition_id
         JOIN core.competition comp ON comp.competition_id = ed.competition_id
-        WHERE c.slug = :slug
         ORDER BY ed.year, p.problem_number
         LIMIT :limit OFFSET :offset
         """

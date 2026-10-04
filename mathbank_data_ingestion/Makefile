@@ -143,6 +143,16 @@ classify:                   ## Classify crawled questions with OpenAI (set LIMIT
 classify-dry:               ## Preview classify queue without API calls
 	$(BIN)/python scripts/classify_crawled.py --dry-run --limit 10
 
+.PHONY: classify-pdf
+classify-pdf:                ## Classify PDF-archive questions: SMT/CHMMC/PUMaC/CMM/MPG_OLY (set LIMIT= COMPETITION=)
+	$(BIN)/python scripts/classify_pdf_corpus.py \
+	  --limit $(or $(LIMIT),20) \
+	  $(if $(COMPETITION),--competition "$(COMPETITION)",)
+
+.PHONY: classify-pdf-dry
+classify-pdf-dry:            ## Preview PDF-archive classify queue without API calls
+	$(BIN)/python scripts/classify_pdf_corpus.py --dry-run --limit 10
+
 .PHONY: export-classifications
 export-classifications:     ## Bridge SQLite classification results into the CSV corpus mirror (idempotent)
 	$(BIN)/python scripts/export_classifications_to_csv.py

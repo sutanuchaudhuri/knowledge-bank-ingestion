@@ -66,6 +66,10 @@ test-connectivity:              ## Ping Postgres + Neo4j directly (no server nee
 	@test -f .env || (echo "Create .env from .env.example first" && exit 1)
 	$(BIN)/python scripts/test_connectivity.py
 
+.PHONY: eval-retrieval
+eval-retrieval:                 ## Precision@K/Recall@K/MRR/nDCG@K against the running server ($(PORT))
+	$(BIN)/python scripts/evaluate_retrieval.py --base-url http://127.0.0.1:$(PORT) --k 10
+
 # ── Help ───────────────────────────────────────────────────────────────────
 
 .PHONY: help

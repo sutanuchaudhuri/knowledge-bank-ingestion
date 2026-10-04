@@ -13,6 +13,8 @@ This folder defines the implementation plan and requirements for building the Ma
 7. [07_GCP_INFRA_AND_SECURITY_REQUIREMENTS.md](07_GCP_INFRA_AND_SECURITY_REQUIREMENTS.md)
 8. [08_ROADMAP_AND_ACCEPTANCE.md](08_ROADMAP_AND_ACCEPTANCE.md)
 9. [09_PIPELINE_SEQUENCE.md](09_PIPELINE_SEQUENCE.md)
+10. [10_AGENTIC_TUTOR_AND_STUDENT_MASTERY_REQUIREMENTS.md](10_AGENTIC_TUTOR_AND_STUDENT_MASTERY_REQUIREMENTS.md) — ADK/OpenAI agent architecture, scaling requirements for more papers/graph nodes/REST endpoints, and the student mastery extraction design (new `learner.*` schema, new graph attributes).
+11. [11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md](11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md) — entity-relationship diagram, sequence diagrams for every end-to-end flow (ingestion, student login, attempts/mastery, agent query), how to test each flow independently, how to inject future question papers, the test framework, and the precision/recall metrics framework with trend tracking.
 
 ## Scope Summary
 
@@ -33,4 +35,6 @@ This folder defines the implementation plan and requirements for building the Ma
   - RAG-* for retrieval requirements
   - API-* for service requirements
   - GCP-* for infrastructure and security requirements
+  - AGT-* for agentic tutor / agent-layer requirements
+  - MST-* for student mastery extraction requirements
 - Version baseline: v1.0 for spreadsheet migration and first production RAG.

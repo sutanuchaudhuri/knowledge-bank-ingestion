@@ -622,4 +622,127 @@ cd ../mathbank-agent && make run &     # :8001 (adk api_server)
 cd ../mathbank-web && make dev          # :5173 — open in a browser
 ```
 
+## Round 7 — Cloud migration (Neon Postgres + Neo4j AuraDB) + final classification batch
+
+- [x] 1. `pg_dump`/`pg_restore` local `mathbank-db` (Postgres 16) → Neon
+      (serverless Postgres 18.6 + pgvector 0.8.6). All `core.*`/`knowledge.*`/
+      `search.*`/`pipeline.*` row counts verified to match exactly post-restore.
+- [x] 2. Migrate local Neo4j Community → Neo4j AuraDB (`InstanceMathTutor`,
+      `7b2bff52`). Re-ran `project_from_postgres.py` against the new
+      Postgres/Neo4j pair (`mathbank-graph/remote.env`,
+      `make project-remote`).
+- [x] 3. Full AMC10/AMC12/AIME crawl completed (3135/3135, 100%) and full
+      OpenAI classification completed (3126 classified + 9 failed = 3135/3135).
+- [x] 4. Built `mathbank_data_ingestion/scripts/export_classifications_to_csv.py`
+      to bridge SQLite classification results into the CSV corpus mirror
+      (classification previously only ever wrote to SQLite — nothing bridged
+      it to Postgres/Neo4j before this). Duplicate-key audit on every run.
+- [x] 5. Two production bugs found + fixed during remote verification:
+      (a) hybrid search post-filter-after-topK bug (competition filters
+      returned empty results) — fixed via pre-filter `eligible_problem` CTE
+      in `vector_search.py`; (b) Neon's empty `search_path` breaking
+      unqualified `vector`/`<=>` — fixed via explicit `public.` schema
+      qualification. Both documented in root `GOTCHAS.md` (#14, #15).
+- [x] 6. Security hardening: `.gitignore` gap closed (`*.env`/
+      `Neo4j-*-Created-*.txt` patterns), `OPENAI_API_KEY` shell→`.env`
+      fallback checks added to all 3 consuming services, consolidated
+      root `.env` reference file created (not wired to any process).
+- [x] 7. Final large classification batch (10,789 new `problem_concept` rows,
+      1,719 new `problem_technique` rows, 72 new concepts, 202 techniques)
+      pushed to Neon via `make -C mathbank-db etl-remote`, then projected to
+      AuraDB via `make -C mathbank-graph project-remote`. Verified final
+      counts: `Problem:5960`, `Concept:526`, `Technique:202`,
+      `Solution:13168`, `TESTS:12602` (up from 1813), `USES_TECHNIQUE:2565`
+      (up from 846), `CONCEPT_RELATION:66`.
+- [x] 8. Documentation: merged `mathematics_tutor_architecture_v3_adk_openai/`
+      (14 design files) into `mathematics_tutor_db_plan/agent/` as files
+      07-21, expanded `18_future_student_profile_and_mastery.md` with the
+      full mastery design, added
+      `requirements/10_AGENTIC_TUTOR_AND_STUDENT_MASTERY_REQUIREMENTS.md`,
+      restored the "Agentic layer" section in this directory's `README.md`.
+      Source v3 directory deleted after merge was verified complete.
+
+## Round 8 — Student login/state backend (real implementation), retrieval evaluation framework
+
+Per `requirements/11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md` (entity diagram,
+sequence diagrams for every flow, "test independently" guide, future-paper-
+injection guide, test framework, and metrics-with-trend-tracking all live
+there) — this entry records what got *built*, not just designed.
+
+### Student login + student state (`learner.*`) — MST-01..MST-04 implemented
+
+- [x] `mathbank-db/sql/003_learner_schema.sql` — new `learner` schema:
+      `student_profile`, `attempt` (append-only event log), `concept_mastery`,
+      `technique_mastery`. Applied to both local Postgres
+      (`make migrate-learner`) and Neon (`make migrate-learner-remote`).
+- [x] `mathbank-rest/src/mathbank_rest/security.py` — bcrypt password
+      hashing + PyJWT HS256 bearer tokens, `get_current_student_id` FastAPI
+      dependency. `config.py` warns loudly (`warnings.warn`) if the insecure
+      built-in `JWT_SECRET` default is left unchanged.
+- [x] `mathbank-rest/src/mathbank_rest/mastery.py` — the time-decayed,
+      difficulty-weighted mastery formula from `agent/18_*.md` §5, as pure,
+      independently-unit-testable functions (`compute_mastery_score`,
+      `recency_weight`, `difficulty_weight`) plus `recompute_*` functions
+      that read `learner.attempt` and upsert `learner.concept_mastery` /
+      `technique_mastery`.
+- [x] `mathbank-rest/src/mathbank_rest/routers/learner.py` — real endpoints:
+      `POST /v1/learner/register`, `POST /v1/learner/login`, `GET /v1/learner/me`,
+      `POST /v1/learner/attempts` (recomputes mastery inline after insert),
+      `GET /v1/learner/mastery`. Uses `canonical_code` (not raw UUIDs) in the
+      public request shape, matching the existing `/v1/problems/by-code/...`
+      convention.
+- [x] Verified **live against Neon**: register → login → authenticated
+      `/v1/learner/me` → `POST /v1/learner/attempts` against a real problem
+      (`AIME_1983_Q01`) → mastery scores of `1.0` computed correctly for all
+      3 concepts + 1 technique that problem is tagged with → confirmed via
+      `GET /v1/learner/mastery`. Test account deleted after verification.
+- [x] Unit tests: `tests/test_mastery.py` (7 cases, pure functions),
+      `tests/test_security.py` (4 cases, hash/verify/token round-trip +
+      tamper rejection), `tests/test_learner_auth_contract.py` (6 cases,
+      auth-guard + validation behavior). All 19 tests pass (`make test`).
+- [ ] NOT yet done (tracked as follow-ups, scoped in `requirements/11_*.md`):
+      Neo4j `Student`/`MASTERED`/`STRUGGLES_WITH` graph projection (MST-05/06),
+      a web UI for login (backend-only so far), PARTIAL-credit attempts,
+      PRIMARY/SECONDARY role-weighted mastery contribution.
+
+### Retrieval evaluation framework (Precision@K/Recall@K/MRR/nDCG@K)
+
+- [x] `mathbank-rest/scripts/golden_queries.py` — 7 golden query cases with
+      *derived* ground truth (problems tagged with a given concept/technique
+      slug via the existing `/v1/concepts/{slug}/problems` endpoint).
+- [x] `mathbank-rest/scripts/evaluate_retrieval.py` — black-box HTTP harness
+      computing Precision@K, Recall@K, MRR, and nDCG@K against a running
+      server; appends every run to `mathbank-rest/eval_history.csv` (git sha +
+      UTC timestamp) for trend tracking across commits/deploys; `--fail-under`
+      flag for future CI gating. `make eval-retrieval` target added.
+- [x] First baseline run recorded in `requirements/11_*.md` §6 — surfaced a
+      real finding (broad single-concept queries like "combinatorics",
+      "pigeonhole", "invariant" score 0 precision@10), flagged as a retrieval-
+      tuning lead for a future session, not an eval-harness bug.
+- [x] Root-caused and fixed the `combinatorics`/`aime-combinatorics` part of
+      that finding (GOTCHAS.md #16): `knowledge.concept` is a tree
+      (`HAS_SUBCONCEPT`), classification tags leaves not parents, so
+      `get_concept_problems` matched almost nothing for a broad parent slug.
+      Fixed via a recursive `HAS_SUBCONCEPT` closure query (cycle-guarded,
+      deduped per problem) in `mathbank-rest/src/mathbank_rest/db/queries.py`.
+      Re-measured: `combinatorics-general` P@10 0.00→0.30 (relevant 25→729),
+      `aime-combinatorics` P@10 0.00→0.40 (relevant 7→80). Added regression
+      tests (`tests/test_concept_hierarchy.py`, 2 cases). All 21 tests pass.
+- [x] `pigeonhole-principle`/`invariant-technique` confirmed to be a
+      **separate, still-open** finding — a classification-coverage gap
+      (SMT/CHMMC/PUMaC/CMM are 0-5% classified vs ~99% for AMC/AIME), not a
+      code bug. Documented in `requirements/11_*.md` §6 and GOTCHAS.md #16;
+      needs a classification run over the rest of the corpus to close.
+
+### Recreate Round 8 from scratch
+
+```bash
+cd mathbank-db && make migrate-learner          # or migrate-learner-remote for Neon
+cd ../mathbank-rest && make install && make test
+make start                                      # :8000
+make eval-retrieval                             # Precision/Recall/MRR/nDCG@10, appends to eval_history.csv
+```
+
+
+
 

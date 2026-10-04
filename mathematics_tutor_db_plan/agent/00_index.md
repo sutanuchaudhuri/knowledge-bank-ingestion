@@ -20,6 +20,8 @@ of it.
 
 ## Documents
 
+### As-implemented (matches the running mathbank-agent/mathbank-rest/mathbank-web)
+
 1. [**01_architecture_and_design.md**](01_architecture_and_design.md) —
    component diagram, why Google ADK + LiteLLM/OpenAI (not Gemini), why tools
    call REST instead of Postgres directly, tool catalog.
@@ -43,12 +45,54 @@ of it.
    (student profiles, attempt history, mastery-aware retrieval), and the
    planned extension points.
 
-## One-line summary of the full flow
+### Fuller design — richer detail, some not yet implemented (merged from
+`mathematics_tutor_architecture_v3_adk_openai`, 2026-10-04)
 
-```
-React chat ──▶ ADK agent (OpenAI via LiteLLM) ──tool call──▶ mathbank-rest
-  ──hybrid RRF SQL (pgvector + FTS)──▶ Postgres (core.* / knowledge.* / search.*)
-  ──rows──▶ mathbank-rest ──JSON──▶ agent ──grounded answer──▶ React chat
+Each file below has a **Status** banner at the top noting what's already
+built vs still design-only. Read these for the *why* behind the boundaries
+above, and for everything not yet built (admin tools, observability,
+student/mastery, deployment hardening).
+
+7. [**07_system_architecture_and_boundaries.md**](07_system_architecture_and_boundaries.md) — layered architecture, strong ADK/REST/Postgres boundaries, non-goals.
+8. [**08_adk_openai_model_layer.md**](08_adk_openai_model_layer.md) — model/provider abstraction, what the LLM may/may not decide, dependency pinning.
+9. [**09_agent_tool_design.md**](09_agent_tool_design.md) — full public + admin tool catalog, narrow-schema principle, tool result contract.
+10. [**10_query_understanding_and_planning.md**](10_query_understanding_and_planning.md) — why "recent" and taxonomy resolution belong in REST, not the LLM; query classes.
+11. [**11_hybrid_rag_execution.md**](11_hybrid_rag_execution.md) — candidate stages, RRF fusion, dedup, no-answer behavior.
+12. [**12_rest_contracts_for_agent.md**](12_rest_contracts_for_agent.md) — the fuller `/v1/search/questions`-style contract (REST invariants, error envelope, analytics endpoints).
+13. [**13_anonymous_and_admin_security.md**](13_anonymous_and_admin_security.md) — principal classes, defense in depth, prompt-injection handling, rate limiting.
+14. [**14_evidence_context_and_answering.md**](14_evidence_context_and_answering.md) — grounded-answer rule, evidence record shape, hallucination defenses.
+15. [**15_example_query_flows.md**](15_example_query_flows.md) — additional worked flows (structured browse, technique semantics, follow-ups, aggregates, admin diagnostics).
+16. [**16_observability_and_evaluation.md**](16_observability_and_evaluation.md) — tracing, metrics, golden evaluation set, security evaluation, replayability.
+17. [**17_deployment_and_configuration.md**](17_deployment_and_configuration.md) — deployable units, secrets, scaling, caching, timeouts.
+18. [**18_future_student_profile_and_mastery.md**](18_future_student_profile_and_mastery.md) — **student mastery extraction**: end-to-end Mermaid flow, new `learner.*` Postgres schema, new `Student`/`MASTERED`/`STRUGGLES_WITH` graph attributes, mastery-score formula.
+19. [**19_reference_python_skeleton.md**](19_reference_python_skeleton.md) — structural example project layout/config/tool/agent code.
+20. [**20_implementation_sequence.md**](20_implementation_sequence.md) — phased build order, with status notes on what's already done.
+21. [**21_adk_openai_version_notes.md**](21_adk_openai_version_notes.md) — upstream ADK/LiteLLM references and dependency-pinning notes.
+
+## End-to-end flow (current + planned)
+
+```mermaid
+flowchart LR
+    U[User — anonymous or admin] --> W[mathbank-web<br/>React/Next.js chat]
+    W -->|session + run| A[mathbank-agent<br/>Google ADK LlmAgent]
+    A -->|LiteLlm connector| O[OpenAI model<br/>gpt-4o-mini]
+    A -->|typed tool call<br/>search_problems, get_problem_by_code, ...| R[mathbank-rest<br/>FastAPI REST boundary]
+    R --> P[(Postgres<br/>core.* / knowledge.* / search.*)]
+    R -.optional multi-hop.-> G[(Neo4j<br/>mathbank-graph projection)]
+    P --> R
+    G -.-> R
+    R -->|JSON evidence| A
+    A -->|grounded answer| W
+    W --> U
+
+    subgraph "Planned — see 18_future_student_profile_and_mastery.md"
+    L[(learner.* mastery tables)] -.-> R
+    end
+
+    style O fill:#fff3cd
+    style P fill:#e8f0fe
+    style G fill:#fce8e6
+    style L fill:#f0f0f0,stroke-dasharray: 5 5
 ```
 
 Nothing in the agent or frontend ever talks to Postgres or Neo4j directly —

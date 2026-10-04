@@ -120,6 +120,18 @@ migrate-vector:                 ## Apply sql/002_vector_schema.sql (needs instal
 	PGPASSWORD="$(APP_DB_PASSWORD)" "$(PG_BIN)/psql" -h 127.0.0.1 -p $(PG_PORT) -U "$(APP_USER)" -d $(APP_DB) \
 	  -v ON_ERROR_STOP=1 -f sql/002_vector_schema.sql
 
+.PHONY: migrate-learner
+migrate-learner:                ## Apply sql/003_learner_schema.sql (student login/attempts/mastery, idempotent)
+	@test -n "$(APP_DB_PASSWORD)" || (echo "Set APP_DB_PASSWORD in .env first" && exit 1)
+	PGPASSWORD="$(APP_DB_PASSWORD)" "$(PG_BIN)/psql" -h 127.0.0.1 -p $(PG_PORT) -U "$(APP_USER)" -d $(APP_DB) \
+	  -v ON_ERROR_STOP=1 -f sql/003_learner_schema.sql
+
+.PHONY: migrate-learner-remote
+migrate-learner-remote:         ## Apply sql/003_learner_schema.sql to the remote Neon Postgres
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/003_learner_schema.sql
+
 # ── Corpus ETL (Python) ────────────────────────────────────────────────────
 
 .PHONY: etl-venv

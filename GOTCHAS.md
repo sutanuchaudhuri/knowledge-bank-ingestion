@@ -243,6 +243,56 @@ mathbank_rest/db/vector_search.py`), don't rely on `search_path`:
 Verified fixed against the original AMC10-combinatorics repro case post-fix.
 Any other new raw-SQL pgvector usage against Neon should do the same.
 
+## 16. Concept taxonomy is hierarchical — querying by a broad/parent slug silently matched ~nothing
+
+`requirements/11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md` §6's first retrieval
+eval run showed **0.00 precision@10** for broad single-concept queries
+("combinatorics counting problems" → `concept_slug="count"`, "AIME
+combinatorics" → same). The returned problems were genuinely on-topic
+AIME/AMC combinatorics problems (verified by eye), so this looked like a
+search-ranking bug at first — it wasn't.
+
+Root cause: `knowledge.concept` is a **tree**, not a flat tag set
+(`knowledge.concept_relation` has a `HAS_SUBCONCEPT` relation type, e.g.
+`count` → `count-subset`, `count-pie`, `count-perm`, `count-sym`, ...). The
+OpenAI classification step (`classify_crawled.py`) always tags a problem with
+the most **specific leaf** concept, never the broad parent — so
+`knowledge.problem_concept` has rows for `count-subset` etc., but
+essentially none directly for `count` itself. Any query doing
+`WHERE c.slug = :slug` (the old `get_concept_problems` in
+`mathbank-rest/src/mathbank_rest/db/queries.py`, which both the live
+`GET /v1/concepts/{slug}/problems` endpoint and the retrieval-eval ground
+truth derivation in `scripts/golden_queries.py`/`evaluate_retrieval.py`
+depend on) therefore measured "relevant" as a near-empty set for every broad
+parent concept, making precision/recall look like 0 regardless of how good
+search actually was.
+
+**Fix**: `get_concept_problems` now walks the `HAS_SUBCONCEPT` closure with a
+recursive CTE (cycle-guarded via a `path` array) before matching
+`knowledge.problem_concept`, and dedupes to one row per problem (best
+role/confidence wins) since a problem can be tagged with multiple sibling
+subconcepts. No caller changes needed — `/v1/concepts/{slug}/problems` and
+the eval harness both call this one function. Verified via
+`make eval-retrieval`: `combinatorics-general` went from
+`relevant=25, P@10=0.00` to `relevant=729, P@10=0.30`; `aime-combinatorics`
+from `relevant=7, P@10=0.00` to `relevant=80, P@10=0.40`.
+
+**Separate, still-open finding (not a code bug — a data-coverage gap)**:
+`pigeonhole-principle` and `invariant-technique` are *still* 0 precision
+after this fix. `GET /v1/corpus/coverage` shows why: classification has only
+ever been run over AMC10/AMC12/AIME (~99% tagged); SMT/CHMMC/PUMaC/CMM/Math
+Prize for Girls are 0-5% tagged. Those competitions dominate the semantic
+search results for niche single-technique queries, but since they're barely
+classified, the derived ground truth for them is structurally tiny — this
+needs a classification run over the rest of the corpus, not a query fix.
+Tracked in `requirements/11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md` §6 and
+`mathematics_tutor_db_plan/00_implementation_progress.md` Round 8 follow-ups.
+
+**Takeaway for any new "lookup by taxonomy slug" code**: check whether the
+taxonomy is a tree (`knowledge.concept_relation.relation_type = 'HAS_SUBCONCEPT'`)
+before assuming a flat tag match is correct — `knowledge.technique` has no
+such hierarchy table, so `get_technique_problems` does NOT need this fix.
+
 ## Single-command recreation
 
 ```bash
