@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { table, th, td, rowStyle, masterDetail, panel, input, button, primaryButton } from "../dbStyles.js";
+import { table, th, td, rowStyle, masterDetail, panel, input, primaryButton } from "../dbStyles.js";
 import ProblemDetail from "../ProblemDetail.jsx";
 
 export default function SearchPage() {
@@ -46,31 +46,31 @@ export default function SearchPage() {
 
   return (
     <div>
-      <form onSubmit={runSearch} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+      <form onSubmit={runSearch} className="app-filters card p-3 flex-row">
         <input
-          style={{ ...input, flex: 1, minWidth: 220 }}
+          className={`${input} app-search-query`} aria-label="Find similar questions"
           placeholder='Find similar questions, e.g. "cyclic quadrilateral with equal diagonals"'
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <input style={{ ...input, width: 110 }} placeholder="Competition" value={competition} onChange={(e) => setCompetition(e.target.value)} />
-        <input style={{ ...input, width: 90 }} type="number" placeholder="Year ≥" value={yearMin} onChange={(e) => setYearMin(e.target.value)} />
-        <input style={{ ...input, width: 90 }} type="number" placeholder="Year ≤" value={yearMax} onChange={(e) => setYearMax(e.target.value)} />
-        <button type="submit" style={primaryButton} disabled={loading}>
+        <input className={input} aria-label="Competition" placeholder="Competition" value={competition} onChange={(e) => setCompetition(e.target.value)} />
+        <input className={input} aria-label="Minimum year" type="number" placeholder="Year ≥" value={yearMin} onChange={(e) => setYearMin(e.target.value)} />
+        <input className={input} aria-label="Maximum year" type="number" placeholder="Year ≤" value={yearMax} onChange={(e) => setYearMax(e.target.value)} />
+        <button type="submit" className={primaryButton} disabled={loading}>
           {loading ? "Searching…" : "Search"}
         </button>
       </form>
 
       {error && <p style={{ color: "#b91c1c" }}>Search failed: {error}</p>}
 
-      <div style={masterDetail}>
-        <div>
+      <div className={masterDetail}>
+        <div className={panel}>
           {!results ? (
             <p style={{ color: "#666" }}>Hybrid semantic + lexical search over problem statements (pgvector + full-text, RRF-fused).</p>
           ) : results.length === 0 ? (
             <p style={{ color: "#666" }}>No matching problems.</p>
           ) : (
-            <table style={table}>
+            <div className="table-responsive"><table className={table}>
               <thead>
                 <tr>
                   <th style={th}>Code</th>
@@ -89,11 +89,11 @@ export default function SearchPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
 
-        {selectedCode ? <ProblemDetail code={selectedCode} /> : <div style={panel}><p style={{ color: "#666" }}>Select a result to see the full problem.</p></div>}
+        {selectedCode ? <ProblemDetail code={selectedCode} /> : <div className={panel}><p className="text-secondary mb-0">Select a result to see the full problem.</p></div>}
       </div>
     </div>
   );

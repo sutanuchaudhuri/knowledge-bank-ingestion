@@ -29,11 +29,11 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: "64px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
+    <div className="app-auth">
       <p style={{ marginTop: 0 }}>
         <Link href="/" style={{ fontSize: 13, color: "#2563eb" }}>&larr; Back to chat</Link>
       </p>
-      <h1 style={{ fontSize: 20 }}>Admin login</h1>
+      <h1 className="h3 fw-bold mb-4">Admin login</h1>
       <p style={{ color: "#666", fontSize: 13 }}>
         Predefined single admin account — a bridge until real OAuth login is built
         (see requirements/12_STUDENT_PROFILE_AND_ADMIN_LOGIN_UI_REQUIREMENTS.md).
@@ -41,28 +41,30 @@ export default function AdminLoginPage() {
         (set <code>ADMIN_LOGIN_USERNAME</code>/<code>ADMIN_LOGIN_PASSWORD</code> in
         mathbank-web/.env to change).
       </p>
-      <form onSubmit={submit} style={{ ...panel, display: "grid", gap: 8 }}>
+      <form onSubmit={submit} className={`${panel} gap-3`}>
+        <label className="form-label mb-0">Username
         <input
-          style={input}
+          className={input}
           placeholder="Username"
           autoComplete="username"
           required
           value={form.username}
           onChange={(e) => setForm({ ...form, username: e.target.value })}
-        />
+        /></label>
+        <label className="form-label mb-0">Password
         <input
-          style={input}
+          className={input}
           type="password"
           placeholder="Password"
           autoComplete="current-password"
           required
           value={form.password}
           onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
-        <button type="submit" style={primaryButton} disabled={status === "checking"}>
+        /></label>
+        <button type="submit" className={primaryButton} disabled={status === "checking"}>
           {status === "checking" ? "Checking…" : "Log in"}
         </button>
-        {status?.startsWith("error") && <p style={{ color: "#b91c1c", fontSize: 13 }}>{status}</p>}
+        {status?.startsWith("error") && <p className="alert alert-danger mb-0" role="alert">{status}</p>}
       </form>
     </div>
   );

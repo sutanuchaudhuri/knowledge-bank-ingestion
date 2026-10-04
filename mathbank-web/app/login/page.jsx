@@ -46,38 +46,42 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ maxWidth: 460, margin: "48px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
+    <div className="app-auth">
       <p style={{ marginTop: 0 }}>
         <Link href="/" style={{ fontSize: 13, color: "#2563eb" }}>&larr; Back to chat</Link>
       </p>
-      <h1 style={{ fontSize: 20 }}>{mode === "login" ? "Student login" : "Create your student account"}</h1>
+      <h1 className="h3 fw-bold mb-4">{mode === "login" ? "Student login" : "Create your student account"}</h1>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <button style={mode === "login" ? primaryButton : button} onClick={() => setMode("login")}>Log in</button>
-        <button style={mode === "register" ? primaryButton : button} onClick={() => setMode("register")}>Register</button>
+        <button className={mode === "login" ? primaryButton : button} aria-pressed={mode === "login"} onClick={() => setMode("login")}>Log in</button>
+        <button className={mode === "register" ? primaryButton : button} aria-pressed={mode === "register"} onClick={() => setMode("register")}>Register</button>
       </div>
 
-      <form onSubmit={submit} style={{ ...panel, display: "grid", gap: 8 }}>
+      <form onSubmit={submit} className={`${panel} gap-3`}>
         {mode === "register" && (
           <>
-            <input style={input} placeholder="First name" required
-              value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
-            <input style={input} placeholder="Last name" required
-              value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+            <label className="form-label mb-0">First name
+            <input className={input} placeholder="First name" autoComplete="given-name" required
+              value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></label>
+            <label className="form-label mb-0">Last name
+            <input className={input} placeholder="Last name" autoComplete="family-name" required
+              value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></label>
           </>
         )}
-        <input style={input} type="email" placeholder="Email" autoComplete="email" required
-          value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <input style={input} type="password" placeholder="Password (min 8 characters)"
+        <label className="form-label mb-0">Email
+        <input className={input} type="email" placeholder="Email" autoComplete="email" required
+          value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
+        <label className="form-label mb-0">Password
+        <input className={input} type="password" placeholder="Password (min 8 characters)"
           autoComplete={mode === "login" ? "current-password" : "new-password"} required
-          value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-        <button type="submit" style={primaryButton} disabled={status === "submitting"}>
+          value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label>
+        <button type="submit" className={primaryButton} disabled={status === "submitting"}>
           {status === "submitting" ? "Working…" : mode === "login" ? "Log in" : "Create account"}
         </button>
-        {status?.startsWith("error") && <p style={{ color: "#b91c1c", fontSize: 13 }}>{status}</p>}
+        {status?.startsWith("error") && <p className="alert alert-danger mb-0" role="alert">{status}</p>}
       </form>
 
-      <div style={{ ...panel, marginTop: 16 }}>
+      <div className={`${panel} mt-4`}>
         <h3 style={{ marginTop: 0, fontSize: 14 }}>Try a demo account</h3>
         <p style={{ color: "#666", fontSize: 12, marginTop: 0 }}>
           Three seeded profiles with real attempt history (password <code>{DEMO_PASSWORD}</code> for all three) —
@@ -85,7 +89,7 @@ export default function LoginPage() {
         </p>
         <div style={{ display: "grid", gap: 6 }}>
           {DEMO_ACCOUNTS.map((d) => (
-            <button key={d.email} style={button} onClick={() => fillDemo(d.email)}>
+            <button key={d.email} className={button} onClick={() => fillDemo(d.email)}>
               {d.label}
             </button>
           ))}

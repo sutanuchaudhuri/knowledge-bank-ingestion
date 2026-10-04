@@ -25,13 +25,13 @@ export default function ProblemDetail({ code }) {
       .catch((err) => setError(err.message));
   }, [code]);
 
-  if (!code) return <div style={panel}><p style={{ color: "#666" }}>Select a row to see details.</p></div>;
-  if (error) return <div style={panel}><p style={{ color: "#b91c1c" }}>Could not load {code}: {error}</p></div>;
-  if (!problem) return <div style={panel}><p>Loading…</p></div>;
+  if (!code) return <div className={panel}><p className="text-secondary mb-0">Select a row to see details.</p></div>;
+  if (error) return <div className="alert alert-danger" role="alert">Could not load {code}: {error}</div>;
+  if (!problem) return <div className={panel}><p className="mb-0" role="status">Loading…</p></div>;
 
   return (
-    <div style={panel}>
-      <h3 style={{ marginTop: 0, fontSize: 15 }}>{problem.canonical_code}</h3>
+    <div className={panel}>
+      <h3 className="h5 fw-bold">{problem.canonical_code}</h3>
       <p style={{ color: "#666", fontSize: 13 }}>
         {problem.competition} {problem.year} · {problem.paper_code} · Problem {problem.problem_number}
         {problem.source_url && (
@@ -74,8 +74,8 @@ export default function ProblemDetail({ code }) {
         <div>
           <strong style={{ fontSize: 13 }}>Solutions (HAS_SOLUTION):</strong>
           {problem.solutions.map((sol, i) => (
-            <details key={i} open={i === 0} style={{ margin: "8px 0" }}>
-              <summary style={{ cursor: "pointer", fontSize: 13 }}>
+            <details key={i} open={i === 0} className="border rounded-3 p-3 my-3">
+              <summary className="fw-semibold">
                 {sol.solution_kind} rev {sol.revision} · {sol.verification_status}
               </summary>
               <div className="markdown-body" style={{ fontSize: 13, marginTop: 6 }}>

@@ -17,7 +17,7 @@ function TierBadge({ score }) {
   const numScore = Number(score);
   const tier = tierFor(numScore);
   return (
-    <span style={{ color: TIER_COLOUR[tier], fontWeight: 600, fontSize: 12 }}>
+    <span className="badge rounded-pill bg-light border" style={{ color: TIER_COLOUR[tier] }}>
       {tier} ({numScore.toFixed(2)})
     </span>
   );
@@ -25,16 +25,16 @@ function TierBadge({ score }) {
 
 function ProfileHeader({ profile, onLogout }) {
   return (
-    <div style={{ ...panel, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div className={`${panel} flex-row flex-wrap justify-content-between align-items-center gap-3`}>
       <div>
-        <h1 style={{ margin: 0, fontSize: 20 }}>{profile.first_name} {profile.last_name}</h1>
+        <h1 className="h3 fw-bold mb-2">{profile.first_name} {profile.last_name}</h1>
         <p style={{ margin: "4px 0 0", color: "#666", fontSize: 13 }}>{profile.email}</p>
         <p style={{ margin: "4px 0 0", color: "#999", fontSize: 11 }}>
           Student ID: <code>{profile.student_id}</code>
           {profile.last_login_at && <> · last login {new Date(profile.last_login_at).toLocaleString()}</>}
         </p>
       </div>
-      <button style={button} onClick={onLogout}>Log out</button>
+      <button className={button} onClick={onLogout}>Log out</button>
     </div>
   );
 }
@@ -42,7 +42,7 @@ function ProfileHeader({ profile, onLogout }) {
 function AttemptsTable({ attempts }) {
   if (!attempts.length) return <p style={{ color: "#666", fontSize: 13 }}>No attempts recorded yet.</p>;
   return (
-    <table style={table}>
+    <div className="table-responsive"><table className={table}>
       <thead>
         <tr>
           <th style={th}>Problem</th>
@@ -65,7 +65,7 @@ function AttemptsTable({ attempts }) {
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
@@ -76,7 +76,7 @@ function MasteryBreakdown({ mastery }) {
   ].sort((a, b) => a.mastery_score - b.mastery_score);
   if (!rows.length) return <p style={{ color: "#666", fontSize: 13 }}>No mastery data yet — submit some attempts first.</p>;
   return (
-    <table style={table}>
+    <div className="table-responsive"><table className={table}>
       <thead>
         <tr>
           <th style={th}>Concept / technique</th>
@@ -97,7 +97,7 @@ function MasteryBreakdown({ mastery }) {
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
@@ -106,10 +106,10 @@ function ImprovementPlan({ plan }) {
     return <p style={{ color: "#15803d", fontSize: 13 }}>Nothing below the "solid" tier right now — nice work.</p>;
   }
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div className="app-focus-areas">
       {plan.focus_areas.map((area) => (
-        <div key={`${area.kind}-${area.slug}`} style={panel}>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <div key={`${area.kind}-${area.slug}`} className={panel}>
+          <div className="d-flex flex-wrap justify-content-between gap-2">
             <strong>{area.name}</strong>
             <TierBadge score={area.mastery_score} />
           </div>
@@ -167,30 +167,30 @@ export default function ProfilePage() {
     router.refresh();
   }
 
-  if (error) return <div style={{ maxWidth: 900, margin: "48px auto", padding: 16 }}>Error: {error}</div>;
+  if (error) return <div className="alert alert-danger" role="alert">Error: {error}</div>;
   if (!profile || !attempts || !mastery || !plan) {
-    return <div style={{ maxWidth: 900, margin: "48px auto", padding: 16 }}>Loading…</div>;
+    return <div className="card p-4" role="status">Loading…</div>;
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: 16, fontFamily: "system-ui, sans-serif", display: "grid", gap: 16 }}>
+    <div className="d-grid gap-4">
       <p style={{ margin: 0 }}>
         <Link href="/" style={{ fontSize: 13, color: "#2563eb" }}>&larr; Back to chat</Link>
       </p>
       <ProfileHeader profile={profile} onLogout={logout} />
 
       <section>
-        <h2 style={{ fontSize: 16 }}>What to improve next</h2>
+        <h2 className="h5 fw-bold mb-3">What to improve next</h2>
         <ImprovementPlan plan={plan} />
       </section>
 
-      <section>
-        <h2 style={{ fontSize: 16 }}>Strength &amp; weakness by concept</h2>
+      <section className={panel}>
+        <h2 className="h5 fw-bold mb-3">Strength &amp; weakness by concept</h2>
         <MasteryBreakdown mastery={mastery} />
       </section>
 
-      <section>
-        <h2 style={{ fontSize: 16 }}>Past attempts</h2>
+      <section className={panel}>
+        <h2 className="h5 fw-bold mb-3">Past attempts</h2>
         <AttemptsTable attempts={attempts} />
       </section>
     </div>

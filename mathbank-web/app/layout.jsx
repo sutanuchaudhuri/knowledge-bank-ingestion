@@ -1,5 +1,7 @@
+import "bootstrap/dist/css/bootstrap.min.css";
 import "katex/dist/katex.min.css";
 import "./globals.css";
+import AppShell from "./AppShell.jsx";
 
 export const metadata = {
   title: "MathBank Tutor",
@@ -8,8 +10,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body style={{ margin: 0 }}>{children}</body>
+    <html lang="en" data-scroll-behavior="smooth">
+      <body style={{ margin: 0 }}><AppShell>{children}</AppShell></body>
     </html>
   );
 }

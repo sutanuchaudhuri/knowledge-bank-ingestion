@@ -11,6 +11,10 @@ export const RELATIONSHIPS = {
   "concept-relation": { type: "CONCEPT_RELATION", from: "Concept", to: "Concept", title: "Concept → Concept" },
 };
 
+export const GRAPH_DEFAULT_LIMIT = 1000;
+export const GRAPH_LIMIT_OPTIONS = [150, 500, 1000, 2500, 5000];
+export const GRAPH_MAX_LIMIT = 5000;
+
 /** Picks a human-readable display string per node label from its Neo4j properties. */
 export function labelOf(label, props) {
   switch (label) {

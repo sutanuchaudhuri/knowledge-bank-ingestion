@@ -20,9 +20,9 @@ export default function CompetitionsPage() {
   if (!items) return <p>Loading…</p>;
 
   return (
-    <div style={masterDetail}>
-      <div>
-        <table style={table}>
+    <div className={masterDetail}>
+      <div className="card shadow-sm p-3"><div className="table-responsive">
+        <table className={table}>
           <thead>
             <tr>
               <th style={th}>Code</th>
@@ -44,9 +44,9 @@ export default function CompetitionsPage() {
             ))}
           </tbody>
         </table>
-      </div>
+      </div></div>
 
-      <div style={panel}>
+      <div className={panel}>
         {!selected ? (
           <p style={{ color: "#666" }}>Select a competition to see coverage details.</p>
         ) : (

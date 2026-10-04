@@ -36,13 +36,13 @@ export default function TechniquesPage() {
     <div>
       {error && <p style={{ color: "#b91c1c" }}>Could not load techniques: {error}</p>}
 
-      <div style={masterDetail}>
-        <div>
+      <div className={masterDetail}>
+        <div className={panel}>
           {!page ? (
             <p>Loading…</p>
           ) : (
             <>
-              <table style={table}>
+              <div className="table-responsive"><table className={table}>
                 <thead>
                   <tr>
                     <th style={th}>Slug</th>
@@ -57,7 +57,7 @@ export default function TechniquesPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
               <Pager
                 offset={offset}
                 limit={LIMIT}
@@ -69,7 +69,7 @@ export default function TechniquesPage() {
           )}
         </div>
 
-        <div style={panel}>
+        <div className={panel}>
           {!selected ? (
             <p style={{ color: "#666" }}>Select a technique to see problems that use it.</p>
           ) : !problems ? (

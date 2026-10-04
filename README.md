@@ -107,6 +107,23 @@ may use remote Neon/AuraDB through its service `.env` files. The summary
 does not check readiness or display passwords; use `make status` to check
 running services and your configured database credentials to connect.
 
+Graph relationship views at `/graph` default to 1,000 relationships.
+Use the relationship-limit selector to show up to 5,000; each view displays
+the number of sampled nodes and relationships alongside the total available
+relationships. Snapshots are cached for five minutes per view and limit.
+
+The live app uses locally bundled Bootstrap styling and a responsive,
+full-width workspace (presentation pages are unchanged). Graph views provide
+zoom/fit controls, a node legend, and node inspection.
+
+Tutor responses stream through the same-origin `/api/agent/run` proxy to
+ADK's `/run_sse` endpoint. The activity panel shows tool calls, completion
+status, and progress updates, not private reasoning or raw tool payloads.
+Use **Stop** to cancel an active response; failures are displayed explicitly.
+The non-streaming API response remains available for existing callers.
+Streaming parser and event-mapping tests run with
+`node --test mathbank-web/tests/*.test.mjs`.
+
 `make setup` is the first thing to run on a new machine (or after pulling
 changes that touch dependencies) — it never reinstalls something that's
 already present, it just reports what's missing. Typical first-run output on

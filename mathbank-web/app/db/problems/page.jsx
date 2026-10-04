@@ -56,42 +56,42 @@ function ProblemsPageInner() {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-        <select style={input} value={filters.competition} onChange={(e) => updateFilter("competition", e.target.value)}>
+      <div className="app-filters card p-3 flex-row">
+        <select className="form-select" aria-label="Competition" value={filters.competition} onChange={(e) => updateFilter("competition", e.target.value)}>
           <option value="">All competitions</option>
           {competitions.map((c) => (
             <option key={c.external_code} value={c.external_code}>{c.name}</option>
           ))}
         </select>
         <input
-          style={{ ...input, width: 90 }}
+          className={input} aria-label="Minimum year"
           type="number"
           placeholder="Year ≥"
           value={filters.year_min}
           onChange={(e) => updateFilter("year_min", e.target.value)}
         />
         <input
-          style={{ ...input, width: 90 }}
+          className={input} aria-label="Maximum year"
           type="number"
           placeholder="Year ≤"
           value={filters.year_max}
           onChange={(e) => updateFilter("year_max", e.target.value)}
         />
         <input
-          style={{ ...input, width: 140 }}
+          className={input} aria-label="Concept slug"
           placeholder="Concept slug"
           value={filters.concept}
           onChange={(e) => updateFilter("concept", e.target.value)}
         />
         <input
-          style={{ ...input, width: 140 }}
+          className={input} aria-label="Technique slug"
           placeholder="Technique slug"
           value={filters.technique}
           onChange={(e) => updateFilter("technique", e.target.value)}
         />
         <button
           type="button"
-          style={button}
+          className={button}
           onClick={clearFilters}
         >
           Clear
@@ -100,13 +100,13 @@ function ProblemsPageInner() {
 
       {error && <p style={{ color: "#b91c1c" }}>Could not load problems: {error}</p>}
 
-      <div style={masterDetail}>
-        <div>
+      <div className={masterDetail}>
+        <div className={panel}>
           {!page ? (
             <p>Loading…</p>
           ) : (
             <>
-              <table style={table}>
+              <div className="table-responsive"><table className={table}>
                 <thead>
                   <tr>
                     <th style={th}>Code</th>
@@ -127,7 +127,7 @@ function ProblemsPageInner() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
               <Pager
                 offset={offset}
                 limit={LIMIT}
@@ -139,7 +139,7 @@ function ProblemsPageInner() {
           )}
         </div>
 
-        {selectedCode ? <ProblemDetail code={selectedCode} /> : <div style={panel}><p style={{ color: "#666" }}>Select a row to see details.</p></div>}
+        {selectedCode ? <ProblemDetail code={selectedCode} /> : <div className={panel}><p className="text-secondary mb-0">Select a row to see details.</p></div>}
       </div>
     </div>
   );

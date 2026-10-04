@@ -38,7 +38,7 @@ export default function ConceptsPage() {
     <div>
       <div style={{ marginBottom: 12 }}>
         <input
-          style={{ ...input, width: 220 }}
+          className={input} aria-label="Search concept name"
           placeholder="Search concept name…"
           value={domain}
           onChange={(e) => {
@@ -51,13 +51,13 @@ export default function ConceptsPage() {
 
       {error && <p style={{ color: "#b91c1c" }}>Could not load concepts: {error}</p>}
 
-      <div style={masterDetail}>
-        <div>
+      <div className={masterDetail}>
+        <div className={panel}>
           {!page ? (
             <p>Loading…</p>
           ) : (
             <>
-              <table style={table}>
+              <div className="table-responsive"><table className={table}>
                 <thead>
                   <tr>
                     <th style={th}>Slug</th>
@@ -74,7 +74,7 @@ export default function ConceptsPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
               <Pager
                 offset={offset}
                 limit={LIMIT}
@@ -86,7 +86,7 @@ export default function ConceptsPage() {
           )}
         </div>
 
-        <div style={panel}>
+        <div className={panel}>
           {!selected ? (
             <p style={{ color: "#666" }}>Select a concept to see its problems and related concepts.</p>
           ) : !detail ? (
