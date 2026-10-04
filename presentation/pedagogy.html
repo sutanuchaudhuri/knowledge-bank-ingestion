@@ -38,6 +38,33 @@
     migration, projection coverage, review approval, and deployment are separate checks.</p>
   </section>
 
+  <section class="card reveal" id="admin-approval">
+    <span class="tag">Current live approval · 2026-10-04</span>
+    <h2>Inspect → bulk approve in Postgres → explicitly publish</h2>
+    <p>The operator subsequently authorized approval of only the 27 counting starter assertions:
+    6 Skills, 6 Skill–Concept links, 6 Skill relations, 6 Problem–Skill mappings, and
+    3 difficulty assessments. The authenticated admin UI recorded every before/after snapshot and
+    the operator's rationale in Neon, then explicitly published the teaching layer to AuraDB.</p>
+    <p>Current state: <strong>6 reviewed Skills, 18 REVIEWED skill-related edges, 3 reviewed
+    assessments</strong>. The <strong>65 legacy concept-hierarchy edges remain PENDING</strong>;
+    corpus topic/method tags were not bulk-approved. Totals remain 20,942 nodes / 35,529 relationships.
+    This is user-authorized bootstrap approval, not independent expert certification.
+    Model-generated hints and micro-lessons remain PENDING.</p>
+    <p>The review UI supports individual approve/reject/return-to-pending decisions, selected-row
+    bulk decisions, and whole-starter approval. A mandatory rationale, explicit confirmation,
+    stale-snapshot checks, reviewed-skill dependencies and DAG validation protect each transaction.
+    Review and publication are deliberately separate; rejected evidence remains in the previous
+    graph until publishing succeeds.</p>
+    <p><code>AMC10_2007B_Q20</code> now has two reviewed skill mappings and three prerequisite skills.
+    <code>AMC10_2005B_Q18</code> is returned as lower-level same-skill practice using reviewed
+    required levels 2 versus 3, not a claim of lower overall difficulty.</p>
+    <p><a class="pedagogy-link" href="http://localhost:5173/admin/pedagogy">Open admin metadata approval ↗</a>
+    <a class="pedagogy-link" href="http://localhost:5173/learn?problem=AMC10_2007B_Q20">Try reviewed guided practice ↗</a></p>
+    <p class="pedagogy-note">Verified using the real admin browser: 27 atomic decisions, 27 audit
+    records, separate publish, reviewed retrieval, history, and responsive widths 390/768/1280px.
+    Earlier pending-only rollout snapshots below are historical, not the current approval state.</p>
+  </section>
+
   <h2 id="flow"><span class="section-no">A</span>The P0 learning loop</h2>
   <ol class="pedagogy-flow reveal">
     <li><strong>Locate</strong><span>Choose a corpus problem and show its statement.</span></li>
@@ -148,14 +175,14 @@
   <table class="data reveal">
     <thead><tr><th scope="col">Stage</th><th scope="col">Scope</th><th scope="col">What is not implied</th></tr></thead>
     <tbody>
-      <tr><td>P0 · implemented; rollout, runtime and production build verified</td><td>Skill/objective metadata; anonymous /learn; five-category diagnosis; attempt request; progressive hints; PENDING generated micro-lessons; reviewed prerequisite / easier same-skill evidence gates. Migration 006 applied to the Neon app target; initial PENDING metadata imported and projected to Aura.</td><td>Successful production build, remote migration and runtime verification do not mean expert review or production web hosting. Latest REST restart readiness remains a separate check.</td></tr>
+      <tr><td>P0 · implemented; rollout, runtime and production build verified</td><td>Skill/objective metadata; anonymous /learn; five-category diagnosis; attempt request; progressive hints; PENDING generated micro-lessons; reviewed prerequisite / easier same-skill evidence gates. Migrations 006/007 applied to Neon; starter approval, audited bulk review and explicit Aura publication verified.</td><td>Successful build, migration, operator approval and runtime readiness do not mean independent expert certification or production web hosting.</td></tr>
       <tr><td>P1 · planned</td><td>Structured solution steps, stored hint ladders, misconception catalogues, and course / curriculum structure.</td><td>The P0 on-demand three-hint interaction is not a populated, reviewed stored-hints library.</td></tr>
       <tr><td>P2 · planned</td><td>Learner-specific skill mastery, durable diagnosis history, and personalized learning paths.</td><td>Existing concept-level profile scores do not establish P2 skill personalization. Anonymous selections are not durable learner profiles.</td></tr>
     </tbody>
   </table>
   <div class="card reveal">
-    <span class="tag">Direct audit + refreshed graph overview · 2026-10-04 20:35 UTC</span>
-    <h3>Metadata populated; reviewed teaching evidence still empty</h3>
+    <span class="tag">Historical pre-approval audit · 2026-10-04 20:35 UTC</span>
+    <h3>Initial pending-only rollout (superseded by admin approval)</h3>
     <p>Migration 006 is applied to the remote Neon app target. The statement-grounded
     <code>data/pedagogy/counting-foundations.v1.json</code> seed contains <strong>6 Skills,
     6 Skill–Concept links, 6 Skill relations, 6 Problem–Skill mappings, and 3 difficulty
@@ -175,7 +202,7 @@
     production hosting is not certified by this snapshot. Production build success was verified
     separately at 20:37 UTC.</p>
   </div>
-  <h2 id="runtime"><span class="section-no">G</span>Final runtime verification</h2>
+  <h2 id="runtime"><span class="section-no">G</span>Initial runtime verification (before admin approval)</h2>
   <div class="card reveal">
     <span class="tag">Verified · 2026-10-04 20:35 UTC</span>
     <p>Real <code>/learn</code> browser checks exercised hints 1, 2 and 3 with revised attempts,
@@ -196,8 +223,9 @@
     <p><strong>Build / reprojection update · 2026-10-04 20:37 UTC:</strong> The production Next.js build
     passed with all 34 static pages; <code>/learn</code> and all proxies were included. Final live CLI
     reprojection passed snapshot-consistency and missing-target failure checks.</p>
-    <p class="pedagogy-note">Latest REST code is restarting; post-restart readiness verification is a
-    separate pending check. Successful build and local runtime checks are not production-hosting claims.</p>
+    <p class="pedagogy-note">REST restart readiness was subsequently verified. The admin-approval
+    section above supersedes this initial pending-only snapshot. Successful build and local runtime
+    checks are not production-hosting claims.</p>
   </div>
 </main>
 <footer>

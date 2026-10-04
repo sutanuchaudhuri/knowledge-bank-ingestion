@@ -70,22 +70,26 @@
   <a href="http://localhost:5173/graph">Open the running local graph app ↗</a></p>
   <div class="card reveal">
     <span class="tag">Direct audit + refreshed overview · 2026-10-04 20:35 UTC</span>
-    <h3>Teaching inventory populated; approval still pending</h3>
+    <h3>Teaching inventory and current operator approval</h3>
     <p>The unchanged corpus contains 20,936 nodes and 35,446 relationships:
     5,960 Problems, 13,168 Solutions, 1,068 Papers, 526 Concepts, 202 Techniques and 12 Competitions.
     Migration 006 and the initial metadata import add <strong>6 Skill nodes and 83 pedagogical
     edges</strong> in Aura: 71 <code>PART_OF</code> (65 concept hierarchy + 6 Skill–Concept),
     5 <code>PREREQUISITE_OF</code>, 1 <code>BUILDS_ON</code>, 3 <code>REQUIRES</code>,
     2 <code>PRACTICES</code> and 1 Skill-targeted <code>TESTS</code>.
-    All seeded pedagogical metadata is <code>PENDING</code>; teaching coverage is
-    <strong>6 Skills / 0 reviewed Skills</strong>.</p>
+    After subsequent explicit operator bulk approval and publication, teaching coverage is
+    <strong>6 Skills / 6 reviewed Skills</strong>. The 18 skill-related edges and 3 difficulty
+    assessments are REVIEWED; the 65 legacy hierarchy assertions remain PENDING.</p>
     <p>The refreshed <code>/api/graph/overview</code> now corroborates <strong>20,942 total nodes and
     35,529 total relationships</strong>. All nine pedagogical views were runtime-verified for review
-    filters and source properties. Reviewed selection is empty; the PENDING REQUIRES inventory
-    renders three edges / four nodes without overflow at 1280px.</p>
+    filters and source properties. Reviewed REQUIRES now renders three edges / four nodes;
+    prerequisite and same-skill queries use the approved starter evidence.</p>
     <p>The existing 12,615 <code>TESTS</code> edges target Concepts, not Skills; they also have
     PENDING status with provenance now surfaced. Select inventory statuses including PENDING to
-    inspect the projected layer. The default reviewed graph is empty, by design.</p>
+    inspect the projected layer. Corpus topic tags and the 65 legacy hierarchy assertions were
+    not included in the starter approval.</p>
+    <p><a href="http://localhost:5173/admin/pedagogy">Admin metadata review and explicit publication ↗</a>.
+    Review decisions are persisted and audited in Postgres before publishing to Neo4j.</p>
     <p>The running local app offers nine pedagogical views, including required, practiced and tested
     skills, concept membership, prerequisite and hierarchy views, and useful prior skills
     (<code>BUILDS_ON</code>). View definitions alone do not prove stored relationships. A useful prior

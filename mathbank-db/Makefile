@@ -217,6 +217,16 @@ pedagogy-import-remote:         ## Explicit atomic manifest import into remote N
 project-pedagogy-remote:        ## Explicit remote Neon to AuraDB metadata projection
 	$(MAKE) project-pedagogy GRAPH_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env"
 
+.PHONY: migrate-pedagogy-review migrate-pedagogy-review-remote
+migrate-pedagogy-review:        ## Add admin review audit and publication tables locally
+	PGPASSWORD="$(APP_DB_PASSWORD)" "$(PG_BIN)/psql" -h 127.0.0.1 -p $(PG_PORT) -U "$(APP_USER)" -d $(APP_DB) \
+	  -v ON_ERROR_STOP=1 -f sql/007_pedagogy_review.sql
+
+migrate-pedagogy-review-remote: ## Add admin review audit and publication tables on Neon
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/007_pedagogy_review.sql
+
 .PHONY: etl-venv
 etl-venv:                       ## Create the Python venv used by etl/load_corpus.py
 	uv venv .venv --python 3.11
@@ -258,6 +268,13 @@ vector-status-remote:           ## Show representation/chunk/embedding counts on
 	PG_ENV_FILE=$(CURDIR)/../mathbank-graph/remote.env .venv/bin/python etl/embed_corpus.py status
 
 .PHONY: pdf-discover
+PAPER_BATCH_PYTHON ?= $(CURDIR)/../mathbank-rest/.venv/bin/python
+.PHONY: paper-batches-remote
+paper-batches-remote:            ## Paid SMT/HMMT backlog -> classify -> Neon -> Aura, batches of 5 (BATCH_SIZE= LIMIT= RESUME=)
+	PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" GRAPH_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" \
+	  "$(PAPER_BATCH_PYTHON)" -u etl/paper_batches.py --batch-size $(or $(BATCH_SIZE),5) \
+	  $(if $(LIMIT),--limit $(LIMIT),) $(if $(RESUME),--resume $(RESUME),)
+
 pdf-discover:                   ## Track all direct-link PDF papers from paper_registry.csv
 	.venv/bin/python etl/pdf_pipeline.py discover
 

@@ -25,14 +25,16 @@ AOPS_CRAWL_DIR = INGESTION_ROOT / "data" / "crawl"
 PDF_CRAWL_DIR = INGESTION_ROOT / "data" / "crawl_pdf"
 
 # crawl_pdf/<dir> -> core.competition.external_code. Only competitions with
-# actual per-question problem.md/solution.md splits are listed; hmmt_inv,
-# hmmt_nov, and mpg_main currently have whole-paper PDFs only (no Q-level split).
+# actual per-question problem.md/solution.md splits are listed.
 PDF_COMPETITION_DIRS = {
     "chmmc": "CHMMC",
     "cmm": "CMM",
     "mpg_oly": "MPG_OLY",
     "pumac": "PUMAC",
     "smt": "SMT",
+    "hmmt_feb": "HMMT_FEB",
+    "hmmt_nov": "HMMT_NOV",
+    "hmmt_inv": "HMMT_INV",
 }
 
 PAPER_ID_RE = re.compile(r"^PAPER_[A-Z]+_(\d{4})_(.+)$")
@@ -487,7 +489,7 @@ def load_techniques(cur) -> tuple[int, int]:
     return inserted, skipped
 
 
-def load_problem_concepts(cur) -> tuple[int, int]:
+def load_problem_concepts(cur, question_codes: set[str] | None = None) -> tuple[int, int]:
     cur.execute("SELECT canonical_code, problem_id FROM core.problem")
     problem_by_code = {code: pid for code, pid in cur.fetchall()}
     cur.execute("SELECT slug, concept_id FROM knowledge.concept")
@@ -495,6 +497,8 @@ def load_problem_concepts(cur) -> tuple[int, int]:
 
     inserted = skipped = 0
     for row in read_rows("question_taxonomy_map.csv"):
+        if question_codes is not None and row.get("Question_ID") not in question_codes:
+            continue
         problem_id = problem_by_code.get((row.get("Question_ID") or "").strip())
         concept_id = concept_by_slug.get(slugify((row.get("Concept_ID") or "").strip()))
         if not problem_id or not concept_id:
@@ -523,7 +527,7 @@ def load_problem_concepts(cur) -> tuple[int, int]:
     return inserted, skipped
 
 
-def load_problem_techniques(cur) -> tuple[int, int]:
+def load_problem_techniques(cur, question_codes: set[str] | None = None) -> tuple[int, int]:
     cur.execute("SELECT canonical_code, problem_id FROM core.problem")
     problem_by_code = {code: pid for code, pid in cur.fetchall()}
     cur.execute("SELECT slug, technique_id FROM knowledge.technique")
@@ -531,6 +535,8 @@ def load_problem_techniques(cur) -> tuple[int, int]:
 
     inserted = skipped = 0
     for row in read_rows("question_technique_map.csv"):
+        if question_codes is not None and row.get("Question_ID") not in question_codes:
+            continue
         problem_id = problem_by_code.get((row.get("Question_ID") or "").strip())
         technique_id = technique_by_slug.get(slugify((row.get("Technique_ID") or "").strip()))
         if not problem_id or not technique_id:

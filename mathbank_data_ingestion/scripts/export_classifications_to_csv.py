@@ -103,7 +103,15 @@ def _append_rows(path: Path, fieldnames: list[str], new_rows: list[dict], dry_ru
             writer.writerow({k: row.get(k, "") for k in fieldnames})
 
 
-def export_concepts_and_techniques(conn: sqlite3.Connection, dry_run: bool) -> dict[str, int]:
+def matches_papers(question_id: str | None, papers: list[str] | None) -> bool:
+    return papers is None or (
+        question_id is not None and any(question_id.startswith(paper + "_Q") for paper in papers)
+    )
+
+
+def export_concepts_and_techniques(
+    conn: sqlite3.Connection, dry_run: bool, papers: list[str] | None = None
+) -> dict[str, int]:
     taxonomy_fields, taxonomy_rows = _read_csv_rows(TOPIC_TAXONOMY_CSV)
     hierarchy_fields, hierarchy_rows = _read_csv_rows(CANONICAL_HIERARCHY_CSV)
     technique_fields, technique_rows = _read_csv_rows(TECHNIQUE_CATALOG_CSV)
@@ -117,7 +125,13 @@ def export_concepts_and_techniques(conn: sqlite3.Connection, dry_run: bool) -> d
     new_technique_rows: list[dict] = []
 
     conn.row_factory = sqlite3.Row
+    scoped_concepts = {
+        r["concept_id"] for r in conn.execute("SELECT question_id,concept_id FROM question_taxonomy_maps")
+        if matches_papers(r["question_id"], papers)
+    } if papers is not None else None
     for r in conn.execute("SELECT * FROM concepts"):
+        if scoped_concepts is not None and r["canonical_topic_id"] not in scoped_concepts:
+            continue
         slug = _slugify(r["canonical_topic_id"])
         if r["node_type"] == "Technique":
             if slug in known_technique_slugs:
@@ -153,7 +167,9 @@ def export_concepts_and_techniques(conn: sqlite3.Connection, dry_run: bool) -> d
     return {"new_concepts": len(new_concept_rows), "new_techniques": len(new_technique_rows)}
 
 
-def export_problem_mappings(conn: sqlite3.Connection, dry_run: bool) -> dict[str, int]:
+def export_problem_mappings(
+    conn: sqlite3.Connection, dry_run: bool, papers: list[str] | None = None
+) -> dict[str, int]:
     concept_node_type = {r["canonical_topic_id"]: r["node_type"] for r in conn.execute("SELECT * FROM concepts")}
 
     concept_map_fields, concept_map_rows = _read_csv_rows(QUESTION_TAXONOMY_MAP_CSV)
@@ -165,6 +181,8 @@ def export_problem_mappings(conn: sqlite3.Connection, dry_run: bool) -> dict[str
     new_technique_map_rows: list[dict] = []
 
     for r in conn.execute("SELECT * FROM question_taxonomy_maps"):
+        if not matches_papers(r["question_id"], papers):
+            continue
         node_type = concept_node_type.get(r["concept_id"])
         if node_type == "Technique":
             if r["mapping_id"] in known_technique_map_ids:
@@ -212,6 +230,7 @@ def export_problem_mappings(conn: sqlite3.Connection, dry_run: bool) -> dict[str
 def main() -> None:
     p = argparse.ArgumentParser(description="Export SQLite classification results into the CSV corpus mirror")
     p.add_argument("--dry-run", action="store_true", help="Report counts only, write nothing")
+    p.add_argument("--paper", action="append", help="Export mappings only for these papers")
     args = p.parse_args()
 
     conn = sqlite3.connect(DB_PATH)
@@ -224,8 +243,8 @@ def main() -> None:
         for csv_name, keys in pre_existing_dupes.items():
             console.print(f"  {csv_name}: {keys[:10]}{' ...' if len(keys) > 10 else ''}")
 
-    concept_counts = export_concepts_and_techniques(conn, args.dry_run)
-    mapping_counts = export_problem_mappings(conn, args.dry_run)
+    concept_counts = export_concepts_and_techniques(conn, args.dry_run, args.paper)
+    mapping_counts = export_problem_mappings(conn, args.dry_run, args.paper)
 
     table = Table(title=f"Export {'(dry run)' if args.dry_run else ''}".strip())
     table.add_column("Target CSV")

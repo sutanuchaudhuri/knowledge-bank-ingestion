@@ -33,27 +33,50 @@ def inventory():
         ]
 
 
-def test_live_seed_preserves_pending_review_gate():
+def test_live_pending_review_gate_in_rolled_back_fixture(monkeypatch):
     with engine.connect() as conn:
         count = conn.execute(
             text("""
             SELECT count(*) FROM knowledge.skill
-            WHERE source = :source AND review_status = 'PENDING'
+            WHERE source = :source
         """),
             {"source": SOURCE},
         ).scalar_one()
         assert count == 6
-    context = pedagogy.learning_context("AMC10_2005B_Q18")
-    assert context["metadata_status"] == "unenriched"
-    assert not context["skills"] and not context["prerequisites"]
-    assert context["difficulty"]["conceptual_depth"] is None
-    assert not pedagogy.easier_practice("AMC10_2007B_Q20")["results"]
-    assert len(inventory()) >= 18
+    before = inventory()
+    with driver.session() as session:
+        tx = session.begin_transaction()
+        try:
+            tx.run(
+                "MATCH(s:Skill {source:$source}) SET s.review_status='PENDING'", source=SOURCE
+            ).consume()
+            tx.run(
+                "MATCH(p:Problem) WHERE p.pedagogy_source IS NOT NULL "
+                "SET p.pedagogy_review_status='PENDING'"
+            ).consume()
+            monkeypatch.setattr(
+                pedagogy,
+                "graph_rows",
+                lambda query, **params: [row.data() for row in tx.run(query, parameters=params)],
+            )
+            context = pedagogy.learning_context("AMC10_2005B_Q18")
+            assert context["metadata_status"] == "unenriched"
+            assert not context["skills"] and not context["prerequisites"]
+            assert context["difficulty"]["conceptual_depth"] is None
+            assert not pedagogy.easier_practice("AMC10_2007B_Q20")["results"]
+        finally:
+            tx.rollback()
+    assert inventory() == before
+    assert len(before) >= 18
 
 
 def test_real_reviewed_queries_inside_rolled_back_fixture(monkeypatch):
     before = inventory()
     with driver.session() as session:
+        reviewed_before = session.run(
+            "MATCH(s:Skill {source:$source,review_status:'REVIEWED'}) RETURN count(s) AS n",
+            source=SOURCE,
+        ).single()["n"]
         tx = session.begin_transaction()
         try:
             tx.run(
@@ -92,7 +115,7 @@ def test_real_reviewed_queries_inside_rolled_back_fixture(monkeypatch):
         """,
                 source=SOURCE,
             ).single()["n"]
-            == 0
+            == reviewed_before
         )
 
 

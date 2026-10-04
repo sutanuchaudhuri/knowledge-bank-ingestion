@@ -97,13 +97,14 @@ def list_papers(
     with engine.connect() as conn:
         rows = conn.execute(
             text(
-                f"SELECT pdf_source_id, paper_external_code, competition_external_code, source_kind, "
-                f"       problem_url, solution_url, link_scope, "
-                f"       download_status, parse_status, ingest_status, "
-                f"       questions_found, questions_ingested, solutions_ingested, "
-                f"       last_error, created_at, updated_at "
-                f"FROM pipeline.pdf_source {where} "
-                f"ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+                f"SELECT s.*, w.status AS batch_status, w.metrics AS batch_metrics, "
+                f"       w.run_id AS batch_run_id, w.last_error AS batch_error "
+                f"FROM pipeline.pdf_source s LEFT JOIN LATERAL ("
+                f" SELECT status, metrics, run_id, last_error FROM pipeline.work_item "
+                f" WHERE item_type='paper_end_to_end' AND item_key=s.paper_external_code "
+                f" ORDER BY started_at DESC LIMIT 1"
+                f") w ON true {where} "
+                f"ORDER BY s.created_at DESC LIMIT :limit OFFSET :offset"
             ),
             params,
         ).mappings()
@@ -135,7 +136,7 @@ def list_pipeline_runs(limit: int = 20) -> list[dict]:
         rows = conn.execute(
             text(
                 "SELECT run_id, run_type, status, started_at, completed_at, "
-                "       completed_items, failed_items, expected_items "
+                "       completed_items, failed_items, expected_items, heartbeat_at, metadata "
                 "FROM pipeline.run ORDER BY started_at DESC LIMIT :limit"
             ),
             {"limit": limit},

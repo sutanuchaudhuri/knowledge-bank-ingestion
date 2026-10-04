@@ -142,10 +142,18 @@ shared skill are not a guarantee of lower overall problem difficulty.
 
 The explicitly authorized 2026-10-04 Neon/Aura rollout is complete: migration
 006, 6 starter skills, 18 skill-related edges, 65 additional concept-hierarchy
-projections, and 3 problem-difficulty assessments. Every assertion remains
-**PENDING**, with provenance; no reviewed curriculum was fabricated.
-Uncheck **Reviewed only** in teaching graph views to inspect this inventory.
+projections, and 3 problem-difficulty assessments. After explicit operator
+authorization, the 27 starter assertions were bulk-approved in Postgres and
+published to Neo4j: 6 reviewed skills, 18 reviewed skill-related edges and
+3 reviewed assessments. The 65 legacy hierarchy assertions remain PENDING.
+Uncheck **Reviewed only** in teaching graph views to inspect pending inventory.
 The starter set covers three counting problems, not the entire corpus.
+
+Use [the admin approval workspace](http://localhost:5173/admin/pedagogy) to
+inspect and approve/reject individual or selected batches of metadata, view
+immutable review history, and explicitly publish decisions to Neo4j. Review
+requires admin login and a rationale; stale changes and reviewed cycles are
+rejected. Approval and graph publication are separate operations.
 
 See [the pedagogical requirements and phased plan](requirements/13_PEDAGOGICAL_GRAPH_AND_TUTOR_REQUIREMENTS.md)
 for the implemented P0 scope and planned P1 solution steps, hint ladders,

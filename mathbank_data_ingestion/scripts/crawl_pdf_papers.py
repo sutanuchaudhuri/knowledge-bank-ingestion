@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -192,6 +193,8 @@ def _process_paper(
     expected_count: int | None,
     tournament_event_id: str,
     delay: float,
+    require_split: bool = False,
+    reparse: bool = False,
 ) -> tuple[int, str]:
     """Download, parse, and store one paper. Returns (question_count, status)."""
     pdir = _paper_dir(competition_id, paper_id)
@@ -202,9 +205,11 @@ def _process_paper(
     exam_level = competition_id
 
     # Check if already done.
-    if (pdir / "index.json").exists():
+    if (pdir / "index.json").exists() and not reparse:
         existing = json.loads((pdir / "index.json").read_text())
         n = len(existing.get("questions", []))
+        if require_split:
+            validate_question_ids(existing.get("questions", []), paper_id, expected_count)
         console.print(f"  [dim]SKIP (cached) {paper_id} — {n} questions")
         return n, "INDEXED"
 
@@ -239,6 +244,10 @@ def _process_paper(
         paper_url=problem_url,
         visuals_dir=pdir / "visuals",
     )
+    if require_split:
+        validate_question_ids([q.question_id for q in parsed_questions], paper_id, expected_count)
+        if any(not q.problem_text.strip() for q in parsed_questions):
+            raise ValueError("Parsed question has no problem text; refusing paper completion")
 
     index: dict = {"paper_id": paper_id, "competition_id": competition_id,
                    "year": year, "questions": []}
@@ -284,6 +293,18 @@ def _process_paper(
 
     return len(parsed_questions), "INDEXED"
 
+def validate_question_ids(ids: list[str], paper_id: str, expected_count: int | None) -> None:
+    numbers = []
+    for question_id in ids:
+        match = re.fullmatch(re.escape(paper_id) + r"_Q(\d+)", question_id)
+        if not match:
+            raise ValueError("Whole-paper fallback is not a question-level parse")
+        numbers.append(int(match.group(1)))
+    if not numbers or sorted(numbers) != list(range(1, len(numbers) + 1)):
+        raise ValueError("Question numbers must be nonempty, unique and contiguous from 1")
+    if expected_count and len(numbers) != expected_count:
+        raise ValueError(f"Expected {expected_count} questions, parsed {len(numbers)}")
+
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
@@ -296,12 +317,29 @@ def main() -> None:
     p.add_argument("--db",     type=Path,  default=DB_PATH)
     p.add_argument("--retry-failed", action="store_true")
     p.add_argument("--dry-run",      action="store_true")
+    p.add_argument("--sources-file", type=Path, help="Explicit JSON paper sources from Postgres")
+    p.add_argument("--require-split", action="store_true", help="Reject incomplete/whole-paper parses")
+    p.add_argument("--reparse", action="store_true", help="Reparse even if a cached index exists")
+    p.add_argument("--native-extraction", action="store_true", help="Explicit native-text extraction instead of Docling")
     args = p.parse_args()
+    if args.native_extraction:
+        os.environ["MATHBANK_PDF_EXTRACTOR"] = "pymupdf"
+        console.print("[yellow]Explicit PyMuPDF native-text extraction; review math/figure quality.")
 
     conn = sqlite3.connect(args.db)
     apply_migrations(conn)
 
-    queue = _fetch_queue(conn, args.limit, args.competition, args.retry_failed)
+    if args.sources_file:
+        sources = json.loads(args.sources_file.read_text())
+        queue = [
+            (s["paper_external_code"], s["competition_external_code"],
+             s["problem_url"], s.get("solution_url"), s.get("expected_count"), "")
+            for s in sources
+        ]
+        if any(row[1] not in PDF_COMPETITIONS for row in queue):
+            p.error("Unsupported competition in sources file")
+    else:
+        queue = _fetch_queue(conn, args.limit, args.competition, args.retry_failed)
 
     if not queue:
         console.print("[yellow]No PDF papers to process.")
@@ -337,10 +375,12 @@ def main() -> None:
                 conn, paper_id, comp,
                 prob_url, sol_url or "",
                 qcount, event_id or "",
-                args.delay,
+                args.delay, args.require_split, args.reparse,
             )
             _mark_paper(conn, paper_id, status if status == "INDEXED" else "FAILED", status)
             conn.commit()
+            if args.require_split and status != "INDEXED":
+                raise RuntimeError(f"{paper_id}: {status}")
             total_q += n
             progress.advance(task)
 

@@ -3,11 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import { normalizeMathDelimiters } from "../../lib/markdown.js";
+import MathText from "../_components/MathText.jsx";
 import { DIAGNOSES, hintRequestState } from "../../lib/learningFlow.mjs";
 
 async function tutorRequest(path, options = {}) {
@@ -17,16 +13,6 @@ async function tutorRequest(path, options = {}) {
     throw new Error(typeof body.error === "string" ? body.error : JSON.stringify(body.error || `Request failed: ${response.status}`));
   }
   return body;
-}
-
-function MathText({ children }) {
-  return (
-    <div className="markdown-body">
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-        {normalizeMathDelimiters(children || "")}
-      </ReactMarkdown>
-    </div>
-  );
 }
 
 function Provenance({ item }) {

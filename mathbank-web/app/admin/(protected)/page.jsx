@@ -10,6 +10,8 @@ const STATUS_COLOUR = {
   PARSED: "#1d4ed8",
   INGESTED: "#15803d",
   FAILED: "#b91c1c",
+  COMPLETED: "#15803d",
+  IN_PROGRESS: "#1d4ed8",
 };
 
 function StatusBadge({ label }) {
@@ -129,10 +131,12 @@ function PipelineRuns({ refreshToken }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch("/api/rest/admin/pipeline/runs")
+    const controller = new AbortController();
+    fetch("/api/rest/admin/pipeline/runs", { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`status ${res.status}`))))
-      .then(setData)
-      .catch((err) => setError(err.message));
+      .then((result) => { setData(result); setError(null); })
+      .catch((err) => { if (err.name !== "AbortError") setError(err.message); });
+    return () => controller.abort();
   }, [refreshToken]);
 
   if (error) return <p style={{ color: "#b91c1c", fontSize: 13 }}>Could not load pipeline runs: {error}</p>;
@@ -143,7 +147,7 @@ function PipelineRuns({ refreshToken }) {
       <h3 className="h5 fw-bold">Every stage logged (pipeline.run + pipeline.graph_projection)</h3>
       <div className="table-responsive"><table className={table}>
         <thead>
-          <tr><th style={th}>Run type</th><th style={th}>Status</th><th style={th}>Started</th><th style={th}>Completed</th><th style={{ ...th, textAlign: "right" }}>Items</th></tr>
+          <tr><th style={th}>Run type</th><th style={th}>Status</th><th style={th}>Started</th><th style={th}>Completed</th><th style={{ ...th, textAlign: "right" }}>Items</th><th style={th}>Run / logs</th></tr>
         </thead>
         <tbody>
           {data.runs?.map((r) => (
@@ -153,6 +157,11 @@ function PipelineRuns({ refreshToken }) {
               <td style={td}>{(r.started_at || "").slice(0, 19)}</td>
               <td style={td}>{(r.completed_at || "—").slice(0, 19)}</td>
               <td style={{ ...td, textAlign: "right" }}>{r.completed_items}/{r.expected_items ?? "?"} ({r.failed_items} failed)</td>
+              <td style={td}>
+                <code className="small">{r.run_id}</code>
+                {r.metadata?.log_dir && <div className="small text-break">{r.metadata.log_dir}</div>}
+                {r.heartbeat_at && <div className="small text-secondary">Heartbeat: {r.heartbeat_at.slice(0, 19)}</div>}
+              </td>
             </tr>
           ))}
           {data.graph_projections?.map((g) => (
@@ -162,6 +171,7 @@ function PipelineRuns({ refreshToken }) {
               <td style={td}>{(g.started_at || "").slice(0, 19)}</td>
               <td style={td}>{(g.completed_at || "—").slice(0, 19)}</td>
               <td style={{ ...td, textAlign: "right" }}>{g.nodes_upserted} nodes / {g.edges_upserted} edges</td>
+              <td style={td}><code className="small">{g.projection_run_id}</code></td>
             </tr>
           ))}
         </tbody>
@@ -174,13 +184,17 @@ function PapersDashboard({ refreshToken, onRetried }) {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
   const [competitionFilter, setCompetitionFilter] = useState("");
+  const [offset, setOffset] = useState(0);
+  const pageSize = 50;
 
   useEffect(() => {
-    fetch(`/api/rest/admin/papers${competitionFilter ? `?competition=${encodeURIComponent(competitionFilter)}` : ""}`)
+    const controller = new AbortController();
+    fetch(`/api/rest/admin/papers?limit=${pageSize}&offset=${offset}${competitionFilter ? `&competition=${encodeURIComponent(competitionFilter)}` : ""}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`status ${res.status}`))))
-      .then((data) => setItems(data.items))
-      .catch((err) => setError(err.message));
-  }, [refreshToken, competitionFilter]);
+      .then((data) => { setItems(data.items); setError(null); })
+      .catch((err) => { if (err.name !== "AbortError") setError(err.message); });
+    return () => controller.abort();
+  }, [refreshToken, competitionFilter, offset]);
 
   async function retry(paperCode) {
     await fetch(`/api/rest/admin/papers/${encodeURIComponent(paperCode)}/retry`, { method: "POST" });
@@ -193,7 +207,12 @@ function PapersDashboard({ refreshToken, onRetried }) {
     <div className={panel}>
       <h3 className="h5 fw-bold">Paper pipeline status (pipeline.pdf_source)</h3>
       <input className={`${input} mb-3`} aria-label="Filter by competition external code" placeholder="Filter by competition external_code"
-        value={competitionFilter} onChange={(e) => setCompetitionFilter(e.target.value.toUpperCase())} />
+        value={competitionFilter} onChange={(e) => { setCompetitionFilter(e.target.value.toUpperCase()); setOffset(0); }} />
+      <div className="d-flex gap-2 align-items-center mb-3">
+        <button className="btn btn-outline-secondary btn-sm" disabled={offset === 0} onClick={() => setOffset((n) => Math.max(0, n - pageSize))}>Previous</button>
+        <span className="small text-secondary">Rows {items?.length ? offset + 1 : 0}–{offset + (items?.length || 0)}</span>
+        <button className="btn btn-outline-secondary btn-sm" disabled={!items || items.length < pageSize} onClick={() => setOffset((n) => n + pageSize)}>Next</button>
+      </div>
       {!items ? (
         <p style={{ fontSize: 13 }}>Loading…</p>
       ) : items.length === 0 ? (
@@ -204,12 +223,14 @@ function PapersDashboard({ refreshToken, onRetried }) {
             <tr>
               <th style={th}>Paper</th><th style={th}>Competition</th><th style={th}>Kind</th>
               <th style={th}>Download</th><th style={th}>Parse</th><th style={th}>Ingest</th>
+              <th style={th}>Classify</th><th style={th}>Graph</th><th style={th}>Batch stage</th>
               <th style={th}>Questions</th><th style={th}>Error</th><th style={th} />
             </tr>
           </thead>
           <tbody>
             {items.map((p) => {
               const hasFailure = [p.download_status, p.parse_status, p.ingest_status].includes("FAILED");
+              const metrics = p.batch_metrics || {};
               return (
                 <tr key={p.pdf_source_id}>
                   <td style={td}>{p.paper_external_code}</td>
@@ -218,8 +239,18 @@ function PapersDashboard({ refreshToken, onRetried }) {
                   <td style={td}><StatusBadge label={p.download_status} /></td>
                   <td style={td}><StatusBadge label={p.parse_status} /></td>
                   <td style={td}><StatusBadge label={p.ingest_status} /></td>
+                  <td style={td}><StatusBadge label={metrics.classification_status || (metrics.graph_verified ? "COMPLETED" : p.batch_run_id ? "PENDING" : "NOT_TRACKED")} /></td>
+                  <td style={td}><StatusBadge label={metrics.graph_status || (metrics.graph_verified ? "COMPLETED" : p.batch_run_id ? "PENDING" : "NOT_TRACKED")} /></td>
+                  <td style={td}>
+                    {metrics.stage || "Not started"}
+                    {p.batch_run_id && <div className="small text-secondary">{p.batch_run_id}</div>}
+                    {metrics.parse_warnings?.length > 0 && <details className="small text-warning-emphasis">
+                      <summary>Extraction warnings</summary>
+                      <ul>{metrics.parse_warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+                    </details>}
+                  </td>
                   <td style={td}>{p.questions_ingested}/{p.questions_found}</td>
-                  <td style={{ ...td, color: "#b91c1c", fontSize: 11 }}>{p.last_error || ""}</td>
+                  <td style={{ ...td, color: "#b91c1c", fontSize: 11 }}>{p.batch_error || p.last_error || ""}</td>
                   <td style={td}>
                     {hasFailure && (
                       <button className={button} onClick={() => retry(p.paper_external_code)}>Retry</button>
@@ -238,6 +269,10 @@ function PapersDashboard({ refreshToken, onRetried }) {
 export default function AdminPage() {
   const [refreshToken, setRefreshToken] = useState(0);
   const bump = () => setRefreshToken((n) => n + 1);
+  useEffect(() => {
+    const timer = setInterval(() => setRefreshToken((n) => n + 1), 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   async function logout() {
     await fetch("/api/auth/admin-logout", { method: "POST" });
@@ -256,6 +291,9 @@ export default function AdminPage() {
         </button>
       </p>
       <h1 className="h3 fw-bold">Corpus ingestion admin</h1>
+      <button className="btn btn-outline-secondary btn-sm mb-3 me-2" onClick={bump}>Refresh pipeline status</button>
+      <span className="small text-secondary">Auto-refresh every 15 seconds. Classification completion is not human approval; graph completion is verified separately.</span>
+      <Link href="/admin/pedagogy" className="btn btn-primary mb-3">Review pedagogical metadata</Link>
       <p style={{ color: "#666", fontSize: 13 }}>
         Add a competition and its paper URLs — rows are tracked as PENDING in{" "}
         <code>pipeline.pdf_source</code> immediately; the download/parse/ingest/embed/graph

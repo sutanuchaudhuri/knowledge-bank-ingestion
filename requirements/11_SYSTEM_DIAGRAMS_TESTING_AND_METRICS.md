@@ -414,6 +414,37 @@ not a code path.
 
 ---
 
+### 4.1 Registered SMT/HMMT backlog: resumable batch execution
+
+**Implemented:** [paper_batches.py](../mathbank-db/etl/paper_batches.py) consumes
+the Postgres `pipeline.pdf_source` inventory, including admin-registered papers
+absent from the SQLite crawl queue. Scope is SMT and HMMT February/November/
+Invitational; other competitions are untouched.
+
+| Requirement | Completion evidence |
+|---|---|
+| Finite, resumable batches | Original paper-code snapshot in `pipeline.run.requested_scope`; advisory lock prevents duplicate runners; `RESUME` revisits failed/interrupted work even if ingest already succeeded. |
+| Valid question-level parsing | Nonempty contiguous IDs, nonempty cleaned statements, and exact registry count when provided. Whole-paper fallbacks never masquerade as completed question parsing. |
+| Explicit extraction degradation | CPU Docling; one logged native-text retry after rejection; warnings remain in artifacts, stage logs and admin inspection. Mathematical fidelity still needs human review. |
+| Classification coverage | Successful SQLite result with at least one mapping for every verified question; model failures and empty classifications fail explicitly. The legacy internal `SOLUTION_REVIEWED` label is not human approval. |
+| Postgres persistence | Scoped problem/solution ingest and classification assertions; Postgres coverage is checked before graph publication. New assertions remain PENDING. |
+| Graph completion | Batch projection followed by direct Aura verification of every classified problem and its classification edge. Existing approved pedagogy is preserved. |
+| Auditable operations | Per-paper work items, stage/error/attempt metrics, run heartbeat and completion counts, complete subprocess logs and source manifests. |
+| Honest UI | Admin shows classification/graph status independently; paginated papers and 15-second refresh; legacy stages without batch evidence display NOT_TRACKED. |
+
+Run `make -C mathbank-db paper-batches-remote BATCH_SIZE=5` with explicit paid
+API authorization and configured credentials. Use `RESUME=<run-uuid>` for
+the same original snapshot. See [database operations](../mathbank-db/README.md#resumable-smthmmt-paper-batches)
+for resource safeguards, command options and logs.
+
+Live verification on 2026-10-04 completed `PAPER_HMMT_2025_FEB_GEO` and
+`PAPER_SMT_2022_GEOM`: 20 problems and 20 solutions, real paid classifications,
+scoped Postgres assertions and verified Aura classification edges. The
+remaining 302-paper run is a separate ongoing operation, not a completed
+coverage claim. CMM and the 27 approved starter assertions are outside the
+classification scope. Embeddings and retrieval-quality evaluation remain
+separate operations.
+
 ## 5. Extensive test framework
 
 **Status: DONE for mathbank-rest, mathbank-agent (tool-selection), and

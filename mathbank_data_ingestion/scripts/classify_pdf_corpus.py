@@ -67,6 +67,9 @@ PDF_COMPETITION_DIRS = {
     "mpg_oly": "MPG_OLY",
     "pumac": "PUMAC",
     "smt": "SMT",
+    "hmmt_feb": "HMMT_FEB",
+    "hmmt_nov": "HMMT_NOV",
+    "hmmt_inv": "HMMT_INV",
 }
 PAPER_ID_RE = re.compile(r"^PAPER_[A-Z]+_(\d{4})_(.+)$")
 MD_HEADER_RE = re.compile(r"^(#{1,2}[^\n]*\n+)+")
@@ -189,6 +192,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--limit", type=int, default=20)
     p.add_argument("--competition", type=str, default=None, help="SMT|CHMMC|PUMAC|CMM|MPG_OLY")
+    p.add_argument("--paper", type=str, help="Only classify this exact paper")
     p.add_argument("--db", type=Path, default=DB_PATH)
     p.add_argument("--retry-failed", action="store_true")
     p.add_argument("--dry-run", action="store_true")
@@ -219,6 +223,8 @@ def main() -> None:
     run.__enter__()
 
     all_questions = discover_questions(args.competition)
+    if args.paper:
+        all_questions = [q for q in all_questions if q.paper_id == args.paper]
     if not all_questions:
         console.print(f"[yellow]No PDF-archive questions found under {PDF_CRAWL_DIR}")
         run.__exit__(None, None, None)
@@ -302,6 +308,12 @@ def main() -> None:
                 mapping_count += 1
 
             fine_count = sum(1 for m in result.all_mappings if not m.is_new)
+            if not mapping_count:
+                _mark_failed(conn, q.question_id, "Model returned no usable taxonomy mapping")
+                conn.commit()
+                failed += 1
+                progress.advance(task)
+                continue
             _finalize(conn, q.question_id, mapping_count, fine_count, result.model, result.classifier_notes)
             conn.commit()
             ok += 1
@@ -310,6 +322,10 @@ def main() -> None:
     console.print(f"\nDone.  classified={ok}  failed={failed}  new_concepts_created={new_concepts}\n")
     _print_summary(conn, all_questions)
     run.update(processed=ok + failed, succeeded=ok, failed=failed)
+    if failed:
+        run.__exit__(RuntimeError, RuntimeError(f"{failed} questions failed classification"), None)
+        conn.close()
+        raise SystemExit(1)
     run.__exit__(None, None, None)
     conn.close()
 

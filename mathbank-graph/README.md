@@ -107,7 +107,10 @@ relationships, and 3 PENDING problem-difficulty assessments:
 | Problem PRACTICES Skill | 2 |
 | Problem TESTS Skill | 1 |
 
-All 83 are PENDING. No skill-skill hierarchy or concept prerequisite assertions
+The initial rollout left all 83 PENDING. After explicit operator approval and
+publication through `/admin/pedagogy`, the 18 skill-related edges are REVIEWED,
+the 65 legacy concept-hierarchy edges remain PENDING, and the 6 skills and
+3 difficulty assessments are REVIEWED. No skill-skill hierarchy or concept prerequisite assertions
 have been authored in this starter set; their supported views are correctly
 empty. Inventory endpoints return all source/confidence/review/role/level
 metadata; Problem inspection also shows dimensions and namespaced provenance.
@@ -117,5 +120,6 @@ The live graph contains 20,942 nodes and 35,529 relationships. These are dated
 audit counts, not guarantees about future ingestion. Overview/sample APIs cache
 for five minutes. Repeated projection retained 6 Skill nodes and 83 owned edges.
 The integration suite also verified that a deliberate failure after deleting
-owned edges rolled back completely. Production assertions remained PENDING.
+owned edges rolled back completely. Review/publication is an admin-authorized
+operation, not inferred from confidence or successful projection.
 P1/P2 semantic steps, hint ladders, courses, and adaptive inference are deferred.

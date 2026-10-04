@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import hashlib
+import os
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -58,6 +59,10 @@ def _extract_with_docling(pdf_bytes: bytes, out_dir: Path | None, label: str) ->
     opts.generate_picture_images = True
     opts.generate_page_images = False  # skip full page renders; we keep PyMuPDF for those
     opts.images_scale = 2.0
+    device = os.environ.get("MATHBANK_PDF_DEVICE")
+    if device:
+        from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
+        opts.accelerator_options = AcceleratorOptions(device=AcceleratorDevice(device))
 
     converter = DocumentConverter(
         format_options={
@@ -169,6 +174,7 @@ def extract_pdf(
         Skip Docling and go straight to PyMuPDF (useful for testing or
         when Docling's heavyweight models are unavailable).
     """
+    force_fallback = force_fallback or os.environ.get("MATHBANK_PDF_EXTRACTOR") == "pymupdf"
     if not force_fallback and _check_docling():
         try:
             return _extract_with_docling(pdf_bytes, out_dir, label)

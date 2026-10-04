@@ -7,8 +7,9 @@ from mathbank_rest.db.graph import check_neo4j
 from mathbank_rest.db.postgres import check_postgres
 from mathbank_rest.routers.admin import router as admin_router
 from mathbank_rest.routers.learner import router as learner_router
-from mathbank_rest.routers.tutor import router as tutor_router
 from mathbank_rest.routers.pedagogy import router as pedagogy_router
+from mathbank_rest.routers.pedagogy_admin import router as pedagogy_admin_router
+from mathbank_rest.routers.tutor import router as tutor_router
 from mathbank_rest.routers.v1 import router as v1_router
 
 app = FastAPI(title="mathbank-rest", version="0.1.0")
@@ -17,6 +18,7 @@ app.include_router(learner_router)
 app.include_router(admin_router)
 app.include_router(tutor_router)
 app.include_router(pedagogy_router)
+app.include_router(pedagogy_admin_router)
 
 
 @app.get("/health")

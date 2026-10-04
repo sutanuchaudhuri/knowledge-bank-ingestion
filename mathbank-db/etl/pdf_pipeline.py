@@ -177,7 +177,9 @@ def cmd_reconcile(cur) -> None:
     print(f"reconcile: newly_downloaded={downloaded} newly_parsed={parsed} (checked {len(rows)} tracked papers)")
 
 
-def cmd_ingest(cur) -> None:
+def cmd_ingest(
+    cur, paper_codes: list[str] | None = None, question_codes: set[str] | None = None
+) -> None:
     cur.execute("SELECT external_code, competition_id FROM core.competition")
     competition_by_code = {code: str(cid) for code, cid in cur.fetchall() if code}
 
@@ -186,7 +188,9 @@ def cmd_ingest(cur) -> None:
         SELECT paper_external_code, crawl_dir, competition_external_code
         FROM pipeline.pdf_source
         WHERE parse_status = 'PARSED' AND ingest_status != 'INGESTED'
-        """
+          AND (%s::text[] IS NULL OR paper_external_code = ANY(%s))
+        """,
+        (paper_codes, paper_codes),
     )
     pending = cur.fetchall()
 
@@ -255,6 +259,8 @@ def cmd_ingest(cur) -> None:
                 continue
             problem_number = int(q_match.group(1))
             canonical_code = f"{paper_external_code}_Q{problem_number:02d}"
+            if question_codes is not None and canonical_code not in question_codes:
+                continue
             statement_text = _clean_crawl_pdf_markdown(
                 problem_md.read_text(encoding="utf-8").replace("\x00", "")
             )

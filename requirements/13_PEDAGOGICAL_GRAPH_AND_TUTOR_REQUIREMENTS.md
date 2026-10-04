@@ -15,6 +15,49 @@ Existing corpus relationships, retrieval, authentication, and learner records
 are preserved. Presentation pages document the implemented workflow, live
 rollout evidence, review limitations, and P1/P2 roadmap.
 
+### Current admin approval status
+
+On 2026-10-04, after the initial pending rollout below, the operator explicitly
+authorized bulk approval of **only the 27 starter assertions**. The authenticated
+`/admin/pedagogy` UI saved 6 skills, 6 skill-concept links, 6 skill relations,
+6 problem mappings, and 3 difficulty assessments as REVIEWED in Neon, with
+27 immutable before/after audit events and the operator's rationale. Explicit
+publication then reconciled AuraDB: **18 REVIEWED skill-related edges**,
+**65 PENDING legacy concept-hierarchy edges**, and 3 REVIEWED assessments.
+The 65 hierarchy assertions and pending corpus topic/method tags were not approved.
+
+This is user-authorized bootstrap approval, not a claim of independent expert
+verification or calibrated difficulty. Generated coaching remains PENDING.
+The reviewed starter set now enables real prerequisite and lower-level
+same-skill retrieval; for `AMC10_2007B_Q20`, the reviewed context has two skill
+mappings, three prerequisite skills, and recommends `AMC10_2005B_Q18` using
+shared-skill required levels 3 versus 2. Overall difficulty is not inferred.
+
+## Admin review and publication requirements
+
+| ID | Requirement | Acceptance |
+|---|---|---|
+| PED-17 | Admin inspection covers all five P0 metadata tables. | Filter by type/status, paginate, inspect objectives, problem statements, dimensions, nullable fields, source and confidence; optionally load corpus solutions for review. |
+| PED-18 | Decisions are explicitly authorized and audited in Postgres. | Approve, reject, or return to pending; mandatory 10-2,000-character rationale; immutable before/after snapshots, timestamp and shared-admin credential identity. No fabricated individual reviewer name. |
+| PED-19 | Bulk decisions are transactional and bounded. | Select assertions on the current queue page (API maximum 100), or approve remaining pending assertions from the versioned starter manifest. Skills precede dependent mappings; any stale snapshot, missing dependency, duplicate key or reviewed DAG cycle rolls back every decision and audit event. If the starter import is incomplete, its bulk action is disabled with an explicit warning; unrelated metadata remains reviewable. |
+| PED-20 | Review and publication are separate operations. | Saving never automatically changes Neo4j. Explicit publish checks the displayed source fingerprint, validates cycles and atomically reconciles owned pedagogical metadata. Source changes require reloading. |
+| PED-21 | Admin surfaces are authenticated. | Protected page and same-origin proxy require admin login; REST requires its admin API key. The browser never receives that key. Mutations reject cross-origin requests. |
+| PED-22 | Publication state is visible and honest. | Show last recorded publication and whether source metadata changed. Warn that rejected assertions can remain active in the previous graph until publish; clear local graph caches on success without stale in-flight reads repopulating them. |
+
+Migration 007 adds `knowledge.pedagogy_review_event` and
+`knowledge.pedagogy_publication`. Additional authenticated REST endpoints live
+under `/v1/admin/pedagogy`: GET `queue`; POST `review`, `bulk-review`,
+`approve-starter`, `history`, and `publish`. Queue status and pagination are
+bounded; review mutations include a snapshot revision, publication includes
+the source fingerprint. Failures return 401/403, 404, 409, 422, or 503 as
+appropriate rather than success-shaped responses.
+
+Neo4j and the Postgres publication record cannot share a database transaction.
+If the graph commits but recording fails, report failure and explicitly retry
+publication; never claim an unrecorded cross-database commit was atomic.
+The publication fingerprint covers source tables, not external graph edits.
+External projection tools must be coordinated with the admin publisher.
+
 ## Implemented P0 requirements
 
 | ID | Requirement | Acceptance |
@@ -88,7 +131,7 @@ Exact rollout commands and manifest formats are documented in the
 [database README](../mathbank-db/README.md) and
 [graph README](../mathbank-graph/README.md).
 
-### Verified live rollout and review limits (2026-10-04)
+### Initial live rollout and review limits (superseded by admin approval above)
 
 The user-authorized migration and metadata writes were applied to the same
 Neon/AuraDB pair used by the app, after sanitized target-identity checks.

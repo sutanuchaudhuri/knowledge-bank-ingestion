@@ -286,7 +286,8 @@ def parse_pdf_paper(
         if not solution_text:
             warnings.append(f"No solution text found for Q{q_num}")
         if prob_result.used_fallback:
-            warnings.append("Extracted with PyMuPDF fallback (Docling unavailable)")
+            warnings.append("Extracted with PyMuPDF native text (Docling unavailable or explicitly bypassed)")
+        warnings.extend(prob_result.warnings)
 
         q_id = f"{paper_id}_Q{q_num:02d}" if q_num > 0 else paper_id
         answer = _extract_boxed_answer(solution_text)
@@ -343,3 +344,5 @@ def render_pdf_pages(pdf_bytes: bytes, out_dir: Path, label: str, dpi: int = 144
         fpath = out_dir / "pages" / fname
         pix.save(str(fpath))
         paths.append(str(fpath))
+    doc.close()
+    return paths

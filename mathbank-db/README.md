@@ -40,6 +40,60 @@ cd ../mathbank-db && make vector-backfill-remote   # Neon core.* -> search.* emb
 Full command reference and idempotency guarantees for every stage:
 [DATABASES.md § Full corpus pipeline](../DATABASES.md#full-corpus-pipeline-crawl--classify--export--etl--graph--vector).
 
+### Resumable SMT/HMMT paper batches
+
+The Postgres-driven runner reads registered PDF sources for `SMT`, `HMMT_FEB`,
+`HMMT_NOV`, and `HMMT_INV` only. It does not depend on the older SQLite
+`unparsed_papers` queue, and does not process CMM or auto-approve classifications.
+
+```sh
+# Paid model calls: explicitly authorize scope/cost and configure OPENAI_API_KEY first.
+make -C mathbank-db paper-batches-remote BATCH_SIZE=5
+# Bounded execution:
+make -C mathbank-db paper-batches-remote BATCH_SIZE=2 LIMIT=2
+# Resume failed/interrupted stages from the ORIGINAL snapshot, including papers
+# already ingested but not yet classified/projected. Obtain UUID from /admin.
+make -C mathbank-db paper-batches-remote BATCH_SIZE=5 RESUME=<run-uuid>
+```
+
+`PAPER_BATCH_PYTHON` defaults to the REST virtualenv (psycopg + Neo4j);
+download/parse/classification subprocesses use the ingestion virtualenv.
+Both `PG_ENV_FILE` and `GRAPH_ENV_FILE` must explicitly target the app's
+Neon/Aura pair. The runner snapshots pending papers, takes a session advisory
+lock to prevent duplicate runners, and processes a finite queue in batches.
+
+For each paper: download and parse, validate nonempty contiguous numbered
+questions and any registry-provided expected count, split artifacts, ingest
+only verified question IDs, classify using the configured paid model, and
+verify SQLite classification coverage. Each successful batch exports only its
+paper mappings, loads Postgres concept/technique assertions, projects the corpus
+and existing pedagogy, and checks that every classified problem has a graph
+classification edge. `COMPLETED` is written only after that graph check.
+Downloaded solutions may be unavailable; inspect solution counts and extraction
+warnings rather than assuming every problem has a solution.
+
+CPU extraction and an external-drive temporary directory are used for batch
+children to avoid filling the Mac system volume with Apple GPU compilation
+files. A rejected Docling parse gets one explicitly logged native-text retry,
+subject to the same strict validation. Native text and figure associations
+still require human quality review; no extraction method guarantees mathematical
+fidelity. Failed sources remain explicit failures, not successful empty papers.
+
+`pipeline.run` stores run UUID, original scope, heartbeat, completion/failure
+counts and log directory. `pipeline.work_item` stores per-paper stage, attempts,
+classification/graph status, warnings and errors. Detailed stage logs and
+source manifests are under `mathbank_data_ingestion/logs/paper_batches/`.
+The authenticated `/admin` dashboard refreshes every 15 seconds, has paper
+pagination, and exposes classification and graph completion separately from
+download/parse/ingest. `NOT_TRACKED` means no end-to-end batch evidence exists,
+not a declaration that legacy classifications are missing.
+
+New concept/technique assertions remain **PENDING** in Postgres and graph.
+Existing reviewed pedagogical assertions are preserved. Embedding/vector
+backfill is a separate paid operation, not included in paper-batch completion.
+Graph web caches may take up to five minutes to reflect CLI publications.
+Coordinate external projection with admin pedagogical publication.
+
 ### Vector/RAG commands (`etl/embed_corpus.py`)
 
 | Command | What it does |
@@ -150,11 +204,13 @@ The app's Neon/AuraDB pair was migrated and populated explicitly on
 mappings, and 3 multidimensional assessments. It covers `AMC10_2005B_Q18`,
 `AMC10_2007B_Q20`, and `AMC10_2005B_Q21`, not the whole corpus.
 
-Every starter assertion is **PENDING**, with versioned assistant-draft source
+Every starter manifest assertion starts **PENDING**, with versioned assistant-draft source
 and explicit confidence. Required levels and difficulty axes are proposals,
-not calibrated or expert-reviewed ratings. Step counts and prerequisite-depth
-estimates are intentionally absent. Human review is still required before
-these assertions can drive reviewed tutoring recommendations.
+not calibrated ratings. Step counts and prerequisite-depth estimates are
+intentionally absent. Following explicit operator authorization, the live
+starter rows were bulk-approved through `/admin/pedagogy` on 2026-10-04.
+All 27 are now REVIEWED in Postgres, with individual audit snapshots and the
+operator's rationale. This is bootstrap approval, not independent expert certification.
 
 ```sh
 # Inspect remote.env and verify it targets the same Neon/Aura pair as the app.
@@ -169,6 +225,39 @@ The migration is transactional and repeatable. Repeated live import preserved
 all row values and skill UUIDs. Existing corpus counts remained 5,960 problems
 and 13,168 solutions. Original corpus classification provenance is projected
 alongside the new metadata, without relabeling pending assertions as reviewed.
+
+### Admin approval UI
+
+Open `http://localhost:5173/admin/pedagogy` after logging in as admin.
+Migration 007 adds review history and publication records:
+
+```sh
+make -C mathbank-db migrate-pedagogy-review-remote
+```
+
+Review skills before dependent links, or use **Approve pending starter set**
+to handle all pending starter rows in dependency order. **Select all assertions
+on this page** supports selected-row bulk approval/rejection. Every individual
+or bulk decision requires a rationale; approval also requires an explicit UI
+confirmation. A stale row, invalid dependency or reviewed graph cycle rejects
+the entire transaction. There is no automatic propagation to related rows.
+
+Then explicitly select **Publish metadata to graph**. A source fingerprint
+prevents publishing an unseen changed snapshot. Publishing retains statuses
+and does not approve other pending corpus metadata. The current live publication
+has 6 REVIEWED skills, 18 REVIEWED skill-related edges, 3 REVIEWED difficulty
+assessments, and 65 PENDING legacy hierarchy edges.
+
+The shared admin credential is recorded as `shared-admin-api-key`, not a
+fabricated named reviewer. Audit events preserve original assistant sources,
+confidence and all before/after fields. Review history is immutable via this
+API. The system does not persist learner information during metadata review.
+
+**Do not re-import the original PENDING starter manifest to refresh a reviewed
+set.** Import is replacement semantics, so doing so intentionally downgrades
+the live statuses. The manifest remains the original candidate proposal; admin
+decisions live in Postgres history. For a revised assertion, reauthor it as
+PENDING and review it again before publication.
 
 For subsequent authoring, preserve the previous manifest before importing.
 An authoring rollback means re-importing that version and reprojecting, not
