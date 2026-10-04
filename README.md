@@ -7,8 +7,8 @@ services:
 
 | Service | What it is | Port |
 |---|---|---|
-| `mathbank-db` | Postgres 16 + pgvector — `core.*`/`knowledge.*`/`search.*`/`learner.*`/`pipeline.*` schema + ETL/embedding pipelines | 5433 (local) |
-| `mathbank-graph` | Neo4j — knowledge graph projection (`TESTS`, `USES_TECHNIQUE`, `MASTERED`, ...) | 7474/7687 (local) |
+| `mathbank-db` | Postgres 16 + pgvector — `core.*`/`knowledge.*`/`search.*`/`learner.*`/`pipeline.*` schema + ETL/embedding pipelines | 5433 (local, **optional** — see below) |
+| `mathbank-graph` | Neo4j — knowledge graph projection (`TESTS`, `USES_TECHNIQUE`, `MASTERED`, ...) | 7474/7687 (local, **optional** — see below) |
 | `mathbank-rest` | FastAPI — the only service that talks to Postgres/Neo4j directly; hybrid search, learner auth/mastery, admin pipeline endpoints | 8000 |
 | `mathbank-agent` | Google ADK agent (OpenAI via LiteLLM) — calls `mathbank-rest` as tools, never touches the DBs directly | 8001 |
 | `mathbank-web` | Next.js — student chat/login/profile UI + admin ingestion UI, proxies to `mathbank-rest`/`mathbank-agent`/Neo4j server-side | 5173 |
@@ -18,6 +18,30 @@ AuraDB) — see [DATABASES.md](DATABASES.md) for the full local-vs-remote
 picture and the end-to-end corpus pipeline (crawl → classify → ETL → graph →
 vector embeddings). See [GOTCHAS.md](GOTCHAS.md) for environment
 troubleshooting accumulated across this project's history.
+
+## Do I need local Postgres/Neo4j at all?
+
+**Usually no.** `mathbank-db` and `mathbank-graph` are literally the names
+of the *schema/ETL* projects, not something the other three services talk
+to at runtime — `mathbank-rest` and `mathbank-web` each read their own
+`.env` and connect **directly** to whatever `POSTGRES_HOST`/`NEO4J_URI`
+point at. After `make sync-env` (the common path — see below), those point
+at the shared remote **Neon Postgres + Neo4j AuraDB**, so a local Postgres
+16 / Neo4j install is not required to run the app at all.
+
+Local Postgres/Neo4j (via Homebrew, on the external APFS drive) are only
+needed if you're doing **local-only** corpus pipeline work (ingestion
+scripts without `-remote`, schema changes before pushing them to Neon,
+etc.) — see `mathbank-db/README.md` / `mathbank-graph/README.md`.
+
+Because of this, `make up`/`make status`/`make down` treat `db`/`graph` as
+**best-effort**: if `pg_ctl`/`neo4j` aren't installed, you'll see an error
+line for those two only, and `rest`/`agent`/`web` still start normally. If
+you see `No such file or directory` for `pg_ctl` or `neo4j` and you're
+using the shared remote `.env`, that's expected — ignore it, or run
+`make -C mathbank-db install && make -C mathbank-graph install` (then
+`make -C mathbank-db init start create-db` / `make -C mathbank-graph setup`)
+only if you actually intend to run a fully local stack (`make up-local-db`).
 
 ## Quick start
 
@@ -38,7 +62,8 @@ make sync-env            # or: ./sync-env.sh
 # 4. Install whatever isn't already installed, and see what (if anything) is
 #    still missing:
 make setup
-# 5. Start everything:
+# 5. Start everything (db/graph errors here are fine — see "Do I need local
+#    Postgres/Neo4j at all?" above — rest/agent/web are what actually matter):
 make up
 ```
 
@@ -52,7 +77,7 @@ non-zero so you notice). Re-run it any time the shared `.env` changes.
 ```bash
 make setup    # check/create .env files, flag missing secrets, install every
               # venv/node_modules not already present — safe to re-run anytime
-make up       # start every service (db, graph, rest, agent, web), in order
+make up       # start rest/agent/web (local db/graph are best-effort, see above)
 make status   # confirm everything is running
 make down     # stop everything
 ```

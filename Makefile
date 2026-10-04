@@ -138,7 +138,15 @@ bootstrap:                        ## Single-command rebuild of the ENTIRE stack 
 	@echo "Full stack bootstrapped. Start everything with: make up"
 
 .PHONY: up
-up: db-start graph-start rest-start agent-start web-start  ## Start every service (databases + rest + agent + web), in dependency order
+up:                               ## Start every service. Local Postgres/Neo4j (db/graph) are best-effort — harmless to skip if your .env points at remote Neon/AuraDB (the common case after `make sync-env`)
+	-$(MAKE) -C mathbank-db start
+	-$(MAKE) -C mathbank-graph start
+	$(MAKE) -C mathbank-rest start
+	$(MAKE) -C mathbank-agent start
+	$(MAKE) -C mathbank-web start
+
+.PHONY: up-local-db
+up-local-db: db-start graph-start rest-start agent-start web-start  ## Same as `up`, but local Postgres/Neo4j failures are fatal — use this only if you intend to run a fully local (non-Neon/AuraDB) stack
 
 .PHONY: down
 down:                             ## Stop every service
