@@ -9,22 +9,15 @@ this is the chat-completions equivalent, not a new architectural boundary.
 from __future__ import annotations
 
 import json
-import os
 
-from dotenv import load_dotenv
 from openai import OpenAI
 
 from mathbank_rest.db import queries
+from mathbank_rest.project_credentials import configure_openai
 
 MODEL_NAME = "gpt-4o-mini"
 
-load_dotenv()
-if not os.environ.get("OPENAI_API_KEY"):
-    raise RuntimeError(
-        "OPENAI_API_KEY not found in the shell environment (~/.zshrc) or mathbank-rest/.env. "
-        "Export it in your shell, or set OPENAI_API_KEY=... in .env (see .env.example)."
-    )
-_client = OpenAI()
+_client = OpenAI(api_key=configure_openai())
 
 _DECOMPOSE_SYSTEM = """You are a competition math tutor helping a student who is stuck on a \
 problem. Break the problem into 2-4 small, ordered subproblems that build up to the full \

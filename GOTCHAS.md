@@ -1,5 +1,20 @@
 # GOTCHAS — things that will bite you on a fresh machine
 
+## Pipeline completion and hybrid retrieval
+
+- Admin `/admin` observes registered sources plus canonical papers. A historical
+  batch snapshot is only one scope; its totals are not the whole competition.
+- Batch `graph_verified` does not imply vectors, generated teaching metadata or
+  taxonomy relationships are complete. The console measures these separately.
+- Unknown historical timestamps stay unrecorded. Stale heartbeats are evidence
+  of stalled reporting, not proof that a process has exited.
+- Graph failures show UNKNOWN and warnings, not zero edges. Graph write counts
+  in projection logs are operations; live edge counts are separate inventory.
+- Search defaults to graph + pgvector + lexical RRF. Graph outages are disclosed
+  as degraded retrieval. Similarity is not proof of skills or learner mastery.
+- Paper stages now retain start/end times in work-item metrics for future runs;
+  existing running workers keep their loaded code until a safe restart.
+
 Every item here was hit for real while building this repo. `make bootstrap`
 (root Makefile) automates around all of them where possible; this file
 explains *why* each workaround exists, for when it inevitably breaks again on
@@ -28,6 +43,59 @@ Use one watcher with `--workers 4`, not four watchers. Model requests overlap;
 global cycle-safe imports and graph publication remain serialized. SIGTERM
 drains the threaded watcher, so wait for its PID to exit before replacement.
 Provider throttling and database locks can limit speedup.
+
+## Catalog relationships need separate semantic checks
+
+Question prerequisite enrichment does not populate skill hierarchy, optional
+supporting skills, or concept prerequisites. Enable `--relationships` on the
+same watcher after migration 009; never relabel edges or fabricate relationships
+to fill an empty view. PART_OF is component action -> composite action;
+BUILDS_ON is useful prior skill -> dependent skill; concept PREREQUISITE_OF is
+necessary foundation -> dependent knowledge.
+
+The first paid pilots passed schema/cycle checks yet produced synonyms,
+reversed edges and false prerequisites. Independent semantic verification is
+mandatory before automatic approval. Earlier bad pilot edges were REJECTED with
+audit history and cannot be resurrected by the worker. Model agreement still
+is not expert certification. Both relationship calls default to `gpt-4.1`;
+override through `RELATIONSHIP_MODEL` / `RELATIONSHIP_VERIFIER_MODEL`. Question
+enrichment is unchanged. Changing models enters the job input fingerprint and
+can generate more paid work. Candidate retrieval is bounded and safe empty
+proposals are allowed. Mixed-stage throughput is not the question-only ETA.
+Details: [relationship enrichment](requirements/15_RELATIONSHIP_ENRICHMENT.md).
+
+## Purple Comet PDF and image completeness
+
+Discover actual contest links and embedded English PDF URLs from the official
+archive. Determine each year's question count from its official numbered answer
+table; older high-school contests do not all have 30 questions. Some historical
+`/files/...pdf` endpoints can return HTML with HTTP 200. Check `%PDF-` bytes and retain
+an explicit failed source rather than classifying the homepage.
+Some valid old Purple Comet PDFs begin with whitespace before the PDF header.
+The first signature check incorrectly rejected these as non-PDF; the shared
+header validator now accepts only a whitespace-prefixed header within the
+first 1024 bytes. It still rejects HTML with a PDF-looking string inside it.
+Validate both official hosts before declaring a source unavailable.
+
+CPU Docling exports headings such as `## Problem 1`. A regex matching only
+bare `Problem 1` lines incorrectly falls back to a whole-paper block. Treat
+Markdown heading prefixes as question headings, then enforce exact counts.
+Docling defaults to CPU, with formula enrichment enabled. Archive workers set
+`HF_HOME`, `TORCH_HOME` and `TMPDIR` under the external-drive project; do not
+download model caches onto the space-constrained system disk or switch to GPU.
+
+Problem/solution page images must follow numbered page spans. Proportional page
+assignment can omit a diagram or continuation page. Keep full page renders for
+vector diagrams too; embedded-raster-image extraction alone is insufficient.
+Purple Comet sends these real PNG bytes to its visual classifier (`gpt-4.1`),
+not merely filenames in a prompt. Preserve original PDFs and extracted text;
+native-text fallback still needs formula-quality review, even with all images.
+
+An official answer key is not an explanatory solution. Keep answers in
+`core.problem.official_answer`; do not create fake solution records when the
+worked-solution PDF is unavailable. Store both problem and solution page
+references in `core.problem_image` with distinct sources. Queue publication on
+the existing paper advisory lock instead of competing with the SMT/HMMT runner.
 
 ## 1. Python venvs: use `uv venv`, not `python3.11 -m venv`
 
@@ -103,7 +171,7 @@ FIXED_CPPFLAGS=$(pg_config --cppflags | sed "s#MacOSX26.sdk#$(basename $(xcrun -
 
 `install-pgvector` does this automatically.
 
-## 6. `OPENAI_API_KEY`: secure local sync and shell precedence
+## 6. `OPENAI_API_KEY`: file-only project credentials
 
 Both `mathbank-db/etl/embed_corpus.py` and `mathbank-rest`'s
 `vector_search.py` (and `mathbank-agent`'s LiteLLM model) read `OPENAI_API_KEY`
@@ -111,9 +179,19 @@ via the OpenAI/LiteLLM SDK defaults (`os.environ`). Set it in the gitignored
 root `.env`, then run `make sync-openai-key`. This writes owner-only service
 environment files without displaying the key, including REST, agent and
 ingestion. `make up` / `make up-app` also perform this sync.
-An exported shell key is used for synchronization only when the root key is
-absent. At runtime, `python-dotenv`/`load_dotenv()` only fills unset variables,
-so an already-exported shell key still wins over service `.env` values.
+Shell keys are ignored, including ones inherited from `.zshrc`. The shared
+credential loader reads root `.env` without variable interpolation, overrides
+the runtime key, and clears inherited OpenAI routing/organization/project
+settings unless configured in project files. This also applies to direct
+REST, agent, classification/review and embedding commands. A service key is
+used only if root `.env` does not exist; a root file with a missing/empty key
+fails explicitly. Other worker database overrides are unchanged.
+
+Run `make check-openai` to check authentication; `make check-openai CHAT=1`
+also performs a small paid LiteLLM call with the agent's file-configured model.
+401 is different from quota/rate-limit 429 or model access 403/404. A shared
+file can be valid here but missing/stale on another machine; check there.
+Never modify another project's shell profile to fix MathBank.
 Restart running services after changing the key. Never commit the key, pass
 it as a command-line argument, expose it through `NEXT_PUBLIC_*`, or share
 environment files/logs through unsecured channels.
@@ -478,7 +556,7 @@ correctly, copy their exact `../` count rather than recounting from scratch.
 ## Single-command recreation
 
 ```bash
-# one-time, from a fresh clone, with OPENAI_API_KEY already exported:
+# one-time, from a fresh clone, with OPENAI_API_KEY in root .env:
 cp mathbank-db/.env.example mathbank-db/.env           # fill in passwords
 cp mathbank-graph/.env.example mathbank-graph/.env
 cp mathbank-rest/.env.example mathbank-rest/.env        # match the passwords above

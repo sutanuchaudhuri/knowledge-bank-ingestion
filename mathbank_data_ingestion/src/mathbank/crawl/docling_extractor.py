@@ -57,9 +57,10 @@ def _extract_with_docling(pdf_bytes: bytes, out_dir: Path | None, label: str) ->
     # Build pipeline options — enable image and figure extraction.
     opts = PdfPipelineOptions()
     opts.generate_picture_images = True
+    opts.do_formula_enrichment = True
     opts.generate_page_images = False  # skip full page renders; we keep PyMuPDF for those
     opts.images_scale = 2.0
-    device = os.environ.get("MATHBANK_PDF_DEVICE")
+    device = os.environ.get("MATHBANK_PDF_DEVICE", "cpu")
     if device:
         from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
         opts.accelerator_options = AcceleratorOptions(device=AcceleratorDevice(device))

@@ -50,10 +50,10 @@ test("root key wins; preserve settings, replace duplicate keys and secure existi
   });
 });
 
-test("exported shell key is a fallback when root key is absent", async () => {
+test("exported shell key is ignored when root key is absent", async () => {
   await fixture(async (root) => {
-    await sync(root, fakeKey);
-    assert.match(await readFile(join(root, "mathbank_data_ingestion/.env"), "utf8"), /OPENAI_API_KEY=sk-test/);
+    await assert.rejects(sync(root, fakeKey), error => error.stderr.includes("shell keys are ignored"));
+    await assert.rejects(stat(join(root, "mathbank_data_ingestion/.env")), { code: "ENOENT" });
   });
 });
 

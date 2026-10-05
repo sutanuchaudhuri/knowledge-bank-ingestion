@@ -4,8 +4,8 @@ Pipeline: core.problem/core.solution -> search.representation -> search.chunk
 -> search.embedding (OpenAI), with pipeline.run / search.embedding_job
 tracking per mathematics_tutor_db_plan_v2/vector/06_embedding_pipeline_reembedding_and_versioning.md.
 
-Reads OPENAI_API_KEY from the environment (the OpenAI SDK default) — never
-pass it on the command line or write it to a file.
+Loads OPENAI_API_KEY from project .env files, ignoring inherited shell keys.
+Never pass it on the command line or print it.
 
 Usage:
     python etl/embed_corpus.py backfill            # representations + chunks + embeddings
@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import sys
 from pathlib import Path
 
@@ -27,6 +26,8 @@ from openai import OpenAI
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from load_corpus import _load_env  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from project_env import load_project_openai  # noqa: E402
 
 PROVIDER = "openai"
 MODEL_NAME = "text-embedding-3-small"
@@ -37,18 +38,7 @@ MAX_CHARS_PER_CHUNK = 6000  # ~1500 tokens; our statements/solutions are short e
 
 
 def _ensure_openai_api_key() -> None:
-    """Checks the shell environment (e.g. ~/.zshrc) first, then falls back to
-    mathbank-db/.env — never overrides an already-exported key."""
-    if os.environ.get("OPENAI_API_KEY"):
-        return
-    env_key = _load_env().get("OPENAI_API_KEY")
-    if env_key:
-        os.environ["OPENAI_API_KEY"] = env_key
-        return
-    raise RuntimeError(
-        "OPENAI_API_KEY not found in the shell environment (~/.zshrc) or mathbank-db/.env. "
-        "Export it in your shell, or set OPENAI_API_KEY=... in .env (see .env.example)."
-    )
+    load_project_openai(Path(__file__).resolve().parents[1] / ".env")
 
 _encoding = tiktoken.get_encoding("cl100k_base")
 
@@ -177,13 +167,18 @@ def _upsert_chunks(cur, representation_id: str, text: str, problem_id: str | Non
     return len(pieces)
 
 
-def build_representations_and_chunks(cur, profile_id: str, limit: int | None) -> tuple[int, int]:
+def build_representations_and_chunks(cur, profile_id: str, limit: int | None,
+                                     paper_codes: list[str] | None = None) -> tuple[int, int]:
     reps = chunks = 0
 
     query = "SELECT problem_id, statement_text FROM core.problem WHERE statement_text NOT LIKE '[Placeholder]%%'"
+    params = []
+    if paper_codes is not None:
+        query += " AND paper_id IN (SELECT paper_id FROM core.paper WHERE external_code=ANY(%s))"
+        params.append(paper_codes)
     if limit:
         query += f" LIMIT {int(limit)}"
-    cur.execute(query)
+    cur.execute(query, params)
     for problem_id, statement_text in cur.fetchall():
         rendered = f"[Problem] {statement_text}"
         rep_id = _upsert_representation(cur, profile_id, "PROBLEM", str(problem_id), "PROBLEM_STATEMENT", rendered)
@@ -192,9 +187,13 @@ def build_representations_and_chunks(cur, profile_id: str, limit: int | None) ->
             chunks += _upsert_chunks(cur, rep_id, rendered, str(problem_id), None)
 
     query = "SELECT solution_id, body_markdown FROM core.solution WHERE body_markdown IS NOT NULL"
+    params = []
+    if paper_codes is not None:
+        query += " AND problem_id IN (SELECT p.problem_id FROM core.problem p JOIN core.paper t USING(paper_id) WHERE t.external_code=ANY(%s))"
+        params.append(paper_codes)
     if limit:
         query += f" LIMIT {int(limit)}"
-    cur.execute(query)
+    cur.execute(query, params)
     for solution_id, body_markdown in cur.fetchall():
         rendered = f"[Solution] {body_markdown}"
         rep_id = _upsert_representation(cur, profile_id, "SOLUTION", str(solution_id), "SOLUTION_FULL", rendered)
@@ -205,7 +204,8 @@ def build_representations_and_chunks(cur, profile_id: str, limit: int | None) ->
     return reps, chunks
 
 
-def embed_pending_chunks(cur, conn, model_id: str, limit: int | None) -> tuple[int, int]:
+def embed_pending_chunks(cur, conn, model_id: str, limit: int | None,
+                         paper_codes: list[str] | None = None) -> tuple[int, int]:
     client = OpenAI()  # reads OPENAI_API_KEY from the environment (see _ensure_openai_api_key)
 
     cur.execute(
@@ -225,6 +225,19 @@ def embed_pending_chunks(cur, conn, model_id: str, limit: int | None) -> tuple[i
         WHERE e.embedding_id IS NULL
     """
     params: list = [model_id]
+    if paper_codes is not None:
+        query = query.replace("e.embedding_model_id = %s", "e.embedding_model_id = %s AND e.status='ACTIVE'")
+        query += """
+          AND EXISTS (SELECT 1 FROM search.representation r
+                      WHERE r.representation_id=c.representation_id AND r.status='ACTIVE')
+          AND (c.problem_id IN (
+                SELECT p.problem_id FROM core.problem p JOIN core.paper t USING(paper_id)
+                WHERE t.external_code=ANY(%s))
+               OR c.solution_id IN (
+                SELECT s.solution_id FROM core.solution s JOIN core.problem p USING(problem_id)
+                JOIN core.paper t USING(paper_id) WHERE t.external_code=ANY(%s)))
+        """
+        params.extend([paper_codes, paper_codes])
     if limit:
         query += " LIMIT %s"
         params.append(limit)
@@ -253,7 +266,15 @@ def embed_pending_chunks(cur, conn, model_id: str, limit: int | None) -> tuple[i
             conn.commit()
             continue
 
-        for (chunk_id, _, chunk_hash, representation_id), item in zip(batch, response.data):
+        if len(response.data) != len(batch) or sorted(item.index for item in response.data) != list(range(len(batch))):
+            cur.execute(
+                "UPDATE pipeline.run SET status='FAILED',completed_at=now(),failed_items=%s,"
+                "metadata=metadata || jsonb_build_object('error','incomplete embedding provider batch') "
+                "WHERE run_id=%s", (len(batch), run_id),
+            )
+            conn.commit()
+            raise RuntimeError("Embedding provider returned an incomplete or invalid batch")
+        for (chunk_id, _, chunk_hash, representation_id), item in zip(batch, sorted(response.data, key=lambda item: item.index)):
             vector_values = item.embedding
             if len(vector_values) != DIMENSIONS:
                 cur.execute(
@@ -296,11 +317,11 @@ def embed_pending_chunks(cur, conn, model_id: str, limit: int | None) -> tuple[i
     cur.execute(
         """
         UPDATE pipeline.run
-        SET status = 'COMPLETED', completed_at = now(),
+        SET status = %s, completed_at = now(),
             expected_items = %s, completed_items = %s, failed_items = %s
         WHERE run_id = %s
         """,
-        (len(pending), embedded, failed, run_id),
+        ("FAILED" if failed else "COMPLETED", len(pending), embedded, failed, run_id),
     )
     conn.commit()
     return embedded, failed
@@ -348,6 +369,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("command", choices=["backfill", "index", "status"])
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--paper", action="append", help="Exact paper external code; repeat for a scoped backfill")
     args = parser.parse_args()
 
     with _connect() as conn:
@@ -364,11 +386,13 @@ def main() -> None:
                 run_id = cur.fetchone()[0]
                 conn.commit()
                 try:
-                    reps, chunks = build_representations_and_chunks(cur, profile_id, args.limit)
+                    reps, chunks = build_representations_and_chunks(cur, profile_id, args.limit, args.paper)
                     conn.commit()
                     print(f"representations: {reps} chunks: {chunks}")
-                    embedded, failed = embed_pending_chunks(cur, conn, model_id, args.limit)
+                    embedded, failed = embed_pending_chunks(cur, conn, model_id, args.limit, args.paper)
                     print(f"embedded: {embedded} failed: {failed}")
+                    if failed:
+                        raise RuntimeError(f"{failed} embedding chunks failed; backfill is incomplete")
                 except Exception as exc:
                     cur.execute(
                         "UPDATE pipeline.run SET status = 'FAILED', completed_at = now(), "

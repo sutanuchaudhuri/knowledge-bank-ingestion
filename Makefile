@@ -14,8 +14,12 @@ sync-env:                        ## Distribute the shared root .env into every s
 	@bash sync-env.sh
 
 .PHONY: sync-openai-key
-sync-openai-key:                  ## Copy OPENAI_API_KEY from root .env (or shell fallback) to service env files, without printing it
+sync-openai-key:                  ## Copy OPENAI_API_KEY from root .env only to service env files, without printing it
 	@node scripts/sync-openai-key.mjs
+
+.PHONY: check-openai
+check-openai:                     ## Check file-only OpenAI auth; CHAT=1 also makes a small paid LiteLLM model check
+	@mathbank-agent/.venv/bin/python scripts/check-openai.py $(if $(filter 1,$(CHAT)),--chat,)
 
 .PHONY: setup
 setup:                           ## Check/create .env files, flag missing secrets (OPENAI_API_KEY etc.), install every venv/node_modules not already present

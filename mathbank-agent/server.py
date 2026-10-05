@@ -3,21 +3,25 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
+from pathlib import Path
 
-import uvicorn
 import psycopg
+import uvicorn
 from dotenv import load_dotenv
 from google.adk.cli.fast_api import get_fast_api_app
 from google.adk.cli.service_registry import get_service_registry
 from google.adk.sessions import DatabaseSessionService
-from sqlalchemy.exc import SQLAlchemyError
-
 from session_config import (
     ROOT,
     create_session_service,
     prepare_session_schema,
     session_database_url,
 )
+from sqlalchemy.exc import SQLAlchemyError
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+from project_env import load_project_openai  # noqa: E402
 
 
 async def check_session_storage(service: DatabaseSessionService) -> None:
@@ -34,6 +38,7 @@ def main() -> None:
     parser.add_argument("--web", action="store_true")
     args = parser.parse_args()
     load_dotenv(ROOT / ".env")
+    load_project_openai(ROOT / ".env")
     url = session_database_url()
     try:
         prepare_session_schema(url)

@@ -26,7 +26,7 @@ def search_problems(
     recent_first: bool = False,
     limit: int = 10,
 ) -> dict:
-    """Hybrid semantic + lexical search over competition math problem statements.
+    """Hybrid graph + vector similarity + lexical search over canonical statements.
 
     Use this for any open-ended question about what problems exist on a topic,
     e.g. "recent questions on combinatorics", "problems about cyclic
@@ -36,7 +36,8 @@ def search_problems(
         query: The natural-language topic or concept to search for (required).
         competition: Optional exact competition code to filter by, one of
             AMC10, AMC12, AIME, HMMT_FEB, HMMT_NOV, HMMT_INV, SMT, PUMAC,
-            CHMMC, CMM, MPG_MAIN, MPG_OLY. Leave empty to search all.
+            CHMMC, CMM, MPG_MAIN, MPG_OLY, PURPLE_MS, PURPLE_HS, ARML,
+            ARML_LOCAL, ARML_POWER. Leave empty to search all.
         year_min: Optional earliest competition year to include (0 = no limit).
         year_max: Optional latest competition year to include (0 = no limit).
         recent_first: If true, sort matching problems by year descending
@@ -47,9 +48,14 @@ def search_problems(
     Returns:
         {"query": str, "results": [{"canonical_code", "statement_text",
         "competition", "year", "paper_code", "rrf_score", "semantic_rank",
-        "lexical_rank"}, ...]}
+        "lexical_rank", "graph_rank", "graph_evidence"}, ...],
+        "retrieval": {...}, "warnings": [...]}.
+        Disclose warnings; unavailable graph retrieval is not successful graph coverage.
     """
-    body: dict = {"query": query, "limit": min(limit, 100), "filters": {}}
+    body: dict = {
+        "query": query, "limit": min(limit, 100), "filters": {},
+        "retrieval": {"semantic": True, "lexical": True, "graph": True},
+    }
     if competition:
         body["filters"]["competition"] = competition
     if year_min:

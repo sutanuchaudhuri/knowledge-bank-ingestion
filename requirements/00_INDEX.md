@@ -17,6 +17,10 @@ This folder defines the implementation plan and requirements for building the Ma
 11. [11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md](11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md) — entity-relationship diagram, sequence diagrams for every end-to-end flow (ingestion, student login, attempts/mastery, agent query), how to test each flow independently, how to inject future question papers, the test framework, the precision/recall metrics framework with trend tracking, and the agentic-layer/ingestion-layer evals + feedback/analytics endpoints.
 12. [12_STUDENT_PROFILE_AND_ADMIN_LOGIN_UI_REQUIREMENTS.md](12_STUDENT_PROFILE_AND_ADMIN_LOGIN_UI_REQUIREMENTS.md) — student login/register/profile dashboard UI (past attempts, strength/weakness by concept, improvement plan) and a predefined-credential admin login gating `/admin`, both an explicit bridge until real OAuth; entity-relationship diagram for the extended `learner.*` schema (`first_name`/`last_name`).
 13. [13_PEDAGOGICAL_GRAPH_AND_TUTOR_REQUIREMENTS.md](13_PEDAGOGICAL_GRAPH_AND_TUTOR_REQUIREMENTS.md) — P0 measurable skills, reviewed prerequisites/hierarchy, rich graph metadata, and anonymous diagnostic/progressive-hint UI; P1 solution steps, misconceptions, versioned courses and P2 learner evidence roadmap.
+14. [14_AUTOMATIC_ENRICHMENT_RECOVERY.md](14_AUTOMATIC_ENRICHMENT_RECOVERY.md) — automatic metadata recovery and publication retries.
+15. [15_RELATIONSHIP_ENRICHMENT.md](15_RELATIONSHIP_ENRICHMENT.md) — semantic taxonomy relationship generation and graph publication.
+16. [16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md](16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md) — per-paper/competition completion evidence, timestamps and live metrics across all layers; graph + vector + lexical tutor retrieval.
+17. [17_DOMAIN_AND_TECHNICAL_GLOSSARY.md](17_DOMAIN_AND_TECHNICAL_GLOSSARY.md) — domain/technical vocabulary, actual database and graph representations, exact strength/weakness scoring, operational states and implemented-vs-planned distinctions.
 
 ## Scope Summary
 
@@ -24,7 +28,7 @@ This folder defines the implementation plan and requirements for building the Ma
 - Output artifacts: canonical markdown per paper and per question-part chunks.
 - Storage model: store each document as whole object and chunked objects.
 - Indexing model: category + concept + competition + year + difficulty indexes.
-- Retrieval model: hybrid keyword and vector RAG for curriculum and question search.
+- Retrieval model: hybrid reviewed graph evidence, vector similarity and lexical RAG for curriculum and question search.
 - Integration model: APIs for future agentic workflows.
 
 ## Naming And Versioning

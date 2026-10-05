@@ -2,6 +2,12 @@
 
 ## Purpose
 
+The current local/remote MathBank implementation uses PostgreSQL pgvector/FTS
+and Neo4j, not the historical Firestore/Sheets sketch below. Tutor searches now
+combine reviewed graph candidates with vector similarity and lexical candidates,
+fused at problem level. See [requirements 16](16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md)
+for source evidence, filters and explicit degraded-retrieval acceptance.
+
 The RAG layer enables natural language and structured queries against the corpus, such as:
 - "Show me all questions on Probability"
 - "Give me 10 hard AIME questions on Number Theory"

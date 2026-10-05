@@ -73,7 +73,7 @@ cp .env.example .env            # edit if you want a different model/REST URL
 make install
 
 # Set OPENAI_API_KEY in root .env and run make sync-openai-key from the root,
-# or export it in your shell. Configure Postgres as described above.
+# shell keys are ignored. Configure Postgres as described above.
 make chat                        # talk to the agent directly in the terminal
 # or
 make run                         # serve it as a REST API on :8001 (for mathbank-web)

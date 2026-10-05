@@ -75,3 +75,18 @@ test("publication invalidation cannot be undone by an old in-flight graph read",
   assert.equal(await withCache("graph:test-inflight", 60000, async () => "new"), "new");
   invalidateGraphCache();
 });
+
+test("concept relations retain kind and editable attributes through admin proxies", async () => {
+  const calls = [];
+  const handlers = createAdminPedagogyHandlers({ ...defaults,
+    get: async (...args) => { calls.push(args); return { items: [] }; },
+    post: async (...args) => { calls.push(args); return { updated: 1 }; } });
+  assert.equal((await handlers.GET(new Request(`${URL}?kind=concept_relation&status=REVIEWED`))).status, 200);
+  const body = { kind: "concept_relation", key: { relation_type: "PREREQUISITE_OF" },
+    changes: { strength: 0.8 }, note: "Corrected foundation strength" };
+  assert.equal((await handlers.POST(request({ action: "edit", ...body }))).status, 200);
+  assert.deepEqual(calls, [
+    ["/v1/admin/pedagogy/queue", { kind: "concept_relation", status: "REVIEWED" }],
+    ["/v1/admin/pedagogy/edit", body],
+  ]);
+});

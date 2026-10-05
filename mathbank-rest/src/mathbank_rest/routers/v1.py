@@ -1,11 +1,13 @@
 """v1 read endpoints over the corpus schema — per rest/02 + rest/03 design docs."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from typing import Literal
 
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from mathbank_rest.db import hybrid_search, queries
 from mathbank_rest.db import learner as learner_db
-from mathbank_rest.db import queries, vector_search
 
 router = APIRouter(prefix="/v1")
 
@@ -19,14 +21,15 @@ class SearchFilters(BaseModel):
 class SearchRetrieval(BaseModel):
     semantic: bool = True
     lexical: bool = True
+    graph: bool = True
 
 
 class ProblemSearchRequest(BaseModel):
-    query: str
+    query: str = Field(min_length=1, max_length=2000)
     filters: SearchFilters = SearchFilters()
     retrieval: SearchRetrieval = SearchRetrieval()
-    order_by: str = "relevance"  # relevance | year_desc | year_asc
-    limit: int = 25
+    order_by: Literal["relevance", "year_desc", "year_asc"] = "relevance"
+    limit: int = Field(default=25, ge=1, le=100)
 
 
 @router.get("/competitions")
@@ -114,16 +117,18 @@ def get_weak_concepts(
 
 @router.post("/search/problems")
 def search_problems(body: ProblemSearchRequest) -> dict:
-    if not body.retrieval.semantic and not body.retrieval.lexical:
-        raise HTTPException(status_code=400, detail="at least one of semantic/lexical must be true")
-    results = vector_search.search_problems(
-        body.query,
+    if not body.query.strip():
+        raise HTTPException(status_code=422, detail="query must contain non-whitespace text")
+    if not any((body.retrieval.semantic, body.retrieval.lexical, body.retrieval.graph)):
+        raise HTTPException(status_code=400, detail="at least one retrieval source must be true")
+    return hybrid_search.search_problems(
+        body.query.strip(),
         competition=body.filters.competition,
         year_min=body.filters.year_min,
         year_max=body.filters.year_max,
         semantic=body.retrieval.semantic,
         lexical=body.retrieval.lexical,
+        graph=body.retrieval.graph,
         order_by=body.order_by,
         limit=body.limit,
     )
-    return {"query": body.query, "results": results}

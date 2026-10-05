@@ -45,6 +45,7 @@ import argparse
 import csv
 import hashlib
 import html
+import json
 import re
 import subprocess
 import sys
@@ -210,7 +211,7 @@ def cmd_ingest(
     for paper_external_code, crawl_dir, competition_code in pending:
         competition_id = competition_by_code.get(competition_code)
         paper_dir = PDF_CRAWL_DIR / crawl_dir / paper_external_code
-        match = re.match(r"^PAPER_[A-Z]+_(\d{4})_(.+)$", paper_external_code)
+        match = re.match(r"^PAPER_[A-Z]+(?:_[A-Z]+)*_(\d{4})_(.+)$", paper_external_code)
         if not competition_id or not match or not paper_dir.is_dir():
             cur.execute(
                 """
@@ -283,6 +284,21 @@ def cmd_ingest(
             )
             pg_problem_id = str(cur.fetchone()[0])
             q_count += 1
+            if competition_code.startswith(("PURPLE_", "ARML")):
+                answers_path = paper_dir / "answers.json"
+                if not answers_path.is_file() and competition_code.startswith("PURPLE_"):
+                    raise ValueError(f"{paper_external_code}: missing official answer key")
+                answers = json.loads(answers_path.read_text()) if answers_path.is_file() else {}
+                answer = answers.get(str(problem_number))
+                if not answer and competition_code.startswith("PURPLE_"):
+                    raise ValueError(f"{canonical_code}: missing official answer")
+                cur.execute(
+                    "UPDATE core.problem SET official_answer=%s,answer_type=%s,source_url="
+                    "(SELECT problem_url FROM pipeline.pdf_source WHERE paper_external_code=%s) "
+                    "WHERE problem_id=%s",
+                    (answer, "INTEGER" if competition_code.startswith("PURPLE_") else "TEXT" if answer else None,
+                     paper_external_code, pg_problem_id),
+                )
 
             images_dir = q_dir / "images"
             if images_dir.is_dir():
@@ -291,10 +307,13 @@ def cmd_ingest(
                         cur.execute(
                             """
                             INSERT INTO core.problem_image (problem_id, ordinal, local_path, source)
-                            VALUES (%s, %s, %s, 'PDF_PARSED')
-                            ON CONFLICT (problem_id, ordinal) DO UPDATE SET local_path = EXCLUDED.local_path
+                            VALUES (%s, %s, %s, %s)
+                            ON CONFLICT (problem_id, ordinal) DO UPDATE SET local_path = EXCLUDED.local_path,
+                              source=EXCLUDED.source
                             """,
-                            (pg_problem_id, ordinal, str(image_path.resolve())),
+                            (pg_problem_id, ordinal, str(image_path.resolve()),
+                             "PDF_SOLUTION_PAGE" if competition_code.startswith(("PURPLE_", "ARML")) and image_path.name.startswith("solution_")
+                             else "PDF_PROBLEM_PAGE" if competition_code.startswith(("PURPLE_", "ARML")) else "PDF_PARSED"),
                         )
 
             solution_md = q_dir / "solution.md"

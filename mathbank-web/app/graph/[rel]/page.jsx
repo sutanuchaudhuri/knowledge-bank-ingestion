@@ -187,10 +187,10 @@ export default function GraphRelationshipPage() {
 
       {config?.pedagogical && (
         <div className="alert alert-light border small d-flex flex-wrap justify-content-between gap-2">
-          <span>Teaching graph: only reviewed metadata is used by the tutor. Missing relationships are an enrichment gap, not inferred prerequisites.</span>
+          <span>Teaching graph: approved metadata includes automatic estimates, not necessarily human review. Missing relationships are an enrichment gap, not inferred prerequisites.</span>
           <label className="form-check">
             <input type="checkbox" className="form-check-input" checked={reviewedOnly} onChange={(event) => setReviewedOnly(event.target.checked)} />
-            Reviewed only
+            Approved only
           </label>
           {!reviewedOnly && <strong className="text-warning-emphasis">Inventory view includes unreviewed assertions; do not treat them as teaching facts.</strong>}
         </div>

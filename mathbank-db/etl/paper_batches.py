@@ -55,6 +55,22 @@ def question_codes(source: dict) -> list[str]:
             raise ValueError(f"Missing question artifact: {code}")
     if not numbers or sorted(numbers) != list(range(1, len(numbers) + 1)):
         raise ValueError("Question numbers are not contiguous from 1")
+    if source.get("expected_count") and len(ids) != source["expected_count"]:
+        raise ValueError("Extracted questions do not match the official answer count")
+    if source.get("competition_external_code", "").startswith("PURPLE_"):
+        spans = json.loads((base / "page_spans.json").read_text())
+        answers = json.loads((base / "answers.json").read_text())
+        if set(answers) != {str(n) for n in numbers}:
+            raise ValueError("Official answer key and extracted questions differ")
+        for number in numbers:
+            folder = base / "questions" / f"Q{number:02d}"
+            sides = ("problem", "solution") if source.get("solution_url") else ("problem",)
+            for side in sides:
+                pages = spans[side][str(number)]
+                if not pages or any(not (folder / "images" / f"{side}_page_{page:03d}.png").is_file() for page in pages):
+                    raise ValueError(f"Q{number:02d}: missing required {side} images")
+                if side == "solution" and not _clean_crawl_pdf_markdown((folder / "solution.md").read_text()).strip():
+                    raise ValueError(f"Q{number:02d}: missing worked solution")
     return ids
 
 
@@ -87,13 +103,14 @@ def stage(
     log = log_dir / f"{paper}.{name}.log"
     print(f"{paper}: {name} START -> {log}", flush=True)
     metrics = {"stage": name, f"{name}_log": str(log)}
+    started = datetime.now(timezone.utc)
     if name == "classify":
         metrics["classification_status"] = "IN_PROGRESS"
     conn.execute(
-        "UPDATE pipeline.work_item SET metrics=metrics || %s WHERE run_id=%s AND item_key=%s",
-        (Jsonb(metrics), run_id, paper),
+        "UPDATE pipeline.work_item SET metrics=jsonb_set(metrics || %s,'{stage_times}',"
+        "COALESCE(metrics->'stage_times','{}'::jsonb) || %s) WHERE run_id=%s AND item_key=%s",
+        (Jsonb(metrics), Jsonb({name: {"started_at": started.isoformat()}}), run_id, paper),
     )
-    started = datetime.now(timezone.utc)
     temporary_dir = log_dir / "tmp"
     temporary_dir.mkdir(exist_ok=True)
     with log.open("a") as output:
@@ -107,6 +124,8 @@ def stage(
                 "PYTHONUNBUFFERED": "1",
                 "TMPDIR": str(temporary_dir),
                 "MATHBANK_PDF_DEVICE": "cpu",
+                "HF_HOME": str(INGESTION_ROOT / "data/model_cache/huggingface"),
+                "TORCH_HOME": str(INGESTION_ROOT / "data/model_cache/torch"),
             },
         )
         try:
@@ -131,6 +150,12 @@ def stage(
             raise
     if code:
         raise RuntimeError(f"{name} exited {code}; see {log}")
+    conn.execute(
+        "UPDATE pipeline.work_item SET metrics=jsonb_set(metrics,'{stage_times}',"
+        "COALESCE(metrics->'stage_times','{}'::jsonb) || %s) WHERE run_id=%s AND item_key=%s",
+        (Jsonb({name: {"started_at": started.isoformat(),
+                      "completed_at": datetime.now(timezone.utc).isoformat()}}), run_id, paper),
+    )
     print(f"{paper}: {name} OK", flush=True)
 
 
@@ -183,7 +208,7 @@ def snapshot(conn, args) -> tuple[str, list[dict], Path]:
                 "AND (%s::text[] IS NULL OR paper_external_code=ANY(%s)) "
                 "ORDER BY substring(paper_external_code from '[0-9]{4}') DESC, paper_external_code "
                 "LIMIT %s",
-                (list(COMPETITIONS), args.paper, args.paper, args.limit),
+                (getattr(args, "competition", None) or list(COMPETITIONS), args.paper, args.paper, args.limit),
             )
             rows = cur.fetchall()
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -198,7 +223,7 @@ def snapshot(conn, args) -> tuple[str, list[dict], Path]:
                     len(rows),
                     Jsonb(
                         {
-                            "competitions": list(COMPETITIONS),
+                            "competitions": getattr(args, "competition", None) or list(COMPETITIONS),
                             "papers": [row["paper_external_code"] for row in rows],
                         }
                     ),
@@ -312,6 +337,26 @@ def process_paper(conn, run_id: str, source: dict, log_dir: Path) -> list[str]:
     ).fetchone()[0]
     if stored != len(codes):
         raise ValueError(f"Postgres contains {stored} problems, expected {len(codes)}")
+    if source["competition_external_code"].startswith("PURPLE_"):
+        inventory = conn.execute(
+            "SELECT p.canonical_code,p.official_answer,"
+            "(SELECT count(*) FROM core.solution s WHERE s.problem_id=p.problem_id),"
+            "(SELECT count(*) FROM core.problem_image i WHERE i.problem_id=p.problem_id AND i.source='PDF_PROBLEM_PAGE'),"
+            "(SELECT count(*) FROM core.problem_image i WHERE i.problem_id=p.problem_id AND i.source='PDF_SOLUTION_PAGE') "
+            "FROM core.problem p WHERE canonical_code=ANY(%s)", (codes,),
+        ).fetchall()
+        if len(inventory) != len(codes) or any(
+            not row[1] or row[3] < 1 or (source.get("solution_url") and (row[2] < 1 or row[4] < 1))
+            for row in inventory
+        ):
+            raise ValueError("Postgres is missing required Purple Comet answers/solutions/page images")
+        conn.execute(
+            "UPDATE pipeline.work_item SET metrics=metrics || %s WHERE run_id=%s AND item_key=%s",
+            (Jsonb({
+                "page_images_verified": True,
+                "worked_solution_availability": "AVAILABLE" if source.get("solution_url") else "NOT_FOUND_AT_OFFICIAL_ENDPOINT",
+            }), run_id, paper),
+        )
     stage(
         conn,
         run_id,
@@ -479,6 +524,30 @@ def verify_graph(conn, codes: set[str]) -> None:
                 f"Graph assertion mismatch: {len(expected - actual)} missing/changed, "
                 f"{len(actual - expected)} unexpected, {len(records) - len(actual)} duplicates"
             )
+        purple_codes = [code for code in codes if code.startswith("PAPER_PURPLE_")]
+        if purple_codes:
+            expected_inventory = {
+                (row[0], row[1], row[2], row[3], row[4])
+                for row in conn.execute(
+                    "SELECT p.canonical_code,p.official_answer,"
+                    "(SELECT count(*) FROM core.solution s WHERE s.problem_id=p.problem_id),"
+                    "(SELECT count(*) FROM core.problem_image i WHERE i.problem_id=p.problem_id AND i.source='PDF_PROBLEM_PAGE'),"
+                    "(SELECT count(*) FROM core.problem_image i WHERE i.problem_id=p.problem_id AND i.source='PDF_SOLUTION_PAGE') "
+                    "FROM core.problem p WHERE canonical_code=ANY(%s)", (purple_codes,)
+                )
+            }
+            actual_inventory = {
+                (row["code"], row["answer"], row["solutions"], row["problem_images"], row["solution_images"])
+                for row in session.run(
+                    "MATCH (p:Problem) WHERE p.canonical_code IN $codes "
+                    "OPTIONAL MATCH (p)-[:HAS_SOLUTION]->(s:Solution) "
+                    "RETURN p.canonical_code AS code,p.official_answer AS answer,count(s) AS solutions,"
+                    "p.problem_page_images AS problem_images,p.solution_page_images AS solution_images",
+                    codes=purple_codes,
+                )
+            }
+            if actual_inventory != expected_inventory or len(expected_inventory) != len(purple_codes):
+                raise ValueError("Purple Comet graph problem/answer/solution/image inventory mismatch")
 
 
 def progress(conn, run_id: str, finished: bool = False) -> tuple[int, int]:
@@ -549,6 +618,8 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=5)
     parser.add_argument("--limit", type=int, default=10000)
     parser.add_argument("--paper", action="append")
+    parser.add_argument("--competition", action="append", choices=[*COMPETITIONS, "PURPLE_MS", "PURPLE_HS", "ARML", "ARML_LOCAL", "ARML_POWER"],
+                        help="Limit a new snapshot to these competitions; repeat for both divisions")
     parser.add_argument(
         "--wait-for-lock", action="store_true",
         help="Wait for the active runner before retrying; never run graph writes concurrently",
@@ -561,13 +632,9 @@ def main() -> None:
         parser.error("batch-size must be 1..20 and limit must be positive")
     if not os.environ.get("PG_ENV_FILE") or not os.environ.get("GRAPH_ENV_FILE"):
         parser.error("Explicit PG_ENV_FILE and GRAPH_ENV_FILE are required")
-    if not os.environ.get("OPENAI_API_KEY"):
-        api_key = dotenv_values(INGESTION_ROOT / ".env").get("OPENAI_API_KEY")
-        if not api_key:
-            parser.error(
-                "OPENAI_API_KEY must be configured before starting paid classification"
-            )
-        os.environ["OPENAI_API_KEY"] = api_key
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from project_env import load_project_openai
+    load_project_openai(INGESTION_ROOT / ".env")
     # Session advisory locks cannot protect a runner on a transaction pooler.
     with _connect(direct=True) as conn:
         conn.autocommit = True

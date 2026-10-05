@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from mathbank_rest.db import admin as admin_db
+from mathbank_rest.db import pipeline_jobs
 from mathbank_rest.security import require_admin_api_key
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"], dependencies=[Depends(require_admin_api_key)])
@@ -118,3 +119,13 @@ def pipeline_runs(limit: int = Query(20, le=200)) -> dict:
         "runs": admin_db.list_pipeline_runs(limit=limit),
         "graph_projections": admin_db.list_graph_projections(limit=limit),
     }
+
+
+@router.get("/pipeline/jobs")
+def pipeline_jobs_status(
+    competition: str | None = None,
+    paper: str | None = Query(None, max_length=100),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> dict:
+    return pipeline_jobs.list_jobs(competition=competition, paper=paper, limit=limit, offset=offset)

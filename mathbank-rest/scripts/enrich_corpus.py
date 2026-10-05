@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.enrichment import EnrichmentUnavailable, enrich_problem
 from mathbank_rest.publication import publish_current
+from mathbank_rest.relationship_enrichment import enrich_relationships, select_anchor
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +59,28 @@ def select_work(
 
 
 def run_worker(
-    watch: bool, limit: int, workers: int = 1, stop: threading.Event | None = None
+    watch: bool,
+    limit: int,
+    workers: int = 1,
+    stop: threading.Event | None = None,
+    relationships: bool = False,
 ) -> None:
     if workers < 1 or workers > 8:
         raise ValueError("workers must be between 1 and 8")
     stop = stop if stop is not None else threading.Event()
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="enrichment") as executor:
-        coordinate(watch, limit, workers, stop, executor)
+        coordinate(watch, limit, workers, stop, executor, relationships)
+
+
+def execute_task(code: str) -> dict:
+    if code.startswith("relations:"):
+        _, kind, slug = code.split(":", 2)
+        if kind == "skill":
+            return enrich_relationships("skill", slug)
+        if kind == "concept":
+            return enrich_relationships("concept", slug)
+        raise ValueError("Unknown relationship task kind")
+    return enrich_problem(code)
 
 
 def coordinate(
@@ -73,6 +89,7 @@ def coordinate(
     workers: int,
     stop: threading.Event,
     executor: ThreadPoolExecutor,
+    relationships: bool = False,
 ) -> None:
     attempted = 0
     active: dict[Future, str] = {}
@@ -83,13 +100,15 @@ def coordinate(
             if not future.done():
                 continue
             code = active.pop(future)
+            stage = "relationship_generation" if code.startswith("relations:") else "generation"
             try:
                 result = future.result()
-                logger.info("stage=generation problem=%s status=%s", code, result["status"])
+                logger.info("stage=%s problem=%s status=%s", stage, code, result["status"])
             except (EnrichmentUnavailable, SQLAlchemyError, ValueError, OSError):
                 logger.exception(
-                    "stage=generation problem=%s failed; see stored last_error; "
+                    "stage=%s problem=%s failed; see stored last_error; "
                     "retry after five-minute cooldown (maximum three job attempts)",
+                    stage,
                     code,
                 )
         capacity = workers - len(active)
@@ -99,7 +118,26 @@ def coordinate(
             capacity = 0
         try:
             with engine.connect() as conn:
-                pending_publication, codes = select_work(conn, capacity, list(active.values()))
+                relationship_task = None
+                relationship_pending = 0
+                if relationships:
+                    relationship_pending = conn.execute(
+                        text(
+                            "SELECT count(*) FROM knowledge.relationship_enrichment_job "
+                            "WHERE status='COMPLETED' AND published_at IS NULL"
+                        )
+                    ).scalar_one()
+                    if capacity and not any(
+                        code.startswith("relations:") for code in active.values()
+                    ):
+                        anchor = select_anchor(conn)
+                        if anchor:
+                            relationship_task = f"relations:{anchor[0]}:{anchor[1]}"
+                pending_publication, codes = select_work(
+                    conn, capacity - int(relationship_task is not None), list(active.values())
+                )
+                if relationship_task:
+                    codes.append(relationship_task)
         except SQLAlchemyError:
             logger.exception("stage=scheduling Could not read enrichment jobs from Postgres")
             if not watch or stop.is_set():
@@ -108,17 +146,28 @@ def coordinate(
             continue
         now = time.monotonic()
         if (
-            pending_publication
+            (pending_publication or relationship_pending)
             and now >= publication_retry
             and (
                 len(pending_publication) >= 25
+                or relationship_pending >= 25
                 or now >= publication_due
                 or (not codes and not active)
             )
         ):
+            if active:
+                logger.info(
+                    "stage=publication draining active=%s before fingerprinted publication",
+                    len(active),
+                )
+                wait(active)
             try:
-                publish_current(pending_publication)
-                logger.info("stage=publication published problems=%s", len(pending_publication))
+                publish_current(None if relationship_pending else pending_publication)
+                logger.info(
+                    "stage=publication published problems=%s relationship_jobs=%s",
+                    len(pending_publication),
+                    relationship_pending,
+                )
                 publication_due = time.monotonic() + 60
                 if not codes and not active:
                     continue
@@ -139,9 +188,11 @@ def coordinate(
                 publication_retry = time.monotonic() + 60
                 if not watch or stop.is_set():
                     raise
+        if stop.is_set():
+            codes = []
         for code in codes:
             attempted += 1
-            active[executor.submit(enrich_problem, code)] = code
+            active[executor.submit(execute_task, code)] = code
             logger.info(
                 "stage=scheduling submitted problem=%s active=%s/%s", code, len(active), workers
             )
@@ -157,6 +208,11 @@ def coordinate(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--watch", action="store_true")
+    parser.add_argument(
+        "--relationships",
+        action="store_true",
+        help="Continuously enrich skill hierarchy/builds-on and concept prerequisites",
+    )
     parser.add_argument(
         "--workers", type=int, default=1, help="Concurrent model jobs (1-8); one graph publisher"
     )
@@ -181,13 +237,14 @@ def main() -> None:
     signal.signal(signal.SIGINT, request_stop)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logger.info(
-        "Recovery worker started watch=%s workers=%s generation_limit=%s publication_batch=25 "
+        "Recovery worker started watch=%s workers=%s relationships=%s generation_limit=%s publication_batch=25 "
         "publication_interval=60s; reselecting due retries between problems",
         args.watch,
         args.workers,
+        args.relationships,
         "uncapped" if args.watch else args.limit,
     )
-    run_worker(args.watch, args.limit, args.workers, stop)
+    run_worker(args.watch, args.limit, args.workers, stop, args.relationships)
 
 
 if __name__ == "__main__":

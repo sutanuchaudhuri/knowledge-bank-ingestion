@@ -19,6 +19,7 @@ KINDS = {
     "skill": ("skill_id",),
     "skill_concept": ("skill_id", "concept_id"),
     "skill_relation": ("from_skill_id", "to_skill_id", "relation_type"),
+    "concept_relation": ("from_concept_id", "to_concept_id", "relation_type"),
     "problem_skill": ("problem_id", "skill_id", "relation_type", "role"),
     "problem_pedagogy": ("problem_id",),
     "problem_concept": ("problem_id", "concept_id", "role"),
@@ -36,6 +37,16 @@ JOINS = {
             "JOIN knowledge.skill b ON b.skill_id=t.to_skill_id"
         ),
         "a.name || ' -> ' || b.name AS title, a.objective || ' / ' || b.objective AS context",
+    ),
+    "concept_relation": (
+        (
+            "JOIN knowledge.concept a ON a.concept_id=t.from_concept_id "
+            "JOIN knowledge.concept b ON b.concept_id=t.to_concept_id"
+        ),
+        (
+            "a.name || ' -> ' || b.name AS title, "
+            "COALESCE(a.description,'') || ' / ' || COALESCE(b.description,'') AS context"
+        ),
     ),
     "problem_skill": (
         "JOIN core.problem p USING(problem_id) JOIN knowledge.skill s USING(skill_id)",
@@ -101,7 +112,9 @@ def validate_key(kind: str, key: dict[str, str]) -> dict[str, str]:
             result[field] = str(UUID(value))
     if "relation_type" in key:
         allowed = (
-            {"PREREQUISITE_OF", "PART_OF", "BUILDS_ON"}
+            {"PREREQUISITE_OF", "PART_OF", "HAS_SUBCONCEPT", "RELATED_CONCEPT", "RELATED_TO"}
+            if kind == "concept_relation"
+            else {"PREREQUISITE_OF", "PART_OF", "BUILDS_ON"}
             if kind == "skill_relation"
             else {"REQUIRES", "PRACTICES", "TESTS"}
         )
@@ -124,7 +137,7 @@ def lock_authoring(conn) -> None:
 
 def fingerprint(conn) -> str:
     digest = hashlib.sha256()
-    for table in (*KINDS, "concept_relation"):
+    for table in KINDS:
         rows = conn.execute(
             text(f"SELECT to_jsonb(t)::text FROM knowledge.{table} t ORDER BY to_jsonb(t)::text")
         ).scalars()
@@ -205,6 +218,26 @@ def queue(kind: str, status: str, limit: int, offset: int) -> dict:
                 )
             ).mappings()
         ]
+        relationship_counts: dict[str, int] = dict(
+            conn.execute(
+                text(
+                    "SELECT status,count(*) FROM knowledge.relationship_enrichment_job GROUP BY status"
+                )
+            ).all()
+        )
+        relationship_jobs = [
+            dict(row)
+            for row in conn.execute(
+                text("""
+            SELECT j.entity_kind,COALESCE(s.slug,c.slug) AS anchor_slug,j.status,
+                   j.attempts,j.last_error,j.edges_inserted,j.evidence,j.published_at
+            FROM knowledge.relationship_enrichment_job j
+            LEFT JOIN knowledge.skill s ON j.entity_kind='skill' AND j.anchor_id=s.skill_id
+            LEFT JOIN knowledge.concept c ON j.entity_kind='concept' AND j.anchor_id=c.concept_id
+            ORDER BY j.updated_at DESC LIMIT 10
+        """)
+            ).mappings()
+        ]
         starter_warning = None
         try:
             starter = starter_items(conn)
@@ -228,6 +261,8 @@ def queue(kind: str, status: str, limit: int, offset: int) -> dict:
         "enrichment_counts": enrichment_counts,
         "unenriched_problems": unenriched,
         "enrichment_errors": enrichment_errors,
+        "relationship_enrichment_counts": relationship_counts,
+        "relationship_enrichment_jobs": relationship_jobs,
         "starter_pending": sum(item["status"] == "PENDING" for item in starter),
         "starter_warning": starter_warning,
         **state,
@@ -293,6 +328,15 @@ def validate_graph(conn) -> None:
     author = operator_module("author")
     with closing(conn.connection.cursor()) as cursor:
         author.resolve_manifest(cursor, author.validate_manifest({"version": 1}))
+    builds = conn.execute(
+        text("""
+        SELECT a.slug,b.slug FROM knowledge.skill_relation r
+        JOIN knowledge.skill a ON a.skill_id=r.from_skill_id
+        JOIN knowledge.skill b ON b.skill_id=r.to_skill_id
+        WHERE r.relation_type='BUILDS_ON' AND r.review_status='REVIEWED'
+    """)
+    ).all()
+    author.assert_acyclic(list(builds), "skill BUILDS_ON")
 
 
 def decide(
@@ -436,21 +480,33 @@ def publish(expected_fingerprint: str, problem_codes: list[str] | None = None) -
         if current != expected_fingerprint:
             raise ReviewConflict("Metadata changed since you loaded it. Reload before publishing.")
         with closing(conn.connection.cursor()) as cursor:
+            validate_graph(conn)
             author.resolve_manifest(cursor, author.validate_manifest({"version": 1}))
             projector.ensure_constraints(driver, pedagogy=True)
-            if problem_codes:
+            target_codes = problem_codes
+            if target_codes is None:
+                target_codes = list(
+                    conn.execute(
+                        text("""
+                    SELECT p.canonical_code FROM core.problem p
+                    WHERE EXISTS(SELECT 1 FROM knowledge.problem_skill s WHERE s.problem_id=p.problem_id)
+                       OR EXISTS(SELECT 1 FROM knowledge.problem_pedagogy d WHERE d.problem_id=p.problem_id)
+                """)
+                    ).scalars()
+                )
+            if target_codes:
                 with driver.session() as session:
                     projection_count = session.run(
                         "MATCH(p:Problem) WHERE p.canonical_code IN $codes RETURN count(p) AS n",
-                        codes=problem_codes,
+                        codes=target_codes,
                     ).single()
                     if projection_count is None:
                         raise RuntimeError("Graph target-count query returned no result.")
                     projected = projection_count["n"]
-                if projected != len(set(problem_codes)):
+                if projected != len(set(target_codes)):
                     projector.project_competitions(driver, cursor)
                     projector.project_papers(driver, cursor)
-                    projector.project_problems(driver, cursor, problem_codes)
+                    projector.project_problems(driver, cursor, target_codes)
             projector.project_problem_concept(driver, cursor, problem_codes)
             projector.project_problem_technique(driver, cursor, problem_codes)
             skills, edges = projector.project_pedagogy(driver, cursor, problem_codes)
@@ -474,6 +530,19 @@ def publish(expected_fingerprint: str, problem_codes: list[str] | None = None) -
                 ),
                 {"codes": problem_codes},
             )
+        else:
+            conn.execute(
+                text(
+                    "UPDATE knowledge.enrichment_job SET published_at=now() "
+                    "WHERE status='COMPLETED' AND published_at IS NULL"
+                )
+            )
+        conn.execute(
+            text(
+                "UPDATE knowledge.relationship_enrichment_job SET published_at=now() "
+                "WHERE status='COMPLETED' AND published_at IS NULL"
+            )
+        )
     return {
         "publication": dict(publication),
         "message": "Pedagogical metadata published to Neo4j. Review status is preserved.",
@@ -484,6 +553,7 @@ EDITABLE = {
     "skill": {"name", "objective", "level", "source", "confidence"},
     "skill_concept": {"source", "confidence"},
     "skill_relation": {"source", "confidence"},
+    "concept_relation": {"strength", "assertion_source"},
     "problem_skill": {"required_level", "importance", "source", "confidence"},
     "problem_pedagogy": {
         "conceptual_depth",
@@ -506,7 +576,7 @@ def edit(kind: str, key: dict[str, str], expected_revision: str, changes: dict, 
     if not changes or not set(changes) <= EDITABLE[kind]:
         raise ValueError("Only editable metadata attributes may be changed.")
     for field, value in changes.items():
-        if field in {"confidence", "importance"}:
+        if field in {"confidence", "importance", "strength"}:
             if type(value) not in (int, float) or not 0 <= value <= 1:
                 raise ValueError(f"{field} must be a finite number in 0..1")
         elif field in {

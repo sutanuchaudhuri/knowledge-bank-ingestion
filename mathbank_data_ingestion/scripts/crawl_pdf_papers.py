@@ -39,8 +39,9 @@ sys.path.insert(0, str(ROOT / "src"))
 from mathbank.db import DB_PATH
 from mathbank.db.migrations import apply_all as apply_migrations
 from mathbank.crawl.downloader import DownloadError, fetch_binary, make_session
+from mathbank.crawl.pdf_format import has_pdf_header
 from mathbank.crawl.pdf_parser import (
-    parse_pdf_paper, render_pdf_pages, save_question_artifacts, CRAWL_DIR as PDF_ARTIFACT_DIR,
+    parse_pdf_paper, question_page_numbers, render_pdf_pages, save_question_artifacts, CRAWL_DIR as PDF_ARTIFACT_DIR,
 )
 
 import requests
@@ -55,6 +56,7 @@ PDF_COMPETITIONS = {
     "HMMT_FEB", "HMMT_NOV", "HMMT_INV", "HMMT",
     "SMT", "PUMAC", "CMM", "CHMMC",
     "MPG_MAIN", "MPG_OLY", "MPG",
+    "PURPLE_MS", "PURPLE_HS",
 }
 
 
@@ -81,7 +83,7 @@ def _fetch_pdf(url: str, delay: float) -> bytes:
         return _convert_postscript(r.content, url)
     if "pdf" not in ct.lower() and not url.lower().endswith(".pdf"):
         raise DownloadError(f"Expected PDF, got {ct} from {url}")
-    if not r.content.startswith(b"%PDF-"):
+    if not has_pdf_header(r.content):
         raise DownloadError(f"Response is not a PDF document from {url}")
     return r.content
 
@@ -240,6 +242,28 @@ def _process_paper(
         n = len(existing.get("questions", []))
         if require_split:
             validate_question_ids(existing.get("questions", []), paper_id, expected_count)
+        if competition_id.startswith("PURPLE_"):
+            ids = existing["questions"]
+            placeholders = ",".join("?" for _ in ids)
+            stored = {row[0] for row in conn.execute(
+                f"SELECT question_id FROM questions WHERE question_id IN ({placeholders})", ids
+            )}
+            if stored != set(ids):
+                raise ValueError("Cached question index lacks committed staging rows; reparse required")
+            spans = json.loads((pdir / "page_spans.json").read_text())
+            for question_id in existing["questions"]:
+                number = str(int(question_id.rsplit("_Q", 1)[1]))
+                images = [
+                    str(pdir / "visuals/pages" / f"{side}_page_{page:03d}.png")
+                    for side in ("problem", "solution")
+                    for page in spans.get(side, {}).get(number, [])
+                ]
+                if not images or any(not Path(image).is_file() for image in images):
+                    raise ValueError(f"{question_id}: cached required page image is missing")
+                path = PDF_ARTIFACT_DIR / _slug(competition_id) / question_id / "parsed.json"
+                record = json.loads(path.read_text())
+                record["image_urls"] = images
+                path.write_text(json.dumps(record, indent=2))
         console.print(f"  [dim]SKIP (cached) {paper_id} — {n} questions")
         return n, "INDEXED"
 
@@ -248,7 +272,10 @@ def _process_paper(
     # Download PDFs.
     try:
         console.print(f"  ↓ problem PDF {problem_url[-60:]}")
-        prob_bytes = _fetch_pdf(problem_url, delay)
+        cached = pdir / "problem.pdf"
+        prob_bytes = cached.read_bytes() if competition_id.startswith("PURPLE_") and cached.is_file() else _fetch_pdf(problem_url, delay)
+        if not has_pdf_header(prob_bytes):
+            raise DownloadError("Cached problem is not a PDF")
         (pdir / "problem.pdf").write_bytes(prob_bytes)
     except Exception as exc:
         return 0, f"FAILED: problem download — {exc}"
@@ -257,7 +284,10 @@ def _process_paper(
     if solution_url:
         try:
             console.print(f"  ↓ solution PDF {solution_url[-60:]}")
-            sol_bytes = _fetch_pdf(solution_url, delay)
+            cached = pdir / "solution.pdf"
+            sol_bytes = cached.read_bytes() if competition_id.startswith("PURPLE_") and cached.is_file() else _fetch_pdf(solution_url, delay)
+            if not has_pdf_header(sol_bytes):
+                raise DownloadError("Cached solution is not a PDF")
             (pdir / "solution.pdf").write_bytes(sol_bytes)
         except Exception as exc:
             console.print(f"  [yellow]WARN solution download failed: {exc}")
@@ -278,6 +308,16 @@ def _process_paper(
         validate_question_ids([q.question_id for q in parsed_questions], paper_id, expected_count)
         if any(not q.problem_text.strip() for q in parsed_questions):
             raise ValueError("Parsed question has no problem text; refusing paper completion")
+        if competition_id.startswith("PURPLE_") and solution_url and any(not q.solution_texts for q in parsed_questions):
+            raise ValueError("Official worked-solution PDF did not produce every numbered solution")
+
+    answers_path = pdir / "answers.json"
+    answers = json.loads(answers_path.read_text()) if competition_id.startswith("PURPLE_") and answers_path.is_file() else {}
+    if competition_id.startswith("PURPLE_"):
+        spans = {"problem": question_page_numbers(prob_bytes, len(parsed_questions))}
+        if sol_bytes:
+            spans["solution"] = question_page_numbers(sol_bytes, len(parsed_questions))
+        (pdir / "page_spans.json").write_text(json.dumps(spans, indent=2))
 
     index: dict = {"paper_id": paper_id, "competition_id": competition_id,
                    "year": year, "questions": []}
@@ -285,9 +325,25 @@ def _process_paper(
     for pq in parsed_questions:
         q_num_match = re.search(r"Q(\d+)$", pq.question_id)
         q_num = int(q_num_match.group(1)) if q_num_match else 0
+        if answers:
+            if str(q_num) not in answers:
+                raise ValueError("Parsed question has no official answer-key entry")
+            pq.answer_value = answers[str(q_num)]
+            save_question_artifacts(
+                pq.question_id, exam_level, pq.problem_text, pq.solution_texts,
+                pq.answer_value, pq.image_urls, pq.parse_warnings, problem_url,
+            )
 
         # Distribute page image paths to each question's artifact dir.
-        if len(parsed_questions) > 1 and q_num > 0:
+        if competition_id.startswith("PURPLE_"):
+            q_images = [
+                str(pdir / "visuals/pages" / f"{side}_page_{number:03d}.png")
+                for side in ("problem", "solution")
+                for number in spans.get(side, {}).get(q_num, [])
+            ]
+            if not q_images or any(not Path(image).is_file() for image in q_images):
+                raise ValueError(f"{pq.question_id}: required rendered page image is missing")
+        elif len(parsed_questions) > 1 and q_num > 0:
             pages_per_q = max(1, len(prob_images) // len(parsed_questions))
             start = (q_num - 1) * pages_per_q
             q_images = prob_images[start:start + pages_per_q]

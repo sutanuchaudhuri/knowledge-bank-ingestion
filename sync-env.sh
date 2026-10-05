@@ -19,7 +19,7 @@
 #      and `make up` to start the stack.
 #
 # OPENAI_API_KEY is synced separately after writing service settings, without
-# printing it. The root .env is preferred; an exported shell key is a fallback.
+# printing it. Only the root .env is used; shell keys are ignored.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"

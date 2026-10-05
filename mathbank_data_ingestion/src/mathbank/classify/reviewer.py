@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 import sqlite3
 import textwrap
 from dataclasses import dataclass, field
@@ -138,9 +137,8 @@ def _call_openai(messages: list[dict], model: str) -> str:
         from openai import OpenAI
     except ImportError as exc:
         raise RuntimeError("openai package not installed") from exc
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY not set")
+    from mathbank.project_credentials import configure_openai
+    api_key = configure_openai()
     client = OpenAI(api_key=api_key)
     resp = client.chat.completions.create(
         model=model,

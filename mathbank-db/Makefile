@@ -220,6 +220,11 @@ project-pedagogy-remote:        ## Explicit remote Neon to AuraDB metadata proje
 
 .PHONY: migrate-pedagogy-review migrate-pedagogy-review-remote
 .PHONY: migrate-automatic-metadata-remote
+.PHONY: migrate-relationship-enrichment-remote
+migrate-relationship-enrichment-remote: ## Add durable auto-approved relationship jobs (migration 009)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/009_relationship_enrichment.sql
 migrate-automatic-metadata-remote: ## Enable automatic metadata approval on Neon (migration 008)
 	@. $(CURDIR)/../mathbank-graph/remote.env; \
 	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
@@ -275,6 +280,14 @@ vector-status-remote:           ## Show representation/chunk/embedding counts on
 
 .PHONY: pdf-discover
 PAPER_BATCH_PYTHON ?= $(CURDIR)/../mathbank-rest/.venv/bin/python
+.PHONY: purple-comet-discover-remote purple-comet-batches-remote
+purple-comet-discover-remote:    ## Download/register/extract official English Purple Comet archive (YEAR= optional)
+	PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" "$(PAPER_BATCH_PYTHON)" -u etl/purple_comet.py --register --extract $(if $(YEAR),--year $(YEAR),)
+
+purple-comet-batches-remote:     ## Paid Purple Comet classify -> Neon -> Aura; waits for existing paper runner
+	PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" GRAPH_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" \
+	  "$(PAPER_BATCH_PYTHON)" -u etl/paper_batches.py --competition PURPLE_MS --competition PURPLE_HS \
+	  --wait-for-lock --batch-size $(or $(BATCH_SIZE),2) $(if $(LIMIT),--limit $(LIMIT),) $(if $(RESUME),--resume $(RESUME),)
 .PHONY: paper-batches-remote
 paper-batches-remote:            ## Paid SMT/HMMT backlog -> classify -> Neon -> Aura, batches of 5 (BATCH_SIZE= LIMIT= RESUME=)
 	PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" GRAPH_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" \

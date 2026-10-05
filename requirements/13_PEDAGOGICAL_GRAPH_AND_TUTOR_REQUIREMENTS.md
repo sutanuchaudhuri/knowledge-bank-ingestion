@@ -32,6 +32,10 @@ attributes with an audit rationale, regenerate automatic teaching metadata,
 and explicitly publish corrections. Regeneration preserves human overrides.
 Recovery behavior and validation are specified in the
 [automatic enrichment recovery plan](14_AUTOMATIC_ENRICHMENT_RECOVERY.md).
+The [catalog relationship plan](15_RELATIONSHIP_ENRICHMENT.md) separately populates
+skill components, useful prior skills and necessary concept foundations, with
+independent semantic verification, cycle-safe automatic approval and protected
+human corrections. These are distinct from question-required prerequisite skills.
 
 Earlier PENDING/review-gated descriptions below are historical rollout context,
 superseded by this policy. Generated coaching itself remains provisional.

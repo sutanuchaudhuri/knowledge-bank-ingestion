@@ -278,6 +278,18 @@ def _process_question(
     # Assign rendered page images proportionally.
     prob_pages = _assign_pages(_sorted_page_images(paper_dir, "problem"), q_num, total_q)
     sol_pages  = _assign_pages(_sorted_page_images(paper_dir, "solution"), q_num, total_q)
+    if competition_id.startswith("PURPLE_"):
+        spans = json.loads((paper_dir / "page_spans.json").read_text())
+        prob_pages = [
+            paper_dir / "visuals/pages" / f"problem_page_{number:03d}.png"
+            for number in spans["problem"][str(q_num)]
+        ]
+        sol_pages = [
+            paper_dir / "visuals/pages" / f"solution_page_{number:03d}.png"
+            for number in spans.get("solution", {}).get(str(q_num), [])
+        ]
+        if not prob_pages or any(not image.is_file() for image in [*prob_pages, *sol_pages]):
+            raise ValueError(f"{question_id}: missing required problem/solution page image")
 
     if dry_run:
         return f"DRY: Q{q_num:02d} prob_pages={len(prob_pages)} sol_pages={len(sol_pages)}"
@@ -294,7 +306,10 @@ def _process_question(
     sol_md  = q_dir / "solution.md"
 
     _write_problem_md(prob_md, question_id, q_num, problem_text, prob_imgs_local, q_dir)
-    _write_solution_md(sol_md, question_id, q_num, solution_texts, answer_value, sol_imgs_local, q_dir)
+    if not competition_id.startswith("PURPLE_") or solution_texts:
+        _write_solution_md(sol_md, question_id, q_num, solution_texts, answer_value, sol_imgs_local, q_dir)
+    elif sol_md.exists():
+        sol_md.unlink()
 
     # Relative paths stored in DB (relative to artifact_base_path).
     _update_question(
@@ -302,7 +317,7 @@ def _process_question(
         question_id,
         base_path=str(paper_dir),
         problem_md_path=f"questions/Q{q_num:02d}/problem.md",
-        solution_md_path=f"questions/Q{q_num:02d}/solution.md",
+        solution_md_path=f"questions/Q{q_num:02d}/solution.md" if sol_md.exists() else "",
         image_paths=[str(p) for p in all_imgs_local],
     )
 

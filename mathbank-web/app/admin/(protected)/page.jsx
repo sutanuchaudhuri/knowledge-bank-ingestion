@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import PipelineJobs from "./PipelineJobs.jsx";
 import { panel, table, th, td, input, button, primaryButton } from "../../db/dbStyles.js";
 
 const STATUS_COLOUR = {
@@ -292,7 +293,7 @@ export default function AdminPage() {
       </p>
       <h1 className="h3 fw-bold">Corpus ingestion admin</h1>
       <button className="btn btn-outline-secondary btn-sm mb-3 me-2" onClick={bump}>Refresh pipeline status</button>
-      <span className="small text-secondary">Auto-refresh every 15 seconds. Classification completion is not human approval; graph completion is verified separately.</span>
+      <span className="small text-secondary">Auto-refresh every 15 seconds. Generated metadata is automatically approved with provenance; human corrections are protected. Every pipeline layer is verified separately.</span>
       <Link href="/admin/pedagogy" className="btn btn-primary mb-3">Review pedagogical metadata</Link>
       <p style={{ color: "#666", fontSize: 13 }}>
         Add a competition and its paper URLs — rows are tracked as PENDING in{" "}
@@ -304,7 +305,10 @@ export default function AdminPage() {
         <PaperForm onRegistered={bump} />
       </div>
       <div className="d-grid gap-4">
-        <PapersDashboard refreshToken={refreshToken} onRetried={bump} />
+        <PipelineJobs refreshToken={refreshToken} />
+        <details><summary className="h5">Source registration / retry tracker</summary>
+          <PapersDashboard refreshToken={refreshToken} onRetried={bump} />
+        </details>
         <PipelineRuns refreshToken={refreshToken} />
       </div>
     </div>

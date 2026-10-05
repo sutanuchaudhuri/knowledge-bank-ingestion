@@ -35,6 +35,7 @@ concept_classifier._model_for_level) — ~$0.01/question.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sqlite3
 import sys
@@ -70,8 +71,13 @@ PDF_COMPETITION_DIRS = {
     "hmmt_feb": "HMMT_FEB",
     "hmmt_nov": "HMMT_NOV",
     "hmmt_inv": "HMMT_INV",
+    "purple_ms": "PURPLE_MS",
+    "purple_hs": "PURPLE_HS",
+    "arml": "ARML",
+    "arml_local": "ARML_LOCAL",
+    "arml_power": "ARML_POWER",
 }
-PAPER_ID_RE = re.compile(r"^PAPER_[A-Z]+_(\d{4})_(.+)$")
+PAPER_ID_RE = re.compile(r"^PAPER_[A-Z]+(?:_[A-Z]+)*_(\d{4})_(.+)$")
 MD_HEADER_RE = re.compile(r"^(#{1,2}[^\n]*\n+)+")
 MD_IMAGE_BLOCK_RE = re.compile(r"\n+---\n+(!\[[^\n]*\n*)+\s*$")
 
@@ -87,7 +93,10 @@ def _now() -> str:
 
 
 class PdfQuestion:
-    __slots__ = ("question_id", "exam_level", "paper_id", "problem_text", "solution_texts")
+    __slots__ = (
+        "question_id", "exam_level", "paper_id", "problem_text", "solution_texts",
+        "image_paths", "answer_value",
+    )
 
     def __init__(self, question_id: str, exam_level: str, paper_id: str, problem_text: str, solution_texts: list[str]):
         self.question_id = question_id
@@ -95,6 +104,8 @@ class PdfQuestion:
         self.paper_id = paper_id
         self.problem_text = problem_text
         self.solution_texts = solution_texts
+        self.image_paths = []
+        self.answer_value = ""
 
 
 def discover_questions(competition_filter: str | None) -> list[PdfQuestion]:
@@ -125,7 +136,26 @@ def discover_questions(competition_filter: str | None) -> list[PdfQuestion]:
                     sol = _clean_markdown(solution_md.read_text(encoding="utf-8").replace("\x00", ""))
                     if sol:
                         solution_texts = [sol]
-                found.append(PdfQuestion(canonical_code, comp_code, paper_dir.name, statement_text, solution_texts))
+                question = PdfQuestion(
+                    canonical_code, comp_code, paper_dir.name, statement_text, solution_texts,
+                )
+                if comp_code.startswith(("PURPLE_", "ARML")):
+                    question.image_paths = [
+                        str(path) for path in sorted((q_dir / "images").glob("*.png"))
+                    ]
+                    if not question.image_paths:
+                        raise ValueError(
+                            f"{canonical_code}: no page images for visual classification"
+                        )
+                    answers_path = paper_dir / "answers.json"
+                    if answers_path.is_file():
+                        answers = json.loads(answers_path.read_text())
+                        question.answer_value = answers.get(str(problem_number), "")
+                        if comp_code.startswith("PURPLE_") and not question.answer_value:
+                            raise ValueError(f"{canonical_code}: missing official answer")
+                    elif comp_code.startswith("PURPLE_"):
+                        raise ValueError(f"{canonical_code}: missing official answer key")
+                found.append(question)
     return found
 
 
@@ -281,8 +311,8 @@ def main() -> None:
                     exam_level=q.exam_level,
                     problem_text=q.problem_text,
                     solution_texts=q.solution_texts,
-                    image_paths=[],
-                    answer_value="",
+                    image_paths=q.image_paths,
+                    answer_value=q.answer_value,
                     taxonomy_block=taxonomy_block,
                 )
             except Exception as exc:

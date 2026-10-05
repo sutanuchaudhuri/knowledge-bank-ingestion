@@ -35,9 +35,14 @@ PDF_COMPETITION_DIRS = {
     "hmmt_feb": "HMMT_FEB",
     "hmmt_nov": "HMMT_NOV",
     "hmmt_inv": "HMMT_INV",
+    "purple_ms": "PURPLE_MS",
+    "purple_hs": "PURPLE_HS",
+    "arml": "ARML",
+    "arml_local": "ARML_LOCAL",
+    "arml_power": "ARML_POWER",
 }
 
-PAPER_ID_RE = re.compile(r"^PAPER_[A-Z]+_(\d{4})_(.+)$")
+PAPER_ID_RE = re.compile(r"^PAPER_[A-Z]+(?:_[A-Z]+)*_(\d{4})_(.+)$")
 MD_HEADER_RE = re.compile(r"^(#{1,2}[^\n]*\n+)+")
 MD_IMAGE_BLOCK_RE = re.compile(r"\n+---\n+(!\[[^\n]*\n*)+\s*$")
 

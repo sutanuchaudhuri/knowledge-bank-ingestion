@@ -6,28 +6,18 @@ Per mathematics_tutor_db_plan_v2/vector/10_reference_sql_and_query_examples.md
 """
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 
-from dotenv import load_dotenv
 from openai import OpenAI
 from sqlalchemy import text
 
 from mathbank_rest.db.postgres import engine
+from mathbank_rest.project_credentials import configure_openai
 
 EMBEDDING_MODEL_NAME = "text-embedding-3-small"
 EMBEDDING_DIMENSIONS = 1536
 
-# Checks the shell environment (e.g. ~/.zshrc) first; load_dotenv() only fills
-# OPENAI_API_KEY from .env if it isn't already set, never overrides it.
-load_dotenv()
-if not os.environ.get("OPENAI_API_KEY"):
-    raise RuntimeError(
-        "OPENAI_API_KEY not found in the shell environment (~/.zshrc) or mathbank-rest/.env. "
-        "Export it in your shell, or set OPENAI_API_KEY=... in .env (see .env.example)."
-    )
-
-_client = OpenAI()  # reads OPENAI_API_KEY from the environment
+_client = OpenAI(api_key=configure_openai())
 
 
 @lru_cache(maxsize=1)
@@ -68,7 +58,7 @@ def search_problems(
     order_by: 'relevance' (default, RRF score) | 'year_desc' | 'year_asc' —
     use 'year_desc' for "recent problems on X" style queries.
     """
-    model_id = _active_model_id()
+    model_id = _active_model_id() if semantic else None
     query_vector = embed_query(query_text) if semantic else None
 
     clauses = []
@@ -102,7 +92,8 @@ def search_problems(
     # competition filter narrowing to a small/underrepresented subset).
     eligible_cte = f"""
         eligible_problem AS (
-            SELECT p.problem_id
+            SELECT p.problem_id,
+                   regexp_replace('[Problem] ' || p.statement_text,'[[:space:]]+$','') AS rendered
             FROM core.problem p
             JOIN core.paper pa ON pa.paper_id = p.paper_id
             JOIN core.competition_edition ed ON ed.edition_id = pa.edition_id
@@ -118,8 +109,11 @@ def search_problems(
                    row_number() OVER (ORDER BY e.embedding::public.vector(1536) OPERATOR(public.<=>) CAST(:query_vector AS public.vector(1536))) AS rnk
             FROM search.embedding e
             JOIN search.chunk c ON c.chunk_id = e.chunk_id
+            JOIN search.representation r ON r.representation_id=c.representation_id
             JOIN eligible_problem ep ON ep.problem_id = c.problem_id
             WHERE e.embedding_model_id = :model_id AND e.status = 'ACTIVE'
+              AND r.status='ACTIVE' AND r.representation_kind='PROBLEM_STATEMENT'
+              AND r.rendered_text=ep.rendered
             ORDER BY e.embedding::public.vector(1536) OPERATOR(public.<=>) CAST(:query_vector AS public.vector(1536))
             LIMIT :candidate_limit
         )
@@ -133,8 +127,12 @@ def search_problems(
             SELECT c.chunk_id,
                    row_number() OVER (ORDER BY ts_rank_cd(c.textsearch, websearch_to_tsquery('english', :query_text)) DESC) AS rnk
             FROM search.chunk c
+            JOIN search.representation r ON r.representation_id=c.representation_id
             JOIN eligible_problem ep ON ep.problem_id = c.problem_id
             WHERE c.textsearch @@ websearch_to_tsquery('english', :query_text)
+              AND r.status='ACTIVE' AND r.representation_kind='PROBLEM_STATEMENT'
+              AND r.rendered_text=ep.rendered
+            ORDER BY ts_rank_cd(c.textsearch, websearch_to_tsquery('english', :query_text)) DESC
             LIMIT :candidate_limit
         )
         """

@@ -92,7 +92,8 @@ Related: [pedagogical requirements](13_PEDAGOGICAL_GRAPH_AND_TUTOR_REQUIREMENTS.
 The operator authorized four concurrent jobs. `--workers 4` overlaps model
 requests in a bounded thread pool while imports retain existing table locks.
 One coordinator reselects due work, excludes its in-flight codes, and handles
-graph publication. Database compare-and-set claims protect against competing
+graph publication after draining in-flight imports to avoid self-induced source
+fingerprint conflicts. Database compare-and-set claims protect against competing
 on-demand requests. Keep one coordinator; concurrency is not permission to run
 multiple graph publishers. Default concurrency remains one, maximum eight.
 One-shot limits count submitted generation attempts; watch mode is uncapped.
@@ -100,6 +101,14 @@ Graceful termination drains active tasks and publishes durable completed jobs.
 Acceptance tests use a four-party barrier to prove actual overlap, no duplicate
 dispatch, single-thread publication, and shutdown draining. Measure live
 throughput after activation instead of promising a fourfold SLA improvement.
+
+Live activation verification: four distinct questions were dispatched together,
+all four completed and were recorded graph-published. The threaded watcher
+exited cleanly on SIGTERM after draining and publishing its completed work.
+The final watcher completed 27 jobs in an initial 1.8-minute observation and
+published a 22-job batch after draining active imports. This short window is
+evidence of increased throughput, not a sustained SLA. The focused suite now
+passes 101 tests plus 23 subtests.
 
 - 99 focused tests and 23 subtests passed, including live rolled-back fixtures
   for cross-corpus cycle rollback, atomic COMPLETED/outbox writes, cooldown

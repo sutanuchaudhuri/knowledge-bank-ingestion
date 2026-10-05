@@ -55,10 +55,10 @@ chat that isn't end-to-end secured), set up with:
 # 1. Save the file they sent you as .env at this repo's root (same folder as
 #    this README — it's gitignored, never commit it).
 # 2. Distribute it into every service's own .env (mathbank-db/.env,
-#    mathbank-rest/.env, etc. — each service only ever reads its own):
+#    mathbank-rest/.env, etc.):
 make sync-env            # or: ./sync-env.sh
-# 3. Set your own OPENAI_API_KEY in the gitignored root .env, or export it in
-#    your shell as a fallback. Never share it through an unsecured channel.
+# 3. Set OPENAI_API_KEY in the gitignored root .env. Shell keys are ignored.
+#    Never share it through an unsecured channel.
 #    make sync-openai-key copies it without printing it.
 # 4. Install whatever isn't already installed, and see what (if anything) is
 #    still missing:
@@ -124,7 +124,50 @@ After HTTP works, run `make test-connectivity` to verify the configured
 Postgres and Neo4j backends separately. Do not paste environment files,
 API keys or passwords into an issue or chat.
 
+#### Purple Comet archive
+
+`make -C mathbank-db purple-comet-discover-remote` discovers both English divisions
+from the official [archive](https://purplecomet.org/answers), downloads valid PDFs
+and answer keys, registers Postgres sources and extracts numbered questions.
+Use `YEAR=2026` for a bounded pilot. Original PDFs, page renders, answer HTML/JSON
+and source manifests are retained under `mathbank_data_ingestion/data/crawl_pdf/purple_ms`
+and `purple_hs`. Problem and worked-solution images are assigned from numbered
+PDF page spans, including continuation/shared pages, not proportional guesses.
+
+`make -C mathbank-db purple-comet-batches-remote` waits for the existing exclusive
+paper runner, then processes batches of two through paid classification,
+Postgres and verified Neo4j publication. It supports `BATCH_SIZE=`, `LIMIT=` and
+`RESUME=`. Purple Comet classification uses `gpt-4.1` and sends the actual
+question/solution PNG pages as vision inputs, along with the official answer key.
+New metadata follows the existing automatic-approval policy; protected human
+corrections/rejections are not overwritten.
+
+Do not equate an answer key with a worked solution or HTTP 200 with a PDF.
+Some PDF endpoints return HTML rather than documents; these are explicit
+failed sources, never successful parses. Valid legacy PDFs may have whitespace
+before their `%PDF-` signature; rejecting those was a parser bug, now corrected.
+Both official bare and `www` hosts are accepted. Missing worked-solution PDFs
+are distinct from missing problem PDFs. The recovered archive inventory was
+verified at 44 valid problem PDFs and 1,050 official answers (2005-2026, both
+divisions), with four available worked-solution PDFs for 2025-2026. Historical
+worked solutions are reported as unavailable, not fabricated. Completion requires
+all available numbered solutions and required page images, exact question/answer
+coverage and graph inventory agreement. Source copyright remains with Purple
+Comet; this workflow does not grant redistribution rights.
+
 #### Automatic teaching metadata
+
+The admin jobs console at `/admin` now reports each paper's download, parse,
+Postgres import, classification, vectors, corpus graph, generated pedagogy,
+pedagogy publication and taxonomy graph independently. Filter by competition
+or paper, expand inventory/errors/job history, and inspect UTC timestamps and
+live counts. A completed paper batch alone is not an end-to-end success.
+Graph outages and missing historical timestamps are reported explicitly.
+
+Tutor search uses reviewed Neo4j graph evidence plus pgvector similarity and
+Postgres lexical retrieval, fused by distinct problem with per-source ranks.
+Retrieval warnings disclose unavailable graph evidence. For contracts see
+[requirements 16](requirements/16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md).
 
 Existing PENDING and future generated corpus metadata are automatically
 approved, with `approval_method=automatic` to distinguish machine estimates
@@ -136,6 +179,18 @@ Apply `mathbank-db/sql/008_automatic_metadata.sql` after migrations 006/007.
 From `mathbank-rest`, `make enrich-corpus WATCH=1 WORKERS=4` backfills all questions
 and watches newly ingested ones. Per-question status, attempts and failures
 are recorded in `knowledge.enrichment_job`; invalid output is not approved.
+For catalog relationships, also apply `mathbank-db/sql/009_relationship_enrichment.sql`
+(`make -C mathbank-db migrate-relationship-enrichment-remote` for the configured
+remote database), then run the **same watcher**, not a second publisher:
+`make -C mathbank-rest enrich-corpus WATCH=1 WORKERS=4 RELATIONSHIPS=1`.
+At most one slot generates skill PART_OF/BUILDS_ON or concept PREREQUISITE_OF
+edges; other slots enrich questions. Generation and independent semantic review
+default to `gpt-4.1`, configurable with `RELATIONSHIP_MODEL` and
+`RELATIONSHIP_VERIFIER_MODEL`. Both incur paid calls. Zero-edge proposals are valid;
+bounded candidates do not guarantee exhaustive relationships. Jobs, evidence,
+errors and publication state are recorded in `knowledge.relationship_enrichment_job`.
+Admins can inspect and correct concept relations alongside skill relations.
+See the [relationship plan](requirements/15_RELATIONSHIP_ENRICHMENT.md).
 The worker reselects work between every problem and prioritizes failed jobs
 whose five-minute cooldown has elapsed, up to three job attempts. Non-watch
 `LIMIT=...` bounds generation attempts; watch mode continues without a total cap.
@@ -146,7 +201,8 @@ three attempts with 2/4-second backoff, then watch mode retries after 60 seconds
 Generation and publication errors are logged separately.
 `WORKERS` defaults to 1 and accepts 1-8. Four concurrent model jobs are currently
 authorized. Imports retain their table locks for global cycle safety; only the
-coordinator publishes graph batches. In-flight codes are excluded from dispatch
+coordinator publishes graph batches, draining in-flight imports first so its
+own jobs do not invalidate the publication fingerprint. In-flight codes are excluded from dispatch
 and Postgres claims remain authoritative. SIGTERM/SIGINT stops dispatch, drains
 active jobs, and flushes publication work before exit. Do not launch multiple
 independent coordinators to increase concurrency. Provider rate limits and
@@ -167,8 +223,8 @@ for acceptance criteria and operational gotchas.
 
 #### Model-key synchronization details
 
-`make sync-openai-key` copies `OPENAI_API_KEY` from the root `.env` (preferred)
-or the exported shell environment (fallback) into REST, agent and ingestion
+`make sync-openai-key` copies `OPENAI_API_KEY` from the root `.env` only
+into REST, agent and ingestion
 `.env` files, creating those files if absent. It also updates existing database,
 graph and web `.env` files. It preserves unrelated settings, removes duplicate
 key assignments, writes atomically with owner-only permissions (`0600`), and
@@ -176,9 +232,35 @@ never prints the value. The key is server-side only, never `NEXT_PUBLIC_*`.
 
 `make sync-env`, `make up`, `make up-app` and `make up-local-db` include this
 sync. Existing running services must be restarted to load changed values;
-syncing alone does not restart them or change their inherited shell environment.
-Runtime shell values still override dotenv values. Ingestion classification
-loads its project `.env` when no shell key is set.
+syncing alone does not restart them. REST, ADK/LiteLLM, classifiers, reviewers
+and vector backfills use the shared file-only credential loader, even when run
+directly or from a different working directory. A root `.env` is authoritative:
+an empty/missing key there is an error, not a fallback to an inherited shell key
+or a stale service key. A service `.env` key is supported only if no root `.env`
+exists. Provider URL/organization/project settings also come from files, not
+inherited shell values. Other variables such as worker database destinations
+retain their existing precedence. No shell profile needs changing.
+
+#### OpenAI / LiteLLM troubleshooting on either developer's machine
+
+```sh
+make sync-openai-key
+make check-openai          # authenticate without a paid chat completion
+make check-openai CHAT=1   # also exercise the configured LiteLLM chat model (small paid call)
+```
+
+These checks read project files, never print the key, and do not source or modify
+`.zshrc`. Chat uses `MATHBANK_AGENT_MODEL` from the agent `.env`, for example
+`openai/gpt-4o-mini` (the `openai/` provider prefix matters). Authentication success
+does not imply billing/model access: HTTP 401 means authentication failure,
+403/404 can mean model permissions/name, and 429 means quota or rate limiting.
+A valid key on this Mac does not prove the other Mac has the same saved file.
+Run these checks there too. Do not paste full provider exception bodies into chat;
+some include a partial key. Restart REST/agent after changing credentials, and
+restart ingestion workers at a safe checkpoint rather than duplicating a live run.
+
+Terminology and exact score semantics are in the
+[domain and technical glossary](requirements/17_DOMAIN_AND_TECHNICAL_GLOSSARY.md).
 
 `sync-env.sh` backs up any existing per-service `.env` to
 `<file>.bak.<timestamp>` before overwriting it, and clearly flags any key
@@ -294,7 +376,7 @@ Environment files
   ⚠ mathbank-web/.env present but still has placeholder value(s): ADMIN_LOGIN_PASSWORD
 
 Shell environment
-  ⚠ OPENAI_API_KEY is NOT set — required by mathbank-rest (embeddings), mathbank-agent (chat), mathbank_data_ingestion (classification). Export it in ~/.zshrc, then open a new terminal.
+  OPENAI_API_KEY synchronization failed; set it in root .env before startup.
 
 Python virtual environments
   ✓ mathbank-rest/.venv already present

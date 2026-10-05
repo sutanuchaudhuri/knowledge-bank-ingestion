@@ -134,7 +134,11 @@ def project_problems(driver, pg_cur, problem_codes: list[str] | None = None) -> 
     pg_cur.execute(
         """
         SELECT problem_id, canonical_code, problem_number, official_answer,
-               source_url, paper_id, difficulty_band, classification_status
+               source_url, paper_id, difficulty_band, classification_status,
+               (SELECT count(*) FROM core.problem_image i WHERE i.problem_id=core.problem.problem_id
+                AND i.source='PDF_PROBLEM_PAGE'),
+               (SELECT count(*) FROM core.problem_image i WHERE i.problem_id=core.problem.problem_id
+                AND i.source='PDF_SOLUTION_PAGE')
         FROM core.problem
         """ + (" WHERE canonical_code=ANY(%s)" if problem_codes is not None else ""),
         (problem_codes,) if problem_codes is not None else None,
@@ -149,6 +153,8 @@ def project_problems(driver, pg_cur, problem_codes: list[str] | None = None) -> 
             "paper_id": str(r[5]),
             "difficulty_band": r[6],
             "classification_status": r[7],
+            "problem_page_images": r[8],
+            "solution_page_images": r[9],
         }
         for r in pg_cur.fetchall()
     ]
@@ -163,7 +169,9 @@ def project_problems(driver, pg_cur, problem_codes: list[str] | None = None) -> 
                     p.official_answer = row.official_answer,
                     p.source_url = row.source_url,
                     p.difficulty_band = row.difficulty_band,
-                    p.classification_status = row.classification_status
+                    p.classification_status = row.classification_status,
+                    p.problem_page_images = row.problem_page_images,
+                    p.solution_page_images = row.solution_page_images
                 WITH p, row
                 MATCH (pa:Paper {canonical_id: row.paper_id})
                 MERGE (pa)-[:HAS_PROBLEM]->(p)

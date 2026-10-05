@@ -61,21 +61,12 @@ if [ -f mathbank-graph/remote.env.example ]; then
   fi
 fi
 
-# ── 2. Shell-level secrets ──────────────────────────────────────────────────
-section "Shell environment"
-if [ -n "${OPENAI_API_KEY:-}" ]; then
-  ok "OPENAI_API_KEY is exported in this shell"
+# ── 2. Project model credentials ─────────────────────────────────────────────
+section "Project .env credentials (shell keys ignored)"
+if node scripts/sync-openai-key.mjs; then
+  ok "OPENAI_API_KEY synchronized from root .env to service environment files"
 else
-  if grep -Eq '^[[:space:]]*(export[[:space:]]+)?OPENAI_API_KEY[[:space:]]*=[[:space:]]*[^[:space:]]+' .env 2>/dev/null; then
-    info "OPENAI_API_KEY found in root .env; synchronizing without displaying it."
-    if node scripts/sync-openai-key.mjs; then
-      ok "OPENAI_API_KEY synchronized to service environment files"
-    else
-      warn "OPENAI_API_KEY synchronization failed; fix the root .env before startup."
-    fi
-  else
-    warn "OPENAI_API_KEY is missing — add it to root .env and run make sync-openai-key, or export it in your shell."
-  fi
+  warn "OPENAI_API_KEY synchronization failed; set it in root .env before startup."
 fi
 
 # ── 3. Python virtual environments ──────────────────────────────────────────

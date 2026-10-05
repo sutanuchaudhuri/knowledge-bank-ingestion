@@ -17,6 +17,7 @@ so that classify_crawled.py finds them using the same path as AoPS questions.
 from __future__ import annotations
 
 import json
+from bisect import bisect_right
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -97,7 +98,7 @@ def _keep_consecutive_prefix(matches: list[re.Match]) -> list[re.Match]:
 # ── Competition-specific split patterns ───────────────────────────────────────
 
 # Pattern A: "Problem N" at line start  (HMMT, CMM, CHMMC, MPG)
-_PROBLEM_N = re.compile(r"(?m)^[ \t]*Problem\s+(\d+)\b")
+_PROBLEM_N = re.compile(r"(?m)^[ \t]*(?:#{1,6}[ \t]+)?Problem\s+(\d+)\b")
 
 # Pattern B: "N." at strict line start  (SMT, PUMaC, and CHMMC individual fallback)
 # Limit to 1-2 digit numbers to avoid matching page numbers like "100."
@@ -108,7 +109,7 @@ _PAREN_N = re.compile(r"(?m)^\((\d{1,2})\)\s+")
 
 # Competitions that prefer "Problem N" over number-dot
 _PROBLEM_N_FIRST = {"HMMT_FEB", "HMMT_NOV", "HMMT_INV", "HMMT", "CMM", "CHMMC",
-                    "MPG_MAIN", "MPG_OLY", "MPG"}
+                    "MPG_MAIN", "MPG_OLY", "MPG", "PURPLE_MS", "PURPLE_HS"}
 
 
 def split_questions(
@@ -337,3 +338,27 @@ def render_pdf_pages(pdf_bytes: bytes, out_dir: Path, label: str, dpi: int = 144
         paths.append(str(fpath))
     doc.close()
     return paths
+
+
+def question_page_numbers(pdf_bytes: bytes, expected_count: int) -> dict[int, list[int]]:
+    """Locate numbered question spans, retaining shared/continuation pages."""
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+        texts = [page.get_text("text") or "" for page in doc]
+    starts = []
+    offset = 0
+    for text in texts:
+        starts.append(offset)
+        offset += len(text) + 1
+    combined = "\n".join(texts)
+    for pattern in (_PROBLEM_N, _NUMBER_DOT, _PAREN_N):
+        headings = _keep_consecutive_prefix(list(pattern.finditer(combined)))
+        if len(headings) != expected_count:
+            continue
+        result = {}
+        for index, heading in enumerate(headings):
+            end = headings[index + 1].start() if index + 1 < len(headings) else len(combined)
+            first = bisect_right(starts, heading.start()) - 1
+            last = bisect_right(starts, max(heading.start(), end - 1)) - 1
+            result[index + 1] = list(range(first + 1, last + 2))
+        return result
+    raise ValueError(f"Cannot locate all {expected_count} numbered PDF page spans")

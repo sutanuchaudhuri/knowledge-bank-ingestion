@@ -40,6 +40,10 @@ def test_pipeline_runs_requires_admin_key() -> None:
     assert response.status_code == 401
 
 
+def test_pipeline_jobs_requires_admin_key() -> None:
+    assert client.get("/v1/admin/pipeline/jobs").status_code == 401
+
+
 def test_rejects_wrong_admin_key() -> None:
     response = client.get("/v1/admin/papers", headers={"X-Admin-Api-Key": "wrong-key"})
     assert response.status_code == 401

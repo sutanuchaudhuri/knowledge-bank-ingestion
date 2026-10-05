@@ -9,6 +9,7 @@ const KINDS = [
   ["skill", "Skills"],
   ["skill_concept", "Skill-to-concept links"],
   ["skill_relation", "Skill prerequisites and relations"],
+  ["concept_relation", "Concept prerequisites and relations"],
   ["problem_skill", "Problem-to-skill mappings"],
   ["problem_pedagogy", "Difficulty assessments"],
   ["problem_concept", "Problem concept classifications"],
@@ -35,6 +36,7 @@ const EDITABLE = {
   skill: ["name", "objective", "level", "source", "confidence"],
   skill_concept: ["source", "confidence"],
   skill_relation: ["source", "confidence"],
+  concept_relation: ["strength", "assertion_source"],
   problem_skill: ["required_level", "importance", "source", "confidence"],
   problem_pedagogy: ["conceptual_depth", "technical_load", "algebraic_load", "insight_required", "number_of_steps", "prerequisite_depth", "estimated_contest_level", "source", "confidence"],
   problem_concept: ["confidence", "assertion_source"],
@@ -297,6 +299,14 @@ export default function PedagogyReviewPage() {
                 <button className="btn btn-sm btn-outline-secondary" disabled={busy}
                   onClick={() => setReclassifyCode(job.canonical_code)}>Select for retry</button>
               </div>)}
+              {data && <p className="small text-secondary">
+                Relationship enrichment: {data.relationship_enrichment_counts?.COMPLETED || 0} completed · {data.relationship_enrichment_counts?.IN_PROGRESS || 0} active · {data.relationship_enrichment_counts?.FAILED || 0} failed
+              </p>}
+              {(data?.relationship_enrichment_jobs || []).map(job => <details key={`${job.entity_kind}:${job.anchor_slug}`} className="small mb-2">
+                <summary>{job.entity_kind}/{job.anchor_slug} · {job.status} · {job.edges_inserted} new edges · {job.published_at ? "published" : "not published"}</summary>
+                {job.last_error && <p className="text-danger">{job.last_error}</p>}
+                {job.evidence && <pre className="bg-body-tertiary p-2 text-wrap">{JSON.stringify(job.evidence, null, 2)}</pre>}
+              </details>)}
               {!data && !error && <p role="status">Loading metadata...</p>}
               {data && <label className="form-check mb-3">
                 <input className="form-check-input" type="checkbox" disabled={busy || !data.items.length}

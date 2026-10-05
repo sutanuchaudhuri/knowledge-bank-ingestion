@@ -81,4 +81,4 @@ help:                           ## Show this help
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 .PHONY: enrich-corpus
 enrich-corpus:                   ## Paid, resumable automatic teaching enrichment (WATCH=1 for new questions)
-	$(BIN)/python scripts/enrich_corpus.py $(if $(WATCH),--watch,) $(if $(LIMIT),--limit $(LIMIT),) $(if $(WORKERS),--workers $(WORKERS),)
+	$(BIN)/python scripts/enrich_corpus.py $(if $(WATCH),--watch,) $(if $(LIMIT),--limit $(LIMIT),) $(if $(WORKERS),--workers $(WORKERS),) $(if $(RELATIONSHIPS),--relationships,)

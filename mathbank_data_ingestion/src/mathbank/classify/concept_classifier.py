@@ -15,7 +15,6 @@ Model selection:
 from __future__ import annotations
 
 import json
-import os
 import random
 import sqlite3
 import textwrap
@@ -76,6 +75,8 @@ def load_taxonomy_prompt_block(conn: sqlite3.Connection) -> str:
 
 def _model_for_level(exam_level: str) -> str:
     level = (exam_level or "").upper().replace(" ", "")
+    if level.startswith(("PURPLE_", "ARML")):
+        return "gpt-4.1"
     if any(k in level for k in ("AIME", "HMMT", "PUMAC", "SMT", "CMM", "CHMMC")):
         return "gpt-4o"
     return "gpt-4o-mini"
@@ -185,21 +186,15 @@ _MAX_RATE_LIMIT_RETRIES = 6
 _BASE_BACKOFF_SECONDS = 5.0
 
 
-def _call_openai(system: str, user: str, model: str) -> str:
-    from dotenv import load_dotenv
-
-    load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+def _call_openai(system: str, user: str, model: str, image_paths: list[str] | None = None) -> str:
+    from mathbank.project_credentials import configure_openai
     # Import lazily to avoid hard dependency if openai is not installed.
     try:
         from openai import OpenAI, RateLimitError  # type: ignore
     except ImportError as exc:
         raise RuntimeError("openai package not installed — run: pip install openai>=1.30") from exc
 
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY is not set in the shell or ingestion .env; run make sync-openai-key"
-        )
+    api_key = configure_openai()
 
     client = OpenAI(api_key=api_key)
     # TPM (tokens-per-minute) is an org-wide limit shared across every concurrent
@@ -216,7 +211,10 @@ def _call_openai(system: str, user: str, model: str) -> str:
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": system},
-                    {"role": "user", "content": user},
+                    {
+                        "role": "user",
+                        "content": _visual_content(user, image_paths) if image_paths else user,
+                    },
                 ],
                 temperature=0.1,  # near-deterministic for classification
                 max_tokens=1024,
@@ -229,6 +227,25 @@ def _call_openai(system: str, user: str, model: str) -> str:
             delay = _BASE_BACKOFF_SECONDS * (2**attempt) + random.uniform(0, 2.0)
             time.sleep(delay)
     raise last_exc  # type: ignore[misc] - loop always sets last_exc before falling through
+
+
+def _visual_content(user: str, image_paths: list[str]) -> list[dict]:
+    import base64
+    content = [{
+        "type": "text",
+        "text": user + "\nInspect the attached source-page diagrams. "
+        "Classify only the named question; neighboring questions on shared pages "
+        "are context, not the target.",
+    }]
+    for filename in dict.fromkeys(image_paths):
+        data = Path(filename).read_bytes()
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError(f"Classification image is not a PNG: {filename}")
+        content.append({"type": "image_url", "image_url": {
+            "url": "data:image/png;base64," + base64.b64encode(data).decode("ascii"),
+            "detail": "high",
+        }})
+    return content
 
 
 # ── Response parser ───────────────────────────────────────────────────────────
@@ -292,5 +309,9 @@ def classify_question(
     user = _build_user_prompt(
         question_id, exam_level, problem_text, solution_texts, image_paths, answer_value
     )
-    raw = _call_openai(system, user, model)
+    visual_paths = image_paths if exam_level.upper().startswith(("PURPLE_", "ARML")) else []
+    raw = (
+        _call_openai(system, user, model, visual_paths)
+        if visual_paths else _call_openai(system, user, model)
+    )
     return _parse_response(raw, question_id, model)

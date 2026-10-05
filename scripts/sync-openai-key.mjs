@@ -40,9 +40,9 @@ async function main() {
     if (error.code !== "ENOENT") throw error;
   }
   const fromRoot = keyFromFile(rootEnv);
-  const key = fromRoot || process.env.OPENAI_API_KEY || "";
+  const key = fromRoot;
   if (!key || /[\s"'`\\#$]/.test(key) || /^(?:change-me|your[-_]|<)/i.test(key)) {
-    throw new Error("Set a valid OPENAI_API_KEY in root .env or export it in your shell before syncing.");
+    throw new Error("Set a valid OPENAI_API_KEY in root .env before syncing; shell keys are ignored.");
   }
   const required = ["mathbank-rest", "mathbank-agent", "mathbank_data_ingestion"];
   const candidates = [...required, "mathbank-db", "mathbank-graph", "mathbank-web"];
@@ -82,7 +82,7 @@ async function main() {
     }
     console.log(`Synced OPENAI_API_KEY to ${service}/.env (value hidden; permissions 0600).`);
   }
-  console.log(`Key source: ${fromRoot ? "root .env" : "shell environment"}. Restart existing services to load it.`);
+  console.log("Key source: root .env only. Restart existing services to load it.");
 }
 
 main().catch((error) => {

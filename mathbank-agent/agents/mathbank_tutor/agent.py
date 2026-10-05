@@ -7,9 +7,10 @@ mathematics_tutor_db_plan/agent/ for the full design and flow docs.
 """
 from __future__ import annotations
 
-import os
+import sys
+from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from google.adk import Agent
 from google.adk.models.lite_llm import LiteLlm
 
@@ -29,23 +30,23 @@ from .tools.rest_tools import (
     search_problems,
 )
 
-load_dotenv()
+SERVICE_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(SERVICE_ROOT.parent / "scripts"))
+from project_env import load_project_openai  # noqa: E402
 
-# Checks the shell environment (e.g. ~/.zshrc) first; load_dotenv() above only
-# fills OPENAI_API_KEY from .env if it isn't already set, never overrides it.
-if not os.environ.get("OPENAI_API_KEY"):
-    raise RuntimeError(
-        "OPENAI_API_KEY not found in the shell environment (~/.zshrc) or mathbank-agent/.env. "
-        "Export it in your shell, or set OPENAI_API_KEY=... in .env (see .env.example)."
-    )
+load_dotenv(SERVICE_ROOT / ".env")
+load_project_openai(SERVICE_ROOT / ".env")
 
-MODEL = os.environ.get("MATHBANK_AGENT_MODEL", "openai/gpt-4o-mini")
+MODEL = dotenv_values(SERVICE_ROOT / ".env", interpolate=False).get(
+    "MATHBANK_AGENT_MODEL"
+) or "openai/gpt-4o-mini"
 
 INSTRUCTION = """\
 You are the MathBank tutor assistant. You answer questions about a corpus of
 competition mathematics problems (AMC, AIME, HMMT, SMT, PUMaC, CHMMC, CMM,
-Math Prize for Girls) stored in PostgreSQL, retrieved via hybrid semantic +
-lexical search tools — never invent a problem, competition, or solution that
+Math Prize for Girls, Purple Comet, ARML) stored in PostgreSQL, retrieved via
+hybrid Graph + vector similarity + lexical search tools — never invent a problem,
+competition, or solution that
 your tools did not return.
 
 Guidelines:
@@ -53,6 +54,15 @@ Guidelines:
   on combinatorics", "problems about cyclic quadrilaterals"), call
   search_problems. Set recent_first=true whenever the user says
   recent/latest/newest.
+- Search uses reviewed Neo4j graph evidence plus vector similarity and lexical
+  reciprocal-rank fusion. Inspect graph_evidence and per-source ranks; graph
+  relatedness is not proof of learner mastery. If retrieval warnings say graph
+  is unavailable, disclose degraded retrieval, not successful graph coverage.
+- For similar-problem requests, use search_problems rather than a tag-only list.
+  If the user provides a source problem code, get_problem_learning_context gives
+  its answer-free statement to use as the similarity query. Do not fetch a full
+  solution merely to formulate a similarity search; distinguish the source
+  problem itself from other matches.
 - To show a full solution or answer for a specific problem, call
   get_problem_by_code with its canonical_code (from a prior search_problems
   result).
@@ -88,7 +98,7 @@ Guidelines:
 root_agent = Agent(
     name="mathbank_tutor",
     model=LiteLlm(model=MODEL),
-    description="Answers questions about the MathBank competition-math corpus using hybrid RAG over Postgres.",
+    description="MathBank tutor using hybrid RAG: Neo4j graph + pgvector similarity + lexical search.",
     instruction=INSTRUCTION,
     tools=[
         search_problems,

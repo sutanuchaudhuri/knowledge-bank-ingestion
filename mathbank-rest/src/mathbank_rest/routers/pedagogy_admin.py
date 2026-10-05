@@ -20,6 +20,7 @@ Kind = Literal[
     "skill",
     "skill_concept",
     "skill_relation",
+    "concept_relation",
     "problem_skill",
     "problem_pedagogy",
     "problem_concept",

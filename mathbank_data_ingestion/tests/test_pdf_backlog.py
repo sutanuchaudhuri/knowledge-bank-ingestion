@@ -13,6 +13,7 @@ from export_classifications_to_csv import matches_papers
 from mathbank.crawl.pdf_parser import render_pdf_pages
 from mathbank.crawl.pdf_parser import split_questions
 import crawl_pdf_papers as crawler
+from mathbank.crawl.pdf_parser import question_page_numbers
 
 
 def test_strict_split_rejects_partial_cached_or_whole_paper():
@@ -70,6 +71,17 @@ def test_download_rejects_html_disguised_as_pdf(monkeypatch):
         crawler._fetch_pdf("https://example.test/paper.pdf", 0)
 
 
+def test_legacy_official_pdf_header_may_have_leading_whitespace():
+    from mathbank.crawl.pdf_format import has_pdf_header
+    assert has_pdf_header(b"\r\n        %PDF-1.5\n")
+    assert not has_pdf_header(b"<html>%PDF-1.5 fake</html>")
+
+
+def test_docling_markdown_headings_are_real_question_boundaries():
+    text = "## Contest title\n\n## Problem 1\nSynthetic question one.\n\n## Problem 2\nSynthetic question two."
+    assert set(split_questions(text, "PURPLE_MS", 2)) == {1, 2}
+
+
 def test_postscript_converter_missing_is_explicit(monkeypatch):
     import shutil
     monkeypatch.setattr(shutil, "which", lambda name: None)
@@ -100,6 +112,101 @@ def test_question_boundaries_ignore_premature_numeric_lines():
     assert blocks[14] == "14. Actual question 14."
     assert blocks[15] == "15. Actual question 15."
     assert all(block.strip() for block in blocks.values())
+
+
+def test_page_spans_preserve_shared_pages_and_continuation_diagrams():
+    import pymupdf
+    with pymupdf.open() as pdf:
+        pdf.new_page().insert_text((72, 72), "1. Synthetic first question.")
+        pdf.new_page().insert_text((72, 72), "Continuation and vector diagram.")
+        pdf.new_page().insert_text((72, 72), "2. Synthetic second question.")
+        data = pdf.tobytes()
+    spans = question_page_numbers(data, 2)
+    assert 1 in spans[1] and 2 in spans[1]
+    assert spans[2] == [3]
+    with pytest.raises(ValueError, match="Cannot locate all"):
+        question_page_numbers(data, 3)
+
+
+def test_purple_divisions_are_supported_by_download_and_classification():
+    assert {"PURPLE_MS", "PURPLE_HS"} <= crawler.PDF_COMPETITIONS
+    assert classifier.PDF_COMPETITION_DIRS["purple_ms"] == "PURPLE_MS"
+    assert classifier.PDF_COMPETITION_DIRS["purple_hs"] == "PURPLE_HS"
+
+
+def test_visual_classifier_sends_actual_png_bytes_and_keeps_answer_separate(tmp_path):
+    import base64
+    from mathbank.classify.concept_classifier import _visual_content
+    image = tmp_path / "problem_page_001.png"
+    data = b"\x89PNG\r\n\x1a\nsynthetic fixture"
+    image.write_bytes(data)
+    content = _visual_content("Classify synthetic Q01.", [str(image), str(image)])
+    assert len(content) == 2
+    assert base64.b64decode(content[1]["image_url"]["url"].split(",", 1)[1]) == data
+    assert content[1]["image_url"]["detail"] == "high"
+    image.write_bytes(b"not an image")
+    with pytest.raises(ValueError, match="not a PNG"):
+        _visual_content("Question", [str(image)])
+
+
+def test_purple_classifier_discovers_all_image_pages_and_official_answer(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr(classifier, "PDF_CRAWL_DIR", tmp_path)
+    folder = tmp_path / "purple_ms/PAPER_PURPLE_2026_MS"
+    q = folder / "questions/Q01"
+    (q / "images").mkdir(parents=True)
+    (q / "problem.md").write_text("Synthetic question with a diagram.")
+    (q / "solution.md").write_text("Synthetic worked explanation.")
+    (q / "images/problem_page_001.png").write_bytes(b"fixture")
+    (q / "images/solution_page_002.png").write_bytes(b"fixture")
+    (folder / "answers.json").write_text(json.dumps({"1": "17"}))
+    result = classifier.discover_questions("PURPLE_MS")
+    assert len(result) == 1 and len(result[0].image_paths) == 2
+    assert result[0].answer_value == "17"
+
+
+@pytest.mark.parametrize("directory,competition", [
+    ("arml", "ARML"), ("arml_local", "ARML_LOCAL"), ("arml_power", "ARML_POWER"),
+])
+def test_arml_visual_discovery_preserves_proof_questions(tmp_path, monkeypatch, directory, competition):
+    monkeypatch.setattr(classifier, "PDF_CRAWL_DIR", tmp_path)
+    question = tmp_path / directory / f"PAPER_{competition}_2015_MAIN_POWER/questions/Q01"
+    (question / "images").mkdir(parents=True)
+    (question / "problem.md").write_text("Synthetic multipart proof with shared context.")
+    (question / "solution.md").write_text("Synthetic multipart proof explanation.")
+    (question / "images/problem_page_001.png").write_bytes(b"fixture")
+    result = classifier.discover_questions(competition)
+    assert len(result) == 1
+    assert result[0].image_paths
+    assert not result[0].answer_value
+    assert result[0].solution_texts == ["Synthetic multipart proof explanation."]
+
+
+def test_arml_classifier_uses_actual_images_and_gpt41(tmp_path, monkeypatch):
+    from mathbank.classify import concept_classifier
+    image = tmp_path / "problem_page_001.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\nsynthetic fixture")
+    calls = []
+    monkeypatch.setattr(concept_classifier, "_call_openai", lambda *args: calls.append(args) or "{}")
+    monkeypatch.setattr(concept_classifier, "_parse_response", lambda *args: "visual result")
+    assert concept_classifier.classify_question(
+        None, "PAPER_ARML_2015_MAIN_TEAM_Q01", "ARML", "Synthetic question.", [],
+        [str(image)], "", "Synthetic taxonomy",
+    ) == "visual result"
+    assert calls[0][2] == "gpt-4.1"
+    assert calls[0][3] == [str(image)]
+
+
+def test_legacy_remote_image_references_do_not_become_local_file_reads(monkeypatch):
+    from mathbank.classify import concept_classifier
+    calls = []
+    monkeypatch.setattr(concept_classifier, "_call_openai", lambda *args: calls.append(args) or "{}")
+    monkeypatch.setattr(concept_classifier, "_parse_response", lambda *args: "legacy result")
+    assert concept_classifier.classify_question(
+        None, "LEGACY_Q01", "AMC10", "Synthetic question.", [],
+        ["https://example.test/figure.jpg"], "", "Synthetic taxonomy",
+    ) == "legacy result"
+    assert len(calls[0]) == 3
 
 
 def test_repaired_smt_registry_uses_official_document_names():
