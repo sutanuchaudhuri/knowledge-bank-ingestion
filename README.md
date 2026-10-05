@@ -243,10 +243,14 @@ retain their existing precedence. No shell profile needs changing.
 
 #### OpenAI / LiteLLM troubleshooting on either developer's machine
 
+> **Note:** After saving or updating `OPENAI_API_KEY` in the root `.env`,
+> run these commands from the repository root on each developer's machine.
+> The `CHAT=1` check makes a small paid LiteLLM model request.
+
 ```sh
 make sync-openai-key
 make check-openai          # authenticate without a paid chat completion
-make check-openai CHAT=1   # also exercise the configured LiteLLM chat model (small paid call)
+make check-openai CHAT=1   # small paid LiteLLM model check
 ```
 
 These checks read project files, never print the key, and do not source or modify
