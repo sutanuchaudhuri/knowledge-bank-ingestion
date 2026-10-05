@@ -72,13 +72,16 @@ DIRECT_LINK_SCOPES = {
 }
 
 
-def _connect():
+def _connect(*, direct: bool = False):
     # NEON_PG_* (from mathbank-graph/remote.env, via PG_ENV_FILE) target the
     # remote Neon instance; falls back to the local mathbank-db cluster when
     # absent — same precedence as etl/load_corpus.py::main().
     env = _load_env()
+    host = env.get("NEON_PG_HOST", "127.0.0.1")
+    if direct and host.endswith(".neon.tech"):
+        host = host.replace("-pooler.", ".")
     conninfo = (
-        f"host={env.get('NEON_PG_HOST', '127.0.0.1')} "
+        f"host={host} "
         f"port={env.get('NEON_PG_PORT') or env.get('PG_PORT', '5433')} "
         f"dbname={env.get('NEON_PG_DATABASE') or env.get('APP_DB', 'mathbank')} "
         f"user={env.get('NEON_PG_USER') or env.get('APP_USER', 'mathbank_app')} "

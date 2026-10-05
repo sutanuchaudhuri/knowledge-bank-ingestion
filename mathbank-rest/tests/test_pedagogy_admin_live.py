@@ -20,6 +20,7 @@ pytestmark = pytest.mark.skipif(
 def review_connection(monkeypatch):
     with engine.connect() as conn:
         transaction = conn.begin()
+        conn.execute(text("SET LOCAL mathbank.human_review='on'"))
 
         class FixtureEngine:
             @contextmanager

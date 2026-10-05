@@ -124,7 +124,48 @@ After HTTP works, run `make test-connectivity` to verify the configured
 Postgres and Neo4j backends separately. Do not paste environment files,
 API keys or passwords into an issue or chat.
 
-#### Model-key synchronization
+#### Automatic teaching metadata
+
+Existing PENDING and future generated corpus metadata are automatically
+approved, with `approval_method=automatic` to distinguish machine estimates
+from human review. Admin corrections and rejections are protected. Learning
+context enriches missing skills/prerequisites/difficulty automatically; this
+uses paid model requests and does not create learner mastery records.
+
+Apply `mathbank-db/sql/008_automatic_metadata.sql` after migrations 006/007.
+From `mathbank-rest`, `make enrich-corpus WATCH=1 WORKERS=4` backfills all questions
+and watches newly ingested ones. Per-question status, attempts and failures
+are recorded in `knowledge.enrichment_job`; invalid output is not approved.
+The worker reselects work between every problem and prioritizes failed jobs
+whose five-minute cooldown has elapsed, up to three job attempts. Non-watch
+`LIMIT=...` bounds generation attempts; watch mode continues without a total cap.
+Graph publication uses batches of at most 25, scheduled every 60 seconds or when
+a full batch is ready (checked between jobs). Completed-but-unpublished jobs
+are replayed without paying for regeneration. Transient graph failures use
+three attempts with 2/4-second backoff, then watch mode retries after 60 seconds.
+Generation and publication errors are logged separately.
+`WORKERS` defaults to 1 and accepts 1-8. Four concurrent model jobs are currently
+authorized. Imports retain their table locks for global cycle safety; only the
+coordinator publishes graph batches. In-flight codes are excluded from dispatch
+and Postgres claims remain authoritative. SIGTERM/SIGINT stops dispatch, drains
+active jobs, and flushes publication work before exit. Do not launch multiple
+independent coordinators to increase concurrency. Provider rate limits and
+serialized imports mean throughput will not necessarily scale linearly.
+Watch mode also retries temporary Postgres read failures. Each generation can
+request up to three structured model responses with exact catalog enums and
+validation feedback, including existing-graph cycle conflicts. Metadata and its
+COMPLETED publication job are saved in the same transaction. The admin UI lists
+failed generation errors and offers reclassification.
+The admin pedagogy UI supports attribute corrections, tag decisions and
+reclassification; explicitly publish corrections to update Neo4j.
+
+The running background backfill logs to
+`mathbank-rest/logs/automatic-enrichment.log`. Full corpus completion is not
+claimed until the remaining job count is zero and graph publication succeeds.
+See the [recovery plan](requirements/14_AUTOMATIC_ENRICHMENT_RECOVERY.md)
+for acceptance criteria and operational gotchas.
+
+#### Model-key synchronization details
 
 `make sync-openai-key` copies `OPENAI_API_KEY` from the root `.env` (preferred)
 or the exported shell environment (fallback) into REST, agent and ingestion

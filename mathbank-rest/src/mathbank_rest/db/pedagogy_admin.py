@@ -21,6 +21,8 @@ KINDS = {
     "skill_relation": ("from_skill_id", "to_skill_id", "relation_type"),
     "problem_skill": ("problem_id", "skill_id", "relation_type", "role"),
     "problem_pedagogy": ("problem_id",),
+    "problem_concept": ("problem_id", "concept_id", "role"),
+    "problem_technique": ("problem_id", "technique_id", "role"),
 }
 JOINS = {
     "skill": ("", "t.name AS title, t.objective AS context"),
@@ -45,6 +47,14 @@ JOINS = {
     "problem_pedagogy": (
         "JOIN core.problem p USING(problem_id)",
         "p.canonical_code AS title, p.statement_text AS context, p.canonical_code AS problem_code",
+    ),
+    "problem_concept": (
+        "JOIN core.problem p USING(problem_id) JOIN knowledge.concept c USING(concept_id)",
+        "p.canonical_code || ' -> ' || c.name AS title, p.statement_text AS context, p.canonical_code AS problem_code",
+    ),
+    "problem_technique": (
+        "JOIN core.problem p USING(problem_id) JOIN knowledge.technique c USING(technique_id)",
+        "p.canonical_code || ' -> ' || c.name AS title, p.statement_text AS context, p.canonical_code AS problem_code",
     ),
 }
 REVIEWER = "shared-admin-api-key"
@@ -97,7 +107,7 @@ def validate_key(kind: str, key: dict[str, str]) -> dict[str, str]:
         )
         if key["relation_type"] not in allowed:
             raise ValueError("Invalid relation type")
-    if "role" in key and key["role"] not in {"primary", "supporting"}:
+    if kind == "problem_skill" and key["role"] not in {"primary", "supporting"}:
         raise ValueError("Invalid role")
     return result
 
@@ -173,6 +183,28 @@ def queue(kind: str, status: str, limit: int, offset: int) -> dict:
             for table in KINDS
         }
         state = publication_state(conn)
+        enrichment_counts: dict[str, int] = dict(
+            conn.execute(
+                text("SELECT status,count(*) FROM knowledge.enrichment_job GROUP BY status")
+            ).all()
+        )
+        unenriched = conn.execute(
+            text("""
+            SELECT count(*) FROM core.problem p WHERE
+            NOT EXISTS(SELECT 1 FROM knowledge.problem_skill s WHERE s.problem_id=p.problem_id)
+            OR NOT EXISTS(SELECT 1 FROM knowledge.problem_pedagogy d WHERE d.problem_id=p.problem_id)
+        """)
+        ).scalar_one()
+        enrichment_errors = [
+            dict(row)
+            for row in conn.execute(
+                text(
+                    "SELECT p.canonical_code,j.attempts,j.last_error,j.updated_at "
+                    "FROM knowledge.enrichment_job j JOIN core.problem p USING(problem_id) "
+                    "WHERE j.status='FAILED' ORDER BY j.updated_at DESC LIMIT 10"
+                )
+            ).mappings()
+        ]
         starter_warning = None
         try:
             starter = starter_items(conn)
@@ -193,6 +225,9 @@ def queue(kind: str, status: str, limit: int, offset: int) -> dict:
         "items": items,
         "total": total,
         "counts": counts,
+        "enrichment_counts": enrichment_counts,
+        "unenriched_problems": unenriched,
+        "enrichment_errors": enrichment_errors,
         "starter_pending": sum(item["status"] == "PENDING" for item in starter),
         "starter_warning": starter_warning,
         **state,
@@ -223,15 +258,18 @@ def change_decision(
         raise MissingMetadata("Metadata not found")
     if revision(before) != expected_revision:
         raise ReviewConflict("This assertion changed. Reload it and review the new version.")
-    if before["review_status"] == review_status:
+    if before["review_status"] == review_status and before.get("approval_method") != "automatic":
         raise ReviewConflict("The assertion already has this review status.")
     if review_status == "REVIEWED":
         check_reviewed_dependencies(conn, kind, key)
+    conn.execute(text("SET LOCAL mathbank.human_review = 'on'"))
     conn.execute(
         text(f"UPDATE knowledge.{kind} SET review_status=:status WHERE {where}"),
         {**key, "status": review_status},
     )
-    after = {**before, "review_status": review_status}
+    after = conn.execute(
+        text(f"SELECT to_jsonb(t) FROM knowledge.{kind} t WHERE {where}"), key
+    ).scalar_one()
     conn.execute(
         text("""
         INSERT INTO knowledge.pedagogy_review_event
@@ -389,7 +427,7 @@ def history(kind: str, key: dict[str, str]) -> dict:
     return {"events": [dict(row) for row in rows]}
 
 
-def publish(expected_fingerprint: str) -> dict:
+def publish(expected_fingerprint: str, problem_codes: list[str] | None = None) -> dict:
     projector = operator_module("projector")
     author = operator_module("author")
     with engine.begin() as conn:
@@ -400,7 +438,22 @@ def publish(expected_fingerprint: str) -> dict:
         with closing(conn.connection.cursor()) as cursor:
             author.resolve_manifest(cursor, author.validate_manifest({"version": 1}))
             projector.ensure_constraints(driver, pedagogy=True)
-            skills, edges = projector.project_pedagogy(driver, cursor)
+            if problem_codes:
+                with driver.session() as session:
+                    projection_count = session.run(
+                        "MATCH(p:Problem) WHERE p.canonical_code IN $codes RETURN count(p) AS n",
+                        codes=problem_codes,
+                    ).single()
+                    if projection_count is None:
+                        raise RuntimeError("Graph target-count query returned no result.")
+                    projected = projection_count["n"]
+                if projected != len(set(problem_codes)):
+                    projector.project_competitions(driver, cursor)
+                    projector.project_papers(driver, cursor)
+                    projector.project_problems(driver, cursor, problem_codes)
+            projector.project_problem_concept(driver, cursor, problem_codes)
+            projector.project_problem_technique(driver, cursor, problem_codes)
+            skills, edges = projector.project_pedagogy(driver, cursor, problem_codes)
         publication = (
             conn.execute(
                 text("""
@@ -413,7 +466,100 @@ def publish(expected_fingerprint: str) -> dict:
             .mappings()
             .one()
         )
+        if problem_codes:
+            conn.execute(
+                text(
+                    "UPDATE knowledge.enrichment_job SET published_at=now() WHERE status='COMPLETED' AND problem_id IN "
+                    "(SELECT problem_id FROM core.problem WHERE canonical_code=ANY(:codes))"
+                ),
+                {"codes": problem_codes},
+            )
     return {
         "publication": dict(publication),
         "message": "Pedagogical metadata published to Neo4j. Review status is preserved.",
+    }
+
+
+EDITABLE = {
+    "skill": {"name", "objective", "level", "source", "confidence"},
+    "skill_concept": {"source", "confidence"},
+    "skill_relation": {"source", "confidence"},
+    "problem_skill": {"required_level", "importance", "source", "confidence"},
+    "problem_pedagogy": {
+        "conceptual_depth",
+        "technical_load",
+        "algebraic_load",
+        "insight_required",
+        "number_of_steps",
+        "prerequisite_depth",
+        "estimated_contest_level",
+        "source",
+        "confidence",
+    },
+    "problem_concept": {"confidence", "assertion_source"},
+    "problem_technique": {"confidence", "assertion_source"},
+}
+
+
+def edit(kind: str, key: dict[str, str], expected_revision: str, changes: dict, note: str) -> dict:
+    key = validate_key(kind, key)
+    if not changes or not set(changes) <= EDITABLE[kind]:
+        raise ValueError("Only editable metadata attributes may be changed.")
+    for field, value in changes.items():
+        if field in {"confidence", "importance"}:
+            if type(value) not in (int, float) or not 0 <= value <= 1:
+                raise ValueError(f"{field} must be a finite number in 0..1")
+        elif field in {
+            "name",
+            "objective",
+            "source",
+            "assertion_source",
+            "estimated_contest_level",
+        }:
+            if not isinstance(value, str) or not value.strip() or len(value) > 2000:
+                raise ValueError(f"{field} must be nonblank text (maximum 2000 characters)")
+        elif value is not None:
+            lower, upper = (
+                (0, 100) if field in {"number_of_steps", "prerequisite_depth"} else (1, 5)
+            )
+            if type(value) is not int or not lower <= value <= upper:
+                raise ValueError(f"{field} has invalid bounds")
+    where = " AND ".join(f"{field}=:{field}" for field in KINDS[kind])
+    with engine.begin() as conn:
+        lock_authoring(conn)
+        before = conn.execute(
+            text(f"SELECT to_jsonb(t) FROM knowledge.{kind} t WHERE {where} FOR UPDATE"), key
+        ).scalar_one_or_none()
+        if before is None:
+            raise MissingMetadata("Metadata not found")
+        if revision(before) != expected_revision:
+            raise ReviewConflict("Metadata changed. Reload before editing.")
+        conn.execute(text("SET LOCAL mathbank.human_review='on'"))
+        assignments = ",".join(f"{field}=:edit_{field}" for field in changes)
+        conn.execute(
+            text(f"UPDATE knowledge.{kind} SET {assignments} WHERE {where}"),
+            {**key, **{f"edit_{k}": v for k, v in changes.items()}},
+        )
+        after = conn.execute(
+            text(f"SELECT to_jsonb(t) FROM knowledge.{kind} t WHERE {where}"), key
+        ).scalar_one()
+        conn.execute(
+            text("""
+            INSERT INTO knowledge.pedagogy_review_event
+            (entity_kind,entity_key,before_snapshot,after_snapshot,reviewer,review_note)
+            VALUES(:kind,CAST(:key AS jsonb),CAST(:before AS jsonb),CAST(:after AS jsonb),:reviewer,:note)
+        """),
+            {
+                "kind": kind,
+                "key": json.dumps(key),
+                "before": json.dumps(before),
+                "after": json.dumps(after),
+                "reviewer": REVIEWER,
+                "note": note,
+            },
+        )
+        validate_graph(conn)
+    return {
+        "message": "Admin correction saved and protected from automatic replacement. Publish to update graph.",
+        "revision": revision(after),
     }

@@ -268,7 +268,7 @@ export default function GraphRelationshipPage() {
                   graphData={graphData}
                   width={size.width}
                   height={size.height}
-                  nodeLabel={(n) => `${n.label}: ${n.name}${n.properties?.review_status ? ` (${n.properties.review_status})` : ""}`}
+                  nodeLabel={(n) => `${n.label}: ${n.name}${n.properties?.approval_method === "automatic" || n.properties?.pedagogy_approval_method === "automatic" ? " (automatically approved)" : n.properties?.review_status ? ` (${n.properties.review_status})` : ""}`}
                   nodeColor={(n) => (highlightIds && !highlightIds.has(n.id) ? DIM_COLOR : colorFor(n.label))}
                   nodeVal={(n) => (n.id === selectedId ? 4 : 1)}
                   nodeRelSize={4}

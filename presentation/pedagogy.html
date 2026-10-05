@@ -23,6 +23,25 @@
   </nav>
 </header>
 <main>
+  <section class="card reveal" id="automatic-enrichment">
+    <span class="tag">Latest policy update · automatic approval</span>
+    <h2>Enrich automatically; let administrators correct the estimates</h2>
+    <p>The operator authorized automatic approval for existing PENDING metadata and future
+    machine-generated enrichment. Skills, prerequisites, corpus tags and difficulty estimates
+    carry <code>approval_method=automatic</code>; compatible <code>REVIEWED</code> status
+    means usable, not human certification. Admin edits and REJECTED assertions are protected.</p>
+    <p><code>AIME_1983_Q01</code> has live automatic teaching context: three required skills,
+    one prerequisite, concept/technique tags and seven recorded difficulty dimensions.
+    The corpus backfill is resumable, with per-question status and errors; complete coverage
+    is not claimed until every question and graph projection has been verified.</p>
+    <p>Admins can inspect provenance, correct attributes, reject an assertion or regenerate
+    automatic teaching metadata, then publish corrections. These are teaching estimates,
+    not measured learner mastery. Generated coaching remains provisional.</p>
+    <p><a class="pedagogy-link" href="http://localhost:5173/learn?problem=AIME_1983_Q01">Inspect automatic learning context</a>
+    <a class="pedagogy-link" href="http://localhost:5173/admin/pedagogy">Correct metadata in admin</a></p>
+    <p class="pedagogy-note">Review-gated and PENDING-only descriptions below record earlier
+    rollout history and are superseded by this policy.</p>
+  </section>
   <section class="hero reveal" style="padding-top:36px">
     <span class="eyebrow">P0 · Anonymous learning, evidence first</span>
     <h1>Help with the obstacle.<br />Then return to the problem.</h1>
@@ -39,13 +58,13 @@
   </section>
 
   <section class="card reveal" id="admin-approval">
-    <span class="tag">Current live approval · 2026-10-04</span>
+    <span class="tag">Earlier starter-only approval · 2026-10-04</span>
     <h2>Inspect → bulk approve in Postgres → explicitly publish</h2>
     <p>The operator subsequently authorized approval of only the 27 counting starter assertions:
     6 Skills, 6 Skill–Concept links, 6 Skill relations, 6 Problem–Skill mappings, and
     3 difficulty assessments. The authenticated admin UI recorded every before/after snapshot and
     the operator's rationale in Neon, then explicitly published the teaching layer to AuraDB.</p>
-    <p>Current state: <strong>6 reviewed Skills, 18 REVIEWED skill-related edges, 3 reviewed
+    <p>Earlier snapshot: <strong>6 reviewed Skills, 18 REVIEWED skill-related edges, 3 reviewed
     assessments</strong>. The <strong>65 legacy concept-hierarchy edges remain PENDING</strong>;
     corpus topic/method tags were not bulk-approved. Totals remain 20,942 nodes / 35,529 relationships.
     This is user-authorized bootstrap approval, not independent expert certification.

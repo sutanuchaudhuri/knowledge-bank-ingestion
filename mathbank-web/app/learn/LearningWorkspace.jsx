@@ -18,7 +18,7 @@ async function tutorRequest(path, options = {}) {
 function Provenance({ item }) {
   return (
     <span className="small text-secondary">
-      {item.review_status || "Review status unavailable"} · source: {item.source || "Not provided"}
+      {item.approval_method === "automatic" ? "Automatically approved (not human-reviewed)" : item.review_status || "Review status unavailable"} · source: {item.source || "Not provided"}
       {item.confidence !== undefined && item.confidence !== null && ` · confidence: ${item.confidence}`}
     </span>
   );
@@ -66,12 +66,15 @@ export default function LearningWorkspace() {
     setLoading(Boolean(code));
     if (!code) return () => controller.abort();
     tutorRequest(`learning-context/${encodeURIComponent(code)}`, { signal: controller.signal })
-      .then((data) => { if (!controller.signal.aborted) setContext(data); })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setContext(data);
+        tutorRequest(`practice/${encodeURIComponent(code)}?limit=5`, { signal: controller.signal })
+          .then((result) => { if (!controller.signal.aborted) setPractice(result); })
+          .catch((err) => { if (!controller.signal.aborted) setPracticeError(err.message); });
+      })
       .catch((err) => { if (!controller.signal.aborted) setError(err.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    tutorRequest(`practice/${encodeURIComponent(code)}?limit=5`, { signal: controller.signal })
-      .then((data) => { if (!controller.signal.aborted) setPractice(data); })
-      .catch((err) => { if (!controller.signal.aborted) setPracticeError(err.message); });
     return () => { controller.abort(); coachController.current?.abort(); };
   }, [code, reloadKey]);
 
@@ -135,7 +138,7 @@ export default function LearningWorkspace() {
       </form>
       {loading && <p role="status">Loading answer-free learning context...</p>}
       {error && <div role="alert" className="alert alert-danger">{error}</div>}
-      {!context && !loading && !error && <div className="card border-0 shadow-sm p-4 text-secondary">Choose a real corpus problem to begin. Reviewed skill metadata may not yet be available for every problem.</div>}
+      {!context && !loading && !error && <div className="card border-0 shadow-sm p-4 text-secondary">Choose a real corpus problem to begin. Missing teaching metadata is enriched automatically; the first request can take longer.</div>}
       {context && (
         <div className="row g-4">
           <div className="col-12 col-xl-8">
@@ -144,7 +147,7 @@ export default function LearningWorkspace() {
                 <div className="d-flex flex-wrap justify-content-between gap-2 mb-2">
                   <h2 className="h5">{context.problem.canonical_code}</h2>
                   <span className={`badge ${context.metadata_status === "reviewed" ? "text-bg-success" : "text-bg-warning"}`}>
-                    {context.metadata_status === "reviewed" ? "Reviewed teaching metadata" : "Not yet enriched"}
+                    {context.metadata_status === "automatic" ? "Automatically enriched" : context.metadata_status === "reviewed" ? "Human-reviewed teaching metadata" : "Not yet enriched"}
                   </span>
                 </div>
                 <p className="small text-secondary">{context.problem.competition} · {context.problem.year} · {context.problem.difficulty_band || "Difficulty not recorded"}</p>
@@ -203,7 +206,7 @@ export default function LearningWorkspace() {
               <div className="card-body">
                 <h2 className="h5">Learning context</h2>
                 {(context.warnings || []).map((warning, index) => <div key={index} className="alert alert-warning small">{warning}</div>)}
-                <h3 className="h6">Reviewed skills</h3>
+                <h3 className="h6">Approved skills</h3>
                 {context.skills.length ? context.skills.map((skill) => (
                   <div key={`${skill.slug}-${skill.relation_type || ""}-${skill.role}`} className="border rounded-3 p-3 mb-2">
                     <strong>{skill.name}</strong>
@@ -211,22 +214,25 @@ export default function LearningWorkspace() {
                     <p className="small mb-1">{skill.relation_type && `${skill.relation_type} · `}{skill.role} · required level: {skill.required_level ?? "Unknown"} · importance: {skill.importance ?? "Unknown"}</p>
                     <Provenance item={skill} />
                   </div>
-                )) : <p className="small text-secondary">No reviewed skill mappings yet. Concepts are not assumed to be measurable skills.</p>}
-                <h3 className="h6 mt-3">Reviewed prerequisites</h3>
+                )) : <p className="small text-secondary">No approved skill mappings. Concepts are not assumed to be measurable skills.</p>}
+                <h3 className="h6 mt-3">Approved prerequisites</h3>
                 {context.prerequisites.length ? context.prerequisites.map((skill) => (
                   <div key={skill.slug} className="small mb-2"><strong>{skill.name}</strong><br /><Provenance item={skill} /></div>
-                )) : <p className="small text-secondary">No reviewed prerequisite path available.</p>}
-                <h3 className="h6 mt-3">Reviewed concept tags</h3>
-                <p className="small text-secondary">{context.concepts.map((item) => item.name).join(", ") || "No reviewed concept tags available"}</p>
-                <h3 className="h6 mt-3">Reviewed technique tags</h3>
-                <p className="small text-secondary">{context.techniques.map((item) => item.name).join(", ") || "No reviewed technique tags available"}</p>
-                <p className="small text-secondary">Only reviewed corpus tags are included here. Topics and methods are not proof of required skills or learner mastery.</p>
+                )) : <p className="small text-secondary">No supported prerequisite path recorded.</p>}
+                <h3 className="h6 mt-3">Approved concept tags</h3>
+                {context.concepts.map(item => <div key={`${item.slug}-${item.role}-${item.source}`} className="small mb-2">{item.name}<br /><Provenance item={item} /></div>)}
+                {!context.concepts.length && <p className="small text-secondary">No applicable concept tags recorded.</p>}
+                <h3 className="h6 mt-3">Approved technique tags</h3>
+                {context.techniques.map(item => <div key={`${item.slug}-${item.role}-${item.source}`} className="small mb-2">{item.name}<br /><Provenance item={item} /></div>)}
+                {!context.techniques.length && <p className="small text-secondary">No applicable technique tags recorded.</p>}
+                <p className="small text-secondary">Approved includes automatic and human decisions. Topics and methods are not proof of learner mastery.</p>
                 <h3 className="h6 mt-3">Difficulty dimensions</h3>
                 <dl className="small mb-0">
                   {["conceptual_depth", "technical_load", "algebraic_load", "insight_required", "number_of_steps", "prerequisite_depth", "estimated_contest_level"].map((key) => (
                     <div className="d-flex justify-content-between gap-2" key={key}><dt>{key.replaceAll("_", " ")}</dt><dd>{context.difficulty?.[key] ?? "Not recorded"}</dd></div>
                   ))}
                 </dl>
+                <Provenance item={context.difficulty || {}} />
               </div>
             </section>
             <section className="card border-0 shadow-sm">

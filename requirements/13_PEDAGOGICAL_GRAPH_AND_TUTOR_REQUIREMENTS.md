@@ -2,6 +2,40 @@
 
 ## Goal and scope
 
+### Automatic-approval policy (2026-10-04 update)
+
+The operator authorized automatic approval of existing PENDING metadata and
+future machine-generated enrichment. Usable assertions retain the compatible
+`REVIEWED` status, but `approval_method=automatic` explicitly distinguishes
+them from human review. The UI must show automatic approval, confidence and
+provenance; never imply measured mastery or calibrated difficulty.
+
+Migration 008 promotes PENDING corpus tags, concept relations and teaching
+metadata with immutable automatic-approval snapshots. Database triggers apply
+the policy to future writes, including batch classification. Human corrections
+and REJECTED records remain protected from automatic updates.
+
+Learning-context requests automatically enrich missing skills, prerequisite
+links and seven difficulty dimensions using validated structured model output.
+Prerequisite cycles and unknown taxonomy references are rejected before writes.
+Invalid generated JSON receives bounded correction feedback (at most three
+model responses per attempt), including conflicts detected during the locked
+atomic import against existing prerequisites. Catalog selections use structured
+output enums; exhausted attempts retain the detailed validation cause.
+Model/database errors are explicit, not empty successful contexts.
+
+A resumable corpus worker processes all existing questions and watches for
+newly ingested ones. Per-problem jobs record status, attempts and errors;
+completed metadata is not regenerated unless an admin requests it. Graph
+publication follows successful storage. Admins can review/reject, edit
+attributes with an audit rationale, regenerate automatic teaching metadata,
+and explicitly publish corrections. Regeneration preserves human overrides.
+Recovery behavior and validation are specified in the
+[automatic enrichment recovery plan](14_AUTOMATIC_ENRICHMENT_RECOVERY.md).
+
+Earlier PENDING/review-gated descriptions below are historical rollout context,
+superseded by this policy. Generated coaching itself remains provisional.
+
 Evolve the corpus graph into a teaching graph without confusing Concept
 (knowledge), Skill (an observable action), and Technique (a method).
 The attached proposal is the design input. Its historical corpus counts are

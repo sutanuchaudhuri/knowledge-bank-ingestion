@@ -249,6 +249,8 @@ def test_invalid_model_output_is_explicit_failure(monkeypatch, choices):
     ],
 )
 def test_read_errors_are_not_success_shaped(monkeypatch, error, status):
+    from mathbank_rest.routers import pedagogy as routes
+    monkeypatch.setattr(routes, "ensure_learning_metadata", lambda code: {})
     def fail(code):
         raise error
 
@@ -270,6 +272,8 @@ def test_query_bounds(url):
 
 
 def test_refusal_returns_502(monkeypatch):
+    from mathbank_rest.routers import pedagogy as routes
+    monkeypatch.setattr(routes, "ensure_learning_metadata", lambda code: {})
     def fail(body):
         raise pedagogy.CoachingUnavailable("Refused")
 

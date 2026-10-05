@@ -77,9 +77,39 @@ def _fetch_pdf(url: str, delay: float) -> bytes:
     if r.status_code >= 400:
         raise DownloadError(f"HTTP {r.status_code} → {url}")
     ct = r.headers.get("Content-Type", "")
+    if r.content.startswith(b"%!PS"):
+        return _convert_postscript(r.content, url)
     if "pdf" not in ct.lower() and not url.lower().endswith(".pdf"):
         raise DownloadError(f"Expected PDF, got {ct} from {url}")
+    if not r.content.startswith(b"%PDF-"):
+        raise DownloadError(f"Response is not a PDF document from {url}")
     return r.content
+
+
+def _convert_postscript(content: bytes, url: str) -> bytes:
+    import shutil
+    import subprocess
+    import tempfile
+
+    gs = shutil.which("gs")
+    if gs is None:
+        raise DownloadError("PostScript source requires Ghostscript (gs); install it before retrying")
+    with tempfile.TemporaryDirectory(prefix="mathbank-ps-") as directory:
+        source = Path(directory) / "source.ps"
+        output = Path(directory) / "converted.pdf"
+        source.write_bytes(content)
+        try:
+            subprocess.run(
+                [gs, "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=pdfwrite",
+                 f"-sOutputFile={output}", str(source)],
+                check=True, capture_output=True, timeout=120,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            raise DownloadError(f"PostScript conversion failed ({type(exc).__name__}) for {url}") from exc
+        if not output.is_file() or not output.read_bytes().startswith(b"%PDF-"):
+            raise DownloadError(f"Ghostscript produced no valid PDF for {url}")
+        console.print(f"  Converted official PostScript source to PDF: {url}")
+        return output.read_bytes()
 
 
 # ── Artifact paths ─────────────────────────────────────────────────────────────

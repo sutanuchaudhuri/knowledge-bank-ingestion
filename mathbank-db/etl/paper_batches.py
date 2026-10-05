@@ -15,6 +15,7 @@ import re
 import sqlite3
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
@@ -144,6 +145,11 @@ def snapshot(conn, args) -> tuple[str, list[dict], Path]:
         if row is None:
             raise ValueError("No matching PAPER_BATCH run")
         papers = row[0]["papers"]
+        selected = getattr(args, "paper", None)
+        if selected:
+            if set(selected) - set(papers):
+                raise ValueError("Requested retry paper is outside the original run snapshot")
+            papers = [paper for paper in papers if paper in selected]
         done = {
             r[0]
             for r in conn.execute(
@@ -162,6 +168,8 @@ def snapshot(conn, args) -> tuple[str, list[dict], Path]:
             rows = cur.fetchall()
         if len(rows) != len(papers):
             raise ValueError("A paper from the original snapshot is missing")
+        by_paper = {row["paper_external_code"]: row for row in rows}
+        rows = [by_paper[paper] for paper in papers]
         conn.execute(
             "UPDATE pipeline.run SET status='IN_PROGRESS',completed_at=NULL,"
             "heartbeat_at=now() WHERE run_id=%s",
@@ -542,6 +550,10 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=10000)
     parser.add_argument("--paper", action="append")
     parser.add_argument(
+        "--wait-for-lock", action="store_true",
+        help="Wait for the active runner before retrying; never run graph writes concurrently",
+    )
+    parser.add_argument(
         "--resume", help="Resume original Postgres run UUID, including failed stages"
     )
     args = parser.parse_args()
@@ -556,12 +568,19 @@ def main() -> None:
                 "OPENAI_API_KEY must be configured before starting paid classification"
             )
         os.environ["OPENAI_API_KEY"] = api_key
-    with _connect() as conn:
+    # Session advisory locks cannot protect a runner on a transaction pooler.
+    with _connect(direct=True) as conn:
         conn.autocommit = True
-        if not conn.execute(
+        waiting = False
+        while not conn.execute(
             "SELECT pg_try_advisory_lock(hashtext('mathbank-paper-batches'))"
         ).fetchone()[0]:
-            raise RuntimeError("Another paper batch runner is active")
+            if not args.wait_for_lock:
+                raise RuntimeError("Another paper batch runner is active")
+            if not waiting:
+                print("Waiting for active paper batch runner; no pipeline state changed.", flush=True)
+                waiting = True
+            time.sleep(30)
         run_id, sources, log_dir = snapshot(conn, args)
         print(
             f"RUN {run_id}: {len(sources)} papers, batches of {args.batch_size}; logs={log_dir}",

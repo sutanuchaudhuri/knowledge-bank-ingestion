@@ -219,6 +219,11 @@ project-pedagogy-remote:        ## Explicit remote Neon to AuraDB metadata proje
 	$(MAKE) project-pedagogy GRAPH_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env"
 
 .PHONY: migrate-pedagogy-review migrate-pedagogy-review-remote
+.PHONY: migrate-automatic-metadata-remote
+migrate-automatic-metadata-remote: ## Enable automatic metadata approval on Neon (migration 008)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/008_automatic_metadata.sql
 migrate-pedagogy-review:        ## Add admin review audit and publication tables locally
 	PGPASSWORD="$(APP_DB_PASSWORD)" "$(PG_BIN)/psql" -h 127.0.0.1 -p $(PG_PORT) -U "$(APP_USER)" -d $(APP_DB) \
 	  -v ON_ERROR_STOP=1 -f sql/007_pedagogy_review.sql

@@ -31,7 +31,7 @@ export function createAdminPedagogyHandlers({ hasSession, get, post, invalidate 
         return Response.json({ error: "Expected a JSON object" }, { status: 400 });
       }
       const { action, ...payload } = body;
-      if (!["review", "history", "publish", "bulk-review", "approve-starter"].includes(action)) {
+      if (!["review", "history", "publish", "bulk-review", "approve-starter", "edit", "reclassify"].includes(action)) {
         return Response.json({ error: "Unknown review action" }, { status: 400 });
       }
       try {

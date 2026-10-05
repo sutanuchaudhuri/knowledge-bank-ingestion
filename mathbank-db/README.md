@@ -1,5 +1,41 @@
 # mathbank-db
 
+### Retrying a repaired source during an active backlog
+
+Use the batch runner's `--resume RUN_UUID --paper PAPER_CODE --wait-for-lock`
+to queue a narrowly scoped retry. Multiple `--paper` options are supported,
+but each must belong to the original run snapshot. The retry waits on the same
+Postgres advisory lock as the main runner, so classification/export/graph
+publication do not race. Already completed papers are skipped. Failed history
+and logs remain; the retry increments attempts and only reports completion
+after exact Postgres/Neo4j verification.
+
+For SMT 2019 tiebreakers, the official archive's problem filenames are
+`{subject}-tiebreaker.pdf`, not `{subject}-tiebreaker-problems.pdf`.
+The five registered source URLs were corrected after official PDF validation.
+
+Batch runners use Neon's direct endpoint (remove `-pooler` from the configured
+Neon host) for session-scoped advisory locks. Transaction-pooled connections
+cannot reliably hold these locks. A legacy already-running pooled runner must
+exit before launching a new retry worker; merely acquiring a lock is not
+evidence that the legacy process has stopped.
+
+Official SMT 2004 sources include PostScript (`.ps`) for problems and solutions.
+The crawler converts these with Ghostscript (`gs`, required for these sources),
+logs the conversion, and validates PDF magic bytes before parsing. Conversion
+failure is explicit and does not mark a paper complete.
+
+The 2026-10-04 recovery validated all 15 failed SMT source pairs against the
+official archive and parsed 157 nonempty, consecutive question artifacts.
+This is parse evidence, not completed classification or graph publication.
+Seven 2019 exam links use `-exam.pdf`; five tiebreakers omit `-problems`;
+2014 Power uses `thuemorse-{problems,solutions}.pdf`. Native extraction warnings
+remain visible and require formula/figure quality review.
+
+The splitter now selects headings in forward consecutive order. Premature
+numeric lines inside a question cannot create backwards/empty blocks (the
+2004 General paper contained a false `15.` line inside question 10).
+
 Postgres (`core.*`/`knowledge.*`/`search.*`/`pipeline.*`/`learner.*`) ETL and
 schema management for the MathBank competition-math corpus — the local
 PostgreSQL 16 + pgvector cluster, and the pipelines that load the CSV corpus

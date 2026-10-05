@@ -83,24 +83,15 @@ def _matches_to_blocks(text: str, matches: list[re.Match]) -> dict[int, str]:
 
 def _keep_consecutive_prefix(matches: list[re.Match]) -> list[re.Match]:
     """
-    From all matches, keep only the FIRST occurrence of each number,
-    then return matches for numbers 1, 2, 3, ..., k where k is the longest
-    consecutive prefix starting from 1.  Filters out false-positive matches
-    (e.g. "15." inside algorithm steps).
+    Keep the first forward sequence 1, 2, 3, ..., k in document order.
+    Ignore premature numbers inside a question (e.g. a line starting "15."
+    inside question 10), so block boundaries cannot run backwards.
     """
-    # First occurrence of each number (preserves document order)
-    seen: dict[int, re.Match] = {}
+    consecutive: list[re.Match] = []
     for m in matches:
-        n = int(m.group(1))
-        if n not in seen:
-            seen[n] = m
-
-    # Longest consecutive run starting from 1
-    k = 0
-    while (k + 1) in seen:
-        k += 1
-
-    return [seen[i] for i in range(1, k + 1)]
+        if int(m.group(1)) == len(consecutive) + 1:
+            consecutive.append(m)
+    return consecutive
 
 
 # ── Competition-specific split patterns ───────────────────────────────────────

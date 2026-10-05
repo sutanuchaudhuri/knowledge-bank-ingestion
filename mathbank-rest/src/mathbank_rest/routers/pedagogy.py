@@ -11,6 +11,7 @@ from neo4j.exceptions import Neo4jError, ServiceUnavailable, SessionExpired
 from sqlalchemy.exc import SQLAlchemyError
 
 from mathbank_rest import pedagogy
+from mathbank_rest.enrichment import EnrichmentUnavailable, ensure_learning_metadata
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/tutor", tags=["pedagogy"])
@@ -24,7 +25,10 @@ def _call(operation: Callable[..., dict], *args: Any) -> dict:
     except pedagogy.CoachingUnavailable as exc:
         logger.exception("Provisional coaching unavailable")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except (Neo4jError, ServiceUnavailable, SessionExpired, SQLAlchemyError) as exc:
+    except EnrichmentUnavailable as exc:
+        logger.exception("Automatic teaching enrichment failed")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except (Neo4jError, ServiceUnavailable, SessionExpired, SQLAlchemyError, RuntimeError) as exc:
         logger.exception("Pedagogical data service unavailable")
         raise HTTPException(
             status_code=503, detail="Learning data is unavailable; check database connectivity."
@@ -33,6 +37,7 @@ def _call(operation: Callable[..., dict], *args: Any) -> dict:
 
 @router.get("/learning-context/{problem_code}")
 def learning_context(problem_code: str) -> dict:
+    _call(ensure_learning_metadata, problem_code)
     return _call(pedagogy.learning_context, problem_code)
 
 
@@ -48,4 +53,5 @@ def practice(problem_code: str, limit: int = Query(default=5, ge=1, le=20)) -> d
 
 @router.post("/coach")
 def coach(body: pedagogy.CoachRequest) -> dict:
+    _call(ensure_learning_metadata, body.problem_code)
     return _call(pedagogy.coach, body)

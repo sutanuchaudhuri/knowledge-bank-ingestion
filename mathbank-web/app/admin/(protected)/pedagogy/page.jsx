@@ -11,6 +11,8 @@ const KINDS = [
   ["skill_relation", "Skill prerequisites and relations"],
   ["problem_skill", "Problem-to-skill mappings"],
   ["problem_pedagogy", "Difficulty assessments"],
+  ["problem_concept", "Problem concept classifications"],
+  ["problem_technique", "Problem technique classifications"],
 ];
 const PAGE_SIZE = 25;
 const endpoint = "/api/rest/admin/pedagogy";
@@ -25,13 +27,25 @@ async function request(body, signal) {
   return result;
 }
 
-function Badge({ status }) {
-  return <span className={`badge text-bg-${status === "REVIEWED" ? "success" : status === "REJECTED" ? "danger" : "warning"}`}>{status}</span>;
+function Badge({ status, method }) {
+  return <span className={`badge text-bg-${status === "REVIEWED" ? "success" : status === "REJECTED" ? "danger" : "warning"}`}>{method === "automatic" && status === "REVIEWED" ? "AUTO-APPROVED" : status}</span>;
 }
+
+const EDITABLE = {
+  skill: ["name", "objective", "level", "source", "confidence"],
+  skill_concept: ["source", "confidence"],
+  skill_relation: ["source", "confidence"],
+  problem_skill: ["required_level", "importance", "source", "confidence"],
+  problem_pedagogy: ["conceptual_depth", "technical_load", "algebraic_load", "insight_required", "number_of_steps", "prerequisite_depth", "estimated_contest_level", "source", "confidence"],
+  problem_concept: ["confidence", "assertion_source"],
+  problem_technique: ["confidence", "assertion_source"],
+};
 
 export default function PedagogyReviewPage() {
   const [kind, setKind] = useState("skill");
-  const [status, setStatus] = useState("PENDING");
+  const [status, setStatus] = useState("ALL");
+  const [editJson, setEditJson] = useState("");
+  const [reclassifyCode, setReclassifyCode] = useState("");
   const [offset, setOffset] = useState(0);
   const [reload, setReload] = useState(0);
   const [data, setData] = useState(null);
@@ -76,12 +90,37 @@ export default function PedagogyReviewPage() {
     setHistoryError(null);
     setShowSolutionEvidence(false);
     if (!selected) return undefined;
+    setEditJson(JSON.stringify(Object.fromEntries(
+      EDITABLE[kind].map(field => [field, selected.metadata[field] ?? null])
+    ), null, 2));
     const controller = new AbortController();
     request({ action: "history", kind, key: selected.key }, controller.signal)
       .then(result => setHistory(result.events))
       .catch(err => { if (err.name !== "AbortError") setHistoryError(err.message); });
     return () => controller.abort();
   }, [selected, kind]);
+
+  async function correctMetadata(action) {
+    if (inFlight.current) return;
+    if (action === "edit" && (!selected || note.trim().length < 10)) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = action === "edit" ? {
+        action, kind, key: selected.key, expected_revision: selected.revision,
+        changes: JSON.parse(editJson), note: note.trim(),
+      } : { action, problem_code: reclassifyCode.trim() };
+      const result = await request(payload);
+      setNotice(result.message);
+      setReload(value => value + 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
 
   async function review(nextStatus) {
     if (inFlight.current || !selected || note.trim().length < 10 ||
@@ -223,6 +262,12 @@ export default function PedagogyReviewPage() {
           <div className="card border-0 shadow-sm">
             <div className="card-body">
               <h2 className="h5">Review queue</h2>
+              <div className="alert alert-info small">Automatic approvals are usable immediately but are not human verification. Admin edits and rejections are protected from automated replacement.</div>
+              <label className="form-label" htmlFor="reclassify-code">Regenerate teaching metadata</label>
+              <input id="reclassify-code" className="form-control mb-2" value={reclassifyCode}
+                onChange={event => setReclassifyCode(event.target.value)} placeholder="AIME_1983_Q01" disabled={busy} />
+              <button className="btn btn-outline-primary mb-3" disabled={busy || !reclassifyCode.trim()}
+                onClick={() => correctMetadata("reclassify")}>Reclassify automatically</button>
               <div className="row g-2 mb-3">
                 <div className="col-sm-7">
                   <label htmlFor="metadata-kind" className="form-label">Metadata type</label>
@@ -241,8 +286,17 @@ export default function PedagogyReviewPage() {
               </div>
               <button className="btn btn-sm btn-outline-secondary mb-3" disabled={busy} onClick={() => setReload(value => value + 1)}>Reload queue</button>
               {data && <p className="small text-secondary">
-                This type: {data.counts[kind]?.PENDING || 0} pending · {data.counts[kind]?.REVIEWED || 0} reviewed · {data.counts[kind]?.REJECTED || 0} rejected
+                This type: {data.counts[kind]?.PENDING || 0} pending · {data.counts[kind]?.REVIEWED || 0} approved (human or automatic) · {data.counts[kind]?.REJECTED || 0} rejected
               </p>}
+              {data && <p className="small text-secondary">
+                Corpus enrichment: {data.unenriched_problems ?? "Unknown"} questions remaining · {data.enrichment_counts?.IN_PROGRESS || 0} active · {data.enrichment_counts?.FAILED || 0} failed jobs
+              </p>}
+              {(data?.enrichment_errors || []).map(job => <div key={job.canonical_code} className="alert alert-warning small">
+                <strong>{job.canonical_code}</strong> · {job.attempts} attempts
+                <p className="mb-1">{job.last_error}</p>
+                <button className="btn btn-sm btn-outline-secondary" disabled={busy}
+                  onClick={() => setReclassifyCode(job.canonical_code)}>Select for retry</button>
+              </div>)}
               {!data && !error && <p role="status">Loading metadata...</p>}
               {data && <label className="form-check mb-3">
                 <input className="form-check-input" type="checkbox" disabled={busy || !data.items.length}
@@ -258,8 +312,8 @@ export default function PedagogyReviewPage() {
                 <button type="button" disabled={busy}
                 className={`w-100 text-start btn ${selected?.revision === item.revision ? "btn-light border-primary" : "btn-light"} border mb-2 p-3`}
                 onClick={() => { setSelected(item); setError(null); }}>
-                <div className="d-flex flex-wrap justify-content-between gap-2"><strong>{item.title}</strong><Badge status={item.metadata.review_status} /></div>
-                <span className="small text-secondary text-break">{item.metadata.source}</span>
+                <div className="d-flex flex-wrap justify-content-between gap-2"><strong>{item.title}</strong><Badge status={item.metadata.review_status} method={item.metadata.approval_method} /></div>
+                <span className="small text-secondary text-break">{item.metadata.source || item.metadata.assertion_source}</span>
               </button></div>)}
               {data && !data.items.length && <p>No assertions match this filter.</p>}
               {data && <div className="d-flex align-items-center justify-content-between mt-3">
@@ -276,7 +330,7 @@ export default function PedagogyReviewPage() {
               <h2 className="h5">Assertion and evidence</h2>
               {!selected ? <p className="text-secondary">Select an assertion to inspect its objective, source, confidence, dimensions, and problem context.</p> : <>
                 <h3 className="h6 fw-bold">{selected.title}</h3>
-                <Badge status={selected.metadata.review_status} />
+                <Badge status={selected.metadata.review_status} method={selected.metadata.approval_method} />
                 <div className="border rounded p-3 my-3"><MathText>{selected.context || "No context available."}</MathText></div>
                 {selected.objective && <p><strong>Skill objective:</strong> {selected.objective}</p>}
                 {selected.problem_code && <div className="mb-3">
@@ -291,6 +345,11 @@ export default function PedagogyReviewPage() {
                     <dt>{field}</dt><dd className="text-break mb-0">{value === null ? "Not assessed" : String(value)}</dd>
                   </div>)}
                 </dl>
+                <label className="form-label" htmlFor="metadata-edit">Correct attributes (JSON)</label>
+                <textarea id="metadata-edit" className="form-control font-monospace mb-2" rows={8}
+                  value={editJson} onChange={event => setEditJson(event.target.value)} disabled={busy} />
+                <button className="btn btn-outline-primary mb-3" disabled={busy || note.trim().length < 10}
+                  onClick={() => correctMetadata("edit")}>Save protected admin correction</button>
                 <label htmlFor="review-note" className="form-label">Review rationale (required, 10-2,000 characters)</label>
                 <textarea id="review-note" className="form-control mb-3" rows={3} maxLength={2000}
                   disabled={busy} value={note} onChange={event => setNote(event.target.value)} />

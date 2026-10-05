@@ -63,6 +63,26 @@ class Cursor:
 
 
 class AuthoringTests(unittest.TestCase):
+    def test_approval_projection_uses_indexed_labels(self):
+        cursor = MagicMock()
+        cursor.fetchall.side_effect = [
+            [],
+            [],
+            [],
+            [],
+            [],
+            [("problem-id", "concept-id", "automatic", "PRIMARY")],
+            [],
+            [],
+        ]
+        driver = MagicMock()
+        session = driver.session.return_value.__enter__.return_value
+        graph.project_approval_methods(driver, cursor)
+        query = session.run.call_args.args[0]
+        self.assertIn("(a:Problem", query)
+        self.assertIn("(b:Concept", query)
+        self.assertEqual(session.run.call_args.kwargs["rows"][0]["approval_method"], "automatic")
+
     def test_complete_manifest_and_nullable_fields(self):
         result = author.validate_manifest(
             {
@@ -266,6 +286,62 @@ class AuthoringTests(unittest.TestCase):
 
 
 class ProjectionTests(unittest.TestCase):
+    def test_scoped_publication_keeps_other_problem_approval_inside_atomic_replacement(self):
+        driver = MagicMock()
+        session = driver.session.return_value.__enter__.return_value
+        tx = MagicMock()
+        tx.run.side_effect = lambda query, **params: MagicMock(
+            **{"single.return_value": {"written": len(params.get("rows", []))}}
+        )
+        session.execute_write.side_effect = lambda fn: fn(tx)
+
+        def rows(cur, query, columns):
+            if query.endswith("FROM knowledge.problem_skill"):
+                return [
+                    {
+                        "problem_id": "outside-scope",
+                        "skill_id": "skill-uuid",
+                        "relation_type": "REQUIRES",
+                        "role": "primary",
+                        "required_level": 2,
+                        "importance": 1,
+                        "source": "fixture",
+                        "confidence": 0.8,
+                        "review_status": "REVIEWED",
+                        "approval_method": "automatic",
+                    }
+                ]
+            if query.endswith("FROM knowledge.problem_pedagogy"):
+                return [
+                    {
+                        **dict.fromkeys(columns, None),
+                        "problem_id": "outside-scope",
+                        "approval_method": "automatic",
+                    }
+                ]
+            return []
+
+        with (
+            patch.object(graph, "_dict_rows", side_effect=rows),
+            patch.object(
+                graph,
+                "project_approval_methods",
+                side_effect=RuntimeError("Subsequent stamping disconnected"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "disconnected"),
+        ):
+            graph.project_pedagogy(driver, Cursor(), ["different-problem"])
+        edges = next(call for call in tx.run.call_args_list if "r.approval_method" in call.args[0])
+        self.assertEqual(edges.kwargs["rows"][0]["problem_id"], "outside-scope")
+        self.assertEqual(edges.kwargs["rows"][0]["approval_method"], "automatic")
+        assessment = next(
+            call
+            for call in tx.run.call_args_list
+            if "SET" in call.args[0]
+            and "p.pedagogy_approval_method = row.approval_method" in call.args[0]
+        )
+        self.assertEqual(assessment.kwargs["rows"][0]["approval_method"], "automatic")
+
     def test_named_database_is_used_consistently(self):
         driver = MagicMock()
         target = graph.GraphTarget(driver, "fixture-database")

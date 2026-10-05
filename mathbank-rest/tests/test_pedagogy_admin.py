@@ -56,6 +56,8 @@ def test_queue_remains_available_without_complete_starter_metadata(monkeypatch):
         ("post", "/publish", {"expected_fingerprint": REVISION}),
         ("post", "/bulk-review", {"items": [], "review_status": "REVIEWED", "note": "A rationale"}),
         ("post", "/approve-starter", {"expected_fingerprint": REVISION, "note": "A rationale"}),
+        ("post", "/edit", {**BODY, "changes": {"name": "Correction"}}),
+        ("post", "/reclassify", {"problem_code": "FIXTURE"}),
     ],
 )
 def test_every_admin_pedagogy_endpoint_requires_auth(method, path, body):

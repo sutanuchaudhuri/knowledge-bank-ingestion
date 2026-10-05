@@ -134,7 +134,24 @@ def assert_acyclic(edges: list[tuple[str, str]], label: str) -> None:
             if indegree[end] == 0:
                 ready.append(end)
     if visited != len(indegree):
-        raise ManifestError(f"Reviewed {label} cycle; correct the authoring before importing")
+        remaining = {node for node, count in indegree.items() if count > 0}
+        predecessors = {
+            end: start
+            for start, end in sorted(set(edges))
+            if start in remaining and end in remaining
+        }
+        path: list[str] = []
+        positions: dict[str, int] = {}
+        node = min(remaining)
+        while node not in positions:
+            positions[node] = len(path)
+            path.append(node)
+            node = predecessors[node]
+        cycle = list(reversed(path[positions[node] :] + [node]))
+        raise ManifestError(
+            f"Reviewed {label} cycle: {' -> '.join(cycle)}; "
+            "correct proposed relationships without deleting existing prerequisites"
+        )
 
 
 def validate_cycles(skill_relations: list[dict], concept_relations: list[dict]) -> None:

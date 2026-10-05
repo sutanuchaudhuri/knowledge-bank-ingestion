@@ -130,13 +130,14 @@ def project_papers(driver, pg_cur) -> int:
     return len(rows)
 
 
-def project_problems(driver, pg_cur) -> int:
+def project_problems(driver, pg_cur, problem_codes: list[str] | None = None) -> int:
     pg_cur.execute(
         """
         SELECT problem_id, canonical_code, problem_number, official_answer,
                source_url, paper_id, difficulty_band, classification_status
         FROM core.problem
-        """
+        """ + (" WHERE canonical_code=ANY(%s)" if problem_codes is not None else ""),
+        (problem_codes,) if problem_codes is not None else None,
     )
     rows = [
         {
@@ -243,9 +244,12 @@ def project_techniques(driver, pg_cur) -> int:
     return len(rows)
 
 
-def project_problem_concept(driver, pg_cur) -> int:
+def project_problem_concept(driver, pg_cur, problem_codes: list[str] | None = None) -> int:
     pg_cur.execute(
         "SELECT problem_id, concept_id, role, confidence, assertion_source, review_status FROM knowledge.problem_concept"
+        + (" WHERE problem_id IN (SELECT problem_id FROM core.problem WHERE canonical_code=ANY(%s))"
+           if problem_codes is not None else ""),
+        (problem_codes,) if problem_codes is not None else None,
     )
     rows = [
         {
@@ -274,9 +278,12 @@ def project_problem_concept(driver, pg_cur) -> int:
     return len(rows)
 
 
-def project_problem_technique(driver, pg_cur) -> int:
+def project_problem_technique(driver, pg_cur, problem_codes: list[str] | None = None) -> int:
     pg_cur.execute(
         "SELECT problem_id, technique_id, role, confidence, assertion_source, review_status FROM knowledge.problem_technique"
+        + (" WHERE problem_id IN (SELECT problem_id FROM core.problem WHERE canonical_code=ANY(%s))"
+           if problem_codes is not None else ""),
+        (problem_codes,) if problem_codes is not None else None,
     )
     rows = [
         {
@@ -372,7 +379,7 @@ def _dict_rows(pg_cur, query: str, columns: list[str]) -> list[dict]:
     return rows
 
 
-def project_pedagogy(driver, pg_cur) -> tuple[int, int]:
+def project_pedagogy(driver, pg_cur, problem_codes: list[str] | None = None) -> tuple[int, int]:
     require_pedagogy_schema(pg_cur)
     jobs: list[tuple[str, list[dict]]] = []
 
@@ -380,7 +387,7 @@ def project_pedagogy(driver, pg_cur) -> tuple[int, int]:
         jobs.append((query, rows))
         return len(rows)
 
-    skill_columns = ["skill_id", "slug", "name", "objective", "level", "source", "confidence", "review_status"]
+    skill_columns = ["skill_id", "slug", "name", "objective", "level", "source", "confidence", "review_status", "approval_method"]
     skill_rows = _dict_rows(pg_cur, "SELECT " + ", ".join(skill_columns) + " FROM knowledge.skill", skill_columns)
     nodes = queue("""
         UNWIND $rows AS row
@@ -388,15 +395,16 @@ def project_pedagogy(driver, pg_cur) -> tuple[int, int]:
         SET s.slug = row.slug, s.name = row.name, s.objective = row.objective,
             s.level = row.level, s.source = row.source,
             s.confidence = row.confidence, s.review_status = row.review_status,
+            s.approval_method = row.approval_method,
             s.projection_kind = 'pedagogy'
         RETURN count(s) AS written
     """, skill_rows)
     edges = 0
     specs = [
-        ("skill_concept", "Skill", "Concept", "skill_id", "concept_id", ["source", "confidence", "review_status"]),
-        ("skill_relation", "Skill", "Skill", "from_skill_id", "to_skill_id", ["relation_type", "source", "confidence", "review_status"]),
+        ("skill_concept", "Skill", "Concept", "skill_id", "concept_id", ["source", "confidence", "review_status", "approval_method"]),
+        ("skill_relation", "Skill", "Skill", "from_skill_id", "to_skill_id", ["relation_type", "source", "confidence", "review_status", "approval_method"]),
         ("problem_skill", "Problem", "Skill", "problem_id", "skill_id",
-         ["relation_type", "role", "required_level", "importance", "source", "confidence", "review_status"]),
+         ["relation_type", "role", "required_level", "importance", "source", "confidence", "review_status", "approval_method"]),
     ]
     for table, start_label, end_label, start, end, properties in specs:
         columns = [start, end] + properties
@@ -417,9 +425,9 @@ def project_pedagogy(driver, pg_cur) -> tuple[int, int]:
                 SET {assignments}, r.projection_kind = 'pedagogy'
                 RETURN count(r) AS written
             """, selected)
-    columns = ["from_id", "to_id", "relation_type", "confidence", "source", "review_status"]
+    columns = ["from_id", "to_id", "relation_type", "confidence", "source", "review_status", "approval_method"]
     rows = _dict_rows(pg_cur, """
-        SELECT from_concept_id, to_concept_id, relation_type, strength, assertion_source, review_status
+        SELECT from_concept_id, to_concept_id, relation_type, strength, assertion_source, review_status, approval_method
         FROM knowledge.concept_relation
     """, columns)
     for kind in sorted(SEMANTIC_RELATIONS):
@@ -434,16 +442,17 @@ def project_pedagogy(driver, pg_cur) -> tuple[int, int]:
             MATCH (b:Concept {{canonical_id: row.to_id}})
             MERGE (a)-[r:{kind}]->(b)
             SET r.source = row.source, r.confidence = row.confidence,
-                r.review_status = row.review_status, r.projection_kind = 'pedagogy'
+                r.review_status = row.review_status, r.approval_method = row.approval_method,
+                r.projection_kind = 'pedagogy'
             RETURN count(r) AS written
         """, selected)
     columns = ["problem_id", "conceptual_depth", "technical_load", "algebraic_load", "insight_required",
                "number_of_steps", "prerequisite_depth", "estimated_contest_level",
-               "source", "confidence", "review_status"]
+               "source", "confidence", "review_status", "approval_method"]
     # Keep assertion provenance names scoped to pedagogy on the shared Problem node.
-    assignments = ", ".join(f"p.pedagogy_{c} = row.{c}" if c in {"source", "confidence", "review_status"}
+    assignments = ", ".join(f"p.pedagogy_{c} = row.{c}" if c in {"source", "confidence", "review_status", "approval_method"}
                             else f"p.{c} = row.{c}" for c in columns[1:])
-    names = ["pedagogy_" + c if c in {"source", "confidence", "review_status"} else c for c in columns[1:]]
+    names = ["pedagogy_" + c if c in {"source", "confidence", "review_status", "approval_method"} else c for c in columns[1:]]
     queue(f"UNWIND $rows AS row MATCH (p:Problem {{canonical_id: row.problem_id}}) SET {assignments} RETURN count(p) AS written",
           _dict_rows(pg_cur, "SELECT " + ", ".join(columns) + " FROM knowledge.problem_pedagogy", columns))
 
@@ -467,7 +476,81 @@ def project_pedagogy(driver, pg_cur) -> tuple[int, int]:
 
     with driver.session() as session:
         session.execute_write(write)
+    project_approval_methods(driver, pg_cur, problem_codes)
     return nodes, edges
+
+
+def project_approval_methods(driver, pg_cur, problem_codes: list[str] | None = None) -> None:
+    """Carry automatic/human provenance without changing compatible review statuses."""
+    queries = [
+        ("skill", "skill_id", "Skill", "approval_method"),
+        ("problem_pedagogy", "problem_id", "Problem", "pedagogy_approval_method"),
+    ]
+    with driver.session() as session:
+        for table, key, label, prop in queries:
+            pg_cur.execute(f"SELECT {key},approval_method FROM knowledge.{table}")
+            rows = [{"id": str(row[0]), "method": row[1]} for row in pg_cur.fetchall()]
+            for batch in chunks(rows, BATCH_SIZE):
+                session.run(f"UNWIND $rows AS row MATCH (n:{label} {{canonical_id:row.id}}) "
+                            f"SET n.{prop}=row.method", rows=batch).consume()
+        for table, start, end, start_label, end_label, relation, role in [
+            ("problem_skill", "problem_id", "skill_id", "Problem", "Skill", None, True),
+            ("skill_concept", "skill_id", "concept_id", "Skill", "Concept", "PART_OF", False),
+            ("skill_relation", "from_skill_id", "to_skill_id", "Skill", "Skill", None, False),
+            ("problem_concept", "problem_id", "concept_id", "Problem", "Concept", "TESTS", True),
+            ("problem_technique", "problem_id", "technique_id", "Problem", "Technique", "USES_TECHNIQUE", True),
+        ]:
+            columns = [start, end, "approval_method"]
+            if relation is None:
+                columns.append("relation_type")
+            if role:
+                columns.append("role")
+            query = "SELECT " + ",".join(columns) + f" FROM knowledge.{table}"
+            if start == "problem_id" and problem_codes is not None:
+                pg_cur.execute(query + " WHERE problem_id IN "
+                               "(SELECT problem_id FROM core.problem WHERE canonical_code=ANY(%s))",
+                               (problem_codes,))
+                rows = [dict(zip(columns, values)) for values in pg_cur.fetchall()]
+                for row in rows:
+                    row[start], row[end] = str(row[start]), str(row[end])
+            else:
+                rows = _dict_rows(pg_cur, query, columns)
+            for batch in chunks(rows, BATCH_SIZE):
+                role_filter = " AND r.role=row.role" if role else ""
+                type_filter = f"type(r)='{relation}'" if relation else "type(r)=row.relation_type"
+                session.run(f"""
+                    UNWIND $rows AS row
+                    MATCH (a:{start_label} {{canonical_id:row.{start}}})-[r]->(b:{end_label} {{canonical_id:row.{end}}})
+                    WHERE {type_filter}{role_filter}
+                    SET r.approval_method=row.approval_method
+                """, rows=batch).consume()
+        pg_cur.execute(
+            "SELECT from_concept_id,to_concept_id,relation_type,approval_method "
+            "FROM knowledge.concept_relation"
+        )
+        semantic_rows = []
+        relation_rows = []
+        for start, end, kind, method in pg_cur.fetchall():
+            relation_rows.append({"start": str(start), "end": str(end),
+                                  "kind": kind, "method": method})
+            semantic = semantic_relation(kind, str(start), str(end))
+            if semantic:
+                semantic_rows.append({"start": semantic[1], "end": semantic[2],
+                                      "kind": semantic[0], "method": method})
+        for batch in chunks(relation_rows, BATCH_SIZE):
+            session.run("""
+                UNWIND $rows AS row
+                MATCH (a:Concept {canonical_id:row.start})-[r:CONCEPT_RELATION]->
+                      (b:Concept {canonical_id:row.end})
+                WHERE r.relation_type=row.kind SET r.approval_method=row.method
+            """, rows=batch).consume()
+        for batch in chunks(semantic_rows, BATCH_SIZE):
+            session.run("""
+                UNWIND $rows AS row
+                MATCH (a:Concept {canonical_id:row.start})-[r]->
+                      (b:Concept {canonical_id:row.end})
+                WHERE type(r)=row.kind SET r.approval_method=row.method
+            """, rows=batch).consume()
 
 
 def main() -> None:

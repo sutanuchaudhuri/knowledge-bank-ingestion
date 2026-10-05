@@ -5,6 +5,30 @@ Every item here was hit for real while building this repo. `make bootstrap`
 explains *why* each workaround exists, for when it inevitably breaks again on
 a different macOS version / Xcode CLT version / Homebrew state.
 
+## Automatic enrichment: generation and graph publication are separate
+
+For automatic enrichment recovery, see the
+[implementation plan and acceptance criteria](requirements/14_AUTOMATIC_ENRICHMENT_RECOVERY.md).
+Cross-corpus prerequisite cycles require corrected proposals, not deleting
+existing edges. `COMPLETED` jobs with null `published_at` are durable graph
+publication work, not failed generation: retry publication without model calls.
+Model HTTP 200 does not mean validated metadata. Watch mode reselects due
+five-minute retries between problems and replays failed publication after
+60 seconds; a running model/import call is not preempted. Job attempts and
+model-response attempts are separate paid budgets. Never run overlapping workers
+to bypass an IN_PROGRESS claim; abandoned claims expire after ten minutes.
+Structured-output concept enums are shared using `$ref`: duplicating the full
+catalog for problem and skill tags can exceed the model API's enum budget.
+Keep independent import validation even with constrained generation.
+Teaching publication replaces the whole owned pedagogical edge layer even when
+corpus tag synchronization is scoped. Include `approval_method` in that atomic
+replacement; stamping only the scoped problems afterward falsely labels other
+automatic mappings as human-reviewed.
+Use one watcher with `--workers 4`, not four watchers. Model requests overlap;
+global cycle-safe imports and graph publication remain serialized. SIGTERM
+drains the threaded watcher, so wait for its PID to exit before replacement.
+Provider throttling and database locks can limit speedup.
+
 ## 1. Python venvs: use `uv venv`, not `python3.11 -m venv`
 
 On this class of machine, a bare `python3.11 -m venv .venv` can produce a

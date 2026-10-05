@@ -16,7 +16,15 @@ from mathbank_rest.db import pedagogy_admin as db
 from mathbank_rest.security import require_admin_api_key
 
 logger = logging.getLogger(__name__)
-Kind = Literal["skill", "skill_concept", "skill_relation", "problem_skill", "problem_pedagogy"]
+Kind = Literal[
+    "skill",
+    "skill_concept",
+    "skill_relation",
+    "problem_skill",
+    "problem_pedagogy",
+    "problem_concept",
+    "problem_technique",
+]
 Status = Literal["PENDING", "REVIEWED", "REJECTED"]
 router = APIRouter(
     prefix="/v1/admin/pedagogy",
@@ -43,6 +51,18 @@ class ReviewRequest(EntityRequest):
     note: str = Field(min_length=10, max_length=2000)
 
     _trimmed_note = field_validator("note")(validate_note)
+
+
+class EditRequest(EntityRequest):
+    expected_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
+    changes: dict[str, Any]
+    note: str = Field(min_length=10, max_length=2000)
+    _trimmed_note = field_validator("note")(validate_note)
+
+
+class ReclassifyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    problem_code: str = Field(min_length=1, max_length=200)
 
 
 class PublishRequest(BaseModel):
@@ -135,3 +155,23 @@ def bulk_review(body: BulkReviewRequest) -> dict:
 @router.post("/approve-starter")
 def approve_starter(body: StarterReviewRequest) -> dict:
     return call(db.approve_starter, body.expected_fingerprint, body.note)
+
+
+@router.post("/edit")
+def edit(body: EditRequest) -> dict:
+    return call(db.edit, body.kind, body.key, body.expected_revision, body.changes, body.note)
+
+
+@router.post("/reclassify")
+def reclassify(body: ReclassifyRequest) -> dict:
+    from mathbank_rest.enrichment import EnrichmentUnavailable, enrich_problem
+
+    try:
+        result = enrich_problem(body.problem_code, force=True)
+    except EnrichmentUnavailable as exc:
+        logger.exception("Admin reclassification failed")
+        raise HTTPException(502, str(exc)) from exc
+    return {
+        **result,
+        "message": "Automatic teaching metadata regenerated; human edits and rejected records preserved. Publish to update graph.",
+    }

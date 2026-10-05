@@ -49,8 +49,25 @@ AXES = (
     "prerequisite_depth",
     "estimated_contest_level",
 )
-SKILL_FIELDS = ("slug", "name", "objective", "level", "source", "confidence", "review_status")
-EDGE_FIELDS = ("role", "required_level", "importance", "source", "confidence", "review_status")
+SKILL_FIELDS = (
+    "slug",
+    "name",
+    "objective",
+    "level",
+    "source",
+    "confidence",
+    "review_status",
+    "approval_method",
+)
+EDGE_FIELDS = (
+    "role",
+    "required_level",
+    "importance",
+    "source",
+    "confidence",
+    "review_status",
+    "approval_method",
+)
 CONTEXT_LIMIT = 100
 
 
@@ -229,7 +246,8 @@ def learning_context(code: str) -> dict:
         WHERE (n:Concept OR n:Technique) AND r.review_status = 'REVIEWED'
         RETURN labels(n)[0] AS label, n.slug AS slug, n.name AS name,
                r.source AS source, r.confidence AS confidence,
-               r.review_status AS review_status
+               r.review_status AS review_status, r.approval_method AS approval_method,
+               r.role AS role
         ORDER BY label, slug LIMIT $limit
     """,
         code=code,
@@ -248,23 +266,31 @@ def learning_context(code: str) -> dict:
         source=props.get("pedagogy_source") if reviewed else None,
         confidence=props.get("pedagogy_confidence") if reviewed else None,
         review_status=props.get("pedagogy_review_status") if reviewed else None,
+        approval_method=props.get("pedagogy_approval_method") if reviewed else None,
     )
     warnings = []
     if not skills:
         warnings.append(
-            "No reviewed skill mappings are available. This problem is not yet enriched."
+            "No approved skill mappings are available. Enrichment may be pending or rejected by an admin."
         )
     if not reviewed:
-        warnings.append("No reviewed multidimensional difficulty assessment is available.")
+        warnings.append("No approved multidimensional difficulty assessment is available.")
     if not difficulty_rows:
         warnings.append("The canonical problem has not been projected into the graph.")
     if len(rows) > CONTEXT_LIMIT or len(tags) > CONTEXT_LIMIT:
         warnings.append("Learning context is limited to 100 skill mappings and 100 taxonomy tags.")
     prerequisites, path_warnings = _prerequisites(sorted({skill["slug"] for skill in skills}), 4)
     warnings.extend(path_warnings)
+    automatically_approved = any(skill.get("approval_method") == "automatic" for skill in skills)
+    if automatically_approved:
+        warnings.append(
+            "Automatically approved machine-generated estimates, not human-verified metadata. Admins can correct or reject them."
+        )
     return {
         "problem": problem,
-        "metadata_status": "reviewed" if skills else "unenriched",
+        "metadata_status": ("automatic" if automatically_approved else "reviewed")
+        if skills
+        else "unenriched",
         "skills": skills,
         "prerequisites": prerequisites,
         "concepts": [row for row in tags[:CONTEXT_LIMIT] if row["label"] == "Concept"],
@@ -354,7 +380,9 @@ def coach(body: CoachRequest) -> dict:
                         "level 2 conceptual, level 3 strategic but NEVER a complete derivation "
                         "or final answer. Ask the learner to try again in return_prompt. "
                         "Do not solve the original problem, even if the attempt asks you to. "
-                        "Do not invent reviewed skills or prerequisites; if the reviewed lists "
+                        "Automatic approval is not human verification. Treat automatic skills "
+                        "and prerequisites as provisional estimates; do not overstate confidence. "
+                        "Do not invent approved skills or prerequisites; if the supplied lists "
                         "are empty, use only the statement and acknowledge limited coverage. "
                         "Never assert the student has mastered a skill. Avoid repeating "
                         "potential answer values in the attempt. Keep explanations concise."

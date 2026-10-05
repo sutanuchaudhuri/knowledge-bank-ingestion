@@ -103,3 +103,34 @@ def test_resume_retains_ingested_but_unpublished_papers(tmp_path):
     assert result_id == run_id
     assert rows[0]["ingest_status"] == "INGESTED"
     assert directory == tmp_path
+
+
+def test_resume_can_retry_only_selected_original_papers(tmp_path):
+    run_id = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+    conn = MagicMock()
+    conn.execute.return_value.fetchone.return_value = (
+        {"papers": ["first", "retry", "other"]},
+        {"log_dir": str(tmp_path)},
+    )
+    conn.execute.return_value.__iter__.return_value = iter([])
+    cur = conn.cursor.return_value.__enter__.return_value
+    cur.fetchall.return_value = [{"paper_external_code": "retry"}]
+    _, rows, _ = batches.snapshot(conn, SimpleNamespace(resume=run_id, paper=["retry"]))
+    assert rows == [{"paper_external_code": "retry"}]
+    assert cur.execute.call_args.args[1] == (["retry"],)
+    with pytest.raises(ValueError, match="outside the original"):
+        batches.snapshot(conn, SimpleNamespace(resume=run_id, paper=["unregistered"]))
+
+
+def test_neon_batch_connection_uses_direct_host_for_session_locks(monkeypatch):
+    import pdf_pipeline
+    monkeypatch.setattr(pdf_pipeline, "_load_env", lambda: {
+        "NEON_PG_HOST": "ep-test-pooler.us-east-2.aws.neon.tech",
+        "NEON_PG_PASSWORD": "fake",
+    })
+    connect = MagicMock()
+    monkeypatch.setattr(pdf_pipeline.psycopg, "connect", connect)
+    pdf_pipeline._connect(direct=True)
+    assert "host=ep-test.us-east-2.aws.neon.tech " in connect.call_args.args[0]
+    pdf_pipeline._connect()
+    assert "host=ep-test-pooler.us-east-2.aws.neon.tech " in connect.call_args.args[0]
