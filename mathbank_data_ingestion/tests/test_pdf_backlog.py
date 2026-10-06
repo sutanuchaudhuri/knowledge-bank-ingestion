@@ -149,7 +149,7 @@ def test_visual_classifier_sends_actual_png_bytes_and_keeps_answer_separate(tmp_
         _visual_content("Question", [str(image)])
 
 
-def test_purple_classifier_discovers_all_image_pages_and_official_answer(tmp_path, monkeypatch):
+def test_purple_classifier_discovers_question_crops_and_official_answer(tmp_path, monkeypatch):
     import json
     monkeypatch.setattr(classifier, "PDF_CRAWL_DIR", tmp_path)
     folder = tmp_path / "purple_ms/PAPER_PURPLE_2026_MS"
@@ -157,8 +157,9 @@ def test_purple_classifier_discovers_all_image_pages_and_official_answer(tmp_pat
     (q / "images").mkdir(parents=True)
     (q / "problem.md").write_text("Synthetic question with a diagram.")
     (q / "solution.md").write_text("Synthetic worked explanation.")
-    (q / "images/problem_page_001.png").write_bytes(b"fixture")
-    (q / "images/solution_page_002.png").write_bytes(b"fixture")
+    (q / "images/problem_figure_001.png").write_bytes(b"fixture")
+    (q / "images/solution_figure_002.png").write_bytes(b"fixture")
+    (q / "images/problem_page_001.png").write_bytes(b"whole-page fixture ignored")
     (folder / "answers.json").write_text(json.dumps({"1": "17"}))
     result = classifier.discover_questions("PURPLE_MS")
     assert len(result) == 1 and len(result[0].image_paths) == 2
@@ -174,7 +175,7 @@ def test_arml_visual_discovery_preserves_proof_questions(tmp_path, monkeypatch, 
     (question / "images").mkdir(parents=True)
     (question / "problem.md").write_text("Synthetic multipart proof with shared context.")
     (question / "solution.md").write_text("Synthetic multipart proof explanation.")
-    (question / "images/problem_page_001.png").write_bytes(b"fixture")
+    (question / "images/problem_region_001.png").write_bytes(b"fixture")
     result = classifier.discover_questions(competition)
     assert len(result) == 1
     assert result[0].image_paths

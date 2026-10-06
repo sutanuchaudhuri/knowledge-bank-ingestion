@@ -6,14 +6,17 @@ import { WidgetHost } from "mathbank-widgets";
 import { normalizeMathDelimiters } from "../../lib/markdown.js";
 import { parseWidgetBlock, widgetSourceFromPre } from "../../lib/widgetBlocks.mjs";
 import { mentionedProblemCodes } from "../../lib/problemDiagrams.mjs";
-import ProblemDiagrams from "./ProblemDiagrams.jsx";
+import ProblemDiagrams, { SourceImage } from "./ProblemDiagrams.jsx";
+import ProblemSource from "./ProblemSource.jsx";
 
 const renderInline = (t) => <MathText>{t}</MathText>;
 
 // ```widget fenced JSON from the tutor becomes a whitelisted, declarative widget card (never executed).
 const components = {
   img({ node, ...props }) {
-    return <img {...props} className="mb-source-image" loading="lazy" />;
+    const src = props.src?.startsWith("/api/rest/solve/images/") && !props.src.includes("?")
+      ? `${props.src}?v=question-figures` : props.src;
+    return <SourceImage key={src} {...props} src={src} className="mb-source-image" />;
   },
   pre({ node, children, ...props }) {
     const source = widgetSourceFromPre(node);
@@ -28,10 +31,11 @@ const components = {
 export default function MathText({ children }) {
   return (
     <div className="markdown-body">
+      {mentionedProblemCodes(children || "", { includeEmbedded: true }).map((code) => <ProblemSource key={code} code={code} />)}
       <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={components}>
         {normalizeMathDelimiters(children || "")}
       </ReactMarkdown>
-      {mentionedProblemCodes(children || "").map((code) => <ProblemDiagrams key={code} code={code} />)}
+      {mentionedProblemCodes(children || "").map((code) => <ProblemDiagrams key={code} code={code} showSource={false} />)}
     </div>
   );
 }

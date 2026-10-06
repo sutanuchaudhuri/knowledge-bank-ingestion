@@ -142,11 +142,8 @@ def discover_questions(competition_filter: str | None) -> list[PdfQuestion]:
                 if comp_code.startswith(("PURPLE_", "ARML")):
                     question.image_paths = [
                         str(path) for path in sorted((q_dir / "images").glob("*.png"))
+                        if "_figure_" in path.name or "_region_" in path.name
                     ]
-                    if not question.image_paths:
-                        raise ValueError(
-                            f"{canonical_code}: no page images for visual classification"
-                        )
                     answers_path = paper_dir / "answers.json"
                     if answers_path.is_file():
                         answers = json.loads(answers_path.read_text())

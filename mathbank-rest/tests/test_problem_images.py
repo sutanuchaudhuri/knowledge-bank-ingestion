@@ -13,16 +13,23 @@ def test_diagram_metadata_does_not_expose_filesystem_paths():
     conn = MagicMock()
     image_id = str(uuid4())
     conn.execute.return_value.mappings.return_value = [
-        {"problem_image_id": image_id, "ordinal": 1, "source": "PDF_PROBLEM_PAGE"}
+        {"problem_image_id": image_id, "ordinal": 1, "source": "PDF_PROBLEM_PAGE", "asset_path": "/private/source.png"}
     ]
     images = list_images(conn, "PAPER_SMT_2010_GEOM_Q06")
-    assert images[0]["url"] == f"/v1/problem-images/{image_id}"
+    assert images[0]["url"].startswith(f"/v1/problem-images/{image_id}?v=")
     assert f"/api/rest/solve/images/{image_id}" in images[0]["markdown"]
-    assert "page" in images[0]["alt"]
+    assert "diagram" in images[0]["alt"]
     assert "local_path" not in images[0]
+    assert "asset_path" not in images[0]
+    assert "/private/" not in str(images)
     assert STUDENT_IMAGE_FILTER in str(conn.execute.call_args.args[0])
     assert "PDF_SOLUTION_PAGE" in STUDENT_IMAGE_FILTER
+    assert "PDF_SOLUTION_FIGURE" in STUDENT_IMAGE_FILTER
+    assert "AOPS_SOLUTION_DIAGRAM" in STUDENT_IMAGE_FILTER
+    assert "AOPS_CRAWL" in STUDENT_IMAGE_FILTER
+    assert "PDF_PARSED" in STUDENT_IMAGE_FILTER
     assert "STUDENT_PROBLEM" in STUDENT_IMAGE_FILTER
+    assert "problem_page_" in STUDENT_IMAGE_FILTER
 
 
 def test_hidden_or_missing_image_is_not_served(monkeypatch):

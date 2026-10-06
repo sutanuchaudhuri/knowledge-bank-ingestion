@@ -5,4 +5,5 @@ description = "Postgres schema + corpus ETL for the MathBank knowledge bank"
 requires-python = ">=3.11"
 dependencies = [
   "psycopg[binary]>=3.2",
+  "pymupdf>=1.24",
 ]

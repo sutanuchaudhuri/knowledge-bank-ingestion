@@ -45,12 +45,6 @@ export default function ProblemDetail({ code }) {
       )}
       <p style={{ color: "#666", fontSize: 13 }}>
         {problem.competition} {problem.year} · {problem.paper_code} · Problem {problem.problem_number}
-        {problem.source_url && (
-          <>
-            {" · "}
-            <a href={problem.source_url} target="_blank" rel="noreferrer">source</a>
-          </>
-        )}
       </p>
 
       {problem.statement_text && (

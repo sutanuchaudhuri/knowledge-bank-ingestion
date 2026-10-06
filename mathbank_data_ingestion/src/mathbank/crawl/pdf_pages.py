@@ -1,6 +1,6 @@
 """Numbered question-to-page mapping without OCR or model calls."""
-from bisect import bisect_right
 import re
+from bisect import bisect_right
 
 import pymupdf as fitz
 

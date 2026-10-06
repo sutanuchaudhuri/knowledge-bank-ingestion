@@ -215,6 +215,12 @@ def main() -> None:
                     html = html_path.read_text(encoding="utf-8")
                     parsed = parse_aops_page(html, question_id, url)
                     _save_artifacts(parsed, level or html_path.parent.parent.name)
+                    from mathbank.crawl.image_downloader import save_aops_images
+
+                    save_aops_images(
+                        conn, question_id, level or html_path.parent.parent.name,
+                        html, url, download_missing=False,
+                    )
                     _update_db(conn, question_id, "CRAWLED",
                                has_problem=parsed.has_problem,
                                solution_count=parsed.solution_count)
@@ -285,8 +291,8 @@ def main() -> None:
                 from mathbank.crawl.image_downloader import save_aops_images
                 imgs = save_aops_images(conn, question_id, exam_level, html, url, session)
                 img_count = len(imgs)
-            except Exception:
-                pass   # image failures are non-fatal
+            except (OSError, sqlite3.Error) as exc:
+                console.print(f"  [yellow]WARN {question_id}: diagram persistence failed: {exc}")
 
             _update_db(
                 conn,

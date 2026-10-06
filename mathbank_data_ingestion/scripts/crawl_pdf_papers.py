@@ -250,20 +250,11 @@ def _process_paper(
             )}
             if stored != set(ids):
                 raise ValueError("Cached question index lacks committed staging rows; reparse required")
-            spans = json.loads((pdir / "page_spans.json").read_text())
             for question_id in existing["questions"]:
-                number = str(int(question_id.rsplit("_Q", 1)[1]))
-                images = [
-                    str(pdir / "visuals/pages" / f"{side}_page_{page:03d}.png")
-                    for side in ("problem", "solution")
-                    for page in spans.get(side, {}).get(number, [])
-                ]
-                if not images or any(not Path(image).is_file() for image in images):
-                    raise ValueError(f"{question_id}: cached required page image is missing")
                 path = PDF_ARTIFACT_DIR / _slug(competition_id) / question_id / "parsed.json"
                 record = json.loads(path.read_text())
-                record["image_urls"] = images
-                path.write_text(json.dumps(record, indent=2))
+                if any("_page_" in Path(image).name for image in record.get("image_urls", [])):
+                    raise ValueError(f"{question_id}: cached whole-page image references require figure repair")
         console.print(f"  [dim]SKIP (cached) {paper_id} — {n} questions")
         return n, "INDEXED"
 
@@ -334,32 +325,7 @@ def _process_paper(
                 pq.answer_value, pq.image_urls, pq.parse_warnings, problem_url,
             )
 
-        # Distribute page image paths to each question's artifact dir.
-        if competition_id.startswith("PURPLE_"):
-            q_images = [
-                str(pdir / "visuals/pages" / f"{side}_page_{number:03d}.png")
-                for side in ("problem", "solution")
-                for number in spans.get(side, {}).get(q_num, [])
-            ]
-            if not q_images or any(not Path(image).is_file() for image in q_images):
-                raise ValueError(f"{pq.question_id}: required rendered page image is missing")
-        elif len(parsed_questions) > 1 and q_num > 0:
-            pages_per_q = max(1, len(prob_images) // len(parsed_questions))
-            start = (q_num - 1) * pages_per_q
-            q_images = prob_images[start:start + pages_per_q]
-        else:
-            q_images = prob_images[:3]
-
-        # Update the parsed.json with the actual image paths now we have them.
-        if q_images:
-            import json as _json
-            from mathbank.crawl.pdf_parser import _q_slug, CRAWL_DIR
-            qdir = CRAWL_DIR / _q_slug(exam_level) / pq.question_id
-            pj = qdir / "parsed.json"
-            if pj.exists():
-                rec = _json.loads(pj.read_text())
-                rec["image_urls"] = q_images
-                pj.write_text(_json.dumps(rec, indent=2, ensure_ascii=False))
+        q_images = pq.image_urls
 
         _upsert_question(
             conn, paper_id, competition_id,

@@ -26,8 +26,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
-import shutil
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -38,10 +38,13 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from mathbank.db import DB_PATH
 from mathbank.db.migrations import apply_all as apply_migrations
+from mathbank.crawl.question_figures import extract_question_figures
 from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 console = Console()
+log = logging.getLogger(__name__)
+_FIGURE_CACHE = {}
 
 CRAWL_DIR     = ROOT / "data" / "crawl"
 CRAWL_PDF_DIR = ROOT / "data" / "crawl_pdf"
@@ -67,42 +70,20 @@ def _question_crawl_dir(competition_id: str, question_id: str) -> Path:
     return CRAWL_DIR / _slug(competition_id) / question_id
 
 
-def _sorted_page_images(paper_dir: Path, side: str) -> list[Path]:
-    """Return sorted list of rendered page PNGs for 'problem' or 'solution'."""
-    pages_dir = paper_dir / "visuals" / "pages"
-    if not pages_dir.exists():
-        return []
-    return sorted(pages_dir.glob(f"{side}_page_*.png"))
-
-
-def _assign_pages(
-    all_pages: list[Path],
-    q_num: int,
-    total_questions: int,
-) -> list[Path]:
-    """
-    Proportionally assign a slice of pages to question q_num.
-    Each question gets at least 1 page; adjacent questions may share a page.
-    """
-    if not all_pages or total_questions == 0:
-        return all_pages[:1] if all_pages else []
-
-    n_pages = len(all_pages)
-    # Distribute pages evenly; question numbers are 1-based
-    start = int((q_num - 1) * n_pages / total_questions)
-    end   = max(start + 1, int(q_num * n_pages / total_questions))
-    return all_pages[start:end]
-
-
-def _copy_images(src_pages: list[Path], dest_dir: Path) -> list[Path]:
-    """Copy image files into dest_dir; return list of copied paths."""
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    copied: list[Path] = []
-    for src in src_pages:
-        dst = dest_dir / src.name
-        shutil.copy2(src, dst)
-        copied.append(dst)
-    return copied
+def _question_figures(paper_dir: Path, side: str, total_questions: int, dry_run: bool) -> dict[int, list[Path]]:
+    source = paper_dir / f"{side}.pdf"
+    if not source.is_file():
+        log.warning("%s: %s PDF unavailable; no figure fallback", paper_dir.name, side)
+        return {}
+    key = (source.resolve(), source.stat().st_mtime_ns, total_questions, dry_run)
+    if key not in _FIGURE_CACHE:
+        try:
+            _FIGURE_CACHE[key] = extract_question_figures(paper_dir, side=side,
+                                                        expected_count=total_questions, write=not dry_run)
+        except ValueError as exc:
+            log.warning("%s: %s figures unavailable (%s); no page fallback", paper_dir.name, side, exc)
+            _FIGURE_CACHE[key] = {}
+    return _FIGURE_CACHE[key]
 
 
 def _md_image_block(images: list[Path], base: Path) -> str:
@@ -273,32 +254,19 @@ def _process_question(
         answer_value = row[3] or ""
 
     q_dir = paper_dir / "questions" / f"Q{q_num:02d}"
-    img_dir = q_dir / "images"
-
-    # Assign rendered page images proportionally.
-    prob_pages = _assign_pages(_sorted_page_images(paper_dir, "problem"), q_num, total_q)
-    sol_pages  = _assign_pages(_sorted_page_images(paper_dir, "solution"), q_num, total_q)
-    if competition_id.startswith("PURPLE_"):
-        spans = json.loads((paper_dir / "page_spans.json").read_text())
-        prob_pages = [
-            paper_dir / "visuals/pages" / f"problem_page_{number:03d}.png"
-            for number in spans["problem"][str(q_num)]
-        ]
-        sol_pages = [
-            paper_dir / "visuals/pages" / f"solution_page_{number:03d}.png"
-            for number in spans.get("solution", {}).get(str(q_num), [])
-        ]
-        if not prob_pages or any(not image.is_file() for image in [*prob_pages, *sol_pages]):
-            raise ValueError(f"{question_id}: missing required problem/solution page image")
+    native = sorted((q_dir / "images").glob("*_region_*.png"))
+    if native:
+        prob_imgs_local = [p for p in native if p.name.startswith("problem_")]
+        sol_imgs_local = [p for p in native if p.name.startswith("solution_")]
+    else:
+        prob_imgs_local = _question_figures(paper_dir, "problem", total_q, dry_run).get(q_num, [])
+        sol_imgs_local = _question_figures(paper_dir, "solution", total_q, dry_run).get(q_num, [])
 
     if dry_run:
-        return f"DRY: Q{q_num:02d} prob_pages={len(prob_pages)} sol_pages={len(sol_pages)}"
+        return f"DRY: Q{q_num:02d} problem_figures={len(prob_imgs_local)} solution_figures={len(sol_imgs_local)}"
 
     q_dir.mkdir(parents=True, exist_ok=True)
 
-    # Copy images for this question.
-    prob_imgs_local = _copy_images(prob_pages, img_dir)
-    sol_imgs_local  = _copy_images(sol_pages, img_dir)
     all_imgs_local  = prob_imgs_local + sol_imgs_local
 
     # Write markdown files.

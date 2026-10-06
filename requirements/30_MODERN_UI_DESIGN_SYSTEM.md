@@ -36,6 +36,8 @@ requirements and records progress.
 | Shell | `mathbank-web/app/AppShell.jsx`, `app/layout.jsx` | Sidebar, top bar, breadcrumbs, "Ask the tutor" shortcut and a user menu: student, admin on `/admin/*`, or a "Student login" link. |
 | Navigation model | `mathbank-web/lib/navigation.mjs` | `NAV_GROUPS`, `activeHref`, `breadcrumbs`, `avatarFor`; unit tested in `tests/navigation.test.mjs`. |
 | Composer | `mathbank-widgets/src/MathComposer.jsx`, `VoiceControls.jsx`, `icons.jsx` | Scoped `.mbw-*` styles that React 19 hoists (`<style href precedence>`), so `mathbank-live` gets the same look. Re-sync after edits: `make -C mathbank-web sync-widgets` and `make -C mathbank-live sync-widgets`. |
+| Source diagrams | `mathbank-web/app/_components/ProblemDiagrams.jsx` | Responsive question-specific figures with accessible labels and explicit loading failures; no whole-page fallback. See [31](31_QUESTION_SPECIFIC_DIAGRAMS.md). |
+| Original document viewer | `mathbank-web/app/_components/ProblemSource.jsx` | Compact Source toggle above figures; opens a full-width PDF iframe only on click, including when no crop exists. Labels the full document separately and provides a new-tab fallback. Shared by chat/history, corpus, guided practice and step solving. See [31](31_QUESTION_SPECIFIC_DIAGRAMS.md). |
 
 ## 3. Page coverage
 

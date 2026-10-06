@@ -24,6 +24,8 @@ export function resolveSolveRoute(method, segments, searchParams = new URLSearch
     if (head === "recovery-plans" && rest.length === 2 && rest[1] === "next")
       return { path: `/v1/recovery-plans/${enc(rest[0])}/next`, auth: true };
     if (head === "diagrams" && rest.length === 1) return { path: `/v1/problems/by-code/${enc(rest[0])}/diagrams` };
+    if (head === "source" && rest.length === 1) return { path: `/v1/problems/by-code/${enc(rest[0])}/source` };
+    if (head === "source-pdf" && rest.length === 1) return { path: `/v1/problems/by-code/${enc(rest[0])}/source-pdf`, raw: true };
     if (head === "images" && rest.length === 1) return { path: `/v1/problem-images/${enc(rest[0])}`, raw: true };
     return null;
   }
@@ -70,7 +72,7 @@ export function createSolveHandlers({ getToken, get, post, raw }) {
       const upstream = await raw(route.path);
       return new Response(upstream.body, { status: upstream.status, headers: {
         "Content-Type": upstream.headers.get("content-type") || "application/octet-stream",
-        "Cache-Control": "public, max-age=86400" } });
+        "Cache-Control": upstream.ok ? upstream.headers.get("cache-control") || "no-cache" : "no-store" } });
     }
     if (method === "POST" && request.headers.get("origin") !== new URL(request.url).origin) {
       return Response.json({ error: "Same-origin requests are required" }, { status: 403 });

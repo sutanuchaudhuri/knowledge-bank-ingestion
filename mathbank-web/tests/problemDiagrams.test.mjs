@@ -11,9 +11,12 @@ test("attaches source diagrams to canonical codes in tutor text and saved histor
 
 test("does not repeat diagrams that the tutor already embedded", () => {
   assert.deepEqual(mentionedProblemCodes("PAPER_SMT_2010_GEOM_Q06\n![source](/api/rest/solve/images/uuid)"), []);
+  assert.deepEqual(mentionedProblemCodes("PAPER_SMT_2010_GEOM_Q06\n![source](/api/rest/solve/images/uuid)",
+    { includeEmbedded: true }), ["PAPER_SMT_2010_GEOM_Q06"]);
 });
 
 test("does not guess codes from titles or mathematical symbols", () => {
   assert.deepEqual(mentionedProblemCodes("SMT 2010 Geometry Test, Problem 6. OT=25"), []);
-  assert.equal(problemImageUrl("a/b"), "/api/rest/solve/images/a%2Fb");
+  assert.equal(problemImageUrl("a/b"), "/api/rest/solve/images/a%2Fb?v=2");
+  assert.equal(problemImageUrl("id", "new-version"), "/api/rest/solve/images/id?v=new-version");
 });

@@ -34,6 +34,7 @@ This folder defines the implementation plan and requirements for building the Ma
 28. [28_DISTRIBUTED_LIVE_PLATFORM.md](28_DISTRIBUTED_LIVE_PLATFORM.md) — the separate socket deployable `mathbank-live` (:5174): Socket.IO gateway, event contract, rooms/replay, instructor console and takeover; per-file map of `math_tutor_distributed_platform_copilot_handoff`.
 29. [29_STUDENT_INPUT_ADDONS.md](29_STUDENT_INPUT_ADDONS.md) — slim student add-ons: LaTeX MathComposer, ElevenLabs voice (TTS/STT) and agentic/deterministic math formatting, delegated through Next.js server routes.
 30. [30_MODERN_UI_DESIGN_SYSTEM.md](30_MODERN_UI_DESIGN_SYSTEM.md) — modern UI design system and navigation revamp: tokens, Inter font, icons and pills, sidebar, breadcrumbs, avatars, analytics dashboards, pagination, master-detail, a composer with the mic inside the field, and page coverage; contract in `.github/skills/modern-ui-design`.
+31. [31_QUESTION_SPECIFIC_DIAGRAMS.md](31_QUESTION_SPECIFIC_DIAGRAMS.md) — question-specific PDF figure extraction, safe student visibility, tutor rendering, corrective backfill and regression coverage; no full-page fallback.
 
 ## Scope Summary
 

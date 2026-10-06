@@ -57,6 +57,33 @@ make migrate migrate-vector migrate-learner migrate-admin migrate-student-names
 
 ## The full corpus pipeline
 
+### Question-specific PDF figure repair
+
+PDF diagrams must be cropped to the individual question's figure, not displayed
+as whole pages. The ingestion-owned shared cropper uses spatial question boundaries and keeps
+solution images separate. Ambiguous/incomplete layouts are logged, never
+assigned proportionally. See [requirements 31](../requirements/31_QUESTION_SPECIFIC_DIAGRAMS.md).
+
+```sh
+# From the repository root; dry-run, no OCR/AI calls.
+make -C mathbank_data_ingestion repair-diagrams
+# Repair artifacts and existing SQLite staging metadata before importing manifests:
+make -C mathbank_data_ingestion repair-diagrams-apply
+PG_ENV_FILE=mathbank-graph/remote.env mathbank-db/.venv/bin/python \
+  mathbank-db/etl/backfill_question_figures.py --paper PAPER_SMT_2010_GEOM
+# Add --apply only after reviewing the selected source/crop.
+```
+
+The compatibility entry point `backfill_problem_images.py` now runs the
+question-figure repair too. It no longer imports whole problem-page references.
+The backfill also reconciles AoPS problem/solution provenance when no `--paper`
+filter is supplied. Source manifests are authoritative, including verified empty
+inventories; re-imports prune stale references only within the matching source
+family. Native/textbook assets are not blindly replaced.
+Student image endpoints refuse historic whole-page paths, unknown legacy
+provenance and solution/answer images. This does not certify every imported PDF
+layout or fill inaccessible downloads. No schema migration or model calls are involved.
+
 ```
 crawl-unmapped (mathbank_data_ingestion) → classify → export-classifications
   → etl-remote (this repo, Postgres core.*/knowledge.*)

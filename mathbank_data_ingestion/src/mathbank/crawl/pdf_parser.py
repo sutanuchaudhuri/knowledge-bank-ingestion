@@ -17,6 +17,7 @@ so that classify_crawled.py finds them using the same path as AoPS questions.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -26,7 +27,10 @@ import pymupdf as fitz   # kept for render_pdf_pages page renders
 
 from mathbank.crawl.aops_parser import ParsedQuestion
 from mathbank.crawl.docling_extractor import extract_pdf, DoclingResult
-from mathbank.crawl.pdf_pages import question_page_numbers
+from mathbank.crawl.pdf_pages import question_page_numbers as question_page_numbers
+from mathbank.crawl.question_figures import extract_pdf_figures
+
+log = logging.getLogger(__name__)
 
 # Root resolved relative to this file: mathbank/
 _ROOT = Path(__file__).resolve().parents[3]
@@ -208,6 +212,8 @@ def save_question_artifacts(
         "answer_choices": [],
         "answer_value": answer_value,
         "image_urls": image_paths,
+        "problem_image_urls": [p for p in image_paths if Path(p).name.startswith("problem_")],
+        "solution_image_urls": [p for p in image_paths if Path(p).name.startswith("solution_")],
         "parse_warnings": parse_warnings,
         "crawled_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -255,18 +261,30 @@ def parse_pdf_paper(
     # ── Extract problem PDF ───────────────────────────────────────────────────
     prob_result = extract_markdown(problem_bytes, out_dir=visuals_dir, label="problem")
     prob_blocks = split_questions(prob_result.markdown, competition_id, expected_count)
-    prob_figures = prob_result.figure_paths
 
     # ── Extract solution PDF ──────────────────────────────────────────────────
     sol_blocks: dict[int, str] = {}
-    sol_figures: list[str] = []
     if solution_bytes:
         sol_result = extract_markdown(solution_bytes, out_dir=visuals_dir, label="solution")
         sol_blocks = split_questions(sol_result.markdown, competition_id, expected_count)
-        sol_figures = sol_result.figure_paths
 
     all_q_nums = sorted(set(prob_blocks) | set(sol_blocks))
     results: list[ParsedQuestion] = []
+    figures: dict[str, dict[int, list[Path]]] = {}
+    figure_warnings = []
+    if visuals_dir is not None and all_q_nums == list(range(1, len(all_q_nums) + 1)):
+        for side, data in (("problem", problem_bytes), ("solution", solution_bytes)):
+            if not data:
+                continue
+            try:
+                figures[side] = extract_pdf_figures(data, len(all_q_nums), visuals_dir.parent,
+                                                    side=side, write=True)
+            except ValueError as exc:
+                warning = f"{side} figures unavailable: {exc}; no whole-page fallback"
+                log.warning("%s: %s", paper_id, warning)
+                figure_warnings.append(warning)
+    else:
+        figure_warnings.append("No verified question-level figure extraction; no whole-page fallback")
 
     for q_num in all_q_nums:
         problem_text = prob_blocks.get(q_num, "")
@@ -280,21 +298,14 @@ def parse_pdf_paper(
         if prob_result.used_fallback:
             warnings.append("Extracted with PyMuPDF native text (Docling unavailable or explicitly bypassed)")
         warnings.extend(prob_result.warnings)
+        warnings.extend(figure_warnings)
 
         q_id = f"{paper_id}_Q{q_num:02d}" if q_num > 0 else paper_id
         answer = _extract_boxed_answer(solution_text)
         solution_list = [solution_text] if solution_text else []
 
-        # Heuristic: assign problem figures to questions proportionally.
-        n_q = max(len(all_q_nums), 1)
-        if len(prob_figures) > 0 and q_num > 0:
-            figs_per_q = max(1, len(prob_figures) // n_q)
-            start = (q_num - 1) * figs_per_q
-            q_figs = prob_figures[start:start + figs_per_q]
-        else:
-            q_figs = prob_figures  # unsplit fallback: all figures to the single block
-
-        all_images = q_figs + ([sol_figures[q_num - 1]] if q_num > 0 and q_num <= len(sol_figures) else [])
+        all_images = [str(path) for side in ("problem", "solution")
+                      for path in figures.get(side, {}).get(q_num, [])]
 
         if save_artifacts:
             save_question_artifacts(
@@ -338,4 +349,3 @@ def render_pdf_pages(pdf_bytes: bytes, out_dir: Path, label: str, dpi: int = 144
         paths.append(str(fpath))
     doc.close()
     return paths
-

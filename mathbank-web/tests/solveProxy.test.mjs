@@ -64,6 +64,16 @@ test("diagrams are public and images stream through", async () => {
   assert.equal(img.headers.get("content-type"), "image/png");
 });
 
+test("original document routes are public and stream PDFs, not arbitrary URLs", async () => {
+  const { h, calls } = handlers({ getToken: async () => null,
+    raw: async () => new Response("%PDF-fixture", { headers: { "content-type": "application/pdf" } }) });
+  await h.GET(new Request("http://localhost/x"), ["source", "PAPER_SMT_2010_GEOM_Q06"]);
+  assert.equal(calls.at(-1)[1], "/v1/problems/by-code/PAPER_SMT_2010_GEOM_Q06/source");
+  const pdf = await h.GET(new Request("http://localhost/x"), ["source-pdf", "PAPER_SMT_2010_GEOM_Q06"]);
+  assert.equal(pdf.headers.get("content-type"), "application/pdf");
+  assert.equal(resolveSolveRoute("GET", ["source-pdf", "code", "solution"]), null);
+});
+
 test("recovery detour routes are allowlisted for the student; admin plan views are not", () => {
   assert.equal(resolveSolveRoute("GET", ["recovery-plans", "p1"]).path, "/v1/recovery-plans/p1");
   assert.equal(resolveSolveRoute("GET", ["recovery-plans", "p1", "next"]).path, "/v1/recovery-plans/p1/next");

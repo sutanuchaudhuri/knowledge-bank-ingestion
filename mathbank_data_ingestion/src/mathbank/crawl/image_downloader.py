@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import sqlite3
 from datetime import datetime, timezone
@@ -25,7 +26,10 @@ from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
+from mathbank.crawl.aops_parser import _section_nodes
 from mathbank.crawl.downloader import DownloadError, fetch_binary, make_session
+
+log = logging.getLogger(__name__)
 
 # Diagram images are on the AoPS wiki CDN (NOT the latex CDN).
 _DIAGRAM_HOSTS = {
@@ -58,11 +62,14 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def extract_diagram_urls(html: str, base_url: str) -> list[str]:
-    """Return absolute URLs of non-LaTeX images on an AoPS wiki page."""
+def extract_diagram_urls(html: str, base_url: str, source_side: str = "problem") -> list[str]:
+    """Return diagrams from one explicitly identified problem/solution section."""
+    if source_side not in {"problem", "solution"}:
+        raise ValueError("source_side must be problem or solution")
     soup = BeautifulSoup(html, "html.parser")
     urls: list[str] = []
-    for img in soup.select("div.mw-parser-output img"):
+    for img in (img for section in _section_nodes(soup, source_side.title())
+                for img in section.find_all("img")):
         src = img.get("src", "") or ""
         if not src or not _is_diagram_image(src):
             continue
@@ -82,6 +89,8 @@ def download_images(
     delay: float = 1.5,
 ) -> list[str]:
     """Download each URL to out_dir/<sha256[:8]>.png; return list of local paths."""
+    if not urls:
+        return []
     if session is None:
         session = make_session()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -94,8 +103,8 @@ def download_images(
             dest = out_dir / fname
             dest.write_bytes(data)
             local_paths.append(str(dest))
-        except (DownloadError, Exception):
-            pass   # non-fatal — text extraction already succeeded
+        except DownloadError as exc:
+            log.warning("Diagram download failed for %s: %s", url, exc)
     return local_paths
 
 
@@ -107,6 +116,7 @@ def save_aops_images(
     base_url: str,
     session=None,
     delay: float = 1.5,
+    download_missing: bool = True,
 ) -> list[str]:
     """
     Extract and download real diagram images from an AoPS HTML page.
@@ -116,32 +126,48 @@ def save_aops_images(
     slug = re.sub(r"[^a-z0-9]+", "_", exam_level.lower()).strip("_")
     img_dir = CRAWL_DIR / slug / question_id / "images"
 
-    urls = extract_diagram_urls(html, base_url)
-    if not urls:
-        return []
-
-    local_paths = download_images(urls, img_dir, session=session, delay=delay)
-
-    # Update questions.image_paths (append to any existing paths from alt-text).
-    existing_raw = conn.execute(
-        "SELECT image_paths FROM questions WHERE question_id = ?", (question_id,)
-    ).fetchone()
-    existing: list[str] = json.loads(existing_raw[0]) if existing_raw and existing_raw[0] else []
-    merged = existing + [p for p in local_paths if p not in existing]
+    manifest = []
+    for side in ("problem", "solution"):
+        urls = extract_diagram_urls(html, base_url, side)
+        missing = []
+        for url in urls:
+            ext = Path(urlparse(url).path).suffix.lower() or ".png"
+            path = img_dir / (hashlib.sha256(url.encode()).hexdigest()[:12] + ext)
+            if not path.is_file():
+                missing.append(url)
+        if download_missing:
+            download_images(missing, img_dir, session=session, delay=delay)
+        for url in urls:
+            ext = Path(urlparse(url).path).suffix.lower() or ".png"
+            path = img_dir / (hashlib.sha256(url.encode()).hexdigest()[:12] + ext)
+            if path.is_file():
+                manifest.append({"source_side": side, "source_url": url, "local_path": str(path.resolve())})
+            else:
+                log.warning("%s: %s diagram missing locally: %s", question_id, side, url)
+    (img_dir.parent / "image_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    local_paths = list(dict.fromkeys(asset["local_path"] for asset in manifest))
+    parsed_path = img_dir.parent / "parsed.json"
+    if parsed_path.is_file():
+        record = json.loads(parsed_path.read_text())
+        record["image_urls"] = local_paths
+        for side in ("problem", "solution"):
+            record[f"{side}_image_urls"] = [asset["local_path"] for asset in manifest if asset["source_side"] == side]
+        parsed_path.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n")
     conn.execute(
         "UPDATE questions SET image_paths = ? WHERE question_id = ?",
-        (json.dumps(merged, ensure_ascii=False), question_id),
+        (json.dumps(local_paths, ensure_ascii=False), question_id),
     )
 
     # Upsert visual_assets rows.
-    for i, (url, local_path) in enumerate(zip(urls, local_paths)):
+    conn.execute("DELETE FROM visual_assets WHERE question_id=? AND asset_type='diagram'", (question_id,))
+    for i, asset in enumerate(manifest):
         asset_id = f"{question_id}_DIAG_{i+1:02d}"
         conn.execute(
             """INSERT OR REPLACE INTO visual_assets
                (asset_id, question_id, source_side, asset_type,
                 local_file_path, drive_asset_url, created_at)
-               VALUES (?, ?, 'problem', 'diagram', ?, ?, ?)""",
-            (asset_id, question_id, local_path, url, _now()),
+               VALUES (?, ?, ?, 'diagram', ?, ?, ?)""",
+            (asset_id, question_id, asset["source_side"], asset["local_path"], asset["source_url"], _now()),
         )
 
     conn.commit()

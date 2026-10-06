@@ -89,7 +89,7 @@ def get_problem_by_code(canonical_code: str) -> dict:
 
 
 def get_problem_diagrams(canonical_code: str) -> list[dict]:
-    """Get student-visible source diagrams/pages, never solution or answer images.
+    """Get question-specific source diagrams, never whole pages or solution images.
 
     Call when presenting a retrieved problem, especially if its statement mentions
     a diagram. Paste the returned markdown exactly into the reply. An empty list

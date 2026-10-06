@@ -17,7 +17,7 @@ from pathlib import Path
 
 import psycopg
 from psycopg.types.json import Json
-from pdf_assets import paper_images, store_images
+from pdf_assets import paper_images, question_images, store_images
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INGESTION_ROOT = REPO_ROOT / "mathbank_data_ingestion"
@@ -253,12 +253,13 @@ def enrich_problems_from_aops_crawl(cur) -> tuple[int, int]:
     (AoPS wiki pages — the question_index.csv mirror has no full problem text)."""
     cur.execute("SELECT canonical_code, problem_id FROM core.problem")
     problem_by_code = {code: pid for code, pid in cur.fetchall()}
-    decorative_filenames = _find_decorative_image_filenames(AOPS_CRAWL_DIR)
 
     updated = skipped = 0
     for parsed_path in sorted(AOPS_CRAWL_DIR.glob("*/*/parsed.json")):
         record = json.loads(parsed_path.read_text(encoding="utf-8"))
         question_id = record.get("question_id") or parsed_path.parent.name
+        if question_id.startswith("PAPER_"):
+            continue
         problem_id = problem_by_code.get(question_id)
         if not problem_id:
             skipped += 1
@@ -282,24 +283,12 @@ def enrich_problems_from_aops_crawl(cur) -> tuple[int, int]:
             if solution_text and solution_text.strip():
                 _upsert_solution(cur, problem_id, "AOPS_COMMUNITY", i, solution_text.strip().replace("\x00", ""))
 
-        # Diagram images saved by crawl_unmapped.py's save_aops_images() alongside
-        # parsed.json — same page as the solutions, so this covers both problem
-        # and solution figures (AoPS wiki pages render them on one page).
-        images_dir = parsed_path.parent / "images"
-        if images_dir.is_dir():
-            real_images = [
-                p for p in sorted(images_dir.iterdir())
-                if p.is_file() and p.name not in decorative_filenames
-            ]
-            for ordinal, image_path in enumerate(real_images, start=1):
-                cur.execute(
-                    """
-                    INSERT INTO core.problem_image (problem_id, ordinal, local_path, source)
-                    VALUES (%s, %s, %s, 'AOPS_CRAWL')
-                    ON CONFLICT (problem_id, ordinal) DO UPDATE SET local_path = EXCLUDED.local_path
-                    """,
-                    (problem_id, ordinal, str(image_path.resolve())),
-                )
+        manifest_path = parsed_path.parent / "image_manifest.json"
+        if manifest_path.is_file():
+            verified = question_images(parsed_path.parent, source_kind="AOPS")
+            store_images(cur, problem_id, verified, source_kind="AOPS")
+        elif (parsed_path.parent / "images").is_dir():
+            question_images(parsed_path.parent, source_kind="AOPS")
 
         updated += 1
     return updated, skipped
@@ -407,7 +396,7 @@ def load_pdf_crawl_problems(cur, competition_by_code: dict[str, str]) -> tuple[i
                 problem_id = str(cur.fetchone()[0])
                 inserted += 1
 
-                store_images(cur, problem_id, visuals.get(problem_number, []))
+                store_images(cur, problem_id, visuals.get(problem_number, []), source_kind="PDF")
 
                 solution_md = q_dir / "solution.md"
                 if solution_md.exists():

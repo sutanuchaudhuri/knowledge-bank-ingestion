@@ -3,24 +3,30 @@
 import { useEffect, useState } from "react";
 import { problemImageUrl } from "../../lib/problemDiagrams.mjs";
 import { Callout } from "./ui.jsx";
+import ProblemSource from "./ProblemSource.jsx";
 
-function Diagram({ image, code }) {
+export function SourceImage({ src, alt, ...props }) {
   const [failed, setFailed] = useState(false);
-  if (failed) return <Callout tone="warning">Source diagram unavailable for {code}.</Callout>;
+  if (failed) return <Callout tone="warning" role="alert">Source diagram unavailable: {alt || "problem image"}.</Callout>;
+  return <img {...props} src={src} alt={alt || "Source problem diagram"}
+    loading="lazy" onError={() => setFailed(true)} />;
+}
+
+function Diagram({ image, code, alt }) {
+  const url = problemImageUrl(image.problem_image_id, image.version);
   return (
     <figure className="mb-problem-diagram">
-      <a href={problemImageUrl(image.problem_image_id)} target="_blank" rel="noreferrer" aria-label={`Open source image for ${code}`}>
-        <img src={problemImageUrl(image.problem_image_id)} alt={image.alt || `Diagram ${image.ordinal} for ${code}`}
-          loading="lazy" onError={() => setFailed(true)} />
+      <a href={url} target="_blank" rel="noreferrer" aria-label={`Open source image for ${code}`}>
+        <SourceImage key={url} src={url} alt={alt || image.alt || `Diagram ${image.ordinal} for ${code}`} />
       </a>
       <figcaption className="small text-secondary">
-        {image.source === "PDF_PROBLEM_PAGE" ? "Source problem page - may include neighbouring questions" : "Source problem diagram"}
+        Source problem diagram
       </figcaption>
     </figure>
   );
 }
 
-export default function ProblemDiagrams({ code, images }) {
+export default function ProblemDiagrams({ code, images, showSource = true, imageAlt }) {
   const [loaded, setLoaded] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -37,10 +43,12 @@ export default function ProblemDiagrams({ code, images }) {
       .catch((err) => { if (!controller.signal.aborted) setError(err.message); });
     return () => controller.abort();
   }, [code, images]);
-  if (error) return <Callout tone="warning" role="alert">{error}</Callout>;
   const items = images ?? loaded;
-  if (!items?.length) return null;
-  return <div className="mb-problem-diagrams" data-testid="problem-diagrams">
-    {items.map((image) => <Diagram key={image.problem_image_id} image={image} code={code} />)}
-  </div>;
+  return <>
+    {showSource && <ProblemSource code={code} />}
+    {error && <Callout tone="warning" role="alert">{error}</Callout>}
+    {items?.length > 0 && <div className="mb-problem-diagrams" data-testid="problem-diagrams">
+      {items.map((image) => <Diagram key={image.problem_image_id} image={image} code={code} alt={imageAlt?.(image)} />)}
+    </div>}
+  </>;
 }

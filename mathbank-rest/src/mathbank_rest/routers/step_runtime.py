@@ -27,6 +27,7 @@ from mathbank_rest import mastery, security, step_diagnosis, step_recovery, step
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.db.step_search import similar_steps_for_step
 from mathbank_rest.db.problem_images import STUDENT_IMAGE_FILTER, list_images
+from mathbank_rest.db.problem_sources import source_metadata, source_pdf, source_record
 
 router = APIRouter(prefix="/v1", tags=["step-runtime"])
 log = logging.getLogger(__name__)
@@ -381,6 +382,26 @@ def list_problem_diagrams(code: str) -> list[dict]:
         return list_images(conn, code)
 
 
+@router.get("/problems/by-code/{code}/source")
+def get_problem_source(code: str) -> dict | None:
+    with engine.connect() as conn:
+        record = source_record(conn, code)
+    if record is None:
+        raise HTTPException(status_code=404, detail="problem not found")
+    return source_metadata(record, code)
+
+
+@router.get("/problems/by-code/{code}/source-pdf", response_class=FileResponse)
+def get_problem_source_pdf(code: str):
+    with engine.connect() as conn:
+        record = source_record(conn, code)
+    path = source_pdf(record) if record is not None else None
+    if path is None:
+        raise HTTPException(status_code=404, detail="original PDF is not cached")
+    return FileResponse(path, media_type="application/pdf", content_disposition_type="inline",
+                        filename="original-problem-document.pdf", headers={"Cache-Control": "no-cache"})
+
+
 @router.get("/problem-images/{image_id}", response_class=FileResponse)
 def get_problem_image(image_id: UUID):
     with engine.connect() as conn:
@@ -390,4 +411,4 @@ def get_problem_image(image_id: UUID):
     resolved = (IMAGE_ROOT / path).resolve() if path else None
     if resolved is None or not resolved.is_file() or IMAGE_ROOT not in resolved.parents:
         raise HTTPException(status_code=404, detail="image not found")
-    return FileResponse(resolved, headers={"Cache-Control": "public, max-age=86400"})
+    return FileResponse(resolved, headers={"Cache-Control": "no-cache"})

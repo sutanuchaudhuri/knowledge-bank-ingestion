@@ -315,6 +315,8 @@ details[open] > summary.mb-section-title::after { transform: rotate(180deg); }
   object-fit: contain;
   border: 1px solid var(--mb-border);
   border-radius: var(--mb-radius);
-  background: var(--mb-surface, white);
+  background: var(--mb-surface);
 }
 .mb-problem-diagram figcaption { margin-top: .5rem; }
+.mb-original-source { min-width: 0; margin-block: .75rem; }
+.mb-source-frame { display: block; width: 100%; height: min(75vh, 52rem); min-height: 20rem; border: 1px solid var(--mb-border); border-radius: var(--mb-radius); background: var(--mb-surface); }

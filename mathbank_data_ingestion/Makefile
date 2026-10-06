@@ -8,6 +8,13 @@ MYPY      := $(BIN)/mypy
 
 .DEFAULT_GOAL := help
 
+.PHONY: repair-diagrams repair-diagrams-apply
+repair-diagrams:                ## Audit question-specific PDF/AoPS diagrams (local only, no AI)
+	$(BIN)/python scripts/repair_diagram_artifacts.py $(if $(PAPER),--paper $(PAPER),) $(if $(COMPETITION),--competition $(COMPETITION),)
+
+repair-diagrams-apply:          ## Repair diagram artifacts/staging (no AI; DOWNLOAD_MISSING=1 fetches AoPS images)
+	$(BIN)/python scripts/repair_diagram_artifacts.py --apply $(if $(PAPER),--paper $(PAPER),) $(if $(COMPETITION),--competition $(COMPETITION),) $(if $(DOWNLOAD_MISSING),--download-missing,)
+
 # ── Environment ────────────────────────────────────────────────────────────
 
 .PHONY: venv

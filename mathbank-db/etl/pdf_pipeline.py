@@ -302,7 +302,7 @@ def cmd_ingest(
                      paper_external_code, pg_problem_id),
                 )
 
-            store_images(cur, pg_problem_id, visuals.get(problem_number, []))
+            store_images(cur, pg_problem_id, visuals.get(problem_number, []), source_kind="PDF")
 
             solution_md = q_dir / "solution.md"
             if solution_md.exists():

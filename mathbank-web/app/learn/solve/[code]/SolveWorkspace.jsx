@@ -5,6 +5,7 @@ import Link from "next/link";
 import MathText from "../../../_components/MathText.jsx";
 import { Callout, Icon, IconButton, PageHeader, Pill } from "../../../_components/ui.jsx";
 import { MathComposer, SpeakButton } from "mathbank-widgets";
+import ProblemDiagrams from "../../../_components/ProblemDiagrams.jsx";
 
 const renderMath = (t) => <MathText>{t}</MathText>;
 import {
@@ -338,7 +339,6 @@ function RecoveryPanel({ plan, busy, lastResult, onAnswer, onReturn, onAbort }) 
 export default function SolveWorkspace({ code }) {
   const [attemptId, setAttemptId] = useState(null);
   const [runtime, setRuntime] = useState(null);
-  const [diagrams, setDiagrams] = useState([]);
   const [hints, setHints] = useState([]);
   const [response, setResponse] = useState("");
   const [feedback, setFeedback] = useState(null);
@@ -374,7 +374,6 @@ export default function SolveWorkspace({ code }) {
       .catch((err) => !cancelled && setError(err.status === 409
         ? "This problem does not have a step-by-step solution yet. Try the guided practice view instead."
         : err.message));
-    solveRequest(`diagrams/${enc(code)}`).then((d) => !cancelled && setDiagrams(d)).catch(() => {});
     return () => { cancelled = true; };
   }, [code]);
 
@@ -514,15 +513,8 @@ export default function SolveWorkspace({ code }) {
             <div className="card-header fw-semibold"><Icon name="file-earmark-text" className="me-2 text-primary" />Problem</div>
             <div className="card-body">
               <MathText>{attempt.statement_text}</MathText>
-              {diagrams.length > 0 && (
-                <div className="d-flex flex-wrap gap-2 mt-3">
-                  {diagrams.map((d) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={d.problem_image_id} src={`/api/rest/solve/images/${enc(d.problem_image_id)}`}
-                      alt={`Diagram ${d.ordinal} for ${attempt.problem_code}`} className="img-fluid border rounded bg-white" style={{ maxHeight: 280 }} />
-                  ))}
-                </div>
-              )}
+              <ProblemDiagrams code={attempt.problem_code || code}
+                imageAlt={(image) => `Diagram ${image.ordinal} for ${attempt.problem_code || code}`} />
             </div>
           </div>
 

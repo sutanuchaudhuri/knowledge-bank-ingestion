@@ -107,7 +107,7 @@ Guidelines:
   so the user (or a future student-profile feature) can look it up again.
 - When presenting a problem to try, ALWAYS call get_problem_diagrams with the
   canonical_code. Paste its returned markdown exactly into your reply. These are
-  source images, sometimes full problem pages, not generated geometry. Never
+  question-specific source figures, not full pages or generated geometry. Never
   claim "diagram below" unless you include the image. If a statement depends on
   a diagram but the list is empty, explain that the source diagram is unavailable
   and offer another problem; never invent or reconstruct the missing figure.

@@ -175,14 +175,16 @@ from the official [archive](https://purplecomet.org/answers), downloads valid PD
 and answer keys, registers Postgres sources and extracts numbered questions.
 Use `YEAR=2026` for a bounded pilot. Original PDFs, page renders, answer HTML/JSON
 and source manifests are retained under `mathbank_data_ingestion/data/crawl_pdf/purple_ms`
-and `purple_hs`. Problem and worked-solution images are assigned from numbered
-PDF page spans, including continuation/shared pages, not proportional guesses.
+and `purple_hs`. Student diagrams are tight figure crops inside verified spatial
+question boundaries, including continuation pages. Whole-page renders are audit
+evidence only, never question diagrams. Problem and solution assets have separate
+provenance; ambiguous numbering/layouts are left unverified, not guessed.
 
 `make -C mathbank-db purple-comet-batches-remote` waits for the existing exclusive
 paper runner, then processes batches of two through paid classification,
 Postgres and verified Neo4j publication. It supports `BATCH_SIZE=`, `LIMIT=` and
 `RESUME=`. Purple Comet classification uses `gpt-4.1` and sends the actual
-question/solution PNG pages as vision inputs, along with the official answer key.
+question-specific figure/region crops as vision inputs, along with the official answer key.
 New metadata follows the existing automatic-approval policy; protected human
 corrections/rejections are not overwritten.
 
@@ -195,9 +197,30 @@ are distinct from missing problem PDFs. The recovered archive inventory was
 verified at 44 valid problem PDFs and 1,050 official answers (2005-2026, both
 divisions), with four available worked-solution PDFs for 2025-2026. Historical
 worked solutions are reported as unavailable, not fabricated. Completion requires
-all available numbered solutions and required page images, exact question/answer
+all available numbered solutions and verified question-specific figures, exact question/answer
 coverage and graph inventory agreement. Source copyright remains with Purple
 Comet; this workflow does not grant redistribution rights.
+
+#### Repair existing source diagrams (no paid model calls)
+
+```sh
+make -C mathbank_data_ingestion repair-diagrams       # local audit; no writes
+make -C mathbank_data_ingestion repair-diagrams-apply # artifacts + existing staging rows
+# Optional PAPER=PAPER_SMT_2010_GEOM or COMPETITION=smt
+# Optional DOWNLOAD_MISSING=1 explicitly fetches missing cached AoPS image URLs.
+
+PG_ENV_FILE=mathbank-graph/remote.env mathbank-db/.venv/bin/python \
+  mathbank-db/etl/backfill_question_figures.py         # Postgres audit
+# Add --apply after reviewing the source manifests.
+```
+
+The repair refreshes manifests, source-side image lists, trailing Markdown figures
+and staging visual provenance without changing statements, answers or enrichment.
+It does not create missing staging questions. Per-question `diagram_status.json`
+distinguishes extraction, verified absence of graphics, unverified PDFs, missing
+sources and missing AoPS downloads. Student routes reject solution/answer images,
+whole-page references and legacy assets with unknown provenance. See
+[requirements 31](requirements/31_QUESTION_SPECIFIC_DIAGRAMS.md) for results and gaps.
 
 #### Automatic teaching metadata
 
