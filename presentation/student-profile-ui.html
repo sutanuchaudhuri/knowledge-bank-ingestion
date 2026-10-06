@@ -15,6 +15,7 @@
     <a href="architecture.html">Ingestion &amp; Inference</a>
     <a href="data-model.html">Data Model</a>
     <a href="graph.html">Knowledge Graph</a>
+    <a href="vectors.html">Vector Models</a>
     <a href="pedagogy.html">Pedagogy</a>
     <a href="use-cases.html">Use Cases</a>
     <a href="tutor-interaction.html">Tutor Interaction</a>
@@ -99,6 +100,22 @@
       admin pipeline itself changed.</p>
     </div>
   </div>
+
+  <h2 id="admin-pages"><span class="section-no">B2</span>Admin pages added for the textbook corpus and the step runtime</h2>
+  <p>All pages sit behind the same admin login and call <code>mathbank-rest</code> with the server-held
+  <code>X-Admin-Api-Key</code> through the Next.js <code>/api/rest</code> proxy.</p>
+  <div class="grid cols-3 reveal">
+    <div class="card"><h3><code>/admin/imports</code></h3><p>Package list, issues, reconciliation counts and conflict decisions (keep / accept / merge). Also covers solution-step edits, dependency DAG review, learning-item review and projection requests. Every action is written to <code>ingest.admin_review_action</code>.</p></div>
+    <div class="card"><h3><code>/admin/textbooks</code></h3><p>Browse Prasolov chapters 1–30: problems, solutions, steps, taxonomy, learning items and diagrams. The coverage tab compares Postgres, vectors and graph. <code>/admin/textbooks/problems/[code]</code> shows a single problem.</p></div>
+    <div class="card"><h3><code>/admin/knowledge-gaps</code></h3><p>Gap diagnoses and recovery plans across students. Filter by status and drill into a plan&#39;s stages and items.</p></div>
+    <div class="card"><h3><code>/admin/conversations</code></h3><p>Rebuild any student&#39;s tutor chat from the ADK session, including tool calls, through <code>learner.agent_session_link</code>. Students see their own chats at <code>/learn/conversations</code>.</p></div>
+    <div class="card"><h3><code>/admin/widgets</code></h3><p>Gallery of registered widgets and stored widget specs (<code>/v1/widgets/registry</code>, <code>/v1/widgets/specs</code>). The same widgets render in the live classroom.</p></div>
+    <div class="card"><h3><code>/admin/pedagogy</code></h3><p>Metadata approval for skills, relations and difficulty, with immutable review snapshots. Live classroom console: <code>http://localhost:5174/i/[sid]</code>.</p></div>
+  </div>
+  <p>Requirements: <a href="../requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md">24</a> ·
+  <a href="../requirements/22_AGENT_SESSION_TRANSCRIPTS.md">22</a> ·
+  <a href="../requirements/27_FLUID_WIDGET_LAYER.md">27</a> ·
+  <a href="../requirements/28_DISTRIBUTED_LIVE_PLATFORM.md">28</a>.</p>
 
   <h2 id="honesty"><span class="section-no">C</span>Where the bridge is, precisely</h2>
   <div class="grid cols-2 reveal">

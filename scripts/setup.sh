@@ -49,7 +49,7 @@ check_env_file() {
   fi
 }
 
-for d in mathbank-db mathbank-graph mathbank-rest mathbank-agent mathbank-web; do
+for d in mathbank-db mathbank-graph mathbank-rest mathbank-agent mathbank-web mathbank-live; do
   check_env_file "$d"
 done
 
@@ -67,6 +67,16 @@ if node scripts/sync-openai-key.mjs; then
   ok "OPENAI_API_KEY synchronized from root .env to service environment files"
 else
   warn "OPENAI_API_KEY synchronization failed; set it in root .env before startup."
+fi
+if node scripts/sync-eleven-key.mjs; then
+  ok "ELEVEN_API_KEY synchronized to mathbank-web/.env and mathbank-live/.env (voice)"
+else
+  warn "ELEVEN_API_KEY synchronization failed; set it in root .env (make up runs this sync and stops if it fails)."
+fi
+if node scripts/sync-live-env.mjs; then
+  ok "mathbank-live/.env written from root .env"
+else
+  warn "mathbank-live/.env sync failed; check the keys named above in root .env."
 fi
 
 # ── 3. Python virtual environments ──────────────────────────────────────────
@@ -92,7 +102,7 @@ setup_venv mathbank-graph etl-venv
 setup_venv mathbank-rest install
 setup_venv mathbank-agent install
 
-# ── 4. Node / Next.js ────────────────────────────────────────────────────────
+# ── 4. Node / Next.js (web, live; shared mathbank-widgets) ────────────────────────────────────────────────────────
 section "mathbank-web (Node / Next.js)"
 if [ -d mathbank-web/node_modules ]; then
   ok "mathbank-web/node_modules already present"
@@ -103,6 +113,23 @@ else
   else
     warn "mathbank-web install FAILED — run 'cd mathbank-web && make install' manually to see the error"
   fi
+fi
+
+section "mathbank-live (Node / Next.js + Socket.IO)"
+if [ -d mathbank-live/node_modules ]; then
+  ok "mathbank-live/node_modules already present"
+else
+  info "mathbank-live/node_modules missing — running 'make -C mathbank-live install'..."
+  if (cd mathbank-live && make install); then
+    ok "mathbank-live dependencies installed"
+  else
+    warn "mathbank-live install FAILED — run 'cd mathbank-live && make install' manually to see the error"
+  fi
+fi
+if [ -f mathbank-widgets/package.json ]; then
+  ok "mathbank-widgets is a local package (no install); web/live copy it on install/start (make -C mathbank-web sync-widgets)"
+else
+  warn "mathbank-widgets/ is missing — mathbank-web and mathbank-live depend on it"
 fi
 
 # ── 5. Summary ───────────────────────────────────────────────────────────────

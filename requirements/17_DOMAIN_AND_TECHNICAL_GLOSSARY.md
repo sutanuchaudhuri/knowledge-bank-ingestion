@@ -413,6 +413,26 @@ scoring while maintaining this glossary.
 | Provenance-only file | A raw source CSV kept for audit (hashed and registered) but deliberately not imported, because an enriched file supersedes it (e.g. `csv/transformations.csv`, `problem_concepts.csv`). | `ingest.package_file` row with role RAW; `PROVENANCE` row in the coverage matrix. |
 | Textbook corpus dashboard | Read-only admin view of every imported textbook problem with its solution, parts/steps, dependencies, transformations, taxonomy, diagrams (including solution-hidden ones) and per-store status. | `/admin/textbooks`, `/admin/textbooks/problems/{canonical_code}`; `/v1/admin/textbooks/*`. |
 
+## 8d. Fluid widgets, live classroom and student add-ons
+
+| Term | Meaning | Representation |
+|---|---|---|
+| Presentation plan | A versioned, admin-authored lesson outline: ordered topics with planned seconds and scenes, plus course time limits. Once PUBLISHED it cannot change; edits make a new version with the same `plan_key`. | `authoring.presentation_plan`, `authoring.plan_topic`; `/v1/authoring/presentation-plans/*`; [27](27_FLUID_WIDGET_LAYER.md). |
+| Proposed patch | The structured operations that an admin chat message compiles into (e.g. `UPDATE_TOPIC_TIME`), with an impact preview. Nothing changes until an explicit APPLY. | `authoring.proposed_patch`; `…/proposed-patches/{id}/apply`. |
+| Live session | One real-time class run of a plan, joined by code. Holds control mode (AI_ACTIVE / INSTRUCTOR_ACTIVE), `state_version` and an event sequence. | `live.session`, `live.participant`; `/v1/live/sessions/*`; [28](28_DISTRIBUTED_LIVE_PLATFORM.md). |
+| Session event | An append-only, ordered record of a live change. A reconnecting client replays everything after its last `sequence`. Its audience is SESSION, STUDENT, INSTRUCTOR or GROUP. | `live.session_event` (UPDATE blocked by trigger), mirrored to `pipeline.outbox_event`. |
+| Command receipt | The stored outcome of a live command, keyed by `client_command_id`. A retry returns the original result with `duplicate: true`. | `live.command_receipt`. |
+| Takeover | An instructor taking control of a session, student or group. While active, AI tutor messages are refused (409 `AI_NOT_IN_CONTROL`) and pending AI recommendations become STALE. | `live.takeover`; commands `TAKEOVER` / `RELEASE` / `LOCK_AGENT`. |
+| Recommendation | A proposed live action from the AI tutor, poll branch, time orchestrator or instructor NL command. Low-risk ones auto-apply when the AI is in control; the rest wait for the instructor. | `live.recommendation` (`based_on_version`, PROPOSED/ACCEPTED/REJECTED/STALE). |
+| Activity | A quiz/poll item. The definition is reusable; an instance is one opening in a session; a response is one per participant. | `activity.definition`, `activity.instance`, `activity.response`; types MCQ … LIVE_POLL. |
+| Poll branch | The next-step suggestion from poll correctness: ≥80 % CONTINUE, ≥50 % REINFORCE, otherwise PREREQUISITE. | `POLL_BRANCH` recommendation. |
+| WidgetSpec | Versioned declarative JSON for one of 13 registered visual types. It is validated (no scripts/HTML/handlers, ≤64 KB, ≤300 elements) before it is stored or shown. | `visual.widget_spec`; `/v1/widgets/*`; `mathbank-widgets` `WidgetHost`. |
+| Widget persistence | STATIC (reusable template), SESSION (kept with the session) or EPHEMERAL (throw-away). Promotion to a template needs admin review. | `visual.widget_spec.persistence`, review NOMINATE/PROMOTE/REJECT. |
+| Socket gateway | The Socket.IO server inside `mathbank-live`. It authenticates, joins rooms, relays commands to REST and fans out events. It holds no business state. | `mathbank-live/lib/gateway.mjs`, `ws://localhost:5174/socket.io`. |
+| MathComposer | The student text box with a symbol palette, quick (deterministic) and ✨ (agentic) formatting, and a live KaTeX preview. | `mathbank-widgets/src/MathComposer.jsx`; [29](29_STUDENT_INPUT_ADDONS.md). |
+| Agentic formatting | A small model adds LaTeX delimiters without changing the student's words. If its output fails validation, the deterministic result is used. | `POST /v1/tutor/format-math` `mode=agentic`; `math_format.py`. |
+| Voice (TTS/STT) | ElevenLabs read-aloud (🔊) and dictation (🎤), proxied by Next.js server routes so the key stays server-side. | `/api/voice/{health,tts,stt}`; `ELEVEN_API_KEY`. |
+
 ## 9. Planned terms that must not be confused with live functionality
 
 - **Course / curriculum / learning path:** versioned ordering of lessons,

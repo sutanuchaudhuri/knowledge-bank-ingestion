@@ -15,6 +15,7 @@
     <a href="architecture.html">Ingestion &amp; Inference</a>
     <a href="data-model.html">Data Model</a>
     <a href="graph.html">Knowledge Graph</a>
+    <a href="vectors.html">Vector Models</a>
     <a href="pedagogy.html">Pedagogy</a>
     <a href="use-cases.html">Use Cases</a>
     <a href="tutor-interaction.html">Tutor Interaction</a>
@@ -84,22 +85,32 @@
     <a class="nav-card" href="data-model.html">
       <span class="step">02 → Schema</span>
       <h3>Postgres Data Model</h3>
-      <p>Entity-relationship diagrams for all 5 schemas — core, knowledge, search, learner, pipeline — expandable per table.</p>
+      <p>Four current ER diagrams (content &amp; pedagogy, student runtime, import/search/pipeline, live classroom) covering migrations 001–020, plus expandable tables for every schema.</p>
     </a>
     <a class="nav-card" href="graph.html">
       <span class="step">03 → Graph</span>
       <h3>Knowledge Graph</h3>
-      <p>The Neo4j node/edge model, <strong>a real exported subgraph you can click through</strong>, and Cypher queries mapped to concrete use cases.</p>
+      <p>The Neo4j node/edge model, <strong>a real exported subgraph you can click through</strong>, current graph-model diagrams, the pedagogical edge semantics and how each relationship is used, with Cypher queries mapped to use cases.</p>
+    </a>
+    <a class="nav-card" href="vectors.html">
+      <span class="step">03b → Vectors</span>
+      <h3>Vector Models</h3>
+      <p>How pgvector embeddings (text-embedding-3-small, 1536-d, HNSW cosine) cover problems, solution steps, learning items and taxonomy nodes, with 12 worked retrieval examples: hybrid search fusion, similar-step practice, the agent tools and model swaps.</p>
     </a>
     <a class="nav-card" href="use-cases.html">
       <span class="step">04 → Scenarios</span>
       <h3>Use Cases</h3>
-      <p>Four worked flows end-to-end: hybrid search, agent tutoring, student mastery, admin ingestion — each with the real SQL/Cypher/REST calls.</p>
+      <p>Eleven worked flows: hybrid search, agent tutoring, step solving with hints, gap diagnosis and recovery, conversation transcripts, textbook import and DAG review, the live classroom, and LaTeX/voice input. Each shows the real REST calls.</p>
     </a>
     <a class="nav-card" href="tutor-interaction.html">
       <span class="step">04b → Replay</span>
       <h3>Tutor Interaction, Step by Step</h3>
-      <p>A chat UI mock synced to an animated "behind the scenes" panel — every step's real REST call, SQL, vector search, or Cypher, one at a time or on autoplay.</p>
+      <p>A chat UI mock synced to an animated "behind the scenes" panel — every step's real REST call, SQL, vector search, or Cypher. Includes the Power of a Point step-runtime walkthrough (hint → grade → diagnose → recovery → return).</p>
+    </a>
+    <a class="nav-card" href="student-profile-ui.html">
+      <span class="step">04c → Screens</span>
+      <h3>Student &amp; Admin UI</h3>
+      <p>Student profile and solve workspace, plus every admin page: imports and reconciliation, textbooks, knowledge gaps, conversations, widgets, pedagogy approval.</p>
     </a>
     <a class="nav-card" href="student-impact.html">
       <span class="step">05 → Value</span>
@@ -113,10 +124,11 @@
     </a>
   </div>
 
-  <h2 id="layers"><span class="section-no">01</span>The five layers, at a glance</h2>
+  <h2 id="layers"><span class="section-no">01</span>The layers, at a glance</h2>
   <p>Every later page drills into one of these. The boundary rule that holds the whole system together:
      <strong style="color:var(--text)">the agent never touches a database directly</strong> — it only calls mathbank-rest,
-     which is the single boundary onto Postgres and Neo4j.</p>
+     which is the single boundary onto Postgres and Neo4j. The live classroom (<code>mathbank-live</code>) is deployed
+     separately and also reaches the data only through mathbank-rest. The ElevenLabs key stays in Next.js server routes.</p>
   <pre class="mermaid reveal">
 flowchart LR
     subgraph Ingestion["Ingestion (mathbank_data_ingestion + mathbank-db)"]
@@ -132,15 +144,23 @@ flowchart LR
         API[FastAPI boundary]
     end
     subgraph Experience["Experience"]
-        AGENT[ADK Agent + OpenAI]
-        WEB[mathbank-web UI]
+        AGENT[ADK Agent + OpenAI :8001]
+        WEB[mathbank-web :5173]
+        LIVE[mathbank-live Socket.IO :5174]
+        WID[mathbank-widgets: composer, voice, widgets]
     end
+    EL[ElevenLabs STT/TTS]
     CR --> CL --> ETL --> PG
     ETL -.project.-> N4
     PG --> API
     N4 -.read-only views.-> WEB
     API --> AGENT --> WEB
     API --> WEB
+    API --> LIVE
+    WID --- WEB
+    WID --- LIVE
+    WEB -.server route.-> EL
+    LIVE -.server route.-> EL
   </pre>
 
   <h2 id="principles"><span class="section-no">02</span>Principles that show up everywhere</h2>

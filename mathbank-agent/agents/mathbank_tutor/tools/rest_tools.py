@@ -130,6 +130,64 @@ def get_problems_for_concept(concept_slug: str, limit: int = 25) -> list[dict]:
         return response.json()
 
 
+def search_concepts(
+    query: str,
+    node_types: str = "",
+    chapter_number: int = 0,
+    limit: int = 8,
+) -> dict:
+    """Concept-level search over the embedded geometry taxonomy (concepts,
+    subconcepts, skills and techniques), ranked by vector similarity + lexical
+    fusion.
+
+    Use this FIRST whenever the learner names a topic, theorem or method
+    ("power of a point", "radical axis", "inversion", "angle chasing") to find
+    the canonical taxonomy node, then follow up by slug_kind:
+    'concept' -> get_problems_for_concept(slug); 'technique' ->
+    get_problems_for_technique(slug); 'skill' -> get_prerequisite_path(slug).
+    Prefer example_problem_codes (up to 5) for practice with
+    start_step_attempt or get_problem_learning_context. problem_count is the
+    number of problems whose published steps exercise the node (0 means no
+    practice yet); the slug routes list corpus tags and can be sparser.
+
+    Args:
+        query: The topic, theorem or method in natural language (required).
+        node_types: Optional comma-separated subset of DOMAIN, CONCEPT,
+            SUBCONCEPT, SKILL, TECHNIQUE (e.g. "SUBCONCEPT,TECHNIQUE").
+            Leave empty for all.
+        chapter_number: Optional textbook chapter filter (0 = any).
+        limit: Max nodes to return (default 8, max 50).
+
+    Returns:
+        {"query", "results": [{"taxonomy_node_id", "node_type", "name",
+        "parent_name", "chapter_number", "section_number", "slug",
+        "slug_kind", "problem_count", "example_problem_codes", "rrf_score",
+        "semantic_rank", "lexical_rank"}], "retrieval": {...}, "warnings": [...]}.
+        Disclose warnings (e.g. lexical-only fallback).
+    """
+    body: dict = {"query": query, "limit": max(1, min(limit, 50))}
+    types = [t.strip().upper() for t in node_types.split(",") if t.strip()]
+    if types:
+        body["node_types"] = types
+    if chapter_number:
+        body["chapter_number"] = chapter_number
+    with _client() as client:
+        response = client.post("/v1/search/concepts", json=body)
+        response.raise_for_status()
+        return response.json()
+
+
+def get_problems_for_technique(technique_slug: str, limit: int = 25) -> list[dict]:
+    """List problems tagged with a technique, by its slug (e.g. the 'slug' of a
+    search_concepts result whose slug_kind is 'technique', such as
+    'tech.geo.power_of_a_point')."""
+    with _client() as client:
+        response = client.get(f"/v1/techniques/{quote(technique_slug, safe='')}/problems",
+                              params={"limit": min(limit, 200)})
+        response.raise_for_status()
+        return response.json()
+
+
 def decompose_problem(problem_code: str, max_steps: int = 3) -> dict:
     """Break a problem the student is stuck on into small, ordered subproblems
     that build up to the full solution, without revealing the final answer.

@@ -15,6 +15,7 @@
     <a href="architecture.html">Ingestion &amp; Inference</a>
     <a href="data-model.html">Data Model</a>
     <a href="graph.html">Knowledge Graph</a>
+    <a href="vectors.html">Vector Models</a>
     <a href="pedagogy.html">Pedagogy</a>
     <a href="use-cases.html">Use Cases</a>
     <a href="tutor-interaction.html">Tutor Interaction</a>
@@ -69,9 +70,362 @@
   remain PENDING. Corpus remains 5,960 problems / 13,168
   solutions. This is remote data rollout, not human review or production hosting.</p>
 
-  <h2 id="er"><span class="section-no">A</span>Legacy entity-relationship diagram</h2>
-  <p>This historical schema view was generated from <code>mathbank-db/sql/001_schema.sql</code> through
-  <code>004_admin_pipeline.sql</code>. It does not include the P0 extension and is not a fresh live schema audit.</p>
+  <h2 id="er"><span class="section-no">A</span>Current entity-relationship diagrams</h2>
+  <p>Four views of the composite schema produced by migrations <code>001</code>–<code>020</code> in
+  <code>mathbank-db/sql/</code>. They were drawn from the checked-in DDL, not from a live database. Each view shows the
+  main keys and the columns that drive behaviour; the complete column lists are in
+  <a href="../requirements/reference/POSTGRES_SCHEMA.md">POSTGRES_SCHEMA.md</a>, and the read and write paths are in
+  <a href="../requirements/reference/POSTGRES_DML.md">POSTGRES_DML.md</a>.</p>
+  <div class="grid cols-4">
+    <div class="card"><h3><a href="#er-content">1 · Content &amp; pedagogy</a></h3><p>Corpus, Prasolov textbook import, solution parts/steps DAG, taxonomy, learning items, diagrams.</p></div>
+    <div class="card"><h3><a href="#er-runtime">2 · Student runtime</a></h3><p>Solve attempts, per-step state, tutor mode, events, gap diagnosis, recovery plans, agent session links.</p></div>
+    <div class="card"><h3><a href="#er-ingest">3 · Import, search &amp; pipeline</a></h3><p>Content packages, staging, conflicts, reconciliation, vector chunks/embeddings, outbox, projection requests.</p></div>
+    <div class="card"><h3><a href="#er-live">4 · Live classroom (020)</a></h3><p>Authoring plans and patches, live sessions and event stream, activities, widget state.</p></div>
+  </div>
+
+  <h3 id="er-content">1 · Content &amp; pedagogy (<code>core</code>, <code>pedagogy</code>)</h3>
+  <p>Textbook rows hang off the same <code>core.problem</code>/<code>core.solution</code> as competition problems.
+  <code>problem_source_ref</code> maps each book problem id to a single canonical problem. Steps form a DAG through
+  <code>solution_step_dependency</code>. Learning items (MCQ, subproblem, theory…) are transformations anchored to the steps they practise.</p>
+  <pre class="mermaid reveal">
+erDiagram
+    COMPETITION ||--o{ COMPETITION_EDITION : "has editions"
+    COMPETITION_EDITION ||--o{ PAPER : "has papers"
+    PAPER ||--o{ PROBLEM : "has problems"
+    PROBLEM ||--o{ SOLUTION : "has solutions"
+    PROBLEM ||--o{ PROBLEM_IMAGE : "has images"
+    SOURCE_BOOK ||--o{ CHAPTER_SECTION : "organised into"
+    SOURCE_BOOK ||--o{ PROBLEM_SOURCE_REF : "cites"
+    PROBLEM_SOURCE_REF |o--|| PROBLEM : "maps to"
+    PROBLEM ||--o| PROBLEM_ENRICHMENT : "enriched by"
+    SOLUTION ||--o{ SOLUTION_PART : "split into"
+    SOLUTION_PART ||--o{ SOLUTION_STEP : "ordered steps"
+    SOLUTION_STEP ||--o{ SOLUTION_STEP_DEPENDENCY : "feeds"
+    SOLUTION_STEP ||--o{ SOLUTION_STEP_TECHNIQUE : "uses"
+    TAXONOMY_NODE ||--o{ SOLUTION_STEP_TECHNIQUE : "technique node"
+    SOLUTION_STEP ||--o{ STEP_HINT : "cached hints"
+    SOLUTION ||--o| SOLUTION_DAG_REVIEW : "DAG reviewed"
+    TAXONOMY_NODE ||--o{ TAXONOMY_EDGE : "relates"
+    TAXONOMY_NODE ||--o{ SOLUTION_STEP : "skill of step"
+    TAXONOMY_NODE ||--o{ PROBLEM_ENRICHMENT : "concept or skill"
+    PROBLEM ||--o{ LEARNING_ITEM : "transformed into"
+    LEARNING_ITEM ||--o{ LEARNING_ITEM_STEP_ANCHOR : "anchored at"
+    SOLUTION_STEP ||--o{ LEARNING_ITEM_STEP_ANCHOR : "practised by"
+    PROBLEM ||--o{ DIAGRAM : "illustrated by"
+
+    PROBLEM {
+        uuid problem_id PK
+        uuid paper_id FK
+        text canonical_code UK
+        text statement_text
+    }
+    SOURCE_BOOK {
+        text book_code PK
+        text external_book_id UK
+        text title
+    }
+    SOLUTION_PART {
+        text solution_part_id PK
+        uuid solution_id FK
+        text part_label
+    }
+    SOLUTION_STEP {
+        text solution_step_id PK
+        text solution_part_id FK
+        int global_step_index
+        text step_type
+        text skill_node_id FK
+        bool is_checkpoint
+    }
+    SOLUTION_STEP_DEPENDENCY {
+        text from_step_id PK
+        text to_step_id PK
+        text relationship_type PK
+    }
+    SOLUTION_STEP_TECHNIQUE {
+        text solution_step_id PK
+        text technique_node_id PK
+        text review_status
+    }
+    STEP_HINT {
+        text solution_step_id PK
+        int hint_level PK
+        text prompt_version PK
+        text hint_text
+    }
+    TAXONOMY_NODE {
+        text taxonomy_node_id PK
+        text node_type "DOMAIN CONCEPT SUBCONCEPT SKILL TECHNIQUE"
+        text name
+    }
+    LEARNING_ITEM {
+        text learning_item_id PK
+        uuid source_problem_id FK
+        text transformation_type "MCQ SUBPROBLEM THEORY etc"
+        text review_status
+    }
+    DIAGRAM {
+        text diagram_id PK
+        uuid problem_id FK
+        text visibility "STUDENT_PROBLEM or SOLUTION_HIDDEN"
+    }
+  </pre>
+
+  <h3 id="er-runtime">2 · Student runtime (<code>learner</code>, <code>tutor</code>, <code>pedagogy</code>)</h3>
+  <p>Deterministic services own this state, not the agent. Events are append-only and deduplicated by
+  <code>(student_id, idempotency_key)</code>. A recovery plan records the exact origin step so the student returns to it.
+  <code>agent_session_link</code> is a logical link to the ADK-managed <code>agent_sessions</code> tables, which lets
+  conversations be rebuilt for the student and admin transcript views.</p>
+  <pre class="mermaid reveal">
+erDiagram
+    STUDENT_PROFILE ||--o{ SOLVE_ATTEMPT : "starts"
+    PROBLEM ||--o{ SOLVE_ATTEMPT : "attempted in"
+    SOLVE_ATTEMPT ||--o{ ATTEMPT_STEP_STATE : "tracks each step"
+    SOLUTION_STEP ||--o{ ATTEMPT_STEP_STATE : "state of"
+    SOLVE_ATTEMPT ||--|| RUNTIME_STATE : "tutor mode"
+    STUDENT_PROFILE ||--o{ EVENT : "append-only log"
+    SOLVE_ATTEMPT ||--o{ EVENT : "scoped to"
+    STUDENT_PROFILE ||--o{ IDEMPOTENCY_RECORD : "dedupes writes"
+    SOLVE_ATTEMPT ||--o{ GAP_DIAGNOSIS : "diagnosed at step"
+    GAP_DIAGNOSIS ||--o{ KNOWLEDGE_GAP : "ranked hypotheses"
+    TAXONOMY_NODE ||--o{ KNOWLEDGE_GAP : "target skill code"
+    KNOWLEDGE_GAP ||--o{ RECOVERY_PLAN : "addressed by"
+    SOLVE_ATTEMPT ||--o{ RECOVERY_PLAN : "detours from"
+    RECOVERY_PLAN ||--o{ RECOVERY_PLAN_ITEM : "ordered stages"
+    LEARNING_ITEM ||--o{ RECOVERY_PLAN_ITEM : "practice content"
+    STUDENT_PROFILE ||--o{ AGENT_SESSION_LINK : "owns chats"
+    STUDENT_PROFILE ||--o{ LEARNER_DAILY_ACTIVITY : "daily rollup"
+    STUDENT_PROFILE ||--o{ ATTEMPT : "legacy answers"
+    STUDENT_PROFILE ||--o{ CONCEPT_MASTERY : "legacy mastery"
+
+    STUDENT_PROFILE {
+        uuid student_id PK
+        text email UK
+        text display_name
+        text status
+    }
+    SOLVE_ATTEMPT {
+        uuid solve_attempt_id PK
+        uuid student_id FK
+        uuid problem_id FK
+        int attempt_number
+        text status "IN_PROGRESS SUBMITTED COMPLETED ABANDONED"
+        text current_solution_step_id FK
+        uuid recovery_plan_id FK
+    }
+    ATTEMPT_STEP_STATE {
+        uuid solve_attempt_id PK
+        text solution_step_id PK
+        text state
+        int help_level_used "0 to 5"
+        bool independent_success
+    }
+    RUNTIME_STATE {
+        uuid student_id PK
+        uuid solve_attempt_id PK
+        text current_mode "SOLVING DIAGNOSING RECOVERY REVIEW COMPLETED"
+        int state_version
+    }
+    EVENT {
+        uuid event_id PK
+        uuid student_id FK
+        uuid solve_attempt_id FK
+        text event_type
+        text idempotency_key
+    }
+    GAP_DIAGNOSIS {
+        uuid gap_diagnosis_id PK
+        uuid solve_attempt_id FK
+        text solution_step_id FK
+    }
+    KNOWLEDGE_GAP {
+        uuid knowledge_gap_id PK
+        uuid gap_diagnosis_id FK
+        text target_skill_id "taxonomy skill code"
+        int rank
+        text status "UNRESOLVED CONFIRMED REJECTED RESOLVED"
+    }
+    RECOVERY_PLAN {
+        uuid recovery_plan_id PK
+        uuid solve_attempt_id FK
+        text origin_step_id FK
+        uuid knowledge_gap_id FK
+        uuid parent_recovery_plan_id FK
+        text trigger "DIAGNOSIS STUDENT_REQUEST TUTOR BRANCH"
+        text status
+    }
+    RECOVERY_PLAN_ITEM {
+        uuid recovery_plan_item_id PK
+        uuid recovery_plan_id FK
+        text learning_item_id FK
+        int ordinal
+        text stage "FOUNDATION to RETURN_TO_STEP"
+    }
+    AGENT_SESSION_LINK {
+        uuid agent_session_link_id PK
+        uuid student_id FK
+        text agent_app_name UK
+        text agent_session_id UK "logical link to ADK sessions"
+        text surface "HOME_CHAT SOLVE_WORKSPACE OTHER"
+    }
+  </pre>
+
+  <h3 id="er-ingest">3 · Import, search &amp; pipeline (<code>ingest</code>, <code>search</code>, <code>pipeline</code>)</h3>
+  <p>A content package moves from staging through validation and reconciliation to an upsert. Admin decisions are written to an
+  append-only <code>admin_review_action</code> log. A chunk belongs to at most one of a solution step or a learning item. Outbox
+  consumers turn runtime events into analytics rollups and graph or embedding <code>projection_request</code> rows.</p>
+  <pre class="mermaid reveal">
+erDiagram
+    CONTENT_PACKAGE ||--o{ PACKAGE_STATUS_EVENT : "status history"
+    CONTENT_PACKAGE ||--o{ PACKAGE_FILE : "contains files"
+    CONTENT_PACKAGE ||--o{ STAGING_ROW : "staged rows"
+    CONTENT_PACKAGE ||--o{ IMPORT_CONFLICT : "raises"
+    CONTENT_PACKAGE ||--o{ RECONCILIATION : "counts per entity"
+    IMPORT_CONFLICT ||--o{ ADMIN_REVIEW_ACTION : "decided by"
+    CONTENT_PACKAGE ||--o{ SOURCE_BOOK : "imports"
+    EMBEDDING_MODEL ||--o{ EMBEDDING : "generates"
+    PREPROCESSING_PROFILE ||--o{ REPRESENTATION : "renders"
+    REPRESENTATION ||--o{ CHUNK : "chunked into"
+    CHUNK ||--o{ EMBEDDING : "vectorised"
+    SOLUTION_STEP |o--o{ CHUNK : "step chunk"
+    LEARNING_ITEM |o--o{ CHUNK : "item chunk"
+    TAXONOMY_NODE |o--o{ CHUNK : "tagged with"
+    OUTBOX_EVENT ||--o{ OUTBOX_CONSUMPTION : "consumed by"
+    OUTBOX_EVENT |o--o{ PROJECTION_REQUEST : "triggers"
+    RUN ||--o{ WORK_ITEM : "leases"
+
+    CONTENT_PACKAGE {
+        uuid content_package_id PK
+        text package_name
+        text manifest_hash
+        text book_code
+        text status
+    }
+    IMPORT_CONFLICT {
+        bigint conflict_id PK
+        uuid content_package_id FK
+        text conflict_type
+        text severity "INFO WARNING ERROR"
+        text resolution_status "OPEN AUTO_RESOLVED RESOLVED IGNORED"
+        text decision "KEEP_EXISTING ACCEPT_INCOMING MERGE_MANUALLY"
+    }
+    RECONCILIATION {
+        uuid content_package_id PK
+        text scope PK
+        text entity_type PK
+        int imported_count
+        int rejected_count
+    }
+    ADMIN_REVIEW_ACTION {
+        bigint action_id PK
+        text target_type
+        text action
+        text actor
+    }
+    CHUNK {
+        uuid chunk_id PK
+        uuid representation_id FK
+        text solution_step_id FK
+        text learning_item_id FK
+        text skill_node_id FK
+    }
+    EMBEDDING {
+        uuid embedding_id PK
+        uuid chunk_id FK
+        uuid embedding_model_id FK
+        vector embedding
+    }
+    PROJECTION_REQUEST {
+        uuid projection_request_id PK
+        text target "GRAPH or EMBEDDING target"
+        text scope_type "BOOK PACKAGE PROBLEM STEP LEARNING_ITEM"
+        text status "PENDING DONE CANCELLED"
+    }
+  </pre>
+
+  <h3 id="er-live">4 · Live classroom &amp; fluid widgets (<code>authoring</code>, <code>live</code>, <code>activity</code>, <code>visual</code>)</h3>
+  <p>Added by migration <code>020</code> and served through the separately deployable <code>mathbank-live</code> Socket.IO
+  gateway on :5174. Session events are numbered per session and only ever appended. Client commands are deduplicated by
+  <code>command_receipt</code>. Published plan versions cannot be changed.</p>
+  <pre class="mermaid reveal">
+erDiagram
+    PRESENTATION_PLAN ||--o{ PLAN_TOPIC : "ordered topics"
+    PRESENTATION_PLAN ||--o{ CHAT_SESSION : "authored in"
+    CHAT_SESSION ||--o{ CHAT_MESSAGE : "messages"
+    CHAT_SESSION ||--o{ PROPOSED_PATCH : "proposes"
+    PRESENTATION_PLAN |o--o{ LIVE_SESSION : "runs as"
+    LIVE_SESSION ||--o{ PARTICIPANT : "joined by"
+    LIVE_SESSION ||--o{ SESSION_EVENT : "append-only stream"
+    LIVE_SESSION ||--o{ COMMAND_RECEIPT : "dedupes commands"
+    LIVE_SESSION ||--o{ TOPIC_RUN : "times topics"
+    LIVE_SESSION ||--o{ RECOMMENDATION : "suggested moves"
+    LIVE_SESSION ||--o{ TAKEOVER : "instructor takeovers"
+    ACTIVITY_DEFINITION ||--o{ ACTIVITY_INSTANCE : "launched as"
+    LIVE_SESSION ||--o{ ACTIVITY_INSTANCE : "hosts"
+    ACTIVITY_INSTANCE ||--o{ ACTIVITY_RESPONSE : "answered by"
+    LIVE_SESSION ||--o{ WIDGET_STATE : "widget state"
+    WIDGET_SPEC ||--o{ WIDGET_STATE : "instantiated as"
+    PROBLEM |o--o{ ASSET : "source of"
+
+    PRESENTATION_PLAN {
+        uuid plan_id PK
+        text plan_key
+        int version
+        text status "DRAFT APPROVED PUBLISHED SUPERSEDED"
+    }
+    PROPOSED_PATCH {
+        uuid patch_id PK
+        uuid chat_session_id FK
+        uuid plan_id FK
+        text status
+    }
+    LIVE_SESSION {
+        uuid live_session_id PK
+        uuid plan_id FK
+        text join_code UK
+        text status
+    }
+    PARTICIPANT {
+        uuid live_session_id PK
+        text participant_id PK
+        text role "STUDENT INSTRUCTOR OBSERVER"
+    }
+    SESSION_EVENT {
+        uuid live_session_id PK
+        bigint sequence PK
+        text event_type
+        jsonb payload
+    }
+    RECOMMENDATION {
+        uuid recommendation_id PK
+        uuid live_session_id FK
+        text source "AI_TUTOR INSTRUCTOR_NL TIME_ORCHESTRATOR POLL_BRANCH VISUAL_AGENT"
+    }
+    TAKEOVER {
+        uuid takeover_id PK
+        uuid live_session_id FK
+        text scope "SESSION STUDENT GROUP"
+    }
+    ACTIVITY_DEFINITION {
+        uuid activity_id PK
+        text activity_type "MCQ NUMERIC SUBPROBLEM LIVE_POLL etc"
+    }
+    ACTIVITY_INSTANCE {
+        uuid activity_instance_id PK
+        uuid live_session_id FK
+        uuid activity_id FK
+        text status "OPEN CLOSED REVEALED"
+    }
+    WIDGET_STATE {
+        uuid live_session_id PK
+        text widget_instance_id PK
+        uuid widget_spec_id FK
+    }
+  </pre>
+
+  <h3 id="er-legacy">Historical: original corpus ER (migrations 001–004)</h3>
+  <p>Kept for comparison. This view covers only <code>001_schema.sql</code> to <code>004_admin_pipeline.sql</code>,
+  before the P0 pedagogy, textbook import, step runtime and live extensions were added.</p>
   <pre class="mermaid reveal">
 erDiagram
     COMPETITION ||--o{ COMPETITION_EDITION : "has editions"
@@ -136,6 +490,10 @@ erDiagram
       <button class="tab" data-tab="search">search</button>
       <button class="tab" data-tab="learner">learner</button>
       <button class="tab" data-tab="pipeline">pipeline</button>
+      <button class="tab" data-tab="ingest">ingest</button>
+      <button class="tab" data-tab="pedagogy">pedagogy</button>
+      <button class="tab" data-tab="runtime">learner runtime · tutor</button>
+      <button class="tab" data-tab="live">authoring · live · activity · visual</button>
     </div>
 
     <div class="tab-panel" data-panel="core">
@@ -298,6 +656,190 @@ erDiagram
           <tr><td>source_kind</td><td>PDF | HTML — controls which fetch path runs</td></tr>
           <tr><td>download_status, parse_status, ingest_status</td><td>each independently PENDING → DONE | FAILED</td></tr>
           <tr><td>questions_found, questions_ingested, solutions_ingested, last_error</td><td></td></tr>
+        </tbody></table></div>
+      </details>
+    </div>
+    <div class="tab-panel" data-panel="ingest">
+      <p>Migration 010 (+019): Prasolov textbook packages are staged, validated, reconciled, then upserted idempotently. Admin pages: <code>/admin/imports</code>.</p>
+      <details class="accordion"><summary>ingest.content_package</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>content_package_id</td><td>uuid PK</td></tr>
+          <tr><td>package_name, package_version, manifest_hash, book_code</td><td>package identity; re-import of the same hash is a no-op</td></tr>
+          <tr><td>status</td><td>REGISTERED → VALIDATING → IMPORTING → RECONCILING → POSTGRES_COMPLETE → EMBEDDING → GRAPH_PROJECTING → COMPLETED (or INVALID / FAILED); history in package_status_event</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>ingest.package_file / staging_row</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>package_file</td><td>PK (content_package_id, relative_path); sha256, byte_size, row_count</td></tr>
+          <tr><td>staging_row</td><td>raw CSV row + entity_type, validation status, errors</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>ingest.import_conflict</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>severity</td><td>INFO | WARNING | ERROR</td></tr>
+          <tr><td>resolution_status</td><td>OPEN | AUTO_RESOLVED | RESOLVED | IGNORED</td></tr>
+          <tr><td>decision (019)</td><td>KEEP_EXISTING | ACCEPT_INCOMING | MERGE_MANUALLY</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>ingest.reconciliation</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>PK</td><td>(content_package_id, scope, entity_type)</td></tr>
+          <tr><td>counts</td><td>source / valid / imported / created / updated / unchanged / rejected / conflict</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>ingest.admin_review_action</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>action_id</td><td>bigserial PK, append-only audit</td></tr>
+          <tr><td>target_type</td><td>IMPORT_CONFLICT | SOLUTION_STEP | STEP_DEPENDENCY | SOLUTION_DAG | LEARNING_ITEM | PROJECTION_REQUEST</td></tr>
+          <tr><td>action, before_state, after_state, note, actor</td><td>who changed what, with before and after snapshots</td></tr>
+        </tbody></table></div>
+      </details>
+    </div>
+    <div class="tab-panel" data-panel="pedagogy">
+      <p>Migrations 010–017, 019: Prasolov chapters 1–30 as solution parts, steps, dependencies, taxonomy, learning items and diagrams.</p>
+      <details class="accordion"><summary>pedagogy.source_book / chapter_section / problem_source_ref</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>source_book.book_code</td><td>text PK</td></tr>
+          <tr><td>problem_source_ref</td><td>PK (book_code, source_problem_id) → unique core.problem</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>pedagogy.solution_part → solution_step <span class="meta">7,814 steps</span></summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>solution_step_id</td><td>text PK; FK solution_part ON DELETE CASCADE</td></tr>
+          <tr><td>global_step_index, step_type, tutor_role, is_checkpoint</td><td>order and role in the solution</td></tr>
+          <tr><td>skill_node_id / subconcept / concept</td><td>FK → taxonomy_node</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>pedagogy.solution_step_dependency <span class="meta">7,309 edges</span></summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>PK</td><td>(from_step_id, to_step_id, relationship_type)</td></tr>
+          <tr><td>meaning</td><td>the from-step feeds the to-step (DAG); reviewed through solution_dag_review</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>pedagogy.solution_step_technique (017)</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>PK</td><td>(solution_step_id, technique_node_id)</td></tr>
+          <tr><td>review_status</td><td>PENDING_REVIEW | APPROVED | REJECTED</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>pedagogy.taxonomy_node / taxonomy_edge <span class="meta">501 nodes, embedded</span></summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>node_type</td><td>DOMAIN | CONCEPT | SUBCONCEPT | SKILL | TECHNIQUE</td></tr>
+          <tr><td>edge PK</td><td>(from_node_id, to_node_id, relationship_type)</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>pedagogy.learning_item / learning_item_step_anchor <span class="meta">11,186 items</span></summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>transformation_type</td><td>MCQ, SUBPROBLEM, THEORY, …</td></tr>
+          <tr><td>review_status</td><td>PENDING_REVIEW | APPROVED | REJECTED | NEEDS_REVISION</td></tr>
+          <tr><td>anchor</td><td>PK (learning_item_id, solution_step_id)</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>pedagogy.step_hint (013)</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>PK</td><td>(solution_step_id, hint_level, prompt_version)</td></tr>
+          <tr><td>hint_level</td><td>1 directional … 4 near-explicit; level 5 is the canonical step text and is not cached</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>pedagogy.diagram <span class="meta">250 diagrams</span></summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>visibility</td><td>STUDENT_PROBLEM (shown) | SOLUTION_HIDDEN (never shown before solving)</td></tr>
+        </tbody></table></div>
+      </details>
+    </div>
+    <div class="tab-panel" data-panel="runtime">
+      <p>Migrations 012–016, 018: the step-level student runtime. The agent reads and drives it through REST tools, but does not own the state.</p>
+      <details class="accordion"><summary>learner.solve_attempt</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>status</td><td>IN_PROGRESS | SUBMITTED | COMPLETED | ABANDONED; one IN_PROGRESS per (student, problem)</td></tr>
+          <tr><td>current_solution_step_id, recovery_plan_id</td><td>where the student is now</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>learner.attempt_step_state</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>PK</td><td>(solve_attempt_id, solution_step_id)</td></tr>
+          <tr><td>help_level_used</td><td>0..5, the highest hint level shown</td></tr>
+          <tr><td>independent_success</td><td>true only if solved without help</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>learner.event / idempotency_record</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>event</td><td>append-only; UNIQUE (student_id, idempotency_key)</td></tr>
+          <tr><td>outbox</td><td>each mutation also writes pipeline.outbox_event in the same transaction</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>tutor.runtime_state</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>PK</td><td>(student_id, solve_attempt_id)</td></tr>
+          <tr><td>current_mode</td><td>SOLVING | DIAGNOSING | RECOVERY | REVIEW | COMPLETED; state_version guards concurrent writes</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>pedagogy.gap_diagnosis → knowledge_gap</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>knowledge_gap.rank</td><td>ranked hypotheses shown as likely / possible / worth checking</td></tr>
+          <tr><td>status</td><td>UNRESOLVED | CONFIRMED | REJECTED | RESOLVED</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>pedagogy.recovery_plan → recovery_plan_item</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>origin_step_id</td><td>the exact step to return to</td></tr>
+          <tr><td>stage</td><td>FOUNDATION → RECOGNITION → ISOLATED_EXECUTION → GUIDED_APPLICATION → TRANSFER → RETURN_TO_STEP</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>learner.agent_session_link (016)</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>UNIQUE</td><td>(agent_app_name, agent_session_id)</td></tr>
+          <tr><td>surface</td><td>HOME_CHAT | SOLVE_WORKSPACE | OTHER</td></tr>
+          <tr><td>use</td><td>rebuilds transcripts in /learn/conversations and /admin/conversations</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>analytics.learner_daily_activity (018)</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>PK</td><td>(student_id, activity_date)</td></tr>
+          <tr><td>writer</td><td>outbox consumer learner_analytics</td></tr>
+        </tbody></table></div>
+      </details>
+    </div>
+    <div class="tab-panel" data-panel="live">
+      <p>Migration 020: the fluid widget / live classroom platform, served through mathbank-live on :5174.</p>
+      <details class="accordion"><summary>authoring.presentation_plan → plan_topic</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>plan_key, version</td><td>status DRAFT | APPROVED | PUBLISHED | SUPERSEDED; published versions cannot change</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>authoring.chat_session → chat_message, proposed_patch</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>use</td><td>an admin plans with the AI; the AI proposes patches; a human applies them</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>live.session / participant</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>join_code</td><td>UNIQUE</td></tr>
+          <tr><td>participant.role</td><td>STUDENT | INSTRUCTOR | OBSERVER</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>live.session_event / command_receipt</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>session_event PK</td><td>(live_session_id, sequence); append-only; clients poll ?after=</td></tr>
+          <tr><td>command_receipt PK</td><td>(live_session_id, client_command_id) deduplicates retries</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>live.topic_run / recommendation / takeover</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>recommendation.source</td><td>AI_TUTOR | INSTRUCTOR_NL | TIME_ORCHESTRATOR | POLL_BRANCH | VISUAL_AGENT</td></tr>
+          <tr><td>takeover.scope</td><td>SESSION | STUDENT | GROUP</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>activity.definition → instance → response</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>activity_type</td><td>MCQ, MULTISELECT, NUMERIC, SHORT_RESPONSE, SUBPROBLEM, STEP_ORDERING, ERROR_DIAGNOSIS, CONFIDENCE_CHECK, LIVE_POLL</td></tr>
+          <tr><td>instance.status</td><td>OPEN | CLOSED | REVEALED</td></tr>
+        </tbody></table></div>
+      </details>
+      <details class="accordion"><summary>visual.widget_spec / widget_state / asset</summary>
+        <div class="body"><table class="data"><tbody>
+          <tr><td>widget_state PK</td><td>(live_session_id, widget_instance_id)</td></tr>
+          <tr><td>widget_type</td><td>checked against the widget registry in code</td></tr>
         </tbody></table></div>
       </details>
     </div>

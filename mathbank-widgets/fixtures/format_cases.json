@@ -1,0 +1,135 @@
+[
+ {
+  "input": "PA*PB = PT^2",
+  "formatted": "$PA \\cdot PB = PT^2$",
+  "warnings": []
+ },
+ {
+  "input": "angle ABC = 90 deg",
+  "formatted": "$\\angle ABC = 90^\\circ$",
+  "warnings": []
+ },
+ {
+  "input": "So triangle ABC ~ triangle DEF since AB/DE = 2",
+  "formatted": "So $\\triangle ABC$ ~ $\\triangle DEF$ since $\\frac{AB}{DE} = 2$",
+  "warnings": []
+ },
+ {
+  "input": "A circle with center O",
+  "formatted": "A circle with center O",
+  "warnings": []
+ },
+ {
+  "input": "x^(n+1) + sqrt(2) <= 3",
+  "formatted": "$x^{n+1} + \\sqrt{2} \\le 3$",
+  "warnings": []
+ },
+ {
+  "input": "The power is $PA \\cdot PB$",
+  "formatted": "The power is $PA \\cdot PB$",
+  "warnings": []
+ },
+ {
+  "input": "a_12 != b",
+  "formatted": "$a_{12} \\ne$ b",
+  "warnings": []
+ },
+ {
+  "input": "AB || CD and AB perp EF",
+  "formatted": "$AB \\parallel CD$ and $AB \\perp EF$",
+  "warnings": []
+ },
+ {
+  "input": "pi r^2",
+  "formatted": "$\\pi r^2$",
+  "warnings": []
+ },
+ {
+  "input": "hello world",
+  "formatted": "hello world",
+  "warnings": []
+ },
+ {
+  "input": "",
+  "formatted": "",
+  "warnings": []
+ },
+ {
+  "input": "PT^2 = PA * PB, so PT = 6.",
+  "formatted": "$PT^2 = PA \\cdot PB$, so $PT = 6$.",
+  "warnings": []
+ },
+ {
+  "input": "Since OA = OB, triangle OAB is isosceles.",
+  "formatted": "Since $OA = OB, \\triangle OAB$ is isosceles.",
+  "warnings": []
+ },
+ {
+  "input": "angle A + angle B = 180 degrees",
+  "formatted": "$angle$ A $+ \\angle B = 180^\\circ$",
+  "warnings": []
+ },
+ {
+  "input": "√(x+1) ≥ 2 and θ = π/3",
+  "formatted": "$\\sqrt{x+1} \\ge 2$ and θ $= \\\\frac{pi}{3}$",
+  "warnings": []
+ },
+ {
+  "input": "Let x = 3. Then 2x + 1 = 7.",
+  "formatted": "Let x $= 3$. Then 2x $+ 1 = 7$.",
+  "warnings": []
+ },
+ {
+  "input": "AB ≅ CD and AB ∥ EF",
+  "formatted": "$AB \\cong CD$ and $AB \\parallel EF$",
+  "warnings": []
+ },
+ {
+  "input": "\\(a+b\\) and \\[c\\]",
+  "formatted": "$a+b$ and $$c$$",
+  "warnings": []
+ },
+ {
+  "input": "x_ab + y^10",
+  "formatted": "$x_{ab} + y^{10}$",
+  "warnings": []
+ },
+ {
+  "input": "first line\nPA*PB = 12",
+  "formatted": "first line\n$PA \\cdot PB = 12$",
+  "warnings": []
+ },
+ {
+  "input": "$a$ $b",
+  "check_only": true,
+  "warnings": [
+   "unbalanced $ delimiters"
+  ]
+ },
+ {
+  "input": "{x",
+  "check_only": true,
+  "warnings": [
+   "unbalanced braces"
+  ]
+ },
+ {
+  "input": "\\href{x}{y}",
+  "check_only": true,
+  "warnings": [
+   "contains a disallowed command"
+  ]
+ },
+ {
+  "input": "<script>",
+  "check_only": true,
+  "warnings": [
+   "contains a disallowed command"
+  ]
+ },
+ {
+  "input": "$$a$$ and $b$",
+  "check_only": true,
+  "warnings": []
+ }
+]

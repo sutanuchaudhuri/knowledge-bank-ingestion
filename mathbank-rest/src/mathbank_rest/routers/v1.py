@@ -1,15 +1,17 @@
 """v1 read endpoints over the corpus schema — per rest/02 + rest/03 design docs."""
 from __future__ import annotations
 
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from mathbank_rest.db import hybrid_search, queries
+from mathbank_rest.db import hybrid_search, queries, step_search
 from mathbank_rest.db import learner as learner_db
 
 router = APIRouter(prefix="/v1")
+logger = logging.getLogger(__name__)
 
 
 class SearchFilters(BaseModel):
@@ -30,6 +32,20 @@ class ProblemSearchRequest(BaseModel):
     retrieval: SearchRetrieval = SearchRetrieval()
     order_by: Literal["relevance", "year_desc", "year_asc"] = "relevance"
     limit: int = Field(default=25, ge=1, le=100)
+
+
+class ConceptSearchRetrieval(BaseModel):
+    semantic: bool = True
+    lexical: bool = True
+
+
+class ConceptSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    node_types: list[Literal["DOMAIN", "CONCEPT", "SUBCONCEPT", "SKILL", "TECHNIQUE"]] = Field(
+        default_factory=list, max_length=5)
+    chapter_number: int | None = Field(default=None, ge=1, le=100)
+    retrieval: ConceptSearchRetrieval = ConceptSearchRetrieval()
+    limit: int = Field(default=10, ge=1, le=50)
 
 
 @router.get("/competitions")
@@ -113,6 +129,43 @@ def get_weak_concepts(
     hard material, a thin bank of practice problems, or a retrieval gap —
     not any individual student's data."""
     return learner_db.get_cohort_weak_concepts(min_students=min_students, limit=limit)
+
+
+@router.post("/search/concepts")
+def search_concepts(body: ConceptSearchRequest) -> dict:
+    """Concept-level hybrid search over the embedded taxonomy (TAXONOMY_NODE vectors).
+
+    Maps a topic to taxonomy nodes with their corpus slug, problem count and example problem codes.
+    If the query embedding is unavailable, falls back to lexical ranking and reports a warning.
+    """
+    query = body.query.strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="query must contain non-whitespace text")
+    if not (body.retrieval.semantic or body.retrieval.lexical):
+        raise HTTPException(status_code=400, detail="at least one retrieval source must be true")
+    kwargs = {"node_types": body.node_types or None, "chapter_number": body.chapter_number, "limit": body.limit}
+    warnings: list[str] = []
+    semantic = body.retrieval.semantic
+    try:
+        results = step_search.search_taxonomy_nodes(
+            query, semantic=semantic, lexical=body.retrieval.lexical, **kwargs)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception:
+        if not (semantic and body.retrieval.lexical):
+            raise
+        logger.exception("Concept search semantic ranking unavailable; falling back to lexical")
+        warnings.append("Semantic ranking unavailable; results are lexical only.")
+        semantic = False
+        results = step_search.search_taxonomy_nodes(query, semantic=False, lexical=True, **kwargs)
+    return {
+        "query": query,
+        "results": results,
+        "retrieval": {"semantic": "queried" if semantic else "disabled" if not body.retrieval.semantic
+                      else "unavailable", "lexical": "queried" if body.retrieval.lexical else "disabled",
+                      "unit": "TAXONOMY_NODE", "profile": step_search.PROFILE_NAME},
+        "warnings": warnings,
+    }
 
 
 @router.post("/search/problems")

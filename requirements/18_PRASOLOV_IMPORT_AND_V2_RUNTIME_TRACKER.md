@@ -252,6 +252,32 @@ Full matrix and explanations: [24 §3](24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md). V
 - Web node tests: 52 passed.
 - Playwright: 26 passed by default.
 
+## Fluid widgets, live classroom and student add-ons — Phase 11 (Neon, 2026-10-06)
+
+Specs: [27](27_FLUID_WIDGET_LAYER.md) (fluid pack), [28](28_DISTRIBUTED_LIVE_PLATFORM.md) (distributed handoff pack),
+[29](29_STUDENT_INPUT_ADDONS.md) (composer/voice/formatting). Both source packs are kept in the repo until audited.
+
+| Item | Status | Evidence |
+|---|---|---|
+| Migration 020 (`authoring`, `live`, `activity`, `visual` schemas) | ✅ applied to Neon | `mathbank-db/sql/020_live_fluid_platform.sql` |
+| REST: authoring, live sessions/commands, activities, widgets, tutor actions, format-math (47 new paths; OpenAPI 137 paths) | ✅ | `routers/fluid.py`, `routers/live.py`, [reference/openapi.json](reference/openapi.json) |
+| Separate socket deployable `mathbank-live` (:5174) | ✅ | `make -C mathbank-live start|test|smoke` |
+| Shared `mathbank-widgets` package (WidgetHost, MathComposer, voice) | ✅ | `make -C mathbank-web sync-widgets` |
+| ElevenLabs voice + make targets | ✅ | `make sync-eleven-key`, `check-eleven [TTS=1]`, `sync-live-env`, `sync-keys` |
+| Agent tools `propose_widget`, `format_math` (24 tools) | ✅ | `mathbank-agent/.../tools/widget_tools.py` |
+| Admin widget gallery | ✅ | `/admin/widgets` |
+| Admin authoring web UI, `/v1/content/*`, NATS/Redis, visual agent split, asset API, MCP, group UI | ⏳ | [20](20_NOT_YET_IMPLEMENTED.md) NYI-FW/LIVE/UXA |
+
+**Tests (2026-10-06):**
+
+- REST fluid/widget: 55 passed.
+- Live DB integration (Neon): passed.
+- `mathbank-live` unit: 10/10; smoke: PASS.
+- `mathbank-widgets`: 10 passed; web widget blocks: 3 passed.
+- Playwright `input-addons` (5) and `live-classroom`: pass.
+
+**Paid calls:** two tiny ElevenLabs calls only (one TTS, one STT; both 200). No OpenAI calls.
+
 ## Spec → existing schema mapping
 
 | Spec object | Implementation | Decision |
@@ -331,6 +357,8 @@ mathbank-rest/.venv/bin/python -m pytest -q mathbank-db/tests/test_textbook_impo
 All pitfalls found so far are listed in [19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md](19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md).
 
 ## Change log
+
+- 2026-10-06 (Phase 11, fluid + live + add-ons): migration 020 on Neon; REST fluid/live routers; `mathbank-live` socket deployable; `mathbank-widgets` package with MathComposer, ElevenLabs voice and agentic formatting; agent widget tools; docs 27–29; OpenAPI snapshot regenerated (137 paths / 63 schemas).
 
 - 2026-10-06 (Doc 26 WP1–WP4, Prasolov-only): migrations 017 (step techniques), 018 (outbox consumers, analytics rollup, projection requests, `ATTEMPT_ABANDONED`), 019 (admin review audit, conflict decisions, `admin_edited_at`, `solution_dag_review`, `projection_request.requested_by`) applied to Neon. Agent step-runtime tools, admin import UI and projection-queue drain (`make -C mathbank-db projection-queue-status-remote | projection-queue-run-remote`). REST suite 280 passed / 18 skipped (live, rolled back); web 56 unit + 13 admin e2e passed. Non-Prasolov corpora intentionally empty (doc 26 §3).
 

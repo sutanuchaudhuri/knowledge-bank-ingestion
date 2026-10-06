@@ -1,12 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
 import { createSession, newSessionId, streamMessage } from "./agentClient.js";
-import { normalizeMathDelimiters } from "../lib/markdown.js";
+import { MathComposer, SpeakButton } from "mathbank-widgets";
+import MathText from "./_components/MathText.jsx";
 
 export default function Chat() {
   const sessionRef = useRef(null);
@@ -39,7 +36,7 @@ export default function Chat() {
   }, [messages, sending]);
 
   async function handleSend(event) {
-    event.preventDefault();
+    event?.preventDefault();
     const text = input.trim();
     if (!text || !ready || streamRef.current) return;
     const controller = new AbortController();
@@ -87,15 +84,17 @@ export default function Chat() {
             {messages.map((message, index) => (
               <div key={index} className={`d-flex mb-3 ${message.role === "user" ? "justify-content-end" : ""}`}>
                 <div className={`rounded-4 p-3 ${message.role === "user" ? "bg-primary text-white" : "bg-body-tertiary"}`} style={{ maxWidth: "95%", minWidth: 0 }}>
-                  <div className="small fw-bold mb-2">{message.role === "user" ? "You" : "MathBank Tutor"}</div>
+                  <div className="small fw-bold mb-2 d-flex align-items-center gap-2">
+                    {message.role === "user" ? "You" : "MathBank Tutor"}
+                    {message.role !== "user" && message.text && !(sending && index === messages.length - 1) && (
+                      <SpeakButton text={message.text} className="ms-auto py-0" label="Listen to this answer" />
+                    )}
+                  </div>
                   {message.role === "user" ? (
-                    <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
+                    /\$|\\\(|\\\[/.test(message.text) ? <MathText>{message.text}</MathText>
+                      : <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
                   ) : message.text ? (
-                    <div className="markdown-body">
-                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                        {normalizeMathDelimiters(message.text)}
-                      </ReactMarkdown>
-                    </div>
+                    <MathText>{message.text}</MathText>
                   ) : (
                     <span className="text-secondary small">{sending ? "Working on your question..." : "No answer received."}</span>
                   )}
@@ -113,16 +112,19 @@ export default function Chat() {
                   : <>Chatting anonymously — <a href="/login">sign in</a> to keep a history of your conversations.</>}
               </p>
             )}
-            <form onSubmit={handleSend} className="d-flex gap-2">
+            <form onSubmit={handleSend}>
               <label htmlFor="chat-input" className="visually-hidden">Your question</label>
-              <input id="chat-input" className="form-control form-control-lg" value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder={ready ? "Ask a question…" : "Connecting to the agent…"} disabled={!ready || sending} />
-              {sending ? (
-                <button type="button" className="btn btn-outline-danger" onClick={() => streamRef.current?.abort()}>Stop</button>
-              ) : (
-                <button className="btn btn-primary px-4" disabled={!ready || !input.trim()}>Send</button>
-              )}
+              <MathComposer id="chat-input" ariaLabel="Your question" testId="chat-composer" rows={1}
+                value={input} onChange={setInput} onSubmit={() => handleSend()} showSubmit={false}
+                renderMath={(t) => <MathText>{t}</MathText>}
+                placeholder={ready ? "Ask a question… (∑ for symbols, $x$ to format math)" : "Connecting to the agent…"}
+                disabled={!ready || sending}>
+                {sending ? (
+                  <button type="button" className="btn btn-outline-danger" onClick={() => streamRef.current?.abort()}>Stop</button>
+                ) : (
+                  <button className="btn btn-primary px-4" disabled={!ready || !input.trim()}>Send</button>
+                )}
+              </MathComposer>
             </form>
           </div>
         </section>

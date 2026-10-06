@@ -12,6 +12,8 @@ services:
 | `mathbank-rest` | FastAPI — the only service that talks to Postgres/Neo4j directly; hybrid search, learner auth/mastery, admin pipeline endpoints | 8000 |
 | `mathbank-agent` | Google ADK agent (OpenAI via LiteLLM) — calls `mathbank-rest` as tools, never touches the DBs directly | 8001 |
 | `mathbank-web` | Next.js — student chat/login/profile UI + admin ingestion UI, proxies to `mathbank-rest`/`mathbank-agent`/Neo4j server-side | 5173 |
+| `mathbank-live` | Next.js + Socket.IO — **separately deployable** realtime live classroom (instructor console + student classroom); relays the `mathbank-rest` live event log | 5174 |
+| `mathbank-widgets` | Shared React package (not a service) — WidgetHost renderer, MathComposer (LaTeX), ElevenLabs voice controls; copied into web and live | — |
 
 Production/demo data lives on managed cloud services (Neon Postgres + Neo4j
 AuraDB) — see [DATABASES.md](DATABASES.md) for the full local-vs-remote
@@ -39,14 +41,12 @@ needed if you're doing **local-only** corpus pipeline work (ingestion
 scripts without `-remote`, schema changes before pushing them to Neon,
 etc.) — see `mathbank-db/README.md` / `mathbank-graph/README.md`.
 
-Because of this, `make up`/`make status`/`make down` treat `db`/`graph` as
-**best-effort**: if `pg_ctl`/`neo4j` aren't installed, you'll see an error
-line for those two only, and `rest`/`agent`/`web` still start normally. If
-you see `No such file or directory` for `pg_ctl` or `neo4j` and you're
-using the shared remote `.env`, that's expected — ignore it, or run
+Because of this, `make up`, `make status` and `make down` cover only
+rest/agent/web/live and never touch local Postgres/Neo4j. `make up` is the
+same as `make up-app`. For a fully local stack, run
 `make -C mathbank-db install && make -C mathbank-graph install` (then
-`make -C mathbank-db init start create-db` / `make -C mathbank-graph setup`)
-only if you actually intend to run a fully local stack (`make up-local-db`).
+`make -C mathbank-db init start create-db` / `make -C mathbank-graph setup`),
+and use `make up-local-db`, `make access-local` and `make down-local-db`.
 
 ## Quick start
 
@@ -65,16 +65,52 @@ make sync-env            # or: ./sync-env.sh
 # 3. Set OPENAI_API_KEY in the gitignored root .env. Shell keys are ignored.
 #    Never share it through an unsecured channel.
 #    make sync-openai-key copies it without printing it.
+#    Also set ELEVEN_API_KEY (ElevenLabs voice) and the live-classroom keys
+#    MATHBANK_REST_BASE_URL, MATHBANK_ADMIN_API_KEY, ADMIN_LOGIN_USERNAME,
+#    ADMIN_LOGIN_PASSWORD, ADMIN_SESSION_SECRET (optional LIVE_PORT=5174).
+#    sync-env/make up stop with "Missing in root .env: ..." if any are absent.
 # 4. Install whatever isn't already installed, and see what (if anything) is
 #    still missing:
 make setup
-# 5. Start everything (db/graph errors here are fine — see "Do I need local
-#    Postgres/Neo4j at all?" above — rest/agent/web are what actually matter):
+# 5. Start rest/agent/web/live against the remote Neon/AuraDB:
 make up
 ```
 
 For a machine using Neon/AuraDB, prefer `make up-app`: it starts only
-REST, agent and web, without trying to start local Postgres/Neo4j.
+REST, agent, web and the live classroom, without trying to start local
+Postgres/Neo4j.
+
+### Bringing up the new pieces (live classroom, widgets, voice)
+
+The fluid widgets, the separately deployable Socket.IO live classroom
+(`mathbank-live`, :5174), the shared `mathbank-widgets` package and the
+ElevenLabs voice add-on need this one-time sequence on each machine:
+
+```bash
+# 1. Root .env: OPENAI_API_KEY, ELEVEN_API_KEY and the live keys listed above.
+make sync-env                    # writes every service .env incl. mathbank-live/.env
+make setup                       # venvs + node_modules for web AND live
+# 2. Database objects for live sessions/widgets/authoring (migration 020).
+#    Idempotent; already applied on the shared Neon database.
+make migrate-live-fluid-remote
+# 3. Start and print every URL (web, Swagger, REST, agent, live, graph, Postgres).
+make up-app                      # or: make up
+make access
+# 4. Verify (none of these spend money).
+make test-unit                   # web + mathbank-widgets + live unit tests
+make smoke                       # two-socket live-classroom smoke (needs REST + live)
+make -C mathbank-web e2e-install # once: Playwright Chromium
+make e2e                         # Playwright regression incl. add-ons and live
+make check-eleven                # ElevenLabs key check, no audio generated
+```
+
+`make check-eleven TTS=1` and `make e2e-llm` make small **paid** calls; run
+them only deliberately. After editing `mathbank-widgets/`, run
+`make widgets-sync` (start/install also copy it) and restart web/live.
+Live-only lifecycle: `make live-install | live-run | live-start | live-stop |
+live-restart | live-status`. Requirements: [27 fluid widgets](requirements/27_FLUID_WIDGET_LAYER.md),
+[28 distributed live platform](requirements/28_DISTRIBUTED_LIVE_PLATFORM.md),
+[29 student input add-ons](requirements/29_STUDENT_INPUT_ADDONS.md).
 These service start targets now wait for HTTP readiness (up to 60 seconds,
 override with `START_TIMEOUT=120`) and fail if the process exits or never
 responds with HTTP 200. They do not kill an unrelated process holding a port.
@@ -96,19 +132,21 @@ Python entrypoints contain absolute interpreter paths.
 ```sh
 make setup
 # If environments/dependencies were copied or are broken, rebuild only those:
-make rest-install agent-install web-install
+make rest-install agent-install web-install live-install
 make up-app
 
 # Diagnose crashes locally. Redact credentials before sharing log excerpts.
 tail -n 80 mathbank-rest/.server.log
 tail -n 80 mathbank-agent/.server.log
 tail -n 80 mathbank-web/.server.log
+tail -n 80 mathbank-live/.server.log
 
 # Foreground commands expose import/configuration/dependency errors directly.
 # Run each in its own terminal after stopping the corresponding owned service.
 make rest-run
 make agent-run
 make web-run
+make live-run
 ```
 
 Check access from a terminal **on that same Mac**:
@@ -118,6 +156,7 @@ curl --noproxy '*' -I http://127.0.0.1:8000/docs
 curl --noproxy '*' http://127.0.0.1:8000/health
 curl --noproxy '*' http://127.0.0.1:8001/list-apps
 curl --noproxy '*' -I http://127.0.0.1:5173/login
+curl --noproxy '*' -I http://127.0.0.1:5174/login
 ```
 
 If these fail, inspect the relevant log rather than treating the startup PID
@@ -268,6 +307,26 @@ Run these checks there too. Do not paste full provider exception bodies into cha
 some include a partial key. Restart REST/agent after changing credentials, and
 restart ingestion workers at a safe checkpoint rather than duplicating a live run.
 
+#### ElevenLabs voice key and live-app environment
+
+> **Note:** After saving or updating `ELEVEN_API_KEY` in the root `.env`, run these
+> from the repository root. `TTS=1` makes one tiny paid ElevenLabs text-to-speech call.
+
+```sh
+make sync-eleven-key       # copy ELEVEN_API_KEY into mathbank-web/.env and mathbank-live/.env (never printed)
+make check-eleven          # authenticate (lists voices) — no paid synthesis
+make check-eleven TTS=1    # tiny paid text-to-speech check
+make sync-live-env         # write mathbank-live/.env (REST URL, admin key/login, session secret, Eleven key, LIVE_PORT)
+make sync-keys             # = sync-openai-key + sync-eleven-key + sync-live-env
+```
+
+The Eleven key stays server-side: the browser only calls the same-origin
+`/api/voice/{tts,stt,health}` routes of web/live. Without a key, the 🔊/🎤
+buttons show a brief "!" (voice unavailable) and typing keeps working; there is
+no browser speech fallback. `make sync-env`
+also runs the Eleven and live syncs, so it no longer drops `ELEVEN_API_KEY`.
+Restart web/live after changing the key.
+
 Terminology and exact score semantics are in the
 [domain and technical glossary](requirements/17_DOMAIN_AND_TECHNICAL_GLOSSARY.md).
 
@@ -281,9 +340,9 @@ non-zero so you notice). Re-run it any time the shared `.env` changes.
 ```bash
 make setup    # check/create .env files, flag missing secrets, install every
               # venv/node_modules not already present — safe to re-run anytime
-make up       # start rest/agent/web (local db/graph are best-effort, see above)
+make up       # start rest/agent/web/live against remote Neon/AuraDB
 make status   # confirm everything is running
-make down     # stop everything
+make down     # stop rest/agent/web/live
 ```
 
 After starting the services, `make up` (and `make up-local-db`) prints a
@@ -294,22 +353,28 @@ restarting anything. Default addresses:
 |---|---|
 | Student web UI | http://localhost:5173/login |
 | Admin web UI | http://localhost:5173/admin/login |
+| Live classroom (join / instructor console) | http://localhost:5174 (sign in at `/login`) |
+| Live socket | `ws://localhost:5174/socket.io` |
 | REST API base | http://localhost:8000 |
 | REST Swagger UI | http://localhost:8000/docs |
 | Agent API base | http://localhost:8001 |
 | Agent Swagger UI | http://localhost:8001/docs |
-| Local Neo4j Browser | http://localhost:7474/browser/ |
-| Local Neo4j Bolt | `bolt://localhost:7687` |
-| Local graph shell | `make -C mathbank-graph cypher-shell` |
-| Local Postgres | `localhost:5433`, database `mathbank`, user `mathbank_app` |
-| Local Postgres admin shell | `make -C mathbank-db psql` |
+| Remote Postgres (Neon) | host / database / user from `mathbank-graph/remote.env` |
+| Remote Postgres shell | `make psql-remote` |
+| Remote graph (Neo4j AuraDB) | `neo4j+s://…` URI / database / user from `mathbank-graph/remote.env` |
+| Neon / Aura consoles | https://console.neon.tech · https://console.neo4j.io |
 
-The summary uses each service Makefile's effective API/database settings;
-the web URLs use port 5173, fixed by the frontend's npm scripts. Local
-database addresses are not necessarily the app's active databases: the app
-may use remote Neon/AuraDB through its service `.env` files. The summary
-does not check readiness or display passwords; use `make status` to check
-running services and your configured database credentials to connect.
+The remote rows are read from `mathbank-graph/remote.env` (`make access-remote`
+prints only these). Passwords are never shown. Local Postgres/Neo4j details are
+printed only by `make access-local`, which `make up-local-db` uses.
+The summary does not check readiness; use `make status` for that.
+
+If a port is busy when a service starts: when the process holding it is the
+one that service's `start` recorded in its `.server.pid` but it no longer
+answers HTTP 200 (for example, a live server returning 500 after its `.next`
+build folder was removed), `start` stops it and starts a fresh one. A
+process the script did not start is never killed; you get an error with the
+PID to check instead.
 
 Graph relationship views at `/graph` default to 1,000 relationships.
 Use the relationship-limit selector to show up to 5,000; each view displays
@@ -334,6 +399,33 @@ Browser regression (Playwright) runs against the running stack:
 See [requirements/23_E2E_REGRESSION_SUITE.md](requirements/23_E2E_REGRESSION_SUITE.md).
 Agent conversations are rebuilt per student at `/learn/conversations` and for
 admins at `/admin/conversations` ([requirements/22](requirements/22_AGENT_SESSION_TRANSCRIPTS.md)).
+
+### Student input add-ons and the live classroom
+
+- **Math composer** (chat, Solve workspace, live classroom): symbol palette, live
+  KaTeX preview, `$x$` quick-format (deterministic, free) and ✨ agentic format
+  (small paid model, falls back to deterministic if it would change meaning),
+  🎤 dictation via ElevenLabs speech-to-text. Tutor replies have a 🔊 speak button.
+- **Widgets**: the tutor can attach validated, declarative widgets (geometry
+  diagram, formula card, step progress, table, poll results) as fenced
+  ```` ```widget ```` blocks; nothing is executed. Gallery: http://localhost:5173/admin/widgets.
+- **Live classroom** (`mathbank-live`, :5174): instructors create a session from
+  topics, share the join code, pace topics, put widgets on the board, run polls with
+  reveal, message the class (LaTeX), and take over from the AI tutor; students
+  join by code, answer polls, ask the AI tutor or the instructor, and mark
+  confusion. Reconnects replay missed events by sequence. Sign-in cookies are
+  shared with the web app on the same host.
+
+```sh
+make -C mathbank-live install && make -C mathbank-live start
+make -C mathbank-live test     # gateway unit tests (no services)
+make -C mathbank-live smoke    # two-socket realtime smoke against the running stack (no paid calls)
+make -C mathbank-web sync-widgets   # after editing ../mathbank-widgets (also run for live)
+```
+
+See [requirements/27](requirements/27_FLUID_WIDGET_LAYER.md),
+[28](requirements/28_DISTRIBUTED_LIVE_PLATFORM.md) and
+[29](requirements/29_STUDENT_INPUT_ADDONS.md).
 
 ### Guided pedagogical practice
 
@@ -414,6 +506,7 @@ Environment files
 
 Shell environment
   OPENAI_API_KEY synchronization failed; set it in root .env before startup.
+  ELEVEN_API_KEY synchronization failed; set it in root .env (make up runs this sync and stops if it fails).
 
 Python virtual environments
   ✓ mathbank-rest/.venv already present
@@ -426,8 +519,10 @@ Some configuration needs attention (see ⚠ above) before running: make up
 For a genuinely fresh clone with no `.venv`/`node_modules` anywhere yet,
 `make setup` creates every `.env` from its `.env.example`, builds every
 Python venv (`mathbank_data_ingestion`, `mathbank-db`, `mathbank-graph`,
-`mathbank-rest`, `mathbank-agent`), and runs `npm install` for
-`mathbank-web` — then tells you exactly which `.env` files still need real
+`mathbank-rest`, `mathbank-agent`), runs `npm install` for
+`mathbank-web` and `mathbank-live` (both copy the local `mathbank-widgets`
+package; it needs no install of its own), syncs the OpenAI/ElevenLabs keys
+and writes `mathbank-live/.env` — then tells you exactly which `.env` files still need real
 secrets filled in before `make up` will work.
 
 ### Individual services
@@ -435,12 +530,25 @@ secrets filled in before `make up` will work.
 Every service also has its own lifecycle targets from the root:
 
 ```bash
-make <svc>-start | <svc>-stop | <svc>-restart | <svc>-status   # svc = db | graph | rest | agent | web
+make <svc>-start | <svc>-stop | <svc>-restart | <svc>-status   # svc = db | graph | rest | agent | web | live
+make rest-run | agent-run | web-run | live-run                  # foreground, for debugging
 ```
 
 See each service's own `Makefile`/`README.md` for the full command
 reference (`mathbank-db/README.md`, `mathbank-agent/README.md`,
-`mathbank-graph/README.md`, `mathbank-web/README.md`).
+`mathbank-graph/README.md`, `mathbank-web/README.md`; `mathbank-live/Makefile`).
+
+### Tests from the root
+
+```bash
+make test-unit   # Node unit tests: mathbank-web + mathbank-widgets + mathbank-live
+make smoke       # live-classroom two-socket smoke against running REST + live
+make e2e         # Playwright regression (needs the stack up; skips live if :5174 is down or E2E_SKIP_LIVE=1)
+make e2e-llm     # adds @llm specs — small PAID OpenAI calls
+make -C mathbank-rest test   # REST pytest suite
+```
+
+See [requirements/23_E2E_REGRESSION_SUITE.md](requirements/23_E2E_REGRESSION_SUITE.md) for coverage and baselines.
 
 ### Full corpus pipeline (new competition papers → searchable + graphed)
 

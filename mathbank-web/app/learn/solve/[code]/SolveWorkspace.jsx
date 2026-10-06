@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import MathText from "../../../_components/MathText.jsx";
+import { MathComposer, SpeakButton } from "mathbank-widgets";
+
+const renderMath = (t) => <MathText>{t}</MathText>;
 import {
   ACTION_BADGES, DECISION_NOTES, HINT_LADDER, canDiagnose, currentRecoveryItem, feedbackTone, gapStatusLabel,
   hintSummary, humanize, inRecovery, isConflict, likelihoodTone, masterySummary, nextHintLevel, probeHref, probeLabel,
@@ -246,9 +249,8 @@ function RecoveryItem({ item, busy, onAnswer }) {
         </div>
       ) : (
         <>
-          <textarea className="form-control font-monospace" rows={4} value={text} onChange={(e) => setText(e.target.value)}
-            placeholder="Write your step in words or LaTeX" aria-label="Your answer" />
-          {text.trim() && <div className="border rounded p-2 mt-2 bg-light small"><div className="text-secondary mb-1">Preview</div><MathText>{text}</MathText></div>}
+          <MathComposer value={text} onChange={setText} rows={4} ariaLabel="Your answer" testId="recovery-composer"
+            placeholder="Write your step in words or LaTeX" renderMath={renderMath} />
         </>
       )}
       <button type="submit" className="btn btn-primary btn-sm mt-3" disabled={!payload || Boolean(busy)}>
@@ -565,11 +567,9 @@ export default function SolveWorkspace({ code }) {
                   </div>
                 )}
                 <label htmlFor="step-response" className="form-label small fw-semibold">Your reasoning for this step</label>
-                <textarea id="step-response" className="form-control font-monospace" rows={4} value={response}
-                  placeholder="Write this step in words or LaTeX, e.g. Since $PQ \parallel AD$, …" onChange={(e) => setResponse(e.target.value)} />
-                {response.trim() && (
-                  <div className="border rounded p-2 mt-2 bg-light small"><div className="text-secondary mb-1">Preview</div><MathText>{response}</MathText></div>
-                )}
+                <MathComposer id="step-response" ariaLabel="Your reasoning for this step" testId="step-composer" rows={4}
+                  value={response} onChange={setResponse} renderMath={renderMath}
+                  placeholder="Write this step in words or LaTeX, e.g. Since PQ || AD, … (∑ symbols · $x$ quick format · ✨ AI format · 🎤 dictate)" />
                 <div className="d-flex gap-2 mt-3">
                   <button type="submit" className="btn btn-primary" disabled={!response.trim() || Boolean(busy)}>
                     {busy === "submit" ? <><span className="spinner-border spinner-border-sm me-1" />Checking…</> : "Check my step"}
@@ -597,7 +597,10 @@ export default function SolveWorkspace({ code }) {
                 {hints.slice().sort((a, b) => a.help_level - b.help_level).map((h) => (
                   <div key={h.help_level} className={`border-start border-3 ps-2 mb-2 ${h.help_level === 5 ? "border-danger" : "border-warning"}`}>
                     <div className="small text-secondary">{HINT_LADDER[h.help_level - 1]?.label}</div>
-                    {h.hint_text ? <MathText>{h.hint_text}</MathText> : <span className="small text-secondary">Hint text is unavailable right now.</span>}
+                    {h.hint_text ? (
+                      <div className="d-flex gap-2 align-items-start"><div className="flex-grow-1"><MathText>{h.hint_text}</MathText></div>
+                        <SpeakButton text={h.hint_text} className="py-0" label="Listen to this hint" /></div>
+                    ) : <span className="small text-secondary">Hint text is unavailable right now.</span>}
                   </div>
                 ))}
                 {nextHint && (

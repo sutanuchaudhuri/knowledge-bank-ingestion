@@ -21,8 +21,8 @@ access:                         ## Show frontend access URLs
 	  'Web (admin)' 'http://localhost:$(WEB_PORT)/admin/login'
 
 .PHONY: test
-test:                           ## Node unit tests (no browser, no services)
-	node --test tests/*.test.mjs
+test:                           ## Node unit tests (no browser, no services) incl. ../mathbank-widgets
+	node --test tests/*.test.mjs ../mathbank-widgets/tests/*.test.mjs
 
 .PHONY: e2e-install
 e2e-install:                    ## Install the Playwright Chromium browser (one-time)
@@ -41,15 +41,23 @@ e2e-report:                     ## Open the last Playwright HTML report
 	npx playwright show-report
 
 .PHONY: install
-install:                        ## npm install
+install:                        ## npm install (+ copy ../mathbank-widgets)
 	npm install
+	@$(MAKE) --no-print-directory sync-widgets
+
+# mathbank-widgets is a copied file: dependency (.npmrc install-links=true); npm does not re-copy it when
+# its source changes, so start/dev refresh node_modules/mathbank-widgets explicitly.
+.PHONY: sync-widgets
+sync-widgets:                   ## Refresh node_modules/mathbank-widgets from ../mathbank-widgets
+	@mkdir -p node_modules/mathbank-widgets
+	@rsync -a --delete --exclude node_modules --exclude tests ../mathbank-widgets/ node_modules/mathbank-widgets/
 
 .PHONY: dev
-dev:                             ## Start the Next.js dev server on :$(WEB_PORT) in the foreground
+dev: sync-widgets                ## Start the Next.js dev server on :$(WEB_PORT) in the foreground
 	node node_modules/next/dist/bin/next dev -p $(WEB_PORT)
 
 .PHONY: start
-start:                           ## Start on :$(WEB_PORT), verify HTTP readiness, and report failures (never kills an occupied port)
+start: sync-widgets              ## Start on :$(WEB_PORT), verify HTTP readiness, and report failures (never kills an occupied port)
 	@test -f node_modules/next/dist/bin/next || (echo "ERROR: Next.js is missing. Run make install in mathbank-web." >&2; exit 1)
 	@bash ../scripts/start-service.sh mathbank-web "$(WEB_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
 	  "http://127.0.0.1:$(WEB_PORT)/login" node node_modules/next/dist/bin/next dev -p $(WEB_PORT)

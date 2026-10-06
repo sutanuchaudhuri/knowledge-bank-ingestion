@@ -15,6 +15,7 @@
     <a href="architecture.html">Ingestion &amp; Inference</a>
     <a href="data-model.html">Data Model</a>
     <a href="graph.html">Knowledge Graph</a>
+    <a href="vectors.html">Vector Models</a>
     <a href="pedagogy.html">Pedagogy</a>
     <a href="use-cases.html">Use Cases</a>
     <a href="tutor-interaction.html">Tutor Interaction</a>
@@ -27,7 +28,7 @@
 <main>
   <section class="hero reveal" style="padding-top:36px">
     <span class="eyebrow">04 · Scenarios</span>
-    <h1>Corpus workflows and the P0 learning loop</h1>
+    <h1>Corpus workflows, the step-level tutor and the live classroom</h1>
     <p class="lede">Each card below expands into the real SQL, Cypher, and REST calls involved —
     not a simplified diagram. Two are fully implemented and verified live; two are designed and partially
     built, clearly marked. These historical examples are separate from the new anonymous pedagogical
@@ -56,6 +57,16 @@
     <div class="card"><span class="pill ai">Live</span><h3 style="margin-top:8px">Agent Tutoring</h3><p>Implemented</p></div>
     <div class="card"><span class="pill pg">Live</span><h3 style="margin-top:8px">Admin Ingestion</h3><p>Implemented</p></div>
     <div class="card"><span class="pill neo">Designed</span><h3 style="margin-top:8px" id="mastery">Student Mastery</h3><p>Backend done, graph pending</p></div>
+  </div>
+  <div class="grid cols-4 reveal" style="margin-bottom:10px">
+    <div class="card"><span class="pill ai">Live</span><h3 style="margin-top:8px"><a href="#step-solving">Step solving</a></h3><p>Hints L1–L5, verdicts, events</p></div>
+    <div class="card"><span class="pill ai">Live</span><h3 style="margin-top:8px"><a href="#gap-recovery">Gap → recovery</a></h3><p>Diagnose, detour, return to step</p></div>
+    <div class="card"><span class="pill ai">Live</span><h3 style="margin-top:8px"><a href="#agent-step-tools">Agent step tools</a></h3><p>24 REST-backed tools</p></div>
+    <div class="card"><span class="pill pg">Live</span><h3 style="margin-top:8px"><a href="#conversations">Conversations</a></h3><p>Student &amp; admin transcripts</p></div>
+    <div class="card"><span class="pill pg">Live</span><h3 style="margin-top:8px"><a href="#admin-imports">Textbook import &amp; DAG review</a></h3><p>/admin/imports, /admin/textbooks</p></div>
+    <div class="card"><span class="pill pg">Live</span><h3 style="margin-top:8px"><a href="#live-classroom">Live classroom</a></h3><p>mathbank-live :5174</p></div>
+    <div class="card"><span class="pill pg">Live</span><h3 style="margin-top:8px"><a href="#composer-voice">Composer &amp; voice</a></h3><p>LaTeX + ElevenLabs</p></div>
+    <div class="card"><span class="pill neo">Designed</span><h3 style="margin-top:8px">Graph mastery edges</h3><p>MASTERED / STRUGGLES_WITH pending</p></div>
   </div>
 
   <h2 id="search"><span class="section-no">A</span>Use case 1 — Hybrid search ("find me combinatorics problems from AIME")</h2>
@@ -160,6 +171,96 @@ GET /v1/learner/mastery → {"concepts": [...], "techniques": [...]}</pre>
       <p style="font-size:13.5px">
       $$ \text{mastery}(s,c) = \dfrac{\sum_a \text{correct}(a)\cdot e^{-\text{days}/45}\cdot(1+0.5\cdot\text{difficulty}(a))}{\sum_a e^{-\text{days}/45}\cdot(1+0.5\cdot\text{difficulty}(a))} $$
       </p>
+    </div>
+  </div>
+
+  <h2 id="step-solving"><span class="section-no">E</span>Use case 5 — Student solves a textbook problem step by step <span class="pill ai" style="vertical-align:middle">implemented · AI</span></h2>
+  <div class="accordion reveal">
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For a student:</strong> the problem is split into the real reasoning steps from the textbook. You answer one step at a time. A hint ladder goes from a gentle nudge to a near-explicit step, and the tutor always knows which step you are on and how much help you have used.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> <code>/learn/solve/[code]</code> renders the problem with its <code>STUDENT_PROBLEM</code> diagrams. <code>SOLUTION_HIDDEN</code> diagrams are never sent. Each response is graded as CORRECT / PARTIALLY_CORRECT / INCORRECT / OFF_TOPIC and stored in <code>learner.attempt_step_state</code> and the append-only <code>learner.event</code>, with an idempotency key. Hints: L1 directional → L2 concept reminder → L3 strategic → L4 near-explicit (cached in <code>pedagogy.step_hint</code>) → L5 full reveal (the canonical step text, which caps credit).</p>
+      <pre>POST /v1/students/{student_id}/problems/{problem_ref}/attempts   → solve_attempt (IN_PROGRESS)
+GET  /v1/attempts/{attempt_id}/runtime                            → current step, mode, help used
+POST /v1/attempts/{attempt_id}/steps/{step_id}/responses          → verdict + feedback
+POST /v1/attempts/{attempt_id}/steps/{step_id}/hint   {"level": 2} → next hint (Idempotency-Key header)
+POST /v1/attempts/{attempt_id}/submit</pre>
+      <p><a href="../requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md">Step runtime tracker and Power of a Point evidence</a> · <a href="tutor-interaction.html#power-of-point">See the Power of a Point walkthrough</a></p>
+    </div>
+  </div>
+
+  <h2 id="gap-recovery"><span class="section-no">F</span>Use case 6 — Knowledge-gap diagnosis and recovery detour <span class="pill ai" style="vertical-align:middle">implemented · AI</span></h2>
+  <div class="accordion reveal">
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For a student:</strong> when you are stuck, the tutor works out which earlier idea is probably missing, takes you through a short practice path on that idea, and then brings you back to the exact step you were on.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> <code>diagnose</code> ranks hypotheses from the step&#39;s skill, its prerequisite steps in the DAG, and the taxonomy. They are shown as likely / possible / worth checking, with optional AI re-ranking. A <code>recovery_plan</code> stores the <code>origin_step_id</code> and orders its items through the stages <em>Worked example → Recognise the idea → Use it once → Use it in context → Try it somewhere new → Back to your problem</em>. Items come from approved learning items (MCQ, subproblem, theory) rendered with KaTeX.</p>
+      <pre>POST /v1/attempts/{attempt_id}/steps/{step_id}/diagnose          → gap_diagnosis + ranked knowledge_gap rows
+POST /v1/attempts/{attempt_id}/recovery-plans                      → recovery_plan (mode RECOVERY)
+GET  /v1/recovery-plans/{plan_id}/next                             → next item by stage
+POST /v1/recovery-plans/{plan_id}/items/{item_id}/responses
+POST /v1/recovery-plans/{plan_id}/resume                           → back to origin step (mode SOLVING)</pre>
+      <p><a href="../requirements/26_GEOMETRY_RUNTIME_COMPLETION_PLAN.md">Geometry runtime completion plan</a> · <a href="../requirements/20_NOT_YET_IMPLEMENTED.md">What is not implemented yet</a></p>
+    </div>
+  </div>
+
+  <h2 id="agent-step-tools"><span class="section-no">G</span>Use case 7 — The AI tutor drives the step runtime <span class="pill ai" style="vertical-align:middle">implemented · AI</span></h2>
+  <div class="accordion reveal">
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For a student:</strong> you can ask the chat tutor for help, and it uses the same steps, hints and recovery plans as the workspace, so the two never contradict each other.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> the ADK agent has 24 REST-backed tools, including <code>start_step_attempt</code>, <code>get_attempt_runtime</code>, <code>submit_step_response</code>, <code>request_step_hint</code>, <code>diagnose_step_gap</code>, <code>start_recovery_plan</code>, <code>get_next_recovery_item</code>, <code>answer_recovery_item</code>, <code>resume_original_step</code>, <code>propose_widget</code> and <code>format_math</code>. The student token is kept in <code>temp:student_token</code> and removed before the session is saved. The agent coordinates calls; deterministic services own the state.</p>
+    </div>
+  </div>
+
+  <h2 id="conversations"><span class="section-no">H</span>Use case 8 — Rebuild any conversation (student and admin) <span class="pill pg" style="vertical-align:middle">implemented</span></h2>
+  <div class="accordion reveal">
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For a student or reviewer:</strong> every tutor chat can be reopened as a full transcript. Students see their own chats; admins can review any student&#39;s chats to check tutoring quality.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> <code>learner.agent_session_link</code> maps <code>student_id</code> → ADK <code>agent_session_id</code> (surface HOME_CHAT / SOLVE_WORKSPACE). Transcripts are rebuilt from the ADK-managed <code>agent_sessions</code> events. Pages: <code>/learn/conversations</code> and <code>/admin/conversations</code>. See <a href="../requirements/22_AGENT_SESSION_TRANSCRIPTS.md">22_AGENT_SESSION_TRANSCRIPTS</a>.</p>
+      <pre>GET /v1/learner/agent-sessions                                   (student JWT)
+GET /v1/learner/agent-sessions/{agent_session_id}/transcript
+GET /v1/admin/agent-sessions?student_id=…                         (X-Admin-Api-Key)
+GET /v1/admin/agent-sessions/{agent_session_id}/transcript</pre>
+    </div>
+  </div>
+
+  <h2 id="admin-imports"><span class="section-no">I</span>Use case 9 — Admin imports a textbook and reviews its step DAG <span class="pill pg" style="vertical-align:middle">implemented</span></h2>
+  <div class="accordion reveal">
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For a content operator:</strong> import a textbook package (for example Prasolov chapters 1–30), see exactly what was created, updated or rejected, resolve conflicts, and correct a solution&#39;s step graph before students see it.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> <code>make textbook-import-remote</code> registers an <code>ingest.content_package</code> and stages, validates, reconciles and upserts it idempotently. <code>/admin/imports</code> shows packages, issues, reconciliation counts and conflicts (KEEP_EXISTING / ACCEPT_INCOMING / MERGE_MANUALLY). It also supports step and dependency edits, DAG review, and learning-item review. Every decision is written to <code>ingest.admin_review_action</code>. Projection requests queue the graph and embedding refresh. <code>/admin/textbooks</code> browses problems, solutions, steps, taxonomy and diagrams.</p>
+      <pre>GET  /v1/admin/imports/packages · /reconciliation · /packages/{id}/conflicts
+POST /v1/admin/imports/conflicts/{conflict_id}/decision
+GET  /v1/admin/imports/problems/{code}/dag   → POST …/dag/review
+PATCH /v1/admin/imports/steps/{step_id}  ·  PUT /v1/admin/imports/dependencies
+POST /v1/admin/imports/learning-items/{learning_item_id}/review
+GET,POST /v1/admin/imports/projection-requests</pre>
+      <p>Other admin pages: <code>/admin/knowledge-gaps</code> (gaps and recovery plans across students), <code>/admin/pedagogy</code> (metadata approval), <code>/admin/widgets</code> (widget gallery and specs). See <a href="../requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md">24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD</a>.</p>
+    </div>
+  </div>
+
+  <h2 id="live-classroom"><span class="section-no">J</span>Use case 10 — Instructor runs a live classroom <span class="pill pg" style="vertical-align:middle">implemented</span></h2>
+  <div class="accordion reveal">
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For an instructor:</strong> plan a lesson with the AI, publish it, and run it live. Students join with a code, answer polls and MCQs, and use interactive widgets, while the AI tutor and the clock suggest when to move on. You can take over a whole session, one student or one group.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> <code>mathbank-live</code> (Next.js + Socket.IO, :5174) is deployed separately and proxies to <code>/v1/live</code>, <code>/v1/instructor/live</code> and <code>/v1/authoring</code>. Pages: <code>/i/[sid]</code> instructor console and <code>/s/[sid]</code> student classroom. Socket events <code>live:join</code>/<code>live:op</code>/<code>live:event</code> use session, student, group and instructor rooms. An event pump reads <code>live.session_event</code> with <code>?after=</code> every 700&nbsp;ms. <code>ask_tutor</code> is rate-limited to 6 per minute. See <a href="../requirements/27_FLUID_WIDGET_LAYER.md">27</a> and <a href="../requirements/28_DISTRIBUTED_LIVE_PLATFORM.md">28</a>.</p>
+      <pre>POST /v1/authoring/presentation-plans → …/validate → …/approve → …/publish
+POST /v1/live/sessions  → join_code;  POST /v1/live/sessions/join
+POST /v1/live/sessions/{sid}/activities → …/{aid}/close → …/{aid}/reveal → …/aggregate
+GET  /v1/instructor/live/{sid}/recommendations → POST …/{rid}  (accept / dismiss)</pre>
+    </div>
+  </div>
+
+  <h2 id="composer-voice"><span class="section-no">K</span>Use case 11 — Faster input: LaTeX composer and ElevenLabs voice <span class="pill pg" style="vertical-align:middle">implemented</span></h2>
+  <div class="accordion reveal">
+    <summary>Who uses this &amp; why <span class="meta">technical + business</span></summary>
+    <div class="body">
+      <p data-audience-only="business"><strong>For a student:</strong> type maths quickly with a LaTeX composer that has a live preview and shortcut buttons, ask the AI to tidy up your notation, or just speak your answer and hear the tutor reply.</p>
+      <p data-audience-only="technical"><strong>Implementation:</strong> the shared <code>mathbank-widgets</code> package (<code>MathComposer</code>, <code>VoiceControls</code>, <code>WidgetHost</code>) is used by both web apps. The <code>/api/format-math</code> route does agent-assisted formatting. <code>/api/voice/stt</code>, <code>/api/voice/tts</code> and <code>/api/voice/health</code> are Next.js server routes that hold <code>ELEVEN_API_KEY</code>, so the key never reaches the browser. See <a href="../requirements/29_STUDENT_INPUT_ADDONS.md">29_STUDENT_INPUT_ADDONS</a>.</p>
     </div>
   </div>
 </main>

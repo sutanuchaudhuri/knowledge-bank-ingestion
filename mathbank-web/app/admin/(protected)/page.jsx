@@ -299,6 +299,7 @@ export default function AdminPage() {
       <Link href="/admin/conversations" className="btn btn-outline-primary mb-3 ms-2">Student conversations</Link>
       <Link href="/admin/textbooks" className="btn btn-outline-primary mb-3 ms-2">Textbook corpus (Prasolov)</Link>
       <Link href="/admin/imports" className="btn btn-outline-primary mb-3 ms-2">Imports &amp; reconciliation</Link>
+      <Link href="/admin/widgets" className="btn btn-outline-primary mb-3 ms-2">Widgets &amp; input add-ons</Link>
       <p style={{ color: "#666", fontSize: 13 }}>
         Add a competition and its paper URLs — rows are tracked as PENDING in{" "}
         <code>pipeline.pdf_source</code> immediately; the download/parse/ingest/embed/graph

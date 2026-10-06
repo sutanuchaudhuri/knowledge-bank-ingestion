@@ -18,8 +18,20 @@
 #   5. Then run `make setup` to verify every venv/node_modules is installed,
 #      and `make up` to start the stack.
 #
-# OPENAI_API_KEY is synced separately after writing service settings, without
-# printing it. Only the root .env is used; shell keys are ignored.
+# After writing service settings, three key syncs run (values never printed;
+# only the root .env is used, shell keys are ignored):
+#   - scripts/sync-openai-key.mjs  OPENAI_API_KEY -> rest/agent/web .env
+#   - scripts/sync-eleven-key.mjs  ELEVEN_API_KEY -> mathbank-web/.env and
+#                                  mathbank-live/.env (ElevenLabs voice add-on)
+#   - scripts/sync-live-env.mjs    writes mathbank-live/.env (realtime live
+#                                  classroom, :5174) from MATHBANK_REST_BASE_URL,
+#                                  MATHBANK_ADMIN_API_KEY, ADMIN_LOGIN_USERNAME,
+#                                  ADMIN_LOGIN_PASSWORD, ADMIN_SESSION_SECRET,
+#                                  ELEVEN_API_KEY (+ optional LIVE_PORT)
+# A missing ELEVEN_API_KEY or live key makes this script exit non-zero; the
+# same syncs run in `make up` / `make up-app` (target sync-keys), so set them
+# in the root .env first. Rewriting mathbank-web/.env drops the synced keys,
+# which is why these syncs always run last.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
@@ -167,6 +179,13 @@ if [ "$MISSING" -eq 1 ]; then
 fi
 
 if ! node scripts/sync-openai-key.mjs; then
+  exit 1
+fi
+# ElevenLabs voice key (mathbank-web + mathbank-live) and the realtime deployable's .env.
+if ! node scripts/sync-eleven-key.mjs; then
+  exit 1
+fi
+if ! node scripts/sync-live-env.mjs; then
   exit 1
 fi
 echo "Done. Every service .env is now in sync with the root .env."

@@ -25,11 +25,14 @@ from .tools.rest_tools import (
     get_problem_by_code,
     get_problem_learning_context,
     get_problems_for_concept,
+    get_problems_for_technique,
     list_competitions,
     list_concepts,
+    search_concepts,
     search_problems,
 )
 from .tools.step_runtime_tools import STEP_RUNTIME_TOOLS
+from .tools.widget_tools import WIDGET_TOOLS
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SERVICE_ROOT.parent / "scripts"))
@@ -55,6 +58,17 @@ Guidelines:
   on combinatorics", "problems about cyclic quadrilaterals"), call
   search_problems. Set recent_first=true whenever the user says
   recent/latest/newest.
+- When the learner names a topic, theorem or method (e.g. "power of a point",
+  "radical axis", "inversion"), FIRST call search_concepts to ground it in the
+  canonical taxonomy (vector + lexical search over the embedded concept,
+  subconcept, skill and technique nodes). Name the node you matched, then
+  follow its slug_kind: concept -> get_problems_for_concept(slug), technique
+  -> get_problems_for_technique(slug), skill -> get_prerequisite_path(slug).
+  Prefer the node's example_problem_codes (problems whose published solution
+  steps exercise it; problem_count is their total) for step-by-step practice
+  via start_step_attempt; the slug routes list corpus tags and can be sparser.
+  Combine with search_problems for open-ended problem lists; if no node has
+  problem_count > 0, say there is no practice for it yet.
 - Search uses reviewed Neo4j graph evidence plus vector similarity and lexical
   reciprocal-rank fusion. Inspect graph_evidence and per-source ranks; graph
   relatedness is not proof of learner mastery. If retrieval warnings say graph
@@ -114,6 +128,13 @@ Guidelines:
     get_attempt_runtime and retry once.
 - Other corpora (competition problems) have no stored steps yet: use the
   guided hint tools above for them.
+- Presentation: write math in LaTeX ($...$ inline, $$...$$ display). When a
+  diagram or formula card would genuinely help (e.g. power of a point,
+  intersecting chords), call propose_widget and paste its markdown_block into
+  your reply exactly as returned — never hand-write widget JSON, never put an
+  answer or a hidden solution step in a widget, at most one widget per reply.
+  To quote the learner's typed math cleanly, call format_math. Both need a
+  signed-in learner; on SIGN_IN_REQUIRED just answer in text.
 """
 
 root_agent = Agent(
@@ -128,6 +149,8 @@ root_agent = Agent(
         get_corpus_coverage,
         list_concepts,
         get_problems_for_concept,
+        search_concepts,
+        get_problems_for_technique,
         decompose_problem,
         check_subproblem_answer,
         get_improvement_plan,
@@ -136,5 +159,6 @@ root_agent = Agent(
         get_next_hint,
         find_easier_same_skill_problems,
         *STEP_RUNTIME_TOOLS,
+        *WIDGET_TOOLS,
     ],
 )

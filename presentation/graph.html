@@ -29,10 +29,359 @@
     <span class="eyebrow">03 · Graph</span>
     <h1>Knowledge Graph (Neo4j AuraDB)</h1>
     <p class="lede">Postgres is the system of record; this graph is a <strong>derived, re-buildable
-    projection</strong>. The canvas is a historical AuraDB export (AMC10 2023, 14 problems and their
-    concepts/techniques), not a mockup or a continuously refreshed live view. P0 adds Skill-level
-    pedagogical metadata; the legacy canvas does not demonstrate its population or review coverage.</p>
+    projection</strong> that connects problems, solution steps, learning items and the skill/concept taxonomy.
+    It powers the graph leg of hybrid search, the tutor's learning context, prerequisite and practice lookups,
+    and admin coverage checks. Below: the current model, what each relationship means pedagogically, a
+    Power-of-a-Point worked example and a catalogue of real queries. The canvas further down is a historical
+    AuraDB export (AMC10 2023), kept for reference.</p>
   </section>
+
+  <h2 id="at-a-glance"><span class="section-no">G</span>The graph at a glance</h2>
+  <p>Neo4j is <strong>rebuilt from Postgres</strong> by three projectors. It contains no student data, no
+  step text, no question text and no answers. Every node is <code>MERGE</code>d on <code>canonical_id</code>, which is
+  the Postgres primary key (a UUID for corpus rows, a book-scoped key for textbook rows), so re-running a
+  projection is idempotent. The authoritative label/edge/property inventory is
+  <a href="../requirements/reference/GRAPH_SCHEMA.md">GRAPH_SCHEMA.md</a>.</p>
+  <div class="stats reveal">
+    <div class="stat"><div class="num">11</div><div class="label">node labels (10 constrained + Subconcept)</div></div>
+    <div class="stat"><div class="num">30+</div><div class="label">endpoint-specific edge types</div></div>
+    <div class="stat"><div class="num">7,814</div><div class="label">Prasolov solution steps</div></div>
+    <div class="stat"><div class="num">7,309</div><div class="label">step-DAG edges (NEXT + DEPENDS_ON)</div></div>
+    <div class="stat"><div class="num">11,186</div><div class="label">learning items</div></div>
+    <div class="stat"><div class="num">501</div><div class="label">taxonomy nodes bridged</div></div>
+  </div>
+  <p class="pedagogy-note">Prasolov counts are the Neon + Aura observation recorded on 2026-10-05 in
+  <a href="../requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md">doc 24 §3</a> (1,697 problems, 1,546 solutions, 2,001 parts,
+  10,378 item anchors). They are a dated observation, not a live counter.</p>
+
+  <div class="grid cols-4 reveal">
+    <div class="card"><h3><a href="#g1">G1 · Corpus &amp; skills</a></h3><p>Competition → Paper → Problem → Solution, plus the Concept, Technique and Skill tags that drive search and tutoring.</p><span class="tag">project_from_postgres.py</span></div>
+    <div class="card"><h3><a href="#g2">G2 · Solution steps</a></h3><p>Solution → Part → Step, the step DAG, and each step's skill, concept, subconcept and technique.</p><span class="tag">project_textbook_steps.py</span></div>
+    <div class="card"><h3><a href="#g3">G3 · Learning items</a></h3><p>MCQs and subproblems derived from a problem, anchored at the step they rehearse, assessing a skill.</p><span class="tag">project_textbook_steps.py</span></div>
+    <div class="card"><h3><a href="#g4">G4 · Taxonomy</a></h3><p>Domain → Concept → Subconcept with Skills and Techniques, bridged from <code>pedagogy.taxonomy_node</code>.</p><span class="tag">import + --pedagogy</span></div>
+  </div>
+
+  <h3 id="g1">G1 · Corpus and skill layer</h3>
+  <p>Problems are linked to what they <em>test</em> (Concepts), how they are <em>solved</em> (Techniques) and what a learner
+  must be <em>able to do</em> (Skills). Skill edges carry pedagogy: <code>role</code>, <code>required_level</code> (1–5),
+  <code>importance</code>, <code>confidence</code>, <code>source</code> and <code>review_status</code>.</p>
+  <pre class="mermaid reveal">
+flowchart LR
+    Competition -->|HAS_PAPER| Paper
+    Paper -->|HAS_PROBLEM| Problem
+    Problem -->|HAS_SOLUTION| Solution
+    Problem -->|"TESTS {role}"| Concept
+    Problem -->|"USES_TECHNIQUE {role}"| Technique
+    Problem -->|"REQUIRES / PRACTICES / TESTS {role, required_level, importance}"| Skill
+    Skill -->|PART_OF| Concept
+    Skill -->|"PREREQUISITE_OF / PART_OF / BUILDS_ON"| Skill2["Skill"]
+    Concept -->|"PART_OF / PREREQUISITE_OF / BUILDS_ON"| Concept2["Concept"]
+    Concept -->|"CONCEPT_RELATION {relation_type}"| Concept2
+  </pre>
+
+  <h3 id="g2">G2 · Solution-step layer (textbooks)</h3>
+  <p>Each worked solution is broken into ordered parts and steps. Steps are linked to each other by a
+  <strong>dependency DAG</strong> and to the taxonomy by <code>USES_*</code> edges. That lets the tutor ask
+  "which earlier step does this one rely on, and what skill does it use?"</p>
+  <pre class="mermaid reveal">
+flowchart LR
+    Solution -->|"HAS_PART {part_ordinal}"| SolutionPart
+    SolutionPart -->|"HAS_STEP {step_index_in_part}"| StepA["SolutionStep"]
+    StepA -->|"NEXT"| StepB["SolutionStep"]
+    StepB -->|"DEPENDS_ON / USES_RESULT_FROM / DERIVES_FROM"| StepA
+    StepB -.->|"ALTERNATIVE_TO / JOINS_AT"| StepC["SolutionStep"]
+    StepA -->|USES_SKILL| Skill
+    StepA -->|USES_CONCEPT| Concept
+    StepA -->|USES_SUBCONCEPT| Subconcept["Concept:Subconcept"]
+    StepA -->|"USES_TECHNIQUE {confidence, review_status}"| Technique
+  </pre>
+  <p style="font-size:13px">DAG edges carry <code>logical_dependency</code>, <code>confidence</code>, <code>source_type</code>,
+  <code>review_status</code> and <code>approval_method</code>. Rejected dependencies are excluded at projection. Step
+  techniques (migration 017, <code>rules-v1</code>) are projected only when APPROVED: 4,354 tags on 3,397 of 7,814 steps.
+  The dotted types are supported by the projector, but the Prasolov package uses only NEXT and DEPENDS_ON.</p>
+
+  <h3 id="g3">G3 · Learning-item layer</h3>
+  <p>A learning item is a smaller, answer-checkable rehearsal of part of a problem: a method-recognition MCQ, a
+  "first move" subproblem, a "next intermediate" step. Only APPROVED, student-visible, no-proof items are projected.</p>
+  <pre class="mermaid reveal">
+flowchart LR
+    LearningItem -->|DERIVED_FROM| Problem
+    LearningItem -->|"ANCHORED_AT {ordinal}"| SolutionStep
+    LearningItem -->|ASSESSES| Skill
+    LearningItem -->|TARGETS_CONCEPT| Concept
+    LearningItem -->|TARGETS_SUBCONCEPT| Subconcept["Concept:Subconcept"]
+  </pre>
+
+  <h3 id="g4">G4 · Taxonomy hierarchy</h3>
+  <p>The Prasolov taxonomy (1 domain, 30 chapter concepts, 214 section subconcepts, 202 skills, 54 techniques) is
+  bridged into <code>knowledge.concept</code>, <code>knowledge.skill</code> and <code>knowledge.technique</code> at import.
+  Book <code>HAS_SUBCONCEPT</code> is <strong>reversed</strong> into child <code>PART_OF</code> parent. A Subconcept is a
+  Concept node with a second label, so concept queries still find it.</p>
+  <pre class="mermaid reveal">
+flowchart BT
+    S10["Subconcept GEO.C03.S10 · The radical axis"] -->|PART_OF| C03["Concept GEO.C03 · Circle Geometry"]
+    C03 -->|PART_OF| GEO["Concept GEO · Geometry (domain)"]
+    SK1["Skill · Apply the radical axis"] -->|PART_OF| S10
+    SK2["Skill · Recognize and use similar triangles"] -->|PART_OF| S10
+    T1["Technique · Radical axis"] -.->|"SUPPORTS (taxonomy only)"| S10
+  </pre>
+  <p style="font-size:13px">Taxonomy <code>SUPPORTS</code> edges stay in <code>pedagogy.taxonomy_edge</code>; they shape the
+  taxonomy vector text (see <a href="vectors.html#kinds">Vector models</a>) but are not projected as graph edges.</p>
+
+  <h2 id="semantics"><span class="section-no">R</span>Relationship semantics — what each edge means for teaching</h2>
+  <p>A relationship name alone is ambiguous: <code>TESTS → Concept</code> is a topic tag, while <code>TESTS → Skill</code>
+  is an assessed objective. The table lists each endpoint pair.</p>
+  <table class="data reveal">
+    <thead><tr><th>Edge (direction)</th><th>Pedagogical meaning</th><th>Key properties</th><th>Read by</th></tr></thead>
+    <tbody>
+      <tr><td><code>Problem → TESTS → Concept</code></td><td>Topic of the problem. Textbook roles: <code>PRIMARY</code> (section) and <code>CHAPTER_CONCEPT</code>.</td><td>role, confidence, review_status</td><td>hybrid search graph leg, learning context, web views</td></tr>
+      <tr><td><code>Problem → USES_TECHNIQUE → Technique</code></td><td>Method a solution uses.</td><td>role (PRIMARY/SECONDARY)</td><td>hybrid search, learning context</td></tr>
+      <tr><td><code>Problem → REQUIRES → Skill</code></td><td>Needed to engage. Textbooks: role <code>primary</code> (importance 1.0) and <code>supporting</code> (0.6, skills inferred from steps).</td><td>role, required_level, importance</td><td>learning context, easier practice, search</td></tr>
+      <tr><td><code>Problem → PRACTICES → Skill</code></td><td>Exercised by working the problem.</td><td>same</td><td>learning context, search</td></tr>
+      <tr><td><code>Problem → TESTS → Skill</code></td><td>Assessed objective.</td><td>same</td><td>learning context, search</td></tr>
+      <tr><td><code>Skill → PART_OF → Concept</code></td><td>Topic membership — not ordering.</td><td>source, confidence</td><td>web skill-concepts view</td></tr>
+      <tr><td><code>prior Skill → PREREQUISITE_OF → Skill</code></td><td>Learn the prior skill first.</td><td>review_status</td><td><code>/v1/tutor/prerequisites/{slug}</code></td></tr>
+      <tr><td><code>Skill → PART_OF / BUILDS_ON → Skill</code></td><td>Decomposition / extension.</td><td>review_status</td><td>web skill-hierarchy, builds-on views</td></tr>
+      <tr><td><code>Concept → PART_OF → Concept</code></td><td>Subtopic of (book HAS_SUBCONCEPT reversed).</td><td>strength</td><td>concept-hierarchy view</td></tr>
+      <tr><td><code>Concept → PREREQUISITE_OF / BUILDS_ON → Concept</code></td><td>Topic ordering.</td><td>strength</td><td>concept-prerequisites view</td></tr>
+      <tr><td><code>Solution → HAS_PART → SolutionPart → HAS_STEP → SolutionStep</code></td><td>Solution structure; ordinal properties give order.</td><td>part_ordinal, step_index_in_part</td><td>admin neighbourhood</td></tr>
+      <tr><td><code>Step → NEXT → Step</code></td><td>Reading order within a part.</td><td>logical_dependency, confidence</td><td>inspection; runtime uses the Postgres copy</td></tr>
+      <tr><td><code>later Step → DEPENDS_ON → earlier Step</code></td><td>Logical reliance: if the later step is stuck, the earlier step's skill is a gap candidate.</td><td>same</td><td>gap diagnosis (Postgres copy)</td></tr>
+      <tr><td><code>Step → USES_SKILL / USES_CONCEPT / USES_SUBCONCEPT</code></td><td>What the step exercises.</td><td>—</td><td>diagnosis ranking, step vectors' filters</td></tr>
+      <tr><td><code>Step → USES_TECHNIQUE → Technique</code></td><td>Method the step applies (rules-v1, approved only).</td><td>confidence, derivation_version</td><td>diagnosis, step search filter</td></tr>
+      <tr><td><code>LearningItem → ANCHORED_AT → Step</code></td><td>The item rehearses this step.</td><td>ordinal</td><td>recovery plans (Postgres copy)</td></tr>
+      <tr><td><code>LearningItem → ASSESSES / TARGETS_*</code></td><td>Skill/topic the item checks.</td><td>—</td><td>recovery candidate ranking (Postgres copy)</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="worked-example"><span class="section-no">E</span>Worked example — Power of a Point (Prasolov 3.50)</h2>
+  <p><em>"Circle S and point P are given on the plane. A line drawn through point P intersects the circle at points A
+  and B. Prove that the product PA · PB does not depend on the choice of the line."</em> This is the Power of a Point
+  theorem, filed in Chapter 3 "Circles", section 10 "The radical axis". The graph below is drawn from the imported
+  package rows (no step text is projected; the step text is shown here only to make the example readable).</p>
+  <pre class="mermaid reveal">
+flowchart LR
+    P["Problem PRASOLOV_PGV1_CH03_P050"]
+    CH["Paper · Chapter 3 Circles"] -->|HAS_PROBLEM| P
+    P -->|"TESTS {PRIMARY}"| S10["Subconcept · The radical axis"]
+    P -->|"TESTS {CHAPTER_CONCEPT}"| C03["Concept · Circle Geometry"]
+    P -->|"REQUIRES {primary, 1.0}"| SKR["Skill · Apply the radical axis"]
+    P -->|"REQUIRES {supporting, 0.6}"| SKA["Skill · Auxiliary construction"]
+    P -->|"REQUIRES {supporting, 0.6}"| SKS["Skill · Similar triangles"]
+    P -->|HAS_SOLUTION| SOL["Solution"]
+    SOL -->|HAS_PART| PART["Part MAIN"]
+    PART -->|HAS_STEP| ST1["STEP-3.50-MAIN-01 · draw a second line through P"]
+    PART -->|HAS_STEP| ST2["STEP-3.50-MAIN-02 · PAA1 ~ PB1B, checkpoint"]
+    ST1 -->|"NEXT {0.88}"| ST2
+    ST1 -->|USES_SKILL| SKA
+    ST2 -->|USES_SKILL| SKS
+    ST1 -->|USES_SUBCONCEPT| S10
+    ST2 -->|USES_SUBCONCEPT| S10
+    LI3["Item PMAIN-T3 · first-move subproblem"] -->|ANCHORED_AT| ST1
+    LI4["Item PMAIN-T4 · first-move MCQ"] -->|ANCHORED_AT| ST1
+    LI5["Item PMAIN-T5 · next-intermediate subproblem"] -->|ANCHORED_AT| ST2
+    LI3 -->|ASSESSES| SKA
+    LI5 -->|ASSESSES| SKS
+    LI1["Item T1 · method-recognition MCQ"] -->|DERIVED_FROM| P
+    S10 -->|PART_OF| C03
+  </pre>
+  <div class="grid cols-3 reveal">
+    <div class="card"><h3>How the tutor reads it</h3><p>A student stuck on step 02 (the similarity) gets a diagnosis ranked first by step 02's own skill
+    (<em>similar triangles</em>), then by the skills of the steps it relies on, then by subconcept and concept.</p></div>
+    <div class="card"><h3>Recovery</h3><p>Items anchored at that step (PMAIN-T5) or assessing that skill are the first candidates for a short detour;
+    then the student resumes step 02.</p></div>
+    <div class="card"><h3>Practice and search</h3><p>"Power of a point" queries hit 3.50 through vectors <em>and</em> through the
+    graph leg (the <em>radical axis</em> tags), and RRF fuses both ranks. Easier practice looks for problems that REQUIRE the same skill at a lower level.</p></div>
+  </div>
+  <p style="font-size:13px">IDs: textbook keys are book-scoped (<code>PRASOLOV_PGV1/STEP-3.50-MAIN-01</code>,
+  <code>PRASOLOV_PGV1/3.50-V3-PMAIN-T3</code>); taxonomy slugs are the lower-cased node ids (<code>geo.c03.s10</code>,
+  <code>skill.geo.apply_the_radical_axis</code>). The student walk-through is
+  <a href="tutor-interaction.html#power-of-point">Turn 4 of Tutor Interaction</a>.</p>
+
+  <h2 id="leveraged"><span class="section-no">L</span>How the graph is leveraged — query catalogue</h2>
+  <p>Each entry says whether the query is <strong>live code</strong> (copied from the file named) or
+  <strong>illustrative</strong> (an inspection query you can run in Aura Browser; not called by the app).</p>
+
+  <details class="accordion reveal"><summary>1 · Hybrid search — the graph leg <span class="meta">live · db/hybrid_search.py graph_candidates</span></summary>
+    <div class="body">
+      <pre>// tags whose name/slug contains a query term, plus tags of the top semantic hits ("seeds")
+CALL {
+  MATCH (tag) WHERE (tag:Concept OR tag:Technique OR (tag:Skill AND tag.review_status='REVIEWED'))
+  WITH tag, size([term IN $terms WHERE toLower(coalesce(tag.name,'')+' '+
+        replace(coalesce(tag.slug,''),'-',' ')) CONTAINS term]) AS matches
+  WHERE matches > 0 RETURN tag, matches, [] AS seed_codes
+  UNION ALL
+  MATCH (seed:Problem)-[sr:TESTS|USES_TECHNIQUE|REQUIRES|PRACTICES]->(tag)
+  WHERE seed.canonical_code IN $seeds AND sr.review_status='REVIEWED' ...
+  RETURN tag, 0 AS matches, collect(DISTINCT seed.canonical_code) AS seed_codes
+}
+...
+MATCH (p:Problem)-[link:TESTS|USES_TECHNIQUE|REQUIRES|PRACTICES]->(tag)
+WHERE link.review_status='REVIEWED'
+WITH p, sum(matches*2+shared) AS score, collect({kind:type(link), slug:tag.slug}) AS evidence
+RETURN p.canonical_code, score, evidence ORDER BY score DESC LIMIT $limit</pre>
+      <p>Query "radical axis power of a point" → terms <code>radical, axis, power, point</code> → the tag
+      <em>The radical axis</em> matches twice → every problem tagged with it scores. The graph rank is fused with the
+      semantic and lexical ranks by <code>1/(60+rank)</code> (<a href="vectors.html#fusion">see Vector models</a>).
+      The tags are resolved first because expanding every reviewed Problem→tag link before filtering took 30 s+ on Aura.
+      If Neo4j is down, search still returns, with a warning.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal"><summary>2 · Learning context for a problem <span class="meta">live · pedagogy.py → GET /v1/tutor/learning-context/{code}</span></summary>
+    <div class="body">
+      <pre>MATCH (p:Problem {canonical_code:$code})
+OPTIONAL MATCH (p)-[r:REQUIRES|PRACTICES|TESTS]->(s:Skill)
+WHERE r.review_status = 'REVIEWED' AND s.review_status = 'REVIEWED'
+RETURN properties(s) AS skill, properties(r) AS edge, type(r) AS relation_type
+
+MATCH (p:Problem {canonical_code:$code})
+OPTIONAL MATCH (p)-[r:TESTS|USES_TECHNIQUE]->(n)
+WHERE (n:Concept OR n:Technique) AND r.review_status = 'REVIEWED'
+RETURN labels(n)[0] AS label, n.slug AS slug, n.name AS name, ...</pre>
+      <p>The agent tool <code>get_problem_learning_context</code> calls this before tutoring. For 3.50 it returns the
+      primary skill <em>Apply the radical axis</em> and the two supporting step skills, once those edges are REVIEWED.
+      The statement comes from Postgres; the solution is never returned.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal"><summary>3 · Prerequisite path for a skill <span class="meta">live · pedagogy.py _prerequisites → GET /v1/tutor/prerequisites/{slug}</span></summary>
+    <div class="body">
+      <pre>UNWIND $slugs AS slug
+MATCH path=(prior:Skill)-[:PREREQUISITE_OF*1..{max_depth}]->(target:Skill {slug:slug})
+WHERE all(n IN nodes(path) WHERE n.review_status = 'REVIEWED')
+  AND all(r IN relationships(path) WHERE r.review_status = 'REVIEWED')
+WITH prior, target, path ORDER BY length(path)
+WITH prior, target, min(length(path)) AS depth, head(collect(path)) AS evidence_path
+...
+RETURN properties(prior) AS skill, depth, required_for, evidence
+ORDER BY depth DESC, prior.slug LIMIT $limit
+// a second query probes depth max_depth+1 so the response can say "deeper prerequisites may exist"</pre>
+      <p>Used by the agent tool <code>get_prerequisite_path</code>. <strong>Gotcha:</strong> Prasolov skills have no
+      <code>PREREQUISITE_OF</code> edges, so for geometry this returns empty and the step DAG (query 5) serves as the
+      prerequisite source instead. An empty result is "no reviewed evidence", not "no prerequisites".</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal"><summary>4 · Easier practice on the same skill <span class="meta">live · pedagogy.py easier_practice → GET /v1/tutor/practice/{code}</span></summary>
+    <div class="body">
+      <pre>MATCH (original:Problem {canonical_code:$code})-[a:REQUIRES|PRACTICES|TESTS]->
+      (s:Skill)&lt;-[b:REQUIRES|PRACTICES|TESTS]-(candidate:Problem)
+WHERE candidate &lt;&gt; original AND s.review_status = 'REVIEWED'
+  AND a.review_status = 'REVIEWED' AND b.review_status = 'REVIEWED'
+  AND type(a) = type(b) AND a.role = b.role
+  AND a.required_level IS NOT NULL AND b.required_level IS NOT NULL
+  AND b.required_level &lt; a.required_level
+WITH candidate, collect({skill_slug:s.slug, original_level:a.required_level,
+     candidate_level:b.required_level, ...}) AS evidence
+MATCH (competition:Competition)-[:HAS_PAPER]->(paper:Paper)-[:HAS_PROBLEM]->(candidate)
+RETURN candidate.canonical_code, competition.name, paper.year, evidence</pre>
+      <p>"Same skill, gentler level" — the agent tool <code>find_easier_same_skill_problems</code>. It needs a
+      populated <code>required_level</code> on both edges. The Prasolov import writes importance and role but no
+      level, so for textbook problems this returns empty, and the step-level vector practice
+      (<a href="vectors.html#ex-similar-step">Vector models, example 3</a>) is the fallback.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal"><summary>5 · Walk the step DAG backwards from a stuck step <span class="meta">illustrative Cypher · runtime uses the Postgres copy</span></summary>
+    <div class="body">
+      <pre>MATCH (stuck:SolutionStep {canonical_id: 'PRASOLOV_PGV1/STEP-3.50-MAIN-02'})
+OPTIONAL MATCH (stuck)-[:DEPENDS_ON|USES_RESULT_FROM|DERIVES_FROM*1..3]->(earlier:SolutionStep)
+OPTIONAL MATCH (earlier)-[:USES_SKILL]->(sk:Skill)
+RETURN stuck.skill_name, collect(DISTINCT earlier.canonical_id) AS relies_on,
+       collect(DISTINCT sk.name) AS candidate_gap_skills</pre>
+      <p><strong>Honesty note:</strong> runtime gap diagnosis (<code>step_diagnosis.py</code>, <code>rules-v1</code>, no model
+      call) reads the same DAG from <code>pedagogy.solution_step_dependency</code> in Postgres (DEPENDS_ON, not REJECTED),
+      so a tutoring turn never waits on Aura. The Cypher form is for inspection and teaching the model.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal"><summary>6 · Items that rehearse a step, or target a subconcept <span class="meta">illustrative Cypher</span></summary>
+    <div class="body">
+      <pre>MATCH (li:LearningItem)-[a:ANCHORED_AT]->(:SolutionStep {canonical_id: $step})
+RETURN li.canonical_id, li.transformation_type, li.transformed_form, a.ordinal
+
+MATCH (li:LearningItem)-[:TARGETS_SUBCONCEPT]->(:Subconcept {slug: 'geo.c03.s10'})
+RETURN li.transformation_type, count(*) ORDER BY count(*) DESC</pre>
+      <p>For step 01 of 3.50 this returns PMAIN-T3 (subproblem) and PMAIN-T4 (MCQ). Recovery plans pick from the same
+      relation in Postgres, ranked by skill match, then subconcept (2) / concept (1), then variety.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal"><summary>7 · Which techniques does a chapter's reasoning use? <span class="meta">illustrative Cypher</span></summary>
+    <div class="body">
+      <pre>MATCH (:Concept {slug:'geo.c03'})&lt;-[:USES_CONCEPT]-(s:SolutionStep)-[t:USES_TECHNIQUE]->(tech:Technique)
+WHERE t.review_status = 'APPROVED'
+RETURN tech.name, count(s) AS steps ORDER BY steps DESC LIMIT 10</pre>
+      <p>Step techniques are deterministic <code>rules-v1</code> tags. They feed the diagnosis evidence and the
+      <code>technique_node_id</code> filter of step search.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal"><summary>8 · Admin coverage counts <span class="meta">live · db/textbook_admin.py</span></summary>
+    <div class="body">
+      <pre>MATCH (p:Problem) WHERE p.canonical_code STARTS WITH $prefix RETURN count(p) AS n
+MATCH (:SolutionStep)-[r:NEXT|DEPENDS_ON]->(:SolutionStep) RETURN count(r) AS n
+MATCH (:LearningItem)-[r:ANCHORED_AT]->(:SolutionStep) RETURN count(r) AS n
+MATCH (n:LearningItem)-[:TARGETS_CONCEPT]->(:Concept) RETURN count(DISTINCT n) AS n
+MATCH (:SolutionStep)-[r:USES_TECHNIQUE]->(:Technique) RETURN count(r) AS n
+MATCH (n) WHERE (n:Concept OR n:Skill OR n:Technique) AND n.canonical_id IN $taxonomy_ids
+RETURN count(DISTINCT n.canonical_id) AS n</pre>
+      <p>Some of the 11 per-entity probes. The <code>/admin/textbooks</code> dashboard sets each graph count next to its Postgres and
+      vector counts, so a missed projection shows up as a mismatch.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal"><summary>9 · Problem neighbourhood for the admin drill-down <span class="meta">live · db/textbook_admin.py</span></summary>
+    <div class="body">
+      <pre>MATCH (p:Problem {canonical_code: $code})-[r]-(t)
+RETURN type(r) AS type, head(labels(t)) AS label,
+       CASE WHEN startNode(r) = p THEN 'out' ELSE 'in' END AS direction, count(r) AS count
+ORDER BY type, label
+
+MATCH (p:Problem {canonical_code: $code})-[:HAS_SOLUTION]->(:Solution)-[:HAS_PART]->(:SolutionPart)
+      -[:HAS_STEP]->(s:SolutionStep) RETURN count(DISTINCT s) AS n</pre>
+      <p>The admin problem drill-down shows, per edge type and direction, how many graph edges one problem has, next to the Postgres row.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal"><summary>10 · The 15 graph-browser views <span class="meta">live · mathbank-web lib/graphConfig.js</span></summary>
+    <div class="body">
+      <p><code>/graph</code> calls <code>/api/graph/relationship/[rel]</code>, one view per edge type:
+      has-paper, has-problem, has-solution, tests, uses-technique, concept-relation, requires-skill,
+      practices-skill, tests-skill, skill-concepts, skill-prerequisites, skill-hierarchy, concept-hierarchy,
+      concept-prerequisites, skill-builds-on. Pedagogical views are flagged and show <code>review_status</code>; the overview API caches for five minutes.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal"><summary>11 · Data-quality probes <span class="meta">illustrative Cypher</span></summary>
+    <div class="body">
+      <pre>// steps without a skill edge
+MATCH (s:SolutionStep) WHERE NOT (s)-[:USES_SKILL]->() RETURN count(s)
+// skills used in steps but never assessed by an item
+MATCH (sk:Skill)&lt;-[:USES_SKILL]-(:SolutionStep) WHERE NOT (sk)&lt;-[:ASSESSES]-(:LearningItem)
+RETURN sk.name LIMIT 20
+// checkpoints with no anchored rehearsal item
+MATCH (s:SolutionStep {is_checkpoint:true}) WHERE NOT (s)&lt;-[:ANCHORED_AT]-() RETURN count(s)</pre>
+      <p>These locate gaps in authoring: a checkpoint with no rehearsal item cannot get an anchored recovery detour.</p>
+    </div>
+  </details>
+
+  <h2 id="review"><span class="section-no">V</span>Review filtering and visibility</h2>
+  <ul>
+    <li>Projectors write PENDING, REVIEWED and REJECTED edge metadata. <strong>Readers</strong> filter to REVIEWED (corpus/skill layer) or APPROVED (step techniques).</li>
+    <li>Rejected step dependencies and unapproved learning items are excluded at projection time.</li>
+    <li>The pedagogy layer is replaced atomically inside Neo4j: a failed refresh keeps the previous layer; a successful one propagates downgrades.</li>
+    <li>The step projector prunes stale parts, steps and items by <code>projection_version</code>.</li>
+    <li>No step text, question text, choices or answers are projected. Graph visibility never implies a student may see a solution.</li>
+  </ul>
+
+  <h2 id="not-graph"><span class="section-no">N</span>What the graph is <em>not</em> used for</h2>
+  <div class="grid cols-3 reveal">
+    <div class="card"><h3>Runtime diagnosis</h3><p>Reads the Postgres step DAG and taxonomy columns (fast, transactional, one database).</p></div>
+    <div class="card"><h3>Recovery ranking</h3><p>SQL taxonomy closeness over learning items; no graph and no vectors.</p></div>
+    <div class="card"><h3>Student state</h3><p>Attempts, mastery and events live only in Postgres. The <code>MASTERED</code>/<code>STRUGGLES_WITH</code> learner edges remain planned.</p></div>
+  </div>
 
   <h2 id="skills"><span class="section-no">P0</span>Skill-level graph contract</h2>
   <p>A <strong>Skill</strong> is an actionable learning objective with an optional ordinal level from 1 to 5.
@@ -104,7 +453,7 @@
     separate check. The overview API has a five-minute cache.</p>
   </div>
 
-  <h2 id="model"><span class="section-no">A</span>Legacy corpus model + planned learner edges</h2>
+  <h2 id="model"><span class="section-no">A</span>Historical: original corpus model + planned learner edges</h2>
   <pre class="mermaid reveal">
 flowchart LR
     Competition -->|HAS_PAPER| Paper
@@ -215,7 +564,7 @@ CREATE CONSTRAINT solution_id    IF NOT EXISTS FOR (n:Solution)    REQUIRE n.can
 
 <footer>
   <a href="data-model.html">&larr; Postgres Data Model</a> ·
-  Next: <a href="use-cases.html">Use Cases</a>
+  Next: <a href="vectors.html">Vector Models</a>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>

@@ -109,7 +109,7 @@ Web proxy: `GET /api/rest/admin/textbooks/<same path>` (admin session; allowlist
 
 The status column below is a snapshot; see [20](20_NOT_YET_IMPLEMENTED.md) for the live status.
 
-- **NYI-ATB-1:** ✅ delivered. Taxonomy node embeddings exist (501/501); a retrieval API over them is still open.
+- **NYI-ATB-1:** ✅ delivered. Taxonomy node embeddings exist (501/501), and since 2026-10-06 they are queried by `POST /v1/search/concepts` and the tutor agent's `search_concepts` tool.
 - **NYI-ATB-7:** ✅ delivered ([25](25_LEARNING_ITEM_CONCEPT_EDGES.md)).
 - **NYI-ATB-8…9:** usage-weighted taxonomy texts and the remaining v2 graph vocabulary (see [20](20_NOT_YET_IMPLEMENTED.md)).
 - **NYI-ATB-2:** diagrams in the graph (`Problem-[:HAS_DIAGRAM]->Diagram` with visibility) and optional image/caption embeddings.

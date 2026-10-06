@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vector Models — MathBank Platform</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="dot"></span> MathBank Platform</div>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="architecture.html">Ingestion &amp; Inference</a>
+    <a href="data-model.html">Data Model</a>
+    <a href="graph.html">Knowledge Graph</a>
+    <a href="vectors.html">Vector Models</a>
+    <a href="pedagogy.html">Pedagogy</a>
+    <a href="use-cases.html">Use Cases</a>
+    <a href="tutor-interaction.html">Tutor Interaction</a>
+    <a href="student-profile-ui.html">Student &amp; Admin UI</a>
+    <a href="student-impact.html">Student Impact</a>
+    <a href="thought-process.html">How This Was Built</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero reveal" style="padding-top:36px">
+    <span class="eyebrow">03b · Vectors</span>
+    <h1>Vector Models (pgvector in Postgres)</h1>
+    <p class="lede">Every problem, solution, solution step, learning item and taxonomy node is rendered as a short,
+    labelled text and embedded with OpenAI <code>text-embedding-3-small</code>. The vectors live <strong>in Postgres</strong>
+    next to the rows they describe, so one SQL statement can apply hard filters (skill, subconcept, publication status)
+    and then rank by meaning. Vectors find <em>"problems like this one"</em> when the words differ; the
+    <a href="graph.html">knowledge graph</a> explains <em>why</em> they are related; full-text search catches exact terms.
+    Search fuses all three.</p>
+  </section>
+
+  <div class="stats reveal">
+    <div class="stat"><div class="num">1536</div><div class="label">dimensions · cosine</div></div>
+    <div class="stat"><div class="num">6</div><div class="label">representation kinds</div></div>
+    <div class="stat"><div class="num">31,883</div><div class="label">Prasolov embeddings (doc 18)</div></div>
+    <div class="stat"><div class="num">7,814</div><div class="label">solution-step vectors</div></div>
+    <div class="stat"><div class="num">501 / 501</div><div class="label">taxonomy nodes embedded</div></div>
+    <div class="stat"><div class="num">0</div><div class="label">paid calls for "similar step" practice</div></div>
+  </div>
+  <p class="pedagogy-note">Counts are dated observations recorded in
+  <a href="../requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md">doc 18</a> and
+  <a href="../requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md">doc 24 §3</a> against Neon (2026-10-05), not live counters.
+  The live per-book numbers are on <code>/admin/textbooks</code>.</p>
+
+  <h2 id="why"><span class="section-no">A</span>Three ways to find "related" — and when each wins</h2>
+  <table class="data reveal">
+    <thead><tr><th></th><th>Vectors (semantic)</th><th>Full-text (lexical)</th><th>Graph (structural)</th></tr></thead>
+    <tbody>
+      <tr><td>Finds</td><td>Same meaning, different words: <em>"product of secant segments"</em> ≈ <em>"power of a point"</em></td><td>Exact terms: <em>"radical axis"</em>, <em>"Ptolemy"</em></td><td>Shared skill, concept, technique or step dependency</td></tr>
+      <tr><td>Stored in</td><td><code>search.embedding</code> (pgvector)</td><td><code>search.chunk.textsearch</code> (tsvector + GIN)</td><td>Neo4j Aura projection</td></tr>
+      <tr><td>Explains itself?</td><td>No — a distance</td><td>Partly — matched terms</td><td>Yes — named edges as evidence</td></tr>
+      <tr><td>Cost per query</td><td>One query embedding, unless a stored vector is reused</td><td>Free</td><td>Free</td></tr>
+      <tr><td>Fails when</td><td>Short or boilerplate text; very rare words</td><td>Synonyms and paraphrase</td><td>Tags absent, PENDING or unprojected</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="pipeline"><span class="section-no">B</span>From a row to a vector</h2>
+  <p>Text is never embedded straight from a source column. It is first <strong>rendered</strong> into a
+  <em>representation</em> with a kind prefix (so a step and a problem with similar words stay distinguishable), hashed,
+  split into chunks, and only then embedded. If the content hash is unchanged, no new embedding is requested.</p>
+  <pre class="mermaid reveal">
+flowchart LR
+    SRC["Source rows: core.problem, core.solution, pedagogy.solution_step, pedagogy.learning_item, pedagogy.taxonomy_node"]
+    SRC -->|"render + kind prefix"| REP["search.representation (rendered_text, content_hash, ACTIVE)"]
+    REP -->|"hash changed"| OLD["previous representation marked SUPERSEDED"]
+    REP -->|"split at 6,000 chars"| CH["search.chunk (FULL or WINDOW, textsearch tsvector, owner ids)"]
+    CH --> JOB["search.embedding_job (input_hash, attempts, heartbeat)"]
+    JOB -->|"OpenAI batch of 100"| EMB["search.embedding (vector 1536, ACTIVE)"]
+    MODEL["search.embedding_model (openai, text-embedding-3-small, v1, 1536, COSINE)"] --> EMB
+    EMB --> HNSW["HNSW index: cosine ops, partial on active model"]
+    CH --> GIN["GIN full-text and trigram indexes"]
+  </pre>
+  <div class="grid cols-2 reveal">
+    <div class="card"><h3>Corpus embedder</h3><p><code>mathbank-db/etl/embed_corpus.py</code> — PROBLEM_STATEMENT and SOLUTION_FULL for every
+    competition and textbook problem. Commands: <code>backfill</code>, <code>index</code>, <code>status</code>.
+    Make: <code>vector-backfill</code>, <code>textbook-problem-vector-remote</code> (paid).</p></div>
+    <div class="card"><h3>Step embedder</h3><p><code>mathbank-db/etl/embed_textbook_steps.py</code> — steps, learning items and taxonomy nodes under the
+    <code>pedagogy_step_v2</code> profile. Commands: <code>build</code>, <code>backfill</code>, <code>status</code>, <code>papers</code>.
+    Make: <code>textbook-vector-remote</code> (paid), <code>textbook-vector-status-remote</code> (read-only).</p></div>
+  </div>
+
+  <h2 id="schema"><span class="section-no">C</span>The <code>search</code> schema</h2>
+  <p>Migration <code>002_vector_schema.sql</code> creates the tables; <code>011_step_vector_metadata.sql</code> adds the
+  pedagogy owner columns used as hard filters. Full columns are in
+  <a href="../requirements/reference/POSTGRES_SCHEMA.md">POSTGRES_SCHEMA.md</a>.</p>
+  <pre class="mermaid reveal">
+erDiagram
+    EMBEDDING_MODEL ||--o{ EMBEDDING : "produces"
+    EMBEDDING_MODEL ||--o{ EMBEDDING_JOB : "targets"
+    PREPROCESSING_PROFILE ||--o{ REPRESENTATION : "renders"
+    REPRESENTATION ||--o{ CHUNK : "split into"
+    REPRESENTATION ||--o{ EMBEDDING_JOB : "queued as"
+    CHUNK ||--o{ EMBEDDING : "one per model"
+    CHUNK }o--o| PROBLEM : "problem_id"
+    CHUNK }o--o| SOLUTION_STEP : "solution_step_id"
+    CHUNK }o--o| LEARNING_ITEM : "learning_item_id"
+    EMBEDDING_MODEL {
+        uuid embedding_model_id PK
+        text provider
+        text model_name
+        text model_revision
+        int dimensions
+        text distance_metric
+        text status
+    }
+    PREPROCESSING_PROFILE {
+        uuid preprocessing_profile_id PK
+        text name "e.g. pedagogy_step_v2"
+        int version
+    }
+    REPRESENTATION {
+        uuid representation_id PK
+        text source_entity_type
+        text representation_kind
+        text rendered_text
+        text content_hash
+        text status "ACTIVE or SUPERSEDED"
+    }
+    CHUNK {
+        uuid chunk_id PK
+        uuid representation_id FK
+        text chunk_kind "FULL or WINDOW"
+        text chunk_text
+        tsvector textsearch "generated"
+        text skill_node_id "011"
+        text subconcept_node_id "011"
+        text concept_node_id "011"
+        jsonb metadata
+    }
+    EMBEDDING {
+        uuid embedding_id PK
+        uuid chunk_id FK
+        uuid embedding_model_id FK
+        vector embedding "unconstrained dims"
+        text status
+    }
+    EMBEDDING_JOB {
+        uuid embedding_job_id PK
+        text status
+        int attempt_count
+        text input_hash
+        timestamptz heartbeat_at
+    }
+  </pre>
+  <p style="font-size:13px"><code>UNIQUE(chunk_id, embedding_model_id)</code> allows one vector per chunk per model, so a second model can be
+  added side by side. The <code>vector</code> column has no fixed dimension; the HNSW index casts to <code>vector(1536)</code> and is
+  partial on the active model id. The <code>chunk_single_pedagogy_owner</code> CHECK makes a chunk belong to at most one step, item or taxonomy node.</p>
+
+  <h2 id="kinds"><span class="section-no">D</span>Representation kinds — what text is actually embedded</h2>
+  <p>The examples below are rendered from the Prasolov 3.50 (Power of a Point) package rows by the same code paths.
+  The taxonomy text was produced offline by <code>taxonomy_rows()</code> with no database or model call.</p>
+  <table class="data reveal">
+    <thead><tr><th>Kind</th><th>Count</th><th>Rendered text (example)</th><th>Hard filters</th><th>Read by</th></tr></thead>
+    <tbody>
+      <tr><td><code>PROBLEM_STATEMENT</code></td><td>1,697 Prasolov<br>(+ competition corpus)</td>
+        <td><pre style="white-space:pre-wrap;margin:0">[Problem] Circle S and point P are given on the plane. A line drawn through point P intersects the circle at points A and B. Prove that the product PA · PB does not depend on the choice of the line.</pre></td>
+        <td>competition, year (in the eligible CTE)</td><td><code>POST /v1/search/problems</code>, agent <code>search_problems</code></td></tr>
+      <tr><td><code>SOLUTION_FULL</code></td><td>1,546</td>
+        <td><pre style="white-space:pre-wrap;margin:0">[Solution] …full worked solution…</pre></td>
+        <td>—</td><td>coverage and reconciliation only; not returned to students</td></tr>
+      <tr><td><code>SOLUTION_STEP</code></td><td>7,814</td>
+        <td><pre style="white-space:pre-wrap;margin:0">[Solution step] Recognize and use similar triangles
+Then △PAA1 ∼ △PB1B and therefore PA : PA1 = PB1 : PB.</pre></td>
+        <td>skill, subconcept, concept, step_type, tutor_role, checkpoint, hint level, technique, problem</td><td><code>GET /v1/solution-steps/{id}/practice</code></td></tr>
+      <tr><td><code>LEARNING_ITEM_QUESTION</code></td><td rowspan="2">11,186 items<br>× 2 kinds</td>
+        <td><pre style="white-space:pre-wrap;margin:0">[Learning item] For source Problem 3.50, work only on the first local move. Carry out this one task and stop: Let us draw through point P another line that intersects the circle at points A1 and B1.</pre></td>
+        <td rowspan="2">target skill/subconcept, form, transformation type, difficulty, anchor step</td><td rowspan="2"><code>search_learning_items()</code> — implemented, not yet routed</td></tr>
+      <tr><td><code>LEARNING_ITEM_SKILL_SIGNATURE</code></td>
+        <td><pre style="white-space:pre-wrap;margin:0">[Skill signature] SUBPROBLEM_FIRST_MOVE | SUBPROBLEM | Choose or execute an auxiliary construction | The radical axis</pre></td></tr>
+      <tr><td><code>TAXONOMY_NODE</code></td><td>501</td>
+        <td><pre style="white-space:pre-wrap;margin:0">[Taxonomy subconcept] The radical axis
+Within: Geometry &gt; Circle Geometry
+Chapter 3, section 10
+Skills: Apply THE RADICAL AXIS; Chase or compare angles; Choose or execute an auxiliary construction; Derive and simplify an intermediate relation; Recognize and use similar triangles; Use a circle angle/chord/tangent relation; Use an extremal argument; Use perpendicularity and right-angle structure; Use symmetry
+Techniques: Altitudes; Angle bisectors; Circle tangency; Coordinate geometry; Geometric construction; Locus; Midpoint geometry; Orthocenter; Parallel-line geometry; Perpendicularity; Radical axis; Symmetry; Vectors</pre></td>
+        <td>node type, chapter (taxonomy node id in chunk metadata)</td><td>concept search — <code>POST /v1/search/concepts</code>, agent <code>search_concepts</code></td></tr>
+    </tbody>
+  </table>
+  <div class="grid cols-3 reveal">
+    <div class="card"><h3>Why two item vectors?</h3><p>The <strong>question</strong> vector matches wording ("draw a line through P").
+    The <strong>signature</strong> vector matches pedagogy ("a first-move subproblem on auxiliary construction"), even when two items share no words.</p></div>
+    <div class="card"><h3>Why neighbours in taxonomy text?</h3><p>A bare name such as "The radical axis" is too short to embed well. Listing the parent path, skills and
+    techniques (max 15 each, then "and N more") gives the vector a context. Boilerplate descriptions are filtered out.</p></div>
+    <div class="card"><h3>Why the kind prefix?</h3><p><code>[Problem]</code>, <code>[Solution step]</code> and <code>[Learning item]</code> keep different units apart
+    in vector space, and the eligible CTE re-checks <code>rendered_text</code> so a stale vector cannot match an edited problem.</p></div>
+  </div>
+
+  <h2 id="model"><span class="section-no">E</span>Model, index and idempotency</h2>
+  <table class="data reveal">
+    <tbody>
+      <tr><td>Model</td><td>OpenAI <code>text-embedding-3-small</code>, revision <code>v1</code>, 1536 dims, cosine; registered in <code>search.embedding_model</code> with status ACTIVE.</td></tr>
+      <tr><td>ANN index</td><td><code>idx_search_embedding_text_embedding_3_small_hnsw</code>: <code>USING hnsw ((embedding::vector(1536)) vector_cosine_ops) WHERE embedding_model_id = '&lt;active&gt;' AND status = 'ACTIVE'</code>.</td></tr>
+      <tr><td>Chunking</td><td>Up to 6,000 characters → one <code>FULL</code> chunk; longer text splits at paragraph boundaries into <code>WINDOW</code> chunks. Search takes the minimum distance per entity.</td></tr>
+      <tr><td>Idempotency</td><td><code>content_hash</code> on the representation, <code>input_hash</code> on the job. Re-running with unchanged content makes no new embeddings and costs nothing.</td></tr>
+      <tr><td>Eligibility</td><td>Steps must be PUBLISHED; items APPROVED, student-visible and no-proof. Anything that stops being eligible has its representation SUPERSEDED.</td></tr>
+      <tr><td>Step identity</td><td>Textbook keys are text, so a deterministic uuid5 surrogate is the representation's <code>source_entity_id</code>; the real key sits in the chunk's owner column.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="examples"><span class="section-no">F</span>How vectors are leveraged — examples</h2>
+  <p>Each example is marked <strong>live</strong> (the code path exists, file named) or <strong>illustrative</strong>
+  (read-only SQL for inspection or a planned use).</p>
+
+  <details class="accordion reveal" id="ex-problem-hybrid"><summary>1 · Problem search: semantic + lexical RRF <span class="meta">live · db/vector_search.py search_problems</span></summary>
+    <div class="body">
+      <pre>WITH eligible_problem AS (          -- filters BEFORE ranking
+  SELECT p.problem_id, regexp_replace('[Problem] ' || p.statement_text,'[[:space:]]+$','') AS rendered
+  FROM core.problem p JOIN core.paper pa ... JOIN core.competition comp ...
+  WHERE TRUE AND comp.external_code = :competition AND ed.year >= :year_min
+), semantic AS (
+  SELECT e.chunk_id, row_number() OVER (ORDER BY e.embedding::vector(1536) &lt;=&gt; CAST(:query_vector AS vector(1536))) AS rnk
+  FROM search.embedding e JOIN search.chunk c ... JOIN search.representation r ...
+  JOIN eligible_problem ep ON ep.problem_id = c.problem_id
+  WHERE e.embedding_model_id = :model_id AND e.status = 'ACTIVE'
+    AND r.status = 'ACTIVE' AND r.representation_kind = 'PROBLEM_STATEMENT'
+    AND r.rendered_text = ep.rendered
+  ORDER BY ... LIMIT :candidate_limit
+), lexical AS (
+  SELECT c.chunk_id, row_number() OVER (ORDER BY ts_rank_cd(c.textsearch, websearch_to_tsquery('english', :query_text)) DESC) AS rnk
+  ...
+)
+-- FULL OUTER JOIN semantic/lexical, score = 1/(60+semantic_rnk) + 1/(60+lexical_rnk)</pre>
+      <p><strong>Why filter first:</strong> ranking the global top-N and then filtering by competition silently returned zero rows
+      for small competitions whose problems were not among the nearest neighbours. <code>order_by</code> can be
+      <code>relevance</code>, <code>year_desc</code> ("recent problems on …") or <code>year_asc</code>.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="fusion"><summary>2 · Three-way fusion with the graph <span class="meta">live · db/hybrid_search.py fuse → POST /v1/search/problems</span></summary>
+    <div class="body">
+      <p>The vector query returns up to <code>min(max(limit×4, 100), 400)</code> candidates. The top 25 semantic hits become
+      <em>seeds</em> for the <a href="graph.html#leveraged">graph leg</a>. Each source contributes <code>1/(60 + rank)</code>:</p>
+      <table class="data">
+        <thead><tr><th>Problem (illustrative ranks)</th><th>semantic</th><th>lexical</th><th>graph</th><th>RRF score</th></tr></thead>
+        <tbody>
+          <tr><td>3.50 Power of a point</td><td>1</td><td>2</td><td>1</td><td>1/61 + 1/62 + 1/61 = 0.0489</td></tr>
+          <tr><td>A radical-axis construction</td><td>4</td><td>—</td><td>2</td><td>1/64 + 1/62 = 0.0318</td></tr>
+          <tr><td>A chord-product problem worded differently</td><td>2</td><td>—</td><td>—</td><td>1/62 = 0.0161</td></tr>
+        </tbody>
+      </table>
+      <p>Each result carries <code>semantic_rank</code>, <code>lexical_rank</code>, <code>graph_rank</code> and the graph
+      <code>evidence</code> (edge kind + tag), so the UI can say <em>why</em> it matched. If Neo4j fails, the response keeps
+      vector + lexical results and adds a warning. Flags <code>semantic</code>, <code>lexical</code>, <code>graph</code> switch legs off.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="ex-similar-step"><summary>3 · "Practise this step elsewhere" — no paid call <span class="meta">live · db/step_search.py similar_steps_for_step → GET /v1/solution-steps/{id}/practice</span></summary>
+    <div class="body">
+      <pre>-- 1. reuse the stuck step's own stored vector as the query
+SELECT s.skill_node_id, s.skill_name,
+       (SELECT e.embedding::text FROM search.chunk c
+          JOIN search.representation r ON r.representation_id = c.representation_id
+          JOIN search.embedding e ON e.chunk_id = c.chunk_id
+         WHERE c.solution_step_id = s.solution_step_id AND r.representation_kind = 'SOLUTION_STEP'
+           AND e.status = 'ACTIVE' AND e.embedding_model_id = :m LIMIT 1) AS vec
+  FROM pedagogy.solution_step s
+ WHERE s.solution_step_id = :s AND s.publication_status = 'PUBLISHED';
+-- 2. search_solution_steps(skill_name, skill_node_id = same skill,
+--                          exclude_problem_id = own problem, query_vector = vec)</pre>
+      <p>Student stuck on <code>STEP-3.50-MAIN-02</code> (similar triangles) → other problems' steps with the same skill,
+      ranked by meaning plus the skill name as the lexical query. Step text is <strong>not returned</strong> unless the caller opts in,
+      and the origin problem is excluded, so the answer cannot leak back.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="ex-step-filtered"><summary>4 · Filtered step search: exact distance over a small candidate set <span class="meta">live · db/step_search.py build_search_sql</span></summary>
+    <div class="body">
+      <pre>WITH eligible AS (
+  SELECT c.chunk_id, c.solution_step_id AS entity_id, c.textsearch
+    FROM search.chunk c
+    JOIN search.representation r ON r.representation_id = c.representation_id
+    JOIN search.preprocessing_profile pp ON pp.preprocessing_profile_id = r.preprocessing_profile_id
+    JOIN pedagogy.solution_step s ON s.solution_step_id = c.solution_step_id AND s.publication_status = 'PUBLISHED'
+   WHERE r.status = 'ACTIVE' AND pp.name = 'pedagogy_step_v2'
+     AND r.representation_kind = ANY(:kinds)
+     AND c.subconcept_node_id = :subconcept_node_id      -- e.g. 'GEO.C03.S10'
+     AND s.is_checkpoint = :is_checkpoint
+     AND EXISTS (SELECT 1 FROM pedagogy.solution_step_technique t
+                 WHERE t.solution_step_id = s.solution_step_id
+                   AND t.technique_node_id = :technique_node_id AND t.review_status = 'APPROVED')
+), semantic AS (
+  SELECT el.entity_id, min(e.embedding &lt;=&gt; CAST(:query_vector AS vector)) AS distance
+    FROM eligible el JOIN search.embedding e ON e.chunk_id = el.chunk_id
+   WHERE e.embedding_model_id = :model_id AND e.status = 'ACTIVE' GROUP BY el.entity_id
+) ...</pre>
+      <p>Only allow-listed filter names are accepted (unknown names raise); all values are bound parameters. Ten step filters:
+      skill, subconcept, concept, step_type, tutor_role, is_checkpoint, problem, exclude_problem, max_hint_level, technique.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="ex-items"><summary>5 · Recovery practice by meaning: learning items <span class="meta">live function, no REST route yet</span></summary>
+    <div class="body">
+      <pre>search_learning_items(
+    "show two triangles through P are similar",
+    target_subconcept_node_id="GEO.C03.S10",
+    learning_item_type="MCQ",
+    difficulty="LOWER",
+    exclude_problem_id=&lt;3.50 uuid&gt;)</pre>
+      <p>Searches both the question and the skill-signature vectors, then re-checks the live row
+      (<code>APPROVED AND student_visible AND no_proof</code>) during the detail fetch, so an item unpublished after embedding can never surface.
+      Recovery plans today rank items by SQL taxonomy closeness. This function is ready to add a "by meaning" leg once routed.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="ex-taxonomy"><summary>6 · Map a student's words to a concept <span class="meta">live · db/step_search.search_taxonomy_nodes · POST /v1/search/concepts</span></summary>
+    <div class="body">
+      <pre>POST /v1/search/concepts
+{"query": "tangent secant products and radical axis of two circles", "limit": 5}
+
+-- eligible set: hard filters first (node_types, chapter_number), keyed on chunk metadata
+SELECT c.chunk_id, n.taxonomy_node_id AS entity_id, c.textsearch
+  FROM search.chunk c
+  JOIN search.representation r ON r.representation_id = c.representation_id
+  JOIN pedagogy.taxonomy_node n ON n.taxonomy_node_id = c.metadata-&gt;&gt;'taxonomy_node_id'
+ WHERE r.status = 'ACTIVE' AND r.representation_kind = ANY(:kinds)   -- {TAXONOMY_NODE}
+-- then exact cosine distance over that set + ts_rank_cd, fused by RRF (k = 60)</pre>
+      <table class="data">
+        <thead><tr><th>Query (live run, 2026-10-06)</th><th>Top nodes returned</th></tr></thead>
+        <tbody>
+          <tr><td>"power of a point"</td><td><code>TECH.GEO.POWER_OF_A_POINT</code> (technique, 6 step-linked problems), then nearby skills</td></tr>
+          <tr><td>"tangent secant products and radical axis of two circles"</td><td><code>GEO.C03.S10</code> The radical axis (21 problems), Tangent circles, Two tangents drawn from one point</td></tr>
+          <tr><td>"inversion"</td><td><code>GEO.C28.S04</code>, <code>SKILL.GEO.APPLY_LET_US_PERFORM_AN_INVERSION</code>, <code>TECH.GEO.INVERSION</code> (34), <code>GEO.C28</code> (40)</td></tr>
+        </tbody>
+      </table>
+      <p>Each result carries the corpus <code>slug</code> and <code>slug_kind</code>, the number of problems whose published steps exercise the node,
+      and up to five <code>example_problem_codes</code>. No solution text is returned. If the query embedding fails, the route falls back to lexical ranking and says so in <code>warnings</code>.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="ex-agent"><summary>7 · The tutor agent's search tools <span class="meta">live · mathbank-agent rest_tools.search_concepts / search_problems</span></summary>
+    <div class="body">
+      <p>The ADK agent never connects to pgvector directly. For a named topic it first calls <code>search_concepts</code>
+      (<code>POST /v1/search/concepts</code>, the taxonomy vectors) to ground the words in a canonical node, then follows the node's
+      <code>slug_kind</code>: <code>get_problems_for_concept</code>, <code>get_problems_for_technique</code> or <code>get_prerequisite_path</code>,
+      and offers its <code>example_problem_codes</code> for step practice. Its <code>search_problems</code> tool posts to
+      <code>/v1/search/problems</code> and receives fused results with ranks and graph evidence. A student who says
+      <em>"give me something like Power of a Point but easier"</em> → hybrid search for the topic →
+      <code>get_problem_learning_context</code> → <code>find_easier_same_skill_problems</code> (graph). On the home chat,
+      the streamed "thinking" panel shows these tool calls.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="ex-admin"><summary>8 · Admin coverage and reconciliation <span class="meta">live · db/textbook_admin.py, db/import_admin.py</span></summary>
+    <div class="body">
+      <pre>-- illustrative shape of the per-kind coverage count
+SELECT r.representation_kind, count(DISTINCT c.chunk_id) AS chunks,
+       count(DISTINCT c.chunk_id) FILTER (WHERE e.embedding_id IS NOT NULL) AS embedded
+  FROM search.representation r
+  JOIN search.chunk c USING (representation_id)
+  LEFT JOIN search.embedding e ON e.chunk_id = c.chunk_id AND e.status = 'ACTIVE'
+ WHERE r.status = 'ACTIVE'
+ GROUP BY 1;</pre>
+      <p><code>/admin/textbooks</code> shows Postgres, graph and vector counts side by side per entity, and import
+      reconciliation flags packages whose steps or items are not yet embedded.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="ex-pipeline"><summary>9 · Missing and stale embeddings in the job console <span class="meta">live · db/pipeline_jobs.py</span></summary>
+    <div class="body">
+      <pre>count(DISTINCT ch.chunk_id)                                         AS chunks,
+count(DISTINCT ch.chunk_id) FILTER (WHERE e.embedding_id IS NOT NULL) AS embedded,
+count(DISTINCT j.embedding_job_id) FILTER (WHERE j.status='FAILED')      AS failed,
+count(DISTINCT j.embedding_job_id) FILTER (WHERE j.status='IN_PROGRESS') AS active
+-- joined only to embeddings/jobs of the ACTIVE openai text-embedding-3-small model</pre>
+      <p>An entity is complete when <code>chunks &gt; 0</code> and every chunk is embedded. A FAILED or IN_PROGRESS stage whose
+      heartbeat is missing or older than 120 seconds is shown as <strong>STALLED</strong> in the job console.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="ex-model-swap"><summary>10 · Adding a second model without downtime <span class="meta">illustrative procedure</span></summary>
+    <div class="body">
+      <ol>
+        <li>Register a new <code>search.embedding_model</code> row (status REGISTERED, its own dimensions).</li>
+        <li>Backfill: new <code>search.embedding</code> rows for the same chunks (UNIQUE per chunk + model).</li>
+        <li>Create a partial HNSW index cast to the new dimension for that model id.</li>
+        <li>Flip the ACTIVE status and point <code>EMBEDDING_MODEL_NAME</code> at the new model. <code>_active_model_id()</code> is cached per process
+        (<code>lru_cache</code>), so restart REST afterwards. The old vectors stay for rollback.</li>
+      </ol>
+      <p>This is why the <code>vector</code> column is deliberately unconstrained.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="ex-inspect"><summary>11 · Inspect the nearest steps to one step <span class="meta">illustrative read-only SQL</span></summary>
+    <div class="body">
+      <pre>WITH q AS (
+  SELECT e.embedding AS v FROM search.chunk c JOIN search.embedding e USING (chunk_id)
+   WHERE c.solution_step_id = 'PRASOLOV_PGV1/STEP-3.50-MAIN-02' AND e.status = 'ACTIVE' LIMIT 1)
+SELECT c.solution_step_id, c.skill_node_id, e.embedding &lt;=&gt; q.v AS distance
+  FROM q, search.chunk c JOIN search.embedding e USING (chunk_id)
+ WHERE c.solution_step_id IS NOT NULL AND e.status = 'ACTIVE'
+ ORDER BY distance LIMIT 10;</pre>
+      <p>Useful for checking whether the skill labels and the vectors agree: the neighbours of a similarity step should be other similarity steps.</p>
+    </div>
+  </details>
+
+  <details class="accordion reveal" id="ex-walkthrough"><summary>12 · End-to-end: one Power-of-a-Point session <span class="meta">composite of live paths</span></summary>
+    <div class="body">
+      <ol>
+        <li><strong>Ground</strong> — "power of a point" → taxonomy vectors → <code>TECH.GEO.POWER_OF_A_POINT</code> and its five step-linked practice problems.</li>
+        <li><strong>Find</strong> — "power of a point" → vectors + lexical + graph → 3.50 near the top.</li>
+        <li><strong>Context</strong> — the graph supplies the skills; the statement comes from Postgres.</li>
+        <li><strong>Solve</strong> — the step runtime grades step 02 as PARTIALLY_CORRECT.</li>
+        <li><strong>Diagnose</strong> — rules-v1 over the Postgres step DAG (no vectors).</li>
+        <li><strong>Recover</strong> — anchored items by taxonomy closeness (no vectors).</li>
+        <li><strong>Practise</strong> — similar-step vectors find same-skill steps in other problems, using the stored vector (no paid call).</li>
+      </ol>
+      <p>See <a href="tutor-interaction.html#power-of-point">Tutor Interaction, Turn 4</a>.</p>
+    </div>
+  </details>
+
+  <h2 id="hnsw"><span class="section-no">G</span>Why exact distance after filters, not HNSW</h2>
+  <div class="grid cols-2 reveal">
+    <div class="card"><h3>HNSW (approximate)</h3><p>Fast over the whole table, but it returns the top-N nearest <em>first</em>. A filter applied afterwards
+    (e.g. one subconcept, PUBLISHED only) can drop most or all of them, so filtered searches silently return too few rows.</p></div>
+    <div class="card"><h3>Filter, then exact</h3><p>Step and item search narrow to the eligible chunks first (often a few hundred), then compute exact
+    <code>&lt;=&gt;</code> over that set. It is always correct and fast enough at this size. HNSW serves the unfiltered problem search path.</p></div>
+  </div>
+
+  <h2 id="safety"><span class="section-no">H</span>Answer-leak and visibility safety</h2>
+  <ul>
+    <li>Solution and step vectors are used to <em>rank</em>; step text is stripped from results unless the caller opts in.</li>
+    <li>Similar-step practice excludes the origin problem.</li>
+    <li>Learning items are re-checked against the live row after ranking; a stale vector cannot surface unpublished content.</li>
+    <li>Problem search re-compares <code>rendered_text</code> with the current statement, so an edited problem's old vector is ignored.</li>
+    <li>Student answers are never embedded. A free-text search query is embedded on the fly to rank results, and that vector is not stored.</li>
+  </ul>
+
+  <h2 id="not-vectors"><span class="section-no">I</span>Where vectors are <em>not</em> used</h2>
+  <div class="grid cols-3 reveal">
+    <div class="card"><h3>Gap diagnosis</h3><p>Deterministic rules over the step DAG and taxonomy columns. The result is explainable and reproducible.</p></div>
+    <div class="card"><h3>Recovery ranking</h3><p>Skill match, then subconcept (2) / concept (1), then variety. The learning-item vector search is ready but not wired in.</p></div>
+    <div class="card"><h3>Mastery and grading</h3><p>Mastery comes from attempt evidence. Grading compares against the reference; similarity is never treated as correctness.</p></div>
+  </div>
+
+  <h2 id="gotchas"><span class="section-no">J</span>Gotchas</h2>
+  <table class="data reveal">
+    <tbody>
+      <tr><td>Filter after ANN</td><td>Returned zero results for small competitions. Fixed by filtering in the eligible CTE before ranking.</td></tr>
+      <tr><td>Short text embeds poorly</td><td>Taxonomy names alone were too thin; neighbour context was added, capped at 15 per list.</td></tr>
+      <tr><td>Text ids vs uuid columns</td><td>Textbook keys are text; a uuid5 surrogate fills <code>source_entity_id</code>.</td></tr>
+      <tr><td>Paid backfills</td><td>Every embedding target is labelled paid in the Makefile; <code>status</code> targets are read-only and free.</td></tr>
+      <tr><td>Query embedding cost</td><td>Free-text search makes one embedding call per query. Step practice reuses stored vectors to avoid it.</td></tr>
+      <tr><td>Cached model id</td><td><code>_active_model_id()</code> is <code>lru_cache</code>d per REST process. Newly embedded rows are visible immediately, but a model switch needs a REST restart.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="refs"><span class="section-no">K</span>Requirements and references</h2>
+  <ul>
+    <li><a href="../requirements/05_RAG_AND_INDEXING_REQUIREMENTS.md">05 — RAG and indexing requirements</a></li>
+    <li><a href="../requirements/16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md">16 — Pipeline job console and hybrid RAG</a></li>
+    <li><a href="../requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md">24 — Admin textbook corpus dashboard (coverage, NYI-ATB-*)</a></li>
+    <li><a href="../requirements/25_LEARNING_ITEM_CONCEPT_EDGES.md">25 — Learning-item concept edges</a></li>
+    <li><a href="../requirements/26_GEOMETRY_RUNTIME_COMPLETION_PLAN.md">26 — Geometry runtime completion plan</a></li>
+    <li><a href="../requirements/reference/POSTGRES_SCHEMA.md">POSTGRES_SCHEMA.md</a> · <a href="../requirements/reference/POSTGRES_DML.md">POSTGRES_DML.md</a> · <a href="../requirements/reference/REST_API.md">REST_API.md</a></li>
+  </ul>
+</main>
+
+<footer>
+  <a href="graph.html">&larr; Knowledge Graph</a> ·
+  Next: <a href="use-cases.html">Use Cases</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

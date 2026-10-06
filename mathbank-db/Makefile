@@ -309,6 +309,11 @@ migrate-outbox-consumers-remote: ## Outbox consumers: analytics rollup, projecti
 	@. $(CURDIR)/../mathbank-graph/remote.env; \
 	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
 	  -v ON_ERROR_STOP=1 -f sql/018_outbox_consumers.sql
+.PHONY: migrate-live-fluid-remote
+migrate-live-fluid-remote: ## Live sessions, activities/polls, widget specs, authoring plans (migration 020)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/020_live_fluid_platform.sql
 .PHONY: migrate-admin-import-review-remote
 migrate-admin-import-review-remote: ## Admin import/DAG review audit, conflict decisions, step edit guard (migration 019)
 	@. $(CURDIR)/../mathbank-graph/remote.env; \

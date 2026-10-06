@@ -40,13 +40,31 @@ owns_listener() {
   return 1
 }
 if [ -n "$listener" ]; then
-  if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && owns_listener "$listener" &&
-     kill -0 "$pid" 2>/dev/null &&
-     [ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 "$url" || true)" = "200" ]; then
-    echo "$name already ready: $url (pid $pid)"
-    exit 0
+  if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && owns_listener "$listener" && kill -0 "$pid" 2>/dev/null; then
+    code="$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 "$url" || true)"
+    if [ "$code" = "200" ]; then
+      echo "$name already ready: $url (pid $pid)"
+      exit 0
+    fi
+    # Our own recorded process holds the port but is unhealthy: restart it.
+    # Processes this script did not start are never killed (see below).
+    echo "$name (pid $pid) is running but unhealthy (HTTP ${code:-none} from $url); restarting it."
+    kill "$pid" 2>/dev/null || true
+    for _ in $(seq 1 20); do
+      lsof -nP -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || break
+      sleep 0.5
+    done
+    if lsof -nP -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      kill -9 "$pid" 2>/dev/null || true
+      sleep 1
+    fi
+    rm -f "$pid_file"
+    pid=""
+    listener="$(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
   fi
-  echo "ERROR: port $port is already occupied (PID $listener). No process was killed." >&2
+fi
+if [ -n "$listener" ]; then
+  echo "ERROR: port $port is already occupied (PID $listener), not by a process this script started. No process was killed." >&2
   echo "Inspect it with: lsof -nP -iTCP:$port -sTCP:LISTEN" >&2
   echo "Stop the intended service explicitly before retrying." >&2
   exit 1

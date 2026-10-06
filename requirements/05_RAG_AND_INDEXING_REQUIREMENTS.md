@@ -83,6 +83,12 @@ Query Router
 - Strategy: embed query, ANN search with optional metadata pre-filter.
 - Returns: top-K chunks ranked by cosine similarity, with parent question metadata.
 
+### RAG-007b: Concept Query (taxonomy vectors) — implemented 2026-10-06
+- Query: `POST /v1/search/concepts {"query": "power of a point", "node_types": ["TECHNIQUE"], "chapter_number": 3, "limit": 10}`
+- Strategy: hard filters on `pedagogy.taxonomy_node`, then exact cosine distance over the filtered `TAXONOMY_NODE` embeddings (profile `pedagogy_step_v2`) fused with lexical `ts_rank_cd` by RRF (k=60). Falls back to lexical with a warning if the query embedding fails.
+- Returns: taxonomy node id/type/name/parent/chapter, corpus `slug` + `slug_kind` (concept/skill/technique), step-linked `problem_count` and up to 5 `example_problem_codes`. No solution text.
+- Consumer: the tutor agent's `search_concepts` tool grounds any named topic before choosing problems.
+
 ### RAG-008: Combined Filter + Semantic Query
 - Query: `{ "topic": "Geometry", "difficulty": "hard", "q": "circles inscribed in triangles" }`
 - Strategy: pre-filter by topic + difficulty, then vector search within filtered set.

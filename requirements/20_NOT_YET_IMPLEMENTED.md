@@ -71,7 +71,7 @@ Merged from [21](21_V2_PACK_IMPLEMENTATION_AUDIT.md) so they survive deletion of
 | NYI-WALK-5 | Solve-workspace agent chat | ⏳ | `SOLVE_WORKSPACE` link surface is reserved ([22](22_AGENT_SESSION_TRANSCRIPTS.md)); the solve page has no embedded tutor chat yet (pairs with NYI-P11). |
 | NYI-WALK-6 | Transcript export / retention / redaction | ⏳ | No export, no retention policy, only tool-payload truncation ([22](22_AGENT_SESSION_TRANSCRIPTS.md) §6). |
 | NYI-WALK-7 | Browser regression in CI | ⏳ | Playwright suite ([23](23_E2E_REGRESSION_SUITE.md)) runs only against a local stack; no CI job or seeded test environment. |
-| NYI-ATB-1 | Taxonomy node embeddings | ✅ | **Delivered 2026-10-05.** 501/501 nodes are embedded as `TAXONOMY_NODE` (profile `pedagogy_step_v2`, `embed_textbook_steps.py`). The rendered text is name + parent path + chapter/section + taxonomy-edge neighbours, and provenance-only descriptions are dropped. **Remainder:** there is no retrieval API or agent tool over these vectors yet (pairs with NYI-P11), and technique/skill texts are thin where the source edges are sparse (NYI-ATB-8). |
+| NYI-ATB-1 | Taxonomy node embeddings | ✅ | **Delivered 2026-10-05.** 501/501 nodes are embedded as `TAXONOMY_NODE` (profile `pedagogy_step_v2`, `embed_textbook_steps.py`). The rendered text is name + parent path + chapter/section + taxonomy-edge neighbours, and provenance-only descriptions are dropped. **Retrieval delivered 2026-10-06:** `POST /v1/search/concepts` (`step_search.search_taxonomy_nodes`, exact cosine over the filtered TAXONOMY_NODE set + lexical RRF, optional `node_types`/`chapter_number`, lexical-only fallback with a warning if the query embedding fails) returns each node's slug, `slug_kind`, step-linked `problem_count` and up to 5 `example_problem_codes`. The tutor agent calls it first via `search_concepts` for any named topic and follows up with `get_problems_for_concept` / the new `get_problems_for_technique` / `get_prerequisite_path`. **Remainder:** technique/skill texts are thin where the source edges are sparse (NYI-ATB-8), so short queries can rank loosely related nodes; recovery planning does not yet use concept vectors. |
 | NYI-ATB-2 | Diagrams in graph / vectors | ⏳ | 250 diagrams exist only in Postgres. Project `Problem-[:HAS_DIAGRAM]->Diagram` (visibility-aware) and optionally embed captions or images. |
 | NYI-ATB-3 | Durable diagram asset location | ⏳ | **Blocks deleting the pack.** All 250 `pedagogy.diagram.local_path` values point inside the requirements pack. Copy the assets and update the paths **before** deleting the pack (GOT-ATB-5). |
 | NYI-ATB-4 | Chapter sections in the graph | ⏳ | 214 sections are PG-only; the graph has chapter `Paper` nodes only. |
@@ -81,8 +81,40 @@ Merged from [21](21_V2_PACK_IMPLEMENTATION_AUDIT.md) so they survive deletion of
 | NYI-ATB-9 | Remaining v2 graph vocabulary | ⏳ | runtime_extension/06 lists `TheoryUnit`, `Misconception`, `VARIANT_OF`, `DERIVES_FROM`, `USES_RESULT_FROM`, `ALTERNATIVE_TO`, `JOINS_AT` and `Step-[:USES_TECHNIQUE]`. None exist in Aura because there is no source data (NYI-P13, NYI-3, NYI-AUD-2). |
 | NYI-ATB-6 | Dashboard write actions | ⏳ | `/admin/textbooks` is read-only; edit, re-import, conflict resolution and per-row re-embed/re-project belong to Phase 12. |
 
+## 6. Fluid widgets, live platform and student add-ons (2026-10-06)
+
+Delivered scope: [27](27_FLUID_WIDGET_LAYER.md), [28](28_DISTRIBUTED_LIVE_PLATFORM.md), [29](29_STUDENT_INPUT_ADDONS.md).
+
+| ID | Gap | Status | Detail / next step |
+|---|---|---|---|
+| NYI-FW-1 | `/v1/content/*` namespace and `/v1/authoring/course-briefs` | ⏳ | Existing `/v1/problems`, `/v1/solution-steps`, `/v1/learning-items` are reused. Add aliases or briefs only if a client needs them. |
+| NYI-FW-2 | Admin authoring web UI (structured outline/timing/preview + admin chat with patch preview/apply) | ⏳ | REST is complete (`/v1/authoring/*`); there is no `mathbank-web` page. Audience, quiz density, widget style, autonomy and purge-policy controls are not modelled. |
+| NYI-FW-3 | Live `KNOWLEDGE_GRAPH` expansion from `root_skill_id` | ⏳ | The renderer shows the nodes/edges it is given; it does not query Neo4j by root skill. |
+| NYI-FW-4 | Publish-time widget compilation / pre-render cache | ⏳ | Static templates exist, but publishing a plan does not precompile its scene widgets. |
+| NYI-FW-5 | Geometry interaction events → activity evaluation; SolutionStep ↔ WidgetState sync in the solve workspace | ⏳ | `WIDGET_INTERACT` is recorded (`student.widget_interaction`), but it is not evaluated. |
+| NYI-FW-6 | Prefetch of the next scene's widgets/assets | ⏳ | |
+| NYI-FW-7 | Purge job for expired EPHEMERAL/SESSION widget specs and activities | ⏳ | The lifecycle states exist; nothing is scheduled. |
+| NYI-FW-8 | Failure-mode tests for graph/vector outages during a live session | ⏳ | Widget failure and reconnect are covered. |
+| NYI-FW-9 | Fluid pack files 01, 02, 13, 18, 21–25, 28 missing | ➖ | Re-audit doc 27 when they arrive. |
+| NYI-FW-10 | Live renderers for NUMERIC / SHORT_RESPONSE / STEP_ORDERING / ERROR_DIAGNOSIS / SUBPROBLEM activities | ⏳ | REST accepts them; the classroom renders option-based activities only. A hint button in the classroom is also missing. |
+| NYI-LIVE-1 | Event bus (NATS) consuming `pipeline.outbox_event` | ⏳ | The gateway polls REST every 700 ms (GOT-LIVE-10). |
+| NYI-LIVE-2 | Redis adapter / horizontal socket fan-out | ⏳ | A single gateway process today; more than one needs a Redis adapter and sticky sessions. |
+| NYI-LIVE-3 | Group mode UI (groups, group takeover, group rooms) | 🟡 | Schema, audiences and rooms exist; there is no UI to form groups. |
+| NYI-LIVE-4 | Visual agent split (static batch + slow dynamic SVG/image generation) | ⏳ | Only the deterministic fast path exists (`/v1/widgets/generate`). |
+| NYI-LIVE-5 | Asset API and object storage (signed URLs) | ⏳ | The `visual.asset` table exists, but no code uses it. |
+| NYI-LIVE-6 | MCP agent gateway | ⏳ | |
+| NYI-LIVE-7 | Durable workflows (Temporal) | 🕓 | Deferred by design (doc 28 §2). |
+| NYI-LIVE-8 | Production deployment of `mathbank-live` (TLS, sticky sessions, CORS/host config) | ⏳ | Runs locally via `make -C mathbank-live start`. |
+| NYI-LIVE-9 | Handoff pack files 01, 05–10, 14, 18, 19, 21–24, 26–29, 32, 33 and the upstream zips missing | ➖ | Re-audit doc 28 when they arrive. |
+| NYI-UXA-1 | Streaming TTS while the tutor is still writing | ⏳ | Today a full answer is synthesised on click (≤1,200 chars). |
+| NYI-UXA-2 | Push-to-talk shortcut and per-student voice preference | ⏳ | |
+| NYI-UXA-3 | Handwriting / photo-of-work input (OCR) | ⏳ | |
+| NYI-UXA-4 | Anonymous agent widgets | ⏳ | `propose_widget` needs a signed-in chat (`SIGN_IN_REQUIRED` pattern); anonymous chat gets text only. |
+
 ## Change log
 
+- 2026-10-06: NYI-ATB-1 retrieval delivered: `POST /v1/search/concepts` + agent tools `search_concepts` and `get_problems_for_technique`.
+- 2026-10-06: Added §6 NYI-FW-1…10, NYI-LIVE-1…9 and NYI-UXA-1…4 (fluid widgets, live platform, student add-ons).
 - 2026-10-06: Doc 26 WP1–WP4: NYI-P6 narrowed to erasure; NYI-P11 narrowed to the solve-page chat; NYI-P12 and NYI-1 delivered; NYI-3 rule tier delivered.
 - 2026-10-05: NYI-ATB-7 delivered (learning-item concept/subconcept edges, [25](25_LEARNING_ITEM_CONCEPT_EDGES.md)).
 - 2026-10-05: NYI-ATB-1 delivered (taxonomy embeddings 501/501). Added NYI-ATB-7 (learning-item concept edges), NYI-ATB-8 (usage-weighted taxonomy texts) and NYI-ATB-9 (remaining v2 graph vocabulary), all from a live Aura audit against runtime_extension/06.

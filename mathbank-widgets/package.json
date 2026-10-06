@@ -1,0 +1,21 @@
+{
+  "name": "mathbank-widgets",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared declarative widget renderer, math composer and voice add-ons for mathbank-web and mathbank-live",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.js",
+    "./format": "./src/format.mjs",
+    "./speech": "./src/speech.mjs",
+    "./server": "./src/server.mjs"
+  },
+  "files": ["src", "fixtures", "README.md"],
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}

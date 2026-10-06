@@ -29,6 +29,8 @@ Artifacts: `mathbank-web/playwright-report/`, `mathbank-web/test-results/` (git-
 | `public.spec.mjs` | 10 public pages render with no hydration/page errors; anonymous nav shows "Student login"; `/db` lists `PRASOLOV_PGV1` with 1,697 problems. |
 | `student.spec.mjs` | Dedicated test learner (`e2e.regression.student@example.com`, auto-registered); signed-in nav; `/learn/conversations`; foreign transcript → 403/404; diagram image loads on `PRASOLOV_PGV1_CH21_P024`; Power-of-a-Point (`CH03_P050`) similar steps + "Strengthen this skill" detour without provenance text, then return. |
 | `admin.spec.mjs` | Admin pages redirect to `/admin/login` when signed out; `/admin`, `/admin/conversations`, `/admin/knowledge-gaps`, `/admin/pedagogy` render; conversations API returns `{linked[], unlinked_count}`. |
+| `input-addons.spec.mjs` | Home chat composer: symbols, quick format and KaTeX preview. `/api/format-math` is deterministic for anonymous callers, and cross-origin requests get 403. Voice routes: free health probe plus request validation, with no characters billed. Solve workspace AI format (mocked) keeps the student's words. Admin widget gallery renders server specs and the speak button sends speakable text (TTS mocked). See doc [29](29_STUDENT_INPUT_ADDONS.md). No paid calls. |
+| `live-classroom.spec.mjs` | Two browsers against `mathbank-live` (`E2E_LIVE_URL`, default :5174). The instructor drives; the student receives widgets, messages and polls in real time (doc [28](28_DISTRIBUTED_LIVE_PLATFORM.md)). Skips when the app is unreachable or `E2E_SKIP_LIVE=1`. No paid calls. |
 | `tutor-llm.spec.mjs` (`@llm`) | Home tutor answers a Power-of-a-Point question using `search_problems` and cites Prasolov; the chat appears in conversations; hint + graded step submission. |
 
 `watchPageErrors(page).assertClean()` fails any test that logs a hydration mismatch, uncaught page error, or TypeError.
@@ -37,6 +39,12 @@ Artifacts: `mathbank-web/playwright-report/`, `mathbank-web/test-results/` (git-
 
 - Default run: **23 passed** (~41 s).
 - `E2E_LLM=1 tutor-llm.spec.mjs`: **2 passed** (~22 s).
+
+## 4a. Baseline (2026-10-06 UTC, local stack incl. `mathbank-live`)
+
+- Default run (`cd mathbank-web && npx playwright test`): **36 passed** (~1.2 min), including the input add-ons and live classroom specs.
+- `make -C mathbank-live test`: live unit tests **10/10**. `make -C mathbank-live smoke`: **PASS** (socket join + op round trip).
+- REST `tests/test_fluid_widgets.py`: **55 passed**. `mathbank-widgets` node tests: **10 passed**.
 
 ## 5. Rules
 

@@ -255,6 +255,102 @@
           code: null
         }
       ]
+    },
+    powerpoint: {
+      label: "Power of a Point — step runtime",
+      steps: [
+        {
+          "layer": "web",
+          "status": "live",
+          "chat": {
+            "type": "user",
+            "text": "Can you help me practise power of a point?"
+          },
+          "title": "1 · Home chat — the student names a topic, not a problem",
+          "body": "<p>Test learner Pia starts on <code>/learn</code>. The chat message goes through the Next.js <code>/api/agent</code> proxy to the ADK agent. Her session is recorded in <code>learner.agent_session_link</code> (surface <code>HOME_CHAT</code>), so the conversation can be rebuilt later in <code>/learn/conversations</code> and <code>/admin/conversations</code>.</p><p class=\"pedagogy-note\">The chat wording in this turn is illustrative. The tool calls, verdicts and stages are the ones recorded in requirements 18 (walkthrough, 2026-10-05).</p>",
+          "code": null
+        },
+        {
+          "layer": "rest",
+          "status": "live",
+          "chat": {
+            "type": "tool",
+            "text": "🔧 search_problems(\"power of a point\") → get_problem_learning_context(code)"
+          },
+          "title": "2 · Hybrid search returns a Prasolov problem",
+          "body": "<p>The search combines a tag-first graph query (rewritten from 36 s to 2 s after the first walkthrough timed out, GOT-WALK-1), pgvector similarity over 31,883 embeddings, and a lexical search. <code>get_problem_learning_context</code> then adds the skill, the prerequisites and the step count for the chosen problem.</p>",
+          "code": "POST /v1/search/problems  {\"query\": \"power of a point\"}\nGET  /v1/tutor/learning-context/PRASOLOV_PGV1_CH03_P050"
+        },
+        {
+          "layer": "web",
+          "status": "live",
+          "chat": {
+            "type": "agent",
+            "text": "Here's a good one from Prasolov, chapter 3. Shall we work through it step by step in the solve workspace?",
+            "cites": [
+              "PRASOLOV_PGV1_CH03_P050"
+            ]
+          },
+          "title": "3 · Into the step workspace",
+          "body": "<p><code>/learn/solve/PRASOLOV_PGV1_CH03_P050</code> starts a <code>learner.solve_attempt</code> and shows only <code>STUDENT_PROBLEM</code> diagrams, served through <code>/api/rest/solve/images/{id}</code>. <code>SOLUTION_HIDDEN</code> diagrams never reach the browser. Maths is rendered with KaTeX.</p>",
+          "code": "POST /v1/students/{student_id}/problems/PRASOLOV_PGV1_CH03_P050/attempts\n→ {solve_attempt_id, status: \"IN_PROGRESS\", current_step: 1, mode: \"SOLVING\"}"
+        },
+        {
+          "layer": "openai",
+          "status": "live",
+          "chat": {
+            "type": "system",
+            "text": "hint L1 · directional prompt (LLM, cached in pedagogy.step_hint)"
+          },
+          "title": "4 · A nudge, not the answer",
+          "body": "<p>The help ladder is L1 directional → L2 concept reminder → L3 strategic → L4 near-explicit → L5 full reveal. Levels 1–4 are generated without the official solution text and cached per <code>(solution_step_id, hint_level, prompt_version)</code>. L5 returns the canonical step text and limits credit. <code>attempt_step_state.help_level_used</code> records the highest level shown.</p>",
+          "code": "POST /v1/attempts/{attempt_id}/steps/{step_id}/hint\nIdempotency-Key: 6f1c…\n{\"level\": 1}"
+        },
+        {
+          "layer": "openai",
+          "status": "live",
+          "chat": {
+            "type": "agent",
+            "text": "Partially correct — you have the right pair of segments, but check which products must be equal."
+          },
+          "title": "5 · Server-side grading of the step",
+          "body": "<p>The grader compares the response with the canonical step on the server (strict JSON schema, temperature 0). It returns CORRECT, PARTIALLY_CORRECT, INCORRECT or OFF_TOPIC, together with a failure mode and where the error is. The result is stored in <code>attempt_step_state</code> and the append-only <code>learner.event</code>.</p>",
+          "code": "POST /v1/attempts/{attempt_id}/steps/{step_id}/responses\n→ {\"verdict\": \"PARTIALLY_CORRECT\", \"failure_mode\": …, \"feedback\": …}"
+        },
+        {
+          "layer": "sql",
+          "status": "live",
+          "chat": {
+            "type": "system",
+            "text": "diagnosis → \"Quick check suggested\""
+          },
+          "title": "6 · Gap diagnosis ranks what is probably missing",
+          "body": "<p><code>diagnose</code> uses the step's skill, the steps that feed it in the solution DAG, and the taxonomy. It writes a <code>pedagogy.gap_diagnosis</code> with ranked <code>knowledge_gap</code> rows, shown to the student as <em>likely / possible / worth checking</em>. <code>tutor.runtime_state.current_mode</code> becomes <code>DIAGNOSING</code>.</p>",
+          "code": "POST /v1/attempts/{attempt_id}/steps/{step_id}/diagnose\n→ gap_diagnosis + knowledge_gap[rank 1..n]"
+        },
+        {
+          "layer": "vector",
+          "status": "live",
+          "chat": {
+            "type": "agent",
+            "text": "Let's strengthen this skill first: Worked example → Recognise the idea → Use it once → Use it in context → Try it somewhere new → Back to your problem."
+          },
+          "title": "7 · Recovery detour with transformed items",
+          "body": "<p>A <code>pedagogy.recovery_plan</code> records <code>origin_step_id</code>. Its items are approved learning items (MCQ, subproblem, theory) and worked examples from other problems, ranked by topic closeness (GOT-WALK-4/5). The six stages are FOUNDATION → RECOGNITION → ISOLATED_EXECUTION → GUIDED_APPLICATION → TRANSFER → RETURN_TO_STEP. Known rough edges: template distractors, \"Problem 17.30\" style references and PDF glyphs (NYI-WALK-2/3).</p>",
+          "code": "POST /v1/attempts/{attempt_id}/recovery-plans\nGET  /v1/recovery-plans/{plan_id}/next\nPOST /v1/recovery-plans/{plan_id}/items/{item_id}/responses"
+        },
+        {
+          "layer": "web",
+          "status": "live",
+          "chat": {
+            "type": "agent",
+            "text": "Nice — you're back on step 2 of the original problem. Try it again with what you just practised."
+          },
+          "title": "8 · Return to the exact step",
+          "body": "<p><code>resume</code> puts the attempt back to <code>SOLVING</code> on the original step. The chat agent can drive the same flow through its step-runtime tools (<code>start_recovery_plan</code>, <code>get_next_recovery_item</code>, <code>resume_original_step</code>, …), so the chat and the workspace never disagree.</p>",
+          "code": "POST /v1/recovery-plans/{plan_id}/resume\n→ {mode: \"SOLVING\", current_step_id: <origin_step_id>}"
+        }
+      ]
     }
   };
 

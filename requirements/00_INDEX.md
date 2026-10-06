@@ -30,6 +30,9 @@ This folder defines the implementation plan and requirements for building the Ma
 24. [24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md](24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md) — admin Prasolov corpus dashboard (problems, solutions/steps, transformations, taxonomy, diagrams) and the measured source → Postgres → pgvector → Neo4j coverage matrix.
 25. [25_LEARNING_ITEM_CONCEPT_EDGES.md](25_LEARNING_ITEM_CONCEPT_EDGES.md) — `LearningItem -[:TARGETS_CONCEPT|TARGETS_SUBCONCEPT]->` graph edges (NYI-ATB-7): contract, implementation, run results, queries, acceptance.
 26. [26_GEOMETRY_RUNTIME_COMPLETION_PLAN.md](26_GEOMETRY_RUNTIME_COMPLETION_PLAN.md) — Prasolov-only completion of the runtime extension: step→technique tags (WP1), agent step-runtime tools (WP2), admin import/reconciliation/DAG review UI (WP3), outbox consumers and event lifecycle (WP4), remaining WPs, and the NULL policy + runtime population plan for non-Prasolov corpora.
+27. [27_FLUID_WIDGET_LAYER.md](27_FLUID_WIDGET_LAYER.md) — fluid experience & widget orchestration (`math_tutor_fluid_widget_selected_docs`): admin chat → proposed patch → apply, versioned presentation plans, course time orchestrator, activities/polls, WidgetSpec DSL + validation, static/dynamic widgets; per-file pack map.
+28. [28_DISTRIBUTED_LIVE_PLATFORM.md](28_DISTRIBUTED_LIVE_PLATFORM.md) — the separate socket deployable `mathbank-live` (:5174): Socket.IO gateway, event contract, rooms/replay, instructor console and takeover; per-file map of `math_tutor_distributed_platform_copilot_handoff`.
+29. [29_STUDENT_INPUT_ADDONS.md](29_STUDENT_INPUT_ADDONS.md) — slim student add-ons: LaTeX MathComposer, ElevenLabs voice (TTS/STT) and agentic/deterministic math formatting, delegated through Next.js server routes.
 
 ## Scope Summary
 
@@ -56,4 +59,7 @@ This folder defines the implementation plan and requirements for building the Ma
   - SPL-* for student profile / login UI requirements (and the admin login bridge)
   - PED-* for pedagogical graph and anonymous tutoring requirements
   - GOT-* for gotchas / operational pitfalls (doc 19)
+  - FW-* for fluid widget / presentation-plan requirements (doc 27)
+  - LIVE-* for the distributed live platform and socket gateway (doc 28)
+  - UXA-* for student input add-ons: composer, voice, formatting (doc 29)
 - Version baseline: v1.0 for spreadsheet migration and first production RAG.

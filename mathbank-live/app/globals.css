@@ -1,0 +1,4 @@
+body { background: #f5f7fb; }
+.live-feed { max-height: 55vh; overflow-y: auto; }
+.join-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .2em; }
+.stage-empty { border: 2px dashed #ced4da; border-radius: .75rem; color: #6c757d; }

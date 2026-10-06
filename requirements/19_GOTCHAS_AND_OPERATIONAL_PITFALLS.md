@@ -239,6 +239,9 @@ Found while building [24](24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md) (2026-10-05).
 | GOT-ATB-12 | `MATCH (li:LearningItem)-->(:Concept)` returns 2 rows per item. | `Subconcept` nodes also carry the `Concept` label, so both `TARGETS_CONCEPT` and `TARGETS_SUBCONCEPT` match an untyped pattern. | Always name the relationship type, as the dashboard does (`[:TARGETS_CONCEPT]->(:Concept)`), or use `count(DISTINCT li)`. |
 | GOT-ATB-13 | The concept reached through `DERIVED_FROM -> Problem -[:TESTS]->` is not the item's target. | A transformation can focus on one sub-idea of a multi-concept source problem. | Select practice items by `TARGETS_*` (or `target_*_node_id` in PG), never by the source problem's concepts. |
 | GOT-ATB-14 | `project_textbook_steps.py` fails with `wrote N/M; graph endpoints are missing`. | The new edges `MATCH` existing `Concept`/`Subconcept` nodes, which only `project_from_postgres.py --pedagogy` creates (and labels `Subconcept`). | Run `make -C mathbank-db textbook-graph-remote` (both projectors in order) on a fresh graph. The partial-write check is intentional. |
+| GOT-ATB-15 | Concept search finds nothing for a node that clearly exists. | Taxonomy chunks have no `skill/subconcept_node_id` for TECHNIQUE and DOMAIN nodes, and `source_entity_id` is a uuid5 surrogate. | Key taxonomy retrieval on `chunk.metadata->>'taxonomy_node_id'` joined to `pedagogy.taxonomy_node`, as `step_search` does. |
+| GOT-ATB-16 | `search_concepts` says a technique has 6 problems but `/v1/techniques/{slug}/problems` lists 1. | `problem_count`/`example_problem_codes` come from published solution steps (approved `solution_step_technique` links for techniques); the slug routes list legacy corpus tags (`core.problem_*`). | Use `example_problem_codes` for practice; the agent instruction says so. Do not "fix" one count to match the other. |
+| GOT-ATB-17 | "power of a point" also returns *Regular polygons* lexically. | Taxonomy texts list neighbouring technique names ("Techniques: … Power of a point …"), so lexical matches neighbours. | Expected with RRF; filter by `node_types` when only one kind is wanted. Richer texts are NYI-ATB-8. |
 | GOT-ATB-7 | The `learning_item` columns are not `item_type` / `approval_status`. | The v2 schema names are `transformation_type` and `review_status`. | Use the v2 names in any new query. |
 | GOT-ATB-8 | Cypher deprecation warnings flood the REST log. | The Aura driver emits notifications for `labels()`-style queries. | Query with `notifications_min_severity="OFF"` in scripts; the REST helpers swallow the warnings. |
 | GOT-ATB-9 | Browser shows `ERR_ABORTED` for dashboard fetches in dev. | React StrictMode mounts effects twice, and the first fetch is aborted by design. | Harmless. Data loads from the second fetch. |
@@ -268,9 +271,44 @@ Found while delivering [26](26_GEOMETRY_RUNTIME_COMPLETION_PLAN.md) WP1–WP4 (2
 | GOT-GEO-17 | Non-Prasolov problems show no steps/techniques/DAG. | Only the Prasolov packages are decomposed. | Intended NULL policy; runtime population plan in doc 26 §3. |
 | GOT-GEO-18 | `ingest.admin_review_action` UPDATE/DELETE fails. | Append-only trigger. | Correct by appending a new action; never edit audit rows. |
 
+## 15. Fluid widgets, live classroom and student add-ons (`FW`, `LIVE`, `UXA`)
+
+Found while delivering [27](27_FLUID_WIDGET_LAYER.md), [28](28_DISTRIBUTED_LIVE_PLATFORM.md) and [29](29_STUDENT_INPUT_ADDONS.md) (2026-10-06).
+
+| ID | Symptom | Cause | Fix / rule |
+|---|---|---|---|
+| GOT-FW-1 | A widget spec with a `template` key was rejected (422). | `template` is in `FORBIDDEN_KEYS` (string templates could smuggle markup). | Reference templates by `template_id`; widget generation resolves them server-side. |
+| GOT-FW-2 | One rejected live command aborted the whole request transaction. | A failed SQL statement poisons the transaction. | `execute_command` runs each command in a **savepoint**; a rejection rolls back the savepoint but still stores a `REJECTED` `live.command_receipt`, so retries stay idempotent. |
+| GOT-FW-3 | Changes to `mathbank-widgets` did not show in web/live. | The apps use a **copy** in `node_modules/mathbank-widgets`, not a live link. | Run `make -C mathbank-web sync-widgets` / `make -C mathbank-live sync-widgets` (`start`/`dev` do it automatically), then restart. |
+| GOT-FW-4 | Hydration error: "server rendered HTML didn't match the client" around the 🎤 button. | `MicButton` checked `window.MediaRecorder` during render. | Detect browser features in `useEffect` after mount; render the same markup on server and client. |
+| GOT-FW-5 | Inline code in tutor answers turned into a block, or KaTeX inside code broke. | Overriding the Markdown `code` renderer affects inline code too. | Override `pre` (the block wrapper), not `code`. |
+| GOT-FW-6 | Pack poll names (`PREPLANNED`, `AGENT_CREATED`) don't match the database. | The DB uses `source_type` PRECOMPILED / CORPUS_DERIVED / LIVE_AGENT_CREATED / INSTRUCTOR_CREATED. | Map the pack names onto these values; do not add duplicate enum values. |
+| GOT-FW-7 | Creating an activity of type `POLL` returned 500. | An unknown `activity_type` hit the CHECK constraint. | Validated up front: 422 `ACTIVITY_INVALID`; the type is `LIVE_POLL`. |
+| GOT-FW-8 | A student could not preview a widget (`/v1/widgets/generate` 401). | The route required the admin key. | It is now `staff_or_student`; storing/reviewing specs is still admin-only. |
+| GOT-FW-9 | An edit to a published plan failed with `PLAN_IMMUTABLE` or a trigger error. | Published plans are immutable (`authoring.guard_published_plan`/`guard_published_topic`). | `POST /v1/authoring/presentation-plans/{id}/new-version`, edit the DRAFT, then publish (which supersedes the old version). Purges need `SET authoring.allow_purge = 'on'`. |
+| GOT-LIVE-1 | The pack references upstream zips that are not in the repo. | Only the handoff/fluid Markdown packs were delivered. | Minimal compatible models were implemented; re-audit when the upstream packs arrive (NYI-FW-9, NYI-LIVE-9). |
+| GOT-LIVE-2 | Expecting two independent MFE builds. | `mathbank-live` is one Next app with `/s/[sid]` (student) and `/i/[sid]` (instructor). | Separate deployable from `mathbank-web`; module federation not adopted. |
+| GOT-LIVE-3 | Next dev HMR stopped working once Socket.IO was mounted. | Socket.IO destroyed upgrade requests that it did not own. | `new Server(httpServer, { destroyUpgrade: false })` in `server.mjs`. |
+| GOT-LIVE-4 | `next build` with `output: "standalone"` produced a server without sockets. | Standalone output generates its own server and ignores `server.mjs`. | Do not use standalone; run `npm start` (custom server). |
+| GOT-LIVE-5 | The browser bundle failed on `node:crypto`. | A client component imported `lib/gateway.mjs`. | Clients import only `lib/events.mjs` (pure); the gateway is server-only. |
+| GOT-LIVE-6 | Logged in on :5173 but also logged in on :5174 (or logged out of both). | Cookies are host-scoped, not port-scoped. | Expected: `mb_student_token` / `mb_admin_session` are shared by web and live on localhost. Use different hosts for isolation. |
+| GOT-LIVE-7 | A student's own question did not appear in their feed. | `QUESTION_ASK` events have audience INSTRUCTOR and are not echoed to the student. | The classroom echoes the question locally; do not broaden the audience. |
+| GOT-LIVE-8 | AI action returned 409 `STALE_VERSION` / `AI_NOT_IN_CONTROL`. | `AI_TUTOR` must send `expected_session_version`; during a takeover or lock AI messages are blocked. | Re-read `/v1/tutor/sessions/{sid}/context` and re-propose; never retry blindly. |
+| GOT-LIVE-9 | Event names in the fluid pack (`SCENE_CHANGED`) differ from the live ones (`scene.changed`). | The packs disagree. | Dotted lowercase from the distributed pack 04 is canonical. |
+| GOT-LIVE-10 | Events arrive up to ~0.7 s late. | The gateway polls `/events?after=` every 700 ms (no NATS/Redis yet). | Acceptable for a classroom; the event bus is NYI-LIVE-1. Clients dedupe by `sequence`. |
+| GOT-LIVE-11 | Playwright `getByText("Poll")` matched several elements. | Labels repeat across the console. | Use `exact: true` or `data-testid`. |
+| GOT-UXA-1 | STT returned 400 / empty. | ElevenLabs expects the multipart field **`file`** (not `audio`). | `MicButton` and `createVoiceHandlers` use `file`. |
+| GOT-UXA-2 | `ELEVEN_API_KEY` disappeared from `mathbank-web/.env` after `make sync-env`. | `sync-env` rewrote service env files from a fixed key list. | `sync-env.sh` now also runs the Eleven and live syncs; or run `make sync-eleven-key`. Restart web/live after key changes. |
+| GOT-UXA-3 | `check-eleven` / voice cost money unexpectedly. | TTS and STT are billed; `/v1/models` is free. | `check-eleven` is free by default; `TTS=1` is the explicit paid opt-in. Playwright mocks TTS/STT. |
+| GOT-UXA-4 | The ✨ button returned the deterministic result. | Not logged in, model failure, or the model's output failed validation. | Read `engine` and `warnings` in the response; this fallback is intended. |
+| GOT-UXA-5 | The terminal showed `Bearer ******` in copied commands. | The terminal masks secrets. | Not a bug in the scripts; never paste real keys into docs. |
+
 ---
 
 ## Change log
+
+- 2026-10-06: Added GOT-ATB-15…17 (concept search over taxonomy vectors).
+- 2026-10-06: Added §15 (GOT-FW-1…9, GOT-LIVE-1…11, GOT-UXA-1…5) for the fluid widget layer, the `mathbank-live` socket deployable and the student input add-ons.
 
 - 2026-10-06 (Doc 26 WP1–WP4): Added GOT-GEO-1…18.
 - 2026-10-05 (Learning-item concept edges): Added GOT-ATB-12…14.

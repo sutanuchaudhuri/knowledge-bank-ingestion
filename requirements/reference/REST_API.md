@@ -3,9 +3,9 @@
 ## Evidence
 
 - Evidence mode: source-derived only.
-- Source revision: `0925f37d82cc428202a12746df5112a3978c46b5`, with uncommitted worktree changes included.
-- Sources: `mathbank-rest/src/mathbank_rest/main.py`, routers under `routers/` including `step_runtime.py`, DB modules under `db/`, `security.py`, `pedagogy.py`, `tutor.py`, `enrichment.py`, `relationship_enrichment.py`, `step_runtime.py`, `step_tutor.py`, `step_diagnosis.py`, `step_recovery.py`, `agent_transcripts.py`, `routers/agent_sessions.py`, `db/textbook_admin.py`, `routers/admin_textbooks.py`, `db/import_admin.py`, `routers/admin_imports.py`, `app/api/rest/admin/imports/[[...path]]/route.js`, `lib/adminImportsProxy.mjs`, `mathbank-agent/agents/mathbank_tutor/tools/step_runtime_tools.py`, `mathbank-web/app/api/**`, especially `app/api/rest/solve/[...path]/route.js`, `app/api/rest/admin/knowledge-gaps/route.js`, `app/api/agent/session/route.js`, `app/api/rest/learner/conversations/[[...path]]/route.js`, `app/api/rest/admin/conversations/route.js`, `app/api/rest/admin/textbooks/[...path]/route.js`, `lib/adminTextbooksProxy.mjs`, `lib/agentIdentity.mjs`, `lib/solveProxy.mjs`, `lib/adminGapsProxy.mjs`, `app/admin/(protected)/knowledge-gaps/page.jsx`, and `app/learn/solve/[code]`, `mathbank-agent/server.py`, `session_config.py`.
-- OpenAPI snapshot: [openapi.json](openapi.json), generated from `app.openapi()` without starting a server. Snapshot validation observed OpenAPI `3.1.0`, 90 paths, and 37 component schemas. Generation observation: 2026-10-06T01:23:01Z (UTC).
+- Source revision: `43c3316d5b6f8a838874de4aa384cb28ef00aa1a`, with uncommitted worktree changes included (fluid/live refresh 2026-10-06).
+- Sources: `mathbank-rest/src/mathbank_rest/main.py`, routers under `routers/` including `step_runtime.py`, DB modules under `db/`, `security.py`, `pedagogy.py`, `tutor.py`, `enrichment.py`, `relationship_enrichment.py`, `step_runtime.py`, `step_tutor.py`, `step_diagnosis.py`, `step_recovery.py`, `agent_transcripts.py`, `routers/agent_sessions.py`, `db/textbook_admin.py`, `routers/admin_textbooks.py`, `db/import_admin.py`, `routers/admin_imports.py`, `app/api/rest/admin/imports/[[...path]]/route.js`, `lib/adminImportsProxy.mjs`, `mathbank-agent/agents/mathbank_tutor/tools/step_runtime_tools.py`, `mathbank-web/app/api/**`, especially `app/api/rest/solve/[...path]/route.js`, `app/api/rest/admin/knowledge-gaps/route.js`, `app/api/agent/session/route.js`, `app/api/rest/learner/conversations/[[...path]]/route.js`, `app/api/rest/admin/conversations/route.js`, `app/api/rest/admin/textbooks/[...path]/route.js`, `lib/adminTextbooksProxy.mjs`, `lib/agentIdentity.mjs`, `lib/solveProxy.mjs`, `lib/adminGapsProxy.mjs`, `app/admin/(protected)/knowledge-gaps/page.jsx`, and `app/learn/solve/[code]`, `mathbank-agent/server.py`, `session_config.py`; 2026-10-06 additions: `routers/live.py`, `routers/fluid.py`, `live_runtime.py`, `authoring.py`, `widgets.py`, `math_format.py`, `mathbank-agent/agents/mathbank_tutor/tools/widget_tools.py`, `mathbank-widgets/src/server.mjs`, `mathbank-web/app/api/{voice,format-math}/**`, `mathbank-live/{server.mjs,lib/gateway.mjs,lib/events.mjs,app/api/**}`.
+- OpenAPI snapshot: [openapi.json](openapi.json), generated from `app.openapi()` without starting a server. Snapshot validation observed OpenAPI `3.1.0`, 138 paths, and 65 component schemas. Generation observation: 2026-10-06 (UTC), after `POST /v1/search/concepts` (taxonomy concept search) was registered.
 - No endpoint handlers were invoked and no running service drift was checked.
 
 ## Auth mechanisms
@@ -16,6 +16,8 @@
 | Learner and step-runtime protected routes | HTTP bearer JWT via `HTTPBearer`; token subject is `student_id` | `security.get_current_student_id` |
 | Learner register/login | No bearer required; returns access token | `routers/learner.py` |
 | Admin routes and internal step outcome route | `X-Admin-Api-Key` header checked against configured admin key | `security.require_admin_api_key` |
+| Live/fluid routes (`routers/live.py`) | `live_actor`: admin key → actor INSTRUCTOR `instructor:{X-Actor-Id}`, or student bearer → STUDENT `student:{uuid}`; `staff_actor` additionally requires INSTRUCTOR/ADMIN (403 otherwise). `/v1/tutor/sessions/*` with the admin key acts as AI_TUTOR. | `routers/live.py` (`live_actor`, `staff_actor`) |
+| Widgets / format-math (`routers/fluid.py`) | `staff_or_student`: admin key or student bearer; registry is public; store/list/review are admin-key only; all `/v1/authoring/*` are admin-key only | `routers/fluid.py` |
 | Web app proxies | Browser/session-level cookies for app auth wrappers; server-side proxies forward REST/agent calls | `mathbank-web/app/api/**` |
 | ADK agent server | ADK FastAPI app manages its own app/user/session URL structure; MathBank server configures DB-backed sessions | `mathbank-agent/server.py` |
 
@@ -38,6 +40,7 @@ OpenAPI operation IDs are in `openapi.json`. Status/error notes include implemen
 | GET | `/v1/techniques/{slug}/problems` | none | `limit<=200`, `offset>=0` | list | Read-only. |
 | GET | `/v1/corpus/coverage` | none | none | coverage rows | Read-only. |
 | GET | `/v1/analytics/weak-concepts` | none | `min_students>=1`, `limit<=100` | aggregate concept weakness rows | Cohort aggregate only; no PII fields returned by query. |
+| POST | `/v1/search/concepts` | none | `ConceptSearchRequest` (`query` 1..500, `node_types` ⊆ DOMAIN/CONCEPT/SUBCONCEPT/SKILL/TECHNIQUE, `chapter_number 1..100`, `retrieval.{semantic,lexical}`, `limit 1..50`) | `{query, results[{taxonomy_node_id,node_type,name,parent_node_id,parent_name,chapter_number,section_number,slug,slug_kind,problem_count,example_problem_codes,rrf_score,semantic_rank,lexical_rank}], retrieval, warnings}` | 422 blank query/unknown node type; 400 if both sources disabled; semantic ranking calls the embedding provider and falls back to lexical with a warning on failure. Read-only. |
 | POST | `/v1/search/problems` | none | `ProblemSearchRequest` (`query`, filters, retrieval booleans, order, `limit 1..100`) | hybrid search result dict | 422 blank query; 400 if all retrieval sources disabled; semantic search can call embedding provider when enabled. |
 | POST | `/v1/learner/register` | none | `RegisterRequest` email, password 8..200, first/last name | `AuthResponse`, status 201 | 409 duplicate email; writes student profile; hashes password; returns JWT. |
 | POST | `/v1/learner/login` | none | `LoginRequest` | `AuthResponse` | 401 invalid credentials; 403 inactive account; updates last login; returns JWT. |
@@ -121,6 +124,64 @@ OpenAPI operation IDs are in `openapi.json`. Status/error notes include implemen
 | POST | `/v1/admin/imports/problems/{code}/dag/review` | admin key | `{status: APPROVED|NEEDS_REVISION, note?}` | DAG review row | 404/422; upsert + audit. |
 | GET | `/v1/admin/imports/actions` | admin key | `target_type?`, `limit` | append-only audit trail | Read-only. |
 
+## Fluid widget, authoring and live session routes (migration 020; docs 27/28/29)
+
+Auth codes: **A** = admin key only; **S** = `staff_actor` (admin key as INSTRUCTOR); **L** = `live_actor` (admin key or student bearer; students must be participants); **SS** = `staff_or_student`; **T** = admin key acting as `AI_TUTOR`; **P** = public.
+Mutating live routes accept `client_command_id` (idempotent via `live.command_receipt`, a repeat returns the stored result with `duplicate: true`) and, for staff/AI, `expected_session_version` (409 `STALE_VERSION`). Every accepted live mutation appends `live.session_event` rows and `pipeline.outbox_event` rows in the same transaction. OpenAPI documents only 2xx/422 for these routes; the codes in the last column are raised by `LiveError`/`AuthoringError`/`HTTPException` and are **not** declared in the snapshot (contract gap).
+
+| Method | Path | Auth | Request | Notes / errors |
+|---|---|---|---|---|
+| GET | `/v1/authoring/presentation-plans` | A | `limit` | Plan list. |
+| POST | `/v1/authoring/presentation-plans` | A | `PlanIn` (plan_key, title, limits, topics) | **201** DRAFT plan; 422 `INVALID_PLAN`. |
+| GET | `/v1/authoring/presentation-plans/{plan_id}` | A | — | Plan + topics; 404 `NOT_FOUND`. |
+| PUT | `/v1/authoring/presentation-plans/{plan_id}/topics` | A | `TopicsIn` | Replaces topics (delete + insert); 409 `PLAN_IMMUTABLE` when PUBLISHED. |
+| PATCH | `/v1/authoring/presentation-plans/{plan_id}/timing` | A | `TimingIn` | Course limit/buffer/hard limit; 409 `PLAN_IMMUTABLE`. |
+| POST | `/v1/authoring/presentation-plans/{plan_id}/validate` | A | — | Validation report (time budget vs limit, ordinals). |
+| POST | `/v1/authoring/presentation-plans/{plan_id}/approve` | A | — | DRAFT → APPROVED; 422 `INVALID_PLAN`. |
+| POST | `/v1/authoring/presentation-plans/{plan_id}/publish` | A | — | APPROVED → PUBLISHED; supersedes the previous PUBLISHED plan with the same key; 409 `NOT_APPROVED`. |
+| POST | `/v1/authoring/presentation-plans/{plan_id}/new-version` | A | — | **201** DRAFT copy with version+1 and `parent_plan_id`. |
+| POST | `/v1/authoring/chat/sessions` | A | `ChatIn` (plan_id) | **201** admin chat bound to a plan. |
+| GET | `/v1/authoring/chat/sessions/{chat_id}` | A | — | Chat + messages. |
+| POST | `/v1/authoring/chat/sessions/{chat_id}/messages` | A | `MessageIn` (text) | Deterministic intent parse → PROPOSED patch with operations + impact; nothing applied. |
+| GET | `/v1/authoring/chat/sessions/{chat_id}/proposed-patches` | A | — | Patch list. |
+| POST | `/v1/authoring/chat/sessions/{chat_id}/proposed-patches/{patch_id}/apply` | A | `PatchDecision` (`APPLY`/`REJECT`/`MODIFY`/`ASK_FOR_ALTERNATIVE`, operations?) | APPLY validates all operations atomically; 409 `PATCH_DECIDED`/`PLAN_IMMUTABLE`; 422 `INVALID_PATCH`/`INVALID_ACTION`. |
+| GET | `/v1/live/sessions` | S | `limit` | Session list. |
+| POST | `/v1/live/sessions` | S | `SessionIn` (plan_id, title?) | **201** SCHEDULED session with join code; 404 `PLAN_NOT_FOUND`; 409 `PLAN_NOT_APPROVED`. |
+| POST | `/v1/live/sessions/join` | L | `JoinIn` (join_code, display_name?) | Upserts participant; 404 `JOIN_CODE_NOT_FOUND`; 409 `SESSION_ENDED`. |
+| GET | `/v1/live/sessions/{sid}/state` | L | — | Role-filtered state (students never get recommendations/handoff/correct answers before reveal); 403 `NOT_A_PARTICIPANT`. |
+| GET | `/v1/live/sessions/{sid}/events` | L | `after_sequence`, `limit` | Ordered replay filtered by audience. |
+| POST | `/v1/live/sessions/{sid}/commands` | L | `CommandIn` (command_type, payload, client_command_id, expected_session_version?) | Generic command (students: `RESPONSE_SUBMIT`, `HINT_REQUEST`, `QUESTION_ASK`, `MARK_CONFUSED`, `WIDGET_INTERACT`); 403 `FORBIDDEN_COMMAND`; 400 `UNKNOWN_COMMAND`; 409 `STALE_VERSION` etc. |
+| POST | `/v1/live/sessions/{sid}/transition` | S | `TransitionIn` (START/NEXT/BACK/SKIP/GOTO/COMPLETE/…) | 409 `ALREADY_STARTED`/`NOT_STARTED`/`LAST_TOPIC`/`FIRST_TOPIC`/`NO_SUCH_TOPIC`/`HARD_LIMIT`. |
+| POST | `/v1/live/sessions/{sid}/pause` | S | `VersionedIn` | 409 `ALREADY_PAUSED`; stops the clock. |
+| POST | `/v1/live/sessions/{sid}/resume` | S | `VersionedIn` | 409 `NOT_PAUSED`; adds paused time to `paused_total_seconds`. |
+| GET | `/v1/live/sessions/{sid}/time` | S | — | Server-authoritative time state (elapsed, remaining, variance, optional topics, recommendations). |
+| POST | `/v1/activities/definitions` | S | `ActivityIn` | **201** definition; 422 `ACTIVITY_INVALID` (unknown `activity_type`). |
+| POST | `/v1/live/sessions/{sid}/activities` | S | `ActivityIn` (definition_id or inline) | Opens an instance; 404 `ACTIVITY_DEFINITION_NOT_FOUND`. |
+| POST | `/v1/live/sessions/{sid}/activities/{aid}/responses` | L | `ResponseIn` (option/value, confidence 1–5) | One response per participant, resubmission replaces while OPEN; 409 `ACTIVITY_CLOSED`. |
+| GET | `/v1/live/sessions/{sid}/activities/{aid}/aggregate` | L | — | Counts/percentages; students get it only after reveal (403 `NOT_REVEALED`). |
+| POST | `/v1/live/sessions/{sid}/activities/{aid}/close` | S | `VersionedIn` | Stops responses; 409 `NO_OPEN_ACTIVITY`. |
+| POST | `/v1/live/sessions/{sid}/activities/{aid}/reveal` | S | `VersionedIn` | Reveals the aggregate to students, emits a `POLL_RESULT` widget and a `POLL_BRANCH` recommendation. |
+| POST | `/v1/live/sessions/{sid}/widgets` | S | `WidgetIn` (spec or intent, persistence) | Validates then shows; 422 `WIDGET_INVALID`/`WIDGET_OPERATIONS_INVALID`. |
+| PATCH | `/v1/live/sessions/{sid}/widgets/{wid}/state` | S | `WidgetStateIn` (operations) | 404 `WIDGET_INSTANCE_NOT_FOUND`. |
+| DELETE | `/v1/live/sessions/{sid}/widgets/{wid}` | S | query `expected_session_version`, `client_command_id` | Hides widget. |
+| POST | `/v1/instructor/live/{sid}/overrides` | S | `OverrideIn` (TAKEOVER/RELEASE/LOCK_AGENT/UNLOCK_AGENT/EXTEND/SHORTEN/…) | 409 `ALREADY_TAKEN_OVER`/`NO_ACTIVE_TAKEOVER`; 422 `INVALID_SECONDS`. Takeover/lock mark PROPOSED recommendations STALE. |
+| POST | `/v1/instructor/live/{sid}/commands` | S | `NLIn` (text) | Regex NL compiler → AUTO_APPLY commands execute, others become INSTRUCTOR_NL recommendations; 422 `EMPTY_MESSAGE`. |
+| GET | `/v1/instructor/live/{sid}/recommendations` | S | `status` | Recommendation list. |
+| POST | `/v1/instructor/live/{sid}/recommendations/{rid}` | S | `DecisionIn` (ACCEPT/REJECT) | 404 `RECOMMENDATION_NOT_FOUND`; 409 `RECOMMENDATION_DECIDED`. |
+| GET | `/v1/instructor/live/{sid}/handoff` | S | `scope`, `scope_id` | Handoff packet (recent questions/confusion/responses); also emitted as `instructor.handoff_packet`. |
+| GET | `/v1/realtime/sessions/{sid}` | L | — | Socket URL/rooms hint for clients. |
+| GET | `/v1/tutor/sessions/{sid}/context` | T | `participant_id` | Context for the AI tutor (state, time, recent events). |
+| POST | `/v1/tutor/sessions/{sid}/actions` | T | `TutorActionIn` | Proposal only → `live.recommendation`; auto-applied for the AUTO_APPLY set when AI_ACTIVE; 403 `AI_PROPOSES_ONLY`; 422 `UNKNOWN_ACTION`. |
+| POST | `/v1/tutor/sessions/{sid}/messages` | T | `TutorMessageIn` | `tutor.message` event; **409 `AI_NOT_IN_CONTROL`** during takeover/lock. Responder may call the paid OpenAI model. |
+| GET | `/v1/widgets/registry` | P | — | 13 widget types, version, limits, templates. |
+| POST | `/v1/widgets/validate` | SS | `SpecBody` | `{valid, errors}`; no persistence. |
+| POST | `/v1/widgets/generate` | SS | `GenerateBody` (intent, context) | Deterministic template/compose, validated; no model call. |
+| POST | `/v1/widgets/specs` | A | `StoreBody` | **201** stored spec with `content_hash`; 422 invalid. |
+| GET | `/v1/widgets/specs` | A | `lifecycle`, `persistence`, `limit` | Spec list (admin gallery). |
+| GET | `/v1/widgets/specs/{spec_id}` | SS | — | 404 `WIDGET_NOT_FOUND`. |
+| POST | `/v1/widgets/specs/{spec_id}/review` | A | `ReviewBody` (NOMINATE/PROMOTE/REJECT) | NOMINATE → `PROMOTION_CANDIDATE`; PROMOTE → `PROMOTED_TO_TEMPLATE` + STATIC (409 `NOT_A_CANDIDATE`). |
+| POST | `/v1/tutor/format-math` | SS | `FormatBody` (text ≤4000, mode deterministic/agentic) | `{input, formatted, engine, model?, warnings}`; agentic mode is a small paid model call with deterministic fallback. |
+
 ## OpenAPI and Swagger guidance
 
 - FastAPI serves live `/docs`, `/redoc`, and `/openapi.json` when a server is running. Those reflect the running process, not necessarily this source revision.
@@ -171,6 +232,23 @@ These are Next.js server routes, not FastAPI-owned OpenAPI paths.
 | `/api/auth/admin-login`, `/admin-logout` | Web admin session wrapper. |
 | `/api/graph/overview`, `/api/graph/relationship/[rel]` | Server-side Neo4j graph metadata/relationship views using whitelisted relationships from `graphConfig.js`; not in FastAPI OpenAPI. |
 | `/api/agent/session`, `/api/agent/run` | Proxies to ADK agent app/session/run endpoints. |
+| `/api/voice/health` (GET), `/api/voice/tts` (POST `{text}` ≤1,200 chars → `audio/mpeg`), `/api/voice/stt` (POST multipart `file` ≤10 MB → `{text}`) | Server-side ElevenLabs proxy (`mathbank-widgets/src/server.mjs` `createVoiceHandlers`; models `eleven_flash_v2_5` / `scribe_v1`). Same-origin only (403), 30 requests/min per caller (429), 503 when `ELEVEN_API_KEY` is unset. TTS/STT are paid; health uses the free models list. |
+| `/api/format-math` (POST `{text, mode}`) | `createFormatHandler` → FastAPI `POST /v1/tutor/format-math` with the caller's student/live token; without a token answers deterministically. Same-origin only. |
+| `/admin/widgets` | Admin page: widget gallery from `GET /v1/widgets/specs` and the registry, server-side with the admin key. |
+
+### `mathbank-live` (:5174) Next.js routes and Socket.IO surface
+
+Separate deployable (doc [28](../28_DISTRIBUTED_LIVE_PLATFORM.md)); not part of the FastAPI OpenAPI.
+
+| Route | Purpose |
+|---|---|
+| `/api/auth/student-login`, `/api/auth/admin-login`, `/api/auth/logout` | Same cookie names as `mathbank-web` (`mb_student_token`, `mb_admin_session`). |
+| `/api/me` | Current role/identity from cookies. |
+| `/api/sessions` | Instructor: list/create live sessions (admin key server-side). |
+| `/api/join` | Join by code → `POST /v1/live/sessions/join`. |
+| `/api/format-math`, `/api/voice/{health,tts,stt}` | Same shared handlers as `mathbank-web`. |
+| Pages `/`, `/login`, `/s/[sid]` (student classroom), `/i/[sid]` (instructor console) | UI. |
+| Socket.IO `ws://<host>:5174/socket.io` | `live:join {session_id, last_sequence}` → ack `{ok, role, participant_id, state, events}`; `live:op {session_id, op, args}` → ack `{ok, data}` or `{ok:false, status, error, code}` (ops: `state`, `command`, `respond`, `ask_tutor` [6/min], staff `transition`, `pause`, `resume`, `open_activity`, `close_activity`, `reveal_activity`, `show_widget`, `hide_widget`, `override`, `instructor_nl`, `decide`); server pushes `live:event` (one envelope) to rooms `${sid}|session`, `|student:<id>`, `|group:<id>`, `|instructor`, pumped from `GET /v1/live/sessions/{sid}/events` every 700 ms. Anonymous sockets get `connect_error` `UNAUTHENTICATED`. |
 
 ## Agent HTTP surface
 
@@ -187,5 +265,9 @@ The web proxy calls ADK endpoints such as:
 - `POST /run` or `/run_sse` for agent runs.
 
 Agent step-runtime tools (`tools/step_runtime_tools.py`) call FastAPI with the **student's** bearer token taken from session state `temp:student_token` (set by `lib/agentRunProxy.mjs`); without it they return a sign-in error instead of acting. Tools → routes: `start_step_attempt` → `POST /v1/students/{id}/problems/{code}/attempts`; `get_attempt_runtime` → `GET /v1/attempts/{id}/runtime`; `submit_step_response` → `POST …/steps/{step}/responses`; `request_step_hint` → `POST …/steps/{step}/hint`; `diagnose_step_gap` → `POST …/steps/{step}/diagnose`; `start_recovery_plan` → `POST /v1/attempts/{id}/recovery-plans`; `get_next_recovery_item` → `GET /v1/recovery-plans/{id}/next`; `answer_recovery_item` → `POST /v1/recovery-plans/{id}/items/{item}/responses`; `resume_original_step` → `POST /v1/recovery-plans/{id}/resume`. Mutations send a deterministic `Idempotency-Key`; no admin routes are reachable from the agent.
+
+Concept tools (`tools/rest_tools.py`, 2026-10-06): `search_concepts(query, node_types, chapter_number, limit)` → `POST /v1/search/concepts`; `get_problems_for_technique(technique_slug)` → `GET /v1/techniques/{slug}/problems`. No auth.
+
+Widget tools (`tools/widget_tools.py`, 2026-10-06): `propose_widget(intent, context_json)` → `POST /v1/widgets/generate` (returns a validated spec, or `WIDGET_INVALID` / `SIGN_IN_REQUIRED` for anonymous chats); `format_math(text)` → `POST /v1/tutor/format-math` in deterministic mode only. The agent has 24 tools in total.
 
 The exact ADK OpenAPI/schema is framework-owned and is not generated by `mathbank-rest`.

@@ -18,7 +18,8 @@ from sqlalchemy import text
 from mathbank_rest.db.postgres import engine
 
 PROFILE_NAME = "pedagogy_step_v2"
-Unit = Literal["step", "learning_item"]
+Unit = Literal["step", "learning_item", "taxonomy"]
+TAXONOMY_NODE_TYPES = ("DOMAIN", "CONCEPT", "SUBCONCEPT", "SKILL", "TECHNIQUE")
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class _UnitSpec:
     kinds: tuple[str, ...]
     eligible_join: str
     filters: dict[str, str]
+    entity_expr: str
 
 
 _UNITS: dict[str, _UnitSpec] = {
@@ -51,6 +53,7 @@ _UNITS: dict[str, _UnitSpec] = {
                 "AND t.review_status = 'APPROVED')"
             ),
         },
+        entity_expr="c.solution_step_id",
     ),
     "learning_item": _UnitSpec(
         kinds=("LEARNING_ITEM_QUESTION", "LEARNING_ITEM_SKILL_SIGNATURE"),
@@ -70,6 +73,19 @@ _UNITS: dict[str, _UnitSpec] = {
             ),
             "exclude_problem_id": "li.source_problem_id <> CAST(:exclude_problem_id AS uuid)",
         },
+        entity_expr="c.learning_item_id",
+    ),
+    # Taxonomy chunks carry the node id only in metadata (source_entity_id is a uuid5 surrogate).
+    "taxonomy": _UnitSpec(
+        kinds=("TAXONOMY_NODE",),
+        eligible_join=(
+            "JOIN pedagogy.taxonomy_node n ON n.taxonomy_node_id = c.metadata->>'taxonomy_node_id'"
+        ),
+        filters={
+            "node_types": "n.node_type = ANY(:node_types)",
+            "chapter_number": "n.chapter_number = :chapter_number",
+        },
+        entity_expr="n.taxonomy_node_id",
     ),
 }
 
@@ -86,10 +102,9 @@ def build_search_sql(
         raise ValueError(f"Unsupported {unit} filter(s): {sorted(unknown)}")
     active = {k: v for k, v in filters.items() if v is not None}
     where = " ".join(f"AND {spec.filters[k]}" for k in sorted(active))
-    entity = "solution_step_id" if unit == "step" else "learning_item_id"
     eligible = f"""
         eligible AS (
-            SELECT c.chunk_id, c.{entity} AS entity_id, c.textsearch
+            SELECT c.chunk_id, {spec.entity_expr} AS entity_id, c.textsearch
               FROM search.chunk c
               JOIN search.representation r ON r.representation_id = c.representation_id
               JOIN search.preprocessing_profile pp ON pp.preprocessing_profile_id = r.preprocessing_profile_id
@@ -165,6 +180,43 @@ SELECT li.learning_item_id, li.source_problem_id::text AS source_problem_id,
 """
 
 
+# Each node maps 1:1 to a knowledge.{concept,skill,technique} row whose slug is what the corpus
+# routes (/v1/concepts/{slug}/problems, /v1/techniques/{slug}/problems, /v1/tutor/prerequisites/{slug})
+# accept. Problem counts come from published solution steps (techniques: approved step links).
+_TAXONOMY_DETAILS = """
+SELECT n.taxonomy_node_id, n.node_type, n.name, n.parent_node_id, parent.name AS parent_name,
+       n.chapter_number, n.section_number,
+       coalesce(kc.slug, ks.slug, kt.slug) AS slug,
+       CASE WHEN kc.slug IS NOT NULL THEN 'concept' WHEN ks.slug IS NOT NULL THEN 'skill'
+            WHEN kt.slug IS NOT NULL THEN 'technique' END AS slug_kind,
+       ex.problem_count, ex.example_problem_codes
+  FROM pedagogy.taxonomy_node n
+  LEFT JOIN pedagogy.taxonomy_node parent ON parent.taxonomy_node_id = n.parent_node_id
+  LEFT JOIN knowledge.concept kc ON kc.concept_id = n.concept_id
+  LEFT JOIN knowledge.skill ks ON ks.skill_id = n.skill_id
+  LEFT JOIN knowledge.technique kt ON kt.technique_id = n.technique_id
+  LEFT JOIN LATERAL (
+       SELECT count(*) AS problem_count,
+              (array_agg(p.canonical_code ORDER BY p.canonical_code))[1:5] AS example_problem_codes
+         FROM core.problem p
+        WHERE p.problem_id IN (
+              SELECT s.problem_id FROM pedagogy.solution_step s
+               WHERE s.publication_status = 'PUBLISHED'
+                 AND ((n.node_type = 'SKILL' AND s.skill_node_id = n.taxonomy_node_id)
+                   OR (n.node_type = 'SUBCONCEPT' AND s.subconcept_node_id = n.taxonomy_node_id)
+                   OR (n.node_type = 'CONCEPT' AND s.concept_node_id = n.taxonomy_node_id)
+                   OR (n.node_type = 'TECHNIQUE' AND EXISTS (
+                        SELECT 1 FROM pedagogy.solution_step_technique t
+                         WHERE t.solution_step_id = s.solution_step_id
+                           AND t.technique_node_id = n.taxonomy_node_id AND t.review_status = 'APPROVED'))))
+  ) ex ON true
+ WHERE n.taxonomy_node_id = ANY(:ids)
+"""
+
+_DETAILS = {"step": (_STEP_DETAILS, "solution_step_id"), "learning_item": (_ITEM_DETAILS, "learning_item_id"),
+            "taxonomy": (_TAXONOMY_DETAILS, "taxonomy_node_id")}
+
+
 def _search(unit: Unit, query_text: str, filters: dict, *, semantic: bool, lexical: bool,
             limit: int, query_vector: str | None = None) -> list[dict]:
     if not 1 <= limit <= 50:
@@ -180,8 +232,7 @@ def _search(unit: Unit, query_text: str, filters: dict, *, semantic: bool, lexic
         ranked = [dict(r) for r in conn.execute(text(sql), params).mappings()]
         if not ranked:
             return []
-        details_sql = _STEP_DETAILS if unit == "step" else _ITEM_DETAILS
-        key = "solution_step_id" if unit == "step" else "learning_item_id"
+        details_sql, key = _DETAILS[unit]
         details = {
             row[key]: dict(row)
             for row in conn.execute(text(details_sql), {"ids": [r["entity_id"] for r in ranked]}).mappings()
@@ -259,6 +310,34 @@ def search_learning_items(
         "exclude_problem_id": exclude_problem_id,
     }
     return _search("learning_item", query_text, filters, semantic=semantic, lexical=lexical, limit=limit)
+
+
+def search_taxonomy_nodes(
+    query_text: str,
+    *,
+    node_types: list[str] | None = None,
+    chapter_number: int | None = None,
+    semantic: bool = True,
+    lexical: bool = True,
+    limit: int = 10,
+    query_vector: str | None = None,
+) -> list[dict]:
+    """Concept-level retrieval over the embedded TAXONOMY_NODE representations.
+
+    Maps a free-text topic ("power of a point") to canonical taxonomy nodes plus the corpus slug
+    and the number of problems that exercise each node. Returns no solution content.
+    """
+    if node_types:
+        unknown = set(node_types) - set(TAXONOMY_NODE_TYPES)
+        if unknown:
+            raise ValueError(f"Unsupported node type(s): {sorted(unknown)}")
+    filters = {"node_types": list(node_types) if node_types else None, "chapter_number": chapter_number}
+    results = _search("taxonomy", query_text, filters, semantic=semantic, lexical=lexical, limit=limit,
+                      query_vector=query_vector)
+    for row in results:
+        row["problem_count"] = int(row["problem_count"] or 0)
+        row["example_problem_codes"] = list(row["example_problem_codes"] or [])
+    return results
 
 
 def similar_steps_for_step(solution_step_id: str, *, limit: int = 5, same_skill: bool = True) -> dict:

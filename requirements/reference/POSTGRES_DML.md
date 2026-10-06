@@ -3,8 +3,8 @@
 ## Evidence
 
 - Evidence mode: source-derived only.
-- Source revision: `0925f37d82cc428202a12746df5112a3978c46b5`, with uncommitted worktree changes included.
-- Sources: `mathbank-db/etl/*.py`, `mathbank-db/sql/ops/approve_learning_items_auto.sql`, `mathbank-rest/src/mathbank_rest/db/*.py`, `mastery.py`, `enrichment.py`, `relationship_enrichment.py`, `step_runtime.py`, `step_tutor.py`, `step_diagnosis.py`, `outbox_worker.py`, `db/import_admin.py`, `mathbank-db/etl/derive_step_techniques.py`, `run_projection_requests.py`, `step_recovery.py`, `routers/step_runtime.py`, `agent_transcripts.py`, `routers/agent_sessions.py`, `db/textbook_admin.py`, graph projectors, and agent session setup.
+- Source revision: `43c3316d5b6f8a838874de4aa384cb28ef00aa1a`, with uncommitted worktree changes included (refreshed 2026-10-06 for migration 020).
+- Sources: `mathbank-db/etl/*.py`, `mathbank-db/sql/ops/approve_learning_items_auto.sql`, `mathbank-rest/src/mathbank_rest/db/*.py`, `mastery.py`, `enrichment.py`, `relationship_enrichment.py`, `step_runtime.py`, `step_tutor.py`, `step_diagnosis.py`, `outbox_worker.py`, `db/import_admin.py`, `mathbank-db/etl/derive_step_techniques.py`, `run_projection_requests.py`, `step_recovery.py`, `routers/step_runtime.py`, `agent_transcripts.py`, `routers/agent_sessions.py`, `db/textbook_admin.py`, graph projectors, agent session setup, and (migration 020) `live_runtime.py`, `authoring.py`, `widgets.py`, `routers/live.py`, `routers/fluid.py`.
 - No DML was executed for this documentation task.
 
 ## High-level write boundaries
@@ -317,6 +317,42 @@ SELECT action, note, created_at FROM ingest.admin_review_action
  WHERE target_type = 'SOLUTION_DAG' AND target_id = :problem_id
  ORDER BY created_at, action_id;
 ```
+
+## Live classroom command path (`mathbank_rest/live_runtime.py`, migration 020)
+
+| Operation | Caller | Tables / effect | Idempotency / conflict |
+|---|---|---|---|
+| Create session | `POST /v1/live/sessions` → `create_session` | Requires an APPROVED/PUBLISHED plan. INSERT `live.session` (topics snapshot, random `join_code`), INSERT `live.topic_run` per topic, INSERT the creator into `live.participant` as INSTRUCTOR (`ON CONFLICT DO NOTHING`), and emit `session.created`. | A new row on every call. |
+| Join | `POST /v1/live/sessions/join` → `join_session` | INSERT `live.participant` (`student:{uuid}`, role STUDENT, `student_id`); emit `participant.joined`. | `ON CONFLICT (live_session_id, participant_id) DO UPDATE SET last_seen_at` → a rejoin is safe. |
+| Any command | `execute_command` (all live mutations, gateway ops, AI tutor) | 1) SELECT `live.command_receipt` by `(session, client_command_id)`; a hit returns the stored result plus `duplicate: true`. 2) `SELECT … FOR UPDATE` the session row. 3) SAVEPOINT. 4) `_authorise` (role/command matrix, takeover/lock). 5) Version check for non-student actors (`expected_session_version`; AI must always send it). 6) `_dispatch` writes. 7) `emit`. 8) The savepoint commits; on a `LiveError` it rolls back. 9) INSERT `live.command_receipt` with status ACCEPTED or REJECTED. | The receipt PK makes retries exactly-once. A rejected command still stores a REJECTED receipt and leaves no partial writes. |
+| `emit` | All accepted commands | UPDATE `live.session` `last_sequence += 1`, plus `state_version += 1` when `bump`. INSERT `live.session_event` (monotonic `sequence`, envelope fields). INSERT `pipeline.outbox_event` (`event_type='LIVE_EVENT'`, `aggregate_type='live_session'`, payload `{event_type, sequence, event_id}` only). | Same transaction as the command. The append-only trigger blocks UPDATE of events. |
+| Transition / pause / resume / overrides | `_dispatch` | UPDATE `live.session` (topic index, status, timers, control mode, `agent_locked`, `extension_seconds`). UPDATE `live.topic_run` (ACTIVE/DONE/SKIPPED, `actual_seconds`). INSERT/UPDATE `live.takeover` (the partial unique index enforces one active takeover per scope). Takeover/lock marks PROPOSED `live.recommendation` rows STALE. | Session row lock plus version check. |
+| Activities | `_dispatch` / `activity_definition` | INSERT `activity.definition` and `activity.instance`. UPDATE instance status CLOSED/REVEALED. Reveal also stores a `POLL_RESULT` widget spec and INSERTs a `POLL_BRANCH` recommendation (≥0.8 CONTINUE, ≥0.5 REINFORCE, else PREREQUISITE). | Responses use `ON CONFLICT (activity_instance_id, participant_id) DO UPDATE`, so a resubmit while OPEN replaces the earlier answer. |
+| Student signals | `_dispatch` | `MARK_CONFUSED` UPDATEs `live.participant.confused`. `QUESTION_ASK`/`HINT_REQUEST`/`WIDGET_INTERACT` only emit INSTRUCTOR-audience events. | Through the receipt. |
+| Widgets in session | `store_widget_spec`, `_dispatch` | Validate, then INSERT `visual.widget_spec` (lifecycle VALIDATED, `content_hash`, `expires_at = now()+1 day` for EPHEMERAL). Show/state/hide upsert `visual.widget_state` (`ON CONFLICT (live_session_id, widget_instance_id)`), set `visible`, increment `state_version`, and UPDATE spec lifecycle to SHOWN. | Invalid specs raise 422 before any write. |
+| Recommendations | `propose_ai_action`, NL compiler, `decide` | INSERT `live.recommendation` (`based_on_version`). AUTO_APPLY actions run through `execute_command` when AI_ACTIVE. A decision UPDATEs status ACCEPTED/REJECTED; accepting runs the action as a command. A version mismatch marks it STALE. | A decided recommendation returns 409 `RECOMMENDATION_DECIDED`. |
+
+## Authoring write paths (`mathbank_rest/authoring.py`, migration 020)
+
+| Operation | Tables / effect | Guards |
+|---|---|---|
+| Create plan | INSERT `authoring.presentation_plan` (DRAFT) plus `plan_topic` rows. | Validation 422 `INVALID_PLAN`. |
+| Replace topics / timing | `_write_topics`: DELETE all `plan_topic` rows for the plan, then INSERT the new ones (the deferred unique ordinal allows reorder). UPDATE plan limits. | The plan is read `FOR UPDATE`. App-level 409 `PLAN_IMMUTABLE` plus the DB trigger `guard_published_topic`. |
+| Approve / publish | UPDATE status APPROVED/PUBLISHED with timestamps. Publish first UPDATEs the previous PUBLISHED plan with the same `plan_key` to SUPERSEDED (the trigger allows only this transition). | 409 `NOT_APPROVED`. |
+| New version | INSERT a copy of the plan (version+1, `parent_plan_id`) and its topics as DRAFT. | — |
+| Chat / patches | INSERT `chat_session`, `chat_message` (ADMIN and ASSISTANT rows), `proposed_patch` (PROPOSED, operations/impact/validation). A decision UPDATEs the patch: APPLY and MODIFY (with replacement operations; 422 `INVALID_PATCH` if none) → APPLIED. All operations are applied atomically to the DRAFT plan, or to a new draft version when the plan is PUBLISHED/SUPERSEDED, and `result_plan_id` is set. REJECT → REJECTED. ASK_FOR_ALTERNATIVE → SUPERSEDED plus a new `DETERMINISTIC_ALTERNATIVE` patch. | Patch row `FOR UPDATE`. 409 `PATCH_DECIDED`. |
+
+Test cleanup only: `SET authoring.allow_purge = 'on'` bypasses both guard triggers in that DB session. Application code never sets it.
+
+## Widget spec review (`routers/fluid.py`)
+
+| Operation | Tables / effect |
+|---|---|
+| `POST /v1/widgets/specs` | `store_widget_spec` without a session (gallery spec). |
+| `POST /v1/widgets/specs/{id}/review` | `SELECT … FOR UPDATE`, then UPDATE `lifecycle` (NOMINATE → PROMOTION_CANDIDATE; PROMOTE → PROMOTED_TO_TEMPLATE with persistence STATIC; REJECT → REJECTED), `reviewed_by`, `reviewed_at`. |
+| `POST /v1/widgets/validate`, `/generate`, `/v1/tutor/format-math` | Read-only (no DB writes). |
+
+`visual.asset` has no writer. No cleanup job yet deletes expired EPHEMERAL specs or ended sessions (NYI, doc 20 §6).
 
 ## Read paths and retrieval
 
