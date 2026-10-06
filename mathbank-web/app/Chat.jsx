@@ -3,7 +3,22 @@
 import { useEffect, useRef, useState } from "react";
 import { createSession, newSessionId, streamMessage } from "./agentClient.js";
 import { MathComposer, SpeakButton } from "mathbank-widgets";
+import Link from "next/link";
 import MathText from "./_components/MathText.jsx";
+import { Avatar, Callout, EmptyState, Icon, Pill, SectionTitle } from "./_components/ui.jsx";
+
+const SUGGESTIONS = [
+  ["bullseye", "Explain the power of a point"],
+  ["search", "Recent combinatorics questions"],
+  ["triangle", "A hard geometry problem to try"],
+];
+
+const ACTIVITY_LOOK = {
+  complete: { tone: "success", icon: "check-lg" },
+  error: { tone: "danger", icon: "x-lg" },
+  stopped: { tone: "warning", icon: "pause-fill" },
+  running: { tone: "primary", icon: "gear" },
+};
 
 export default function Chat() {
   const sessionRef = useRef(null);
@@ -12,12 +27,13 @@ export default function Chat() {
   const [ready, setReady] = useState(false);
   const [saved, setSaved] = useState(null);
   const [messages, setMessages] = useState([
-    { role: "assistant", text: "Ask me about any competition math topic, e.g. \"What are the recent questions on combinatorics?\"" },
+    { role: "assistant", text: "Hi! Ask me about any competition math topic, or pick a starter below." },
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [activity, setActivity] = useState([]);
   const [error, setError] = useState(null);
+  const [studentName, setStudentName] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -29,6 +45,15 @@ export default function Chat() {
       .then((session) => { if (!cancelled) { setReady(true); setSaved(session); } })
       .catch((err) => { if (!cancelled) setError(`Could not reach the agent: ${err.message}`); });
     return () => { cancelled = true; streamRef.current?.abort(); };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/rest/learner/me", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => { if (!cancelled && me?.first_name) setStudentName(`${me.first_name} ${me.last_name || ""}`.trim()); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -70,80 +95,101 @@ export default function Chat() {
     }
   }
 
+  const greeting = messages.length === 1;
+  const status = sending ? { tone: "info", icon: "broadcast", text: "Streaming" }
+    : ready ? { tone: "success", icon: "circle-fill", text: "Agent connected" }
+      : { tone: "neutral", icon: "hourglass-split", text: "Connecting" };
+
   return (
     <div className="row g-4">
       <div className="col-12 col-xl-9">
-        <section className="card border-0 shadow-sm" aria-label="Tutor conversation">
-          <div className="card-header bg-white d-flex justify-content-between align-items-center py-3">
-            <span className="fw-semibold">Your math workspace</span>
-            <span className={`badge ${ready ? "text-bg-success" : "text-bg-secondary"}`}>
-              {sending ? "Streaming" : ready ? "Agent connected" : "Connecting"}
-            </span>
-          </div>
-          <div className="card-body overflow-auto" style={{ minHeight: "45vh", maxHeight: "65vh" }} aria-live="polite" aria-busy={sending}>
-            {messages.map((message, index) => (
-              <div key={index} className={`d-flex mb-3 ${message.role === "user" ? "justify-content-end" : ""}`}>
-                <div className={`rounded-4 p-3 ${message.role === "user" ? "bg-primary text-white" : "bg-body-tertiary"}`} style={{ maxWidth: "95%", minWidth: 0 }}>
-                  <div className="small fw-bold mb-2 d-flex align-items-center gap-2">
-                    {message.role === "user" ? "You" : "MathBank Tutor"}
-                    {message.role !== "user" && message.text && !(sending && index === messages.length - 1) && (
-                      <SpeakButton text={message.text} className="ms-auto py-0" label="Listen to this answer" />
-                    )}
+        <section className="card mb-chat" aria-label="Tutor conversation">
+          <div className="mb-chat-scroll" aria-live="polite" aria-busy={sending}>
+            {messages.map((message, index) => {
+              const mine = message.role === "user";
+              const streaming = sending && index === messages.length - 1;
+              return (
+                <div key={index} className={`mb-msg ${mine ? "mb-msg-user" : "mb-msg-assistant"}`}>
+                  {mine ? <Avatar name={studentName || "You"} size={32} /> : <Avatar name="MathBank Tutor" icon="stars" size={32} />}
+                  <div className="min-w-0">
+                    <div className={`mb-msg-meta ${mine ? "justify-content-end" : ""}`}>
+                      <span className="fw-semibold">{mine ? "You" : "MathBank Tutor"}</span>
+                      {!mine && message.text && !streaming && <SpeakButton text={message.text} label="Listen to this answer" />}
+                    </div>
+                    <div className="mb-bubble">
+                      {mine ? (
+                        /\$|\\\(|\\\[/.test(message.text) ? <MathText>{message.text}</MathText>
+                          : <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
+                      ) : message.text ? (
+                        <MathText>{message.text}</MathText>
+                      ) : sending ? (
+                        <span className="mb-typing" role="status" aria-label="Working on your question"><span /><span /><span /></span>
+                      ) : (
+                        <span className="text-secondary small">No answer received.</span>
+                      )}
+                    </div>
                   </div>
-                  {message.role === "user" ? (
-                    /\$|\\\(|\\\[/.test(message.text) ? <MathText>{message.text}</MathText>
-                      : <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
-                  ) : message.text ? (
-                    <MathText>{message.text}</MathText>
-                  ) : (
-                    <span className="text-secondary small">{sending ? "Working on your question..." : "No answer received."}</span>
-                  )}
                 </div>
+              );
+            })}
+            {greeting && (
+              <div className="mb-suggestions ps-5" aria-label="Suggested questions">
+                {SUGGESTIONS.map(([icon, text]) => (
+                  <button key={text} type="button" className="mb-tab" onClick={() => setInput(text)} disabled={!ready}>
+                    <Icon name={icon} />{text}
+                  </button>
+                ))}
               </div>
-            ))}
+            )}
             <div ref={bottomRef} />
           </div>
-          <div className="card-footer bg-white p-3">
-            {error && <div role="alert" className="alert alert-danger">{error}</div>}
-            {saved && (
-              <p className="small text-secondary mb-2" data-testid="chat-saved-state">
-                {saved.linked
-                  ? <>This conversation is saved to <a href="/learn/conversations">your conversations</a>.</>
-                  : <>Chatting anonymously — <a href="/login">sign in</a> to keep a history of your conversations.</>}
-              </p>
-            )}
+          <div className="mb-chat-foot">
+            {error && <Callout tone="danger" role="alert" className="mb-2">{error}</Callout>}
             <form onSubmit={handleSend}>
               <label htmlFor="chat-input" className="visually-hidden">Your question</label>
               <MathComposer id="chat-input" ariaLabel="Your question" testId="chat-composer" rows={1}
                 value={input} onChange={setInput} onSubmit={() => handleSend()} showSubmit={false}
                 renderMath={(t) => <MathText>{t}</MathText>}
-                placeholder={ready ? "Ask a question… (∑ for symbols, $x$ to format math)" : "Connecting to the agent…"}
+                placeholder={ready ? "Ask anything about competition math…" : "Connecting to the agent…"}
                 disabled={!ready || sending}>
                 {sending ? (
-                  <button type="button" className="btn btn-outline-danger" onClick={() => streamRef.current?.abort()}>Stop</button>
+                  <button type="button" className="mbw-send is-danger" onClick={() => streamRef.current?.abort()}><Icon name="stop-fill" />Stop</button>
                 ) : (
-                  <button className="btn btn-primary px-4" disabled={!ready || !input.trim()}>Send</button>
+                  <button className="mbw-send" disabled={!ready || !input.trim()}><Icon name="send-fill" />Send</button>
                 )}
               </MathComposer>
             </form>
+            <div className="d-flex flex-wrap align-items-center gap-2 mt-2 small text-secondary">
+              <Pill tone={status.tone} icon={status.icon}>{status.text}</Pill>
+              {saved && (
+                <span data-testid="chat-saved-state">
+                  {saved.linked
+                    ? <><Icon name="cloud-check" className="me-1" />Auto-saved to <Link href="/learn/conversations">your conversations</Link></>
+                    : <><Icon name="incognito" className="me-1" />Anonymous · <Link href="/login">sign in</Link> to keep history</>}
+                </span>
+              )}
+            </div>
           </div>
         </section>
       </div>
       <aside className="col-12 col-xl-3">
-        <section className="card border-0 shadow-sm">
-          <div className="card-header bg-white py-3 fw-semibold">Agent activity</div>
-          <div className="card-body">
-            <p className="small text-secondary">Live tool calls and progress updates. Private model reasoning is not displayed.</p>
-            <ol className="list-group list-group-flush" aria-live="polite">
-              {activity.map((item, index) => (
-                <li key={index} className="list-group-item px-0 d-flex gap-2 align-items-start">
-                  <span className={`badge ${item.status === "error" ? "text-bg-danger" : item.status === "complete" ? "text-bg-success" : "text-bg-secondary"}`}>{index + 1}</span>
-                  <span className="small">{item.label}</span>
-                </li>
-              ))}
+        <section className="card p-3 mb-sticky" aria-label="Agent activity">
+          <SectionTitle icon="activity">Agent activity</SectionTitle>
+          {activity.length ? (
+            <ol className="mb-activity" aria-live="polite">
+              {activity.map((item, index) => {
+                const look = ACTIVITY_LOOK[item.status] || ACTIVITY_LOOK.running;
+                return (
+                  <li key={index}>
+                    <span className={`mb-activity-dot mb-tone-${look.tone}`}><Icon name={look.icon} /></span>
+                    <span className="min-w-0 text-break pt-1">{item.label}</span>
+                  </li>
+                );
+              })}
             </ol>
-            {!activity.length && <p className="small text-secondary mb-0">Ask a question to see the agent at work.</p>}
-          </div>
+          ) : (
+            <EmptyState icon="cpu">Tool calls appear here while the tutor works.</EmptyState>
+          )}
         </section>
       </aside>
     </div>

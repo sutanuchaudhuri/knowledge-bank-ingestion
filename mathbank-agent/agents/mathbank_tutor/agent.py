@@ -23,6 +23,7 @@ from .tools.rest_tools import (
     get_next_hint,
     get_prerequisite_path,
     get_problem_by_code,
+    get_problem_diagrams,
     get_problem_learning_context,
     get_problems_for_concept,
     get_problems_for_technique,
@@ -104,6 +105,12 @@ Guidelines:
   you, and never ask the student to paste a password.
 - Every problem you mention must include its canonical_code and competition/year
   so the user (or a future student-profile feature) can look it up again.
+- When presenting a problem to try, ALWAYS call get_problem_diagrams with the
+  canonical_code. Paste its returned markdown exactly into your reply. These are
+  source images, sometimes full problem pages, not generated geometry. Never
+  claim "diagram below" unless you include the image. If a statement depends on
+  a diagram but the list is empty, explain that the source diagram is unavailable
+  and offer another problem; never invent or reconstruct the missing figure.
 - Step-by-step tutoring (Prasolov geometry, PRASOLOV_PGV1, which has stored
   solution steps): the server owns all tutoring state; you only orchestrate.
   * If the message carries a solve_attempt_id, or the learner wants to solve a
@@ -145,6 +152,7 @@ root_agent = Agent(
     tools=[
         search_problems,
         get_problem_by_code,
+        get_problem_diagrams,
         list_competitions,
         get_corpus_coverage,
         list_concepts,

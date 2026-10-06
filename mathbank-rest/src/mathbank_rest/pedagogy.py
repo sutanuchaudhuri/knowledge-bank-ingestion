@@ -109,6 +109,8 @@ class CoachingContent(BaseModel):
 
 
 def problem_statement(code: str) -> dict:
+    from mathbank_rest.db.problem_images import list_images
+
     with engine.connect() as conn:
         row = (
             conn.execute(
@@ -126,9 +128,9 @@ def problem_statement(code: str) -> dict:
             .mappings()
             .first()
         )
-    if row is None:
-        raise UnknownLearningEntity(f"No problem with code {code!r}")
-    return dict(row)
+        if row is None:
+            raise UnknownLearningEntity(f"No problem with code {code!r}")
+        return {**dict(row), "diagrams": list_images(conn, code)}
 
 
 def graph_rows(query: str, **params: object) -> list[dict]:

@@ -8,6 +8,7 @@ from __future__ import annotations
 from sqlalchemy import text
 
 from mathbank_rest.db.postgres import engine
+from mathbank_rest.db.problem_images import list_images
 
 
 def list_competitions() -> list[dict]:
@@ -136,6 +137,7 @@ def get_problem_by_code(canonical_code: str) -> dict | None:
         result["concepts"] = [dict(r) for r in concepts]
         result["techniques"] = [dict(r) for r in techniques]
         result["solutions"] = [dict(r) for r in solutions]
+        result["diagrams"] = list_images(conn, canonical_code)
         del result["problem_id"]
         return result
 

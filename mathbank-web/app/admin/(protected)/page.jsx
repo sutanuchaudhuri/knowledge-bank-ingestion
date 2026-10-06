@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import AdminOverview from "./AdminOverview.jsx";
 import PipelineJobs from "./PipelineJobs.jsx";
+import { Icon, IconButton, PageHeader, Pager, Pill } from "../../_components/ui.jsx";
 import { panel, table, th, td, input, button, primaryButton } from "../../db/dbStyles.js";
 
 const STATUS_COLOUR = {
@@ -144,8 +145,7 @@ function PipelineRuns({ refreshToken }) {
   if (!data) return <p style={{ fontSize: 13 }}>Loading…</p>;
 
   return (
-    <div className={panel}>
-      <h3 className="h5 fw-bold">Every stage logged (pipeline.run + pipeline.graph_projection)</h3>
+    <div>
       <div className="table-responsive"><table className={table}>
         <thead>
           <tr><th style={th}>Run type</th><th style={th}>Status</th><th style={th}>Started</th><th style={th}>Completed</th><th style={{ ...th, textAlign: "right" }}>Items</th><th style={th}>Run / logs</th></tr>
@@ -205,15 +205,11 @@ function PapersDashboard({ refreshToken, onRetried }) {
   if (error) return <p style={{ color: "#b91c1c", fontSize: 13 }}>Could not load papers: {error}</p>;
 
   return (
-    <div className={panel}>
-      <h3 className="h5 fw-bold">Paper pipeline status (pipeline.pdf_source)</h3>
+    <div>
       <input className={`${input} mb-3`} aria-label="Filter by competition external code" placeholder="Filter by competition external_code"
         value={competitionFilter} onChange={(e) => { setCompetitionFilter(e.target.value.toUpperCase()); setOffset(0); }} />
-      <div className="d-flex gap-2 align-items-center mb-3">
-        <button className="btn btn-outline-secondary btn-sm" disabled={offset === 0} onClick={() => setOffset((n) => Math.max(0, n - pageSize))}>Previous</button>
-        <span className="small text-secondary">Rows {items?.length ? offset + 1 : 0}–{offset + (items?.length || 0)}</span>
-        <button className="btn btn-outline-secondary btn-sm" disabled={!items || items.length < pageSize} onClick={() => setOffset((n) => n + pageSize)}>Next</button>
-      </div>
+      <Pager offset={offset} limit={pageSize} count={items?.length || 0} hasMore={Boolean(items && items.length >= pageSize)}
+        onPrev={() => setOffset((n) => Math.max(0, n - pageSize))} onNext={() => setOffset((n) => n + pageSize)} />
       {!items ? (
         <p style={{ fontSize: 13 }}>Loading…</p>
       ) : items.length === 0 ? (
@@ -275,47 +271,35 @@ export default function AdminPage() {
     return () => clearInterval(timer);
   }, []);
 
-  async function logout() {
-    await fetch("/api/auth/admin-logout", { method: "POST" });
-    window.location.href = "/admin/login";
-  }
-
   return (
-    <div>
-      <p style={{ marginTop: 0 }}>
-        <Link href="/" style={{ fontSize: 13, color: "#2563eb" }}>&larr; Back to chat</Link>
-        {" · "}
-        <Link href="/db" style={{ fontSize: 13, color: "#2563eb" }}>Corpus browser</Link>
-        {" · "}
-        <button onClick={logout} className="btn btn-outline-secondary btn-sm">
-          Log out
-        </button>
-      </p>
-      <h1 className="h3 fw-bold">Corpus ingestion admin</h1>
-      <button className="btn btn-outline-secondary btn-sm mb-3 me-2" onClick={bump}>Refresh pipeline status</button>
-      <span className="small text-secondary">Auto-refresh every 15 seconds. Generated metadata is automatically approved with provenance; human corrections are protected. Every pipeline layer is verified separately.</span>
-      <Link href="/admin/pedagogy" className="btn btn-primary mb-3">Review pedagogical metadata</Link>
-      <Link href="/admin/knowledge-gaps" className="btn btn-outline-primary mb-3 ms-2">Knowledge gaps &amp; recovery</Link>
-      <Link href="/admin/conversations" className="btn btn-outline-primary mb-3 ms-2">Student conversations</Link>
-      <Link href="/admin/textbooks" className="btn btn-outline-primary mb-3 ms-2">Textbook corpus (Prasolov)</Link>
-      <Link href="/admin/imports" className="btn btn-outline-primary mb-3 ms-2">Imports &amp; reconciliation</Link>
-      <Link href="/admin/widgets" className="btn btn-outline-primary mb-3 ms-2">Widgets &amp; input add-ons</Link>
-      <p style={{ color: "#666", fontSize: 13 }}>
-        Add a competition and its paper URLs — rows are tracked as PENDING in{" "}
-        <code>pipeline.pdf_source</code> immediately; the download/parse/ingest/embed/graph
-        stages are separate commands (see requirements/11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md).
-      </p>
-      <div className="app-admin-forms mb-4">
-        <CompetitionForm onCreated={bump} />
-        <PaperForm onRegistered={bump} />
-      </div>
+    <>
+      <PageHeader icon="speedometer2" tone="warning" title="Corpus ingestion admin"
+        subtitle="Pipeline health, textbook coverage and learner signals at a glance."
+        pills={<Pill tone="neutral" icon="arrow-repeat" title="Generated metadata is automatically approved with provenance; human corrections are protected. Every pipeline layer is verified separately.">Auto-refresh 15s</Pill>}
+        actions={<IconButton icon="arrow-clockwise" label="Refresh pipeline status" variant="outline-secondary" onClick={bump} />} />
+      <AdminOverview refreshToken={refreshToken} />
       <div className="d-grid gap-4">
-        <PipelineJobs refreshToken={refreshToken} />
-        <details><summary className="h5">Source registration / retry tracker</summary>
-          <PapersDashboard refreshToken={refreshToken} onRetried={bump} />
+        <div id="pipeline-jobs"><PipelineJobs refreshToken={refreshToken} /></div>
+        <details className="card p-3">
+          <summary className="mb-section-title"><Icon name="plus-circle" />Register a competition or paper</summary>
+          <p className="small text-secondary mt-3">
+            Rows are tracked as PENDING in <code>pipeline.pdf_source</code> immediately; download, parse, ingest, embed and graph
+            run as separate stages (requirements/11).
+          </p>
+          <div className="app-admin-forms">
+            <CompetitionForm onCreated={bump} />
+            <PaperForm onRegistered={bump} />
+          </div>
         </details>
-        <PipelineRuns refreshToken={refreshToken} />
+        <details className="card p-3">
+          <summary className="mb-section-title"><Icon name="arrow-counterclockwise" />Paper sources &amp; retries</summary>
+          <div className="mt-3"><PapersDashboard refreshToken={refreshToken} onRetried={bump} /></div>
+        </details>
+        <details className="card p-3">
+          <summary className="mb-section-title"><Icon name="journal-text" />Stage log</summary>
+          <div className="mt-3"><PipelineRuns refreshToken={refreshToken} /></div>
+        </details>
       </div>
-    </div>
+    </>
   );
 }

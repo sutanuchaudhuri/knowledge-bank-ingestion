@@ -1,5 +1,7 @@
 "use client";
 
+import { IconButton, PageHeader, Pill, TabBar } from "../../../_components/ui.jsx";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -376,17 +378,12 @@ export default function TextbookDashboard() {
   }, []);
   const choose = (k) => { setTab(k); window.history.replaceState(null, "", `?tab=${k}`); };
   return (
-    <div className="container-fluid py-4 px-lg-5">
-      <p className="small mb-2"><Link href="/admin">← Admin</Link></p>
-      <h1 className="h3 mb-0">Textbook corpus</h1>
-      <div className="text-secondary small mb-3">Prasolov, Problems in Plane Geometry — chapters 1–30 (two packages). Read-only admin view including answers and solution-only diagrams.</div>
-      <ul className="nav nav-tabs mb-4" role="tablist">
-        {TABS.map(([k, label]) => (
-          <li className="nav-item" key={k} role="presentation">
-            <button type="button" role="tab" aria-selected={tab === k} className={`nav-link ${tab === k ? "active" : ""}`} onClick={() => choose(k)}>{label}</button>
-          </li>
-        ))}
-      </ul>
+    <div>
+      <PageHeader icon="book" tone="info" title="Textbook corpus"
+        subtitle="Prasolov, Problems in Plane Geometry — chapters 1–30. Includes answers and solution-only diagrams."
+        pills={<><Pill tone="info" icon="collection">2 packages</Pill><Pill tone="neutral" icon="eye">Read-only</Pill></>}
+        actions={<IconButton icon="box-arrow-in-down" label="Imports & reconciliation" variant="outline-secondary" href="/admin/imports" />} />
+      <TabBar tabs={TABS} value={tab} onChange={choose} label="Textbook sections" />
       {tab === "coverage" && <Coverage />}
       {tab === "problems" && <Problems initialNode={node} />}
       {tab === "items" && <LearningItems />}

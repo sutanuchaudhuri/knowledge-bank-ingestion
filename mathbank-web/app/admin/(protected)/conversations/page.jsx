@@ -1,7 +1,8 @@
 "use client";
 
+import { PageHeader, Pill } from "../../../_components/ui.jsx";
+
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import Transcript from "../../../_components/Transcript.jsx";
 
 const endpoint = "/api/rest/admin/conversations";
@@ -35,18 +36,16 @@ export default function AdminConversationsPage() {
   }, [selected]);
 
   return (
-    <div className="container-fluid px-0">
-      <p className="small mb-2"><Link href="/admin">← Admin</Link></p>
-      <h1 className="h3 fw-bold">Student tutor conversations</h1>
-      <p className="text-secondary">Rebuilt from the agent session store (<code>agent_sessions.events</code>) through the student link
-        (<code>learner.agent_session_link</code>). The admin view includes the agent&apos;s thinking, tool calls and truncated tool results.</p>
+    <div>
+      <PageHeader icon="people" tone="success" title="Student tutor conversations"
+        subtitle="Rebuilt from agent sessions linked to students, including the agent's thinking and tool calls."
+        pills={data && <><Pill tone="success" icon="link-45deg">{data.linked.length} linked</Pill><Pill tone="neutral" icon="incognito" title="Anonymous agent sessions are not attributable to a student">{data.unlinked_count} anonymous</Pill></>} />
       {error && <div role="alert" className="alert alert-danger">{error}</div>}
       <form className="d-flex gap-2 mb-3" onSubmit={(e) => { e.preventDefault(); setQuery(student.trim()); }}>
         <input className="form-control" style={{ maxWidth: 420 }} placeholder="Filter by student e-mail or id"
           value={student} onChange={(e) => setStudent(e.target.value)} aria-label="Student filter" />
         <button className="btn btn-primary">Filter</button>
       </form>
-      {data && <p className="small text-secondary">{data.linked.length} linked conversation(s) · {data.unlinked_count} anonymous/unlinked agent session(s) not attributable to a student.</p>}
       <div className="row g-4">
         <div className="col-12 col-xl-5">
           <div className="table-responsive shadow-sm rounded-3 bg-white">

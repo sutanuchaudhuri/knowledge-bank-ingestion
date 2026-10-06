@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import MathText from "../_components/MathText.jsx";
+import ProblemDiagrams from "../_components/ProblemDiagrams.jsx";
+import { Callout, EmptyState, Icon, IconButton, PageHeader, Pill } from "../_components/ui.jsx";
 import { DIAGNOSES, hintRequestState } from "../../lib/learningFlow.mjs";
 import { hasStepSolution } from "../../lib/solveFlow.mjs";
 
@@ -124,22 +126,20 @@ export default function LearningWorkspace() {
 
   return (
     <div>
-      <header className="mb-4">
-        <span className="badge text-bg-primary mb-2">Learn, do not just retrieve</span>
-        <h1 className="h2 fw-bold">Guided math practice</h1>
-        <p className="text-secondary">Identify where you are stuck, try a small step, and request one hint at a time.</p>
-        <div className="alert alert-light border small">Anonymous workspace: your draft and hint progress are temporary. When you request a hint, your attempt is sent to the coaching service and its model provider, but is not saved as a learner attempt or mastery record.</div>
-      </header>
-      <form className="d-flex flex-wrap gap-2 mb-4" onSubmit={(event) => { event.preventDefault(); setCode(codeInput.trim()); setReloadKey((value) => value + 1); }}>
+      <PageHeader icon="compass" title="Guided math practice"
+        subtitle="Say where you are stuck, try a small step, and unlock one hint at a time."
+        pills={<Pill tone="neutral" icon="incognito" title="Your draft and hint progress are temporary. Hint requests send your attempt to the coaching service and its model provider; nothing is saved as a learner attempt or mastery record.">Temporary workspace</Pill>} />
+      <form className="mb-search mb-4" onSubmit={(event) => { event.preventDefault(); setCode(codeInput.trim()); setReloadKey((value) => value + 1); }}>
         <label htmlFor="learning-code" className="visually-hidden">Problem code</label>
-        <input id="learning-code" className="form-control" style={{ flex: "1 1 260px" }} value={codeInput}
-          onChange={(event) => setCodeInput(event.target.value)} placeholder="Canonical problem code, e.g. AIME_2023_I_Q11" required maxLength={200} />
+        <Icon name="search" className="mb-search-icon" />
+        <input id="learning-code" className="form-control" value={codeInput}
+          onChange={(event) => setCodeInput(event.target.value)} placeholder="Problem code, e.g. AIME_2023_I_Q11" required maxLength={200} />
         <button className="btn btn-primary" disabled={loading || busy}>Load problem</button>
-        <Link href="/db/problems" className="btn btn-outline-secondary">Find a problem</Link>
+        <IconButton icon="grid-3x3-gap" label="Find a problem" variant="outline-secondary" href="/db/problems" />
       </form>
-      {loading && <p role="status">Loading answer-free learning context...</p>}
-      {error && <div role="alert" className="alert alert-danger">{error}</div>}
-      {!context && !loading && !error && <div className="card border-0 shadow-sm p-4 text-secondary">Choose a real corpus problem to begin. Missing teaching metadata is enriched automatically; the first request can take longer.</div>}
+      {loading && <p role="status" className="text-secondary"><span className="spinner-border spinner-border-sm me-2" />Loading answer-free learning context…</p>}
+      {error && <Callout tone="danger" role="alert" className="mb-3">{error}</Callout>}
+      {!context && !loading && !error && <div className="card"><EmptyState icon="journal-text">Load a problem to begin. Teaching metadata is enriched automatically, so the first load can take a little longer.</EmptyState></div>}
       {context && (
         <div className="row g-4">
           <div className="col-12 col-xl-8">
@@ -158,6 +158,7 @@ export default function LearningWorkspace() {
                 </div>
                 <p className="small text-secondary">{context.problem.competition} · {context.problem.year} · {context.problem.difficulty_band || "Difficulty not recorded"}</p>
                 <MathText>{context.problem.statement_text}</MathText>
+                <ProblemDiagrams code={context.problem.canonical_code} images={context.problem.diagrams} />
                 <p className="small text-secondary mt-3 mb-0">No official answer or full solution is loaded in this workspace.</p>
               </div>
             </section>
@@ -169,7 +170,7 @@ export default function LearningWorkspace() {
                   <div className="d-flex flex-wrap gap-2">
                     {options.map((option) => (
                       <button type="button" key={option.id} aria-pressed={diagnosis === option.id}
-                        className={`btn btn-sm ${diagnosis === option.id ? "btn-primary" : "btn-outline-primary"}`}
+                        className={`mb-tab${diagnosis === option.id ? " active" : ""}`}
                         onClick={() => changeDiagnosis(option.id)}>{option.label}</button>
                     ))}
                   </div>
@@ -192,16 +193,13 @@ export default function LearningWorkspace() {
                     <h2 className="h5 mb-0">2. Try one small step</h2>
                     <span className="badge text-bg-secondary">Hint {coaching.hint_level}/3</span>
                   </div>
-                  <div className="alert alert-warning small">Generated coaching, not an expert-reviewed hint ladder. <Provenance item={coaching.provenance || {}} /></div>
-                  <h3 className="h6">Micro-lesson</h3>
-                  <MathText>{coaching.micro_lesson}</MathText>
-                  <h3 className="h6 mt-3">Your next hint</h3>
-                  <MathText>{coaching.hint}</MathText>
-                  <div className="bg-body-tertiary rounded-3 p-3 mt-3">
-                    <strong>3. Return to the original problem</strong>
+                  <p className="small text-secondary"><Icon name="robot" className="me-1" />Generated coaching, not an expert-reviewed hint ladder. <Provenance item={coaching.provenance || {}} /></p>
+                  <Callout tone="insight" title="Micro-lesson" className="mb-3"><MathText>{coaching.micro_lesson}</MathText></Callout>
+                  <Callout tone="hint" title="Your next hint" className="mb-3"><MathText>{coaching.hint}</MathText></Callout>
+                  <Callout tone="neutral" icon="arrow-return-left" title="Back to the original problem">
                     <MathText>{coaching.return_prompt}</MathText>
-                    <button type="button" className="btn btn-sm btn-outline-primary mt-2" onClick={() => attemptRef.current?.focus()}>Update my attempt</button>
-                  </div>
+                    <button type="button" className="btn btn-sm btn-outline-primary mt-2" onClick={() => attemptRef.current?.focus()}><Icon name="pencil" className="me-1" />Update my attempt</button>
+                  </Callout>
                   {(coaching.warnings || []).map((warning, index) => <p key={index} className="small text-secondary mt-2 mb-0">{warning}</p>)}
                 </div>
               </section>

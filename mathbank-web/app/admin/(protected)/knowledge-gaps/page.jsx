@@ -1,7 +1,8 @@
 "use client";
 
+import { IconButton, PageHeader, Pill } from "../../../_components/ui.jsx";
+
 import { useEffect, useState } from "react";
-import Link from "next/link";
 
 const endpoint = "/api/rest/admin/knowledge-gaps";
 const GAP_STATUSES = ["UNRESOLVED", "CONFIRMED", "RESOLVED", "REJECTED"];
@@ -109,18 +110,11 @@ export default function KnowledgeGapsPage() {
 
   const totals = gaps?.totals || {};
   return (
-    <div className="container-fluid px-4 py-3">
-      <nav className="small mb-2">
-        <Link href="/admin">← Admin</Link> · <Link href="/admin/pedagogy">Pedagogical metadata</Link>
-      </nav>
-      <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <h1 className="h3 fw-bold mb-0">Knowledge gaps &amp; recovery</h1>
-        <button type="button" className="btn btn-outline-secondary btn-sm ms-auto" onClick={() => setTick((t) => t + 1)}>Refresh</button>
-      </div>
-      <p className="text-secondary small">
-        Ranked gap hypotheses from step diagnosis (Phase 9) and the recovery detours they triggered (Phase 10).
-        Read-only: a gap is RESOLVED only by a completed detour and CONFIRMED by an exhausted one; mastery is never written here.
-      </p>
+    <div>
+      <PageHeader icon="exclamation-diamond" tone="warning" title="Knowledge gaps & recovery"
+        subtitle="Ranked gap hypotheses from step diagnosis and the recovery detours they triggered."
+        pills={<Pill tone="neutral" icon="eye" title="A gap is RESOLVED only by a completed detour and CONFIRMED by an exhausted one; mastery is never written here.">Read-only</Pill>}
+        actions={<IconButton icon="arrow-clockwise" label="Refresh" variant="outline-secondary" onClick={() => setTick((t) => t + 1)} />} />
       {error && <div className="alert alert-danger">{error}</div>}
 
       <div className="row g-3 mb-4">

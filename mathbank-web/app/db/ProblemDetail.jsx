@@ -9,6 +9,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { normalizeMathDelimiters } from "../../lib/markdown.js";
 import { panel } from "./dbStyles.js";
+import ProblemDiagrams from "../_components/ProblemDiagrams.jsx";
 
 /** Fetches and renders the full HAS_SOLUTION/TESTS/USES_TECHNIQUE detail for one problem. */
 export default function ProblemDetail({ code }) {
@@ -59,6 +60,8 @@ export default function ProblemDetail({ code }) {
           </ReactMarkdown>
         </div>
       )}
+
+      <ProblemDiagrams code={problem.canonical_code} images={problem.diagrams} />
 
       {problem.official_answer && (
         <p style={{ fontSize: 13 }}>

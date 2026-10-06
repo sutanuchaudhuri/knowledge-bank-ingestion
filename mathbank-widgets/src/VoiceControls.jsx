@@ -3,6 +3,7 @@
 // own /api/voice/* routes, which attach ELEVEN_API_KEY server-side.
 import { useEffect, useRef, useState } from "react";
 import { speakableText } from "./speech.mjs";
+import { WIcon, WidgetStyles } from "./icons.jsx";
 
 let currentAudio = null;
 
@@ -39,11 +40,11 @@ export function SpeakButton({ text, endpoint = "/api/voice/tts", className = "",
     }
   }
 
-  const icon = state === "loading" ? "…" : state === "playing" ? "■" : state === "error" ? "!" : "🔊";
+  const icon = state === "loading" ? "spinner" : state === "playing" ? "stop" : state === "error" ? "alert" : "speaker";
   return (
-    <button type="button" className={`btn btn-sm btn-outline-secondary ${className}`} onClick={toggle}
+    <button type="button" className={`mbw-speak${state === "playing" ? " is-live" : ""} ${className}`} onClick={toggle}
       title={state === "error" ? "Voice unavailable" : state === "playing" ? "Stop" : label} aria-label={label} data-testid="speak-button">
-      {icon}
+      <WidgetStyles /><WIcon name={icon} size={16} />
     </button>
   );
 }
@@ -101,12 +102,12 @@ export function MicButton({ onTranscript, endpoint = "/api/voice/stt", maxSecond
   }
 
   if (!supported) return null;
-  const icon = state === "recording" ? "⏺" : state === "transcribing" ? "…" : state === "error" ? "!" : "🎤";
+  const icon = state === "recording" ? "stop" : state === "transcribing" ? "spinner" : state === "error" ? "alert" : "mic";
   return (
-    <button type="button" className={`btn btn-sm ${state === "recording" ? "btn-danger" : "btn-outline-secondary"} ${className}`}
+    <button type="button" className={`mbw-ghost${state === "recording" ? " is-live" : ""} ${className}`}
       onClick={toggle} disabled={disabled || state === "transcribing"} data-testid="mic-button"
       title={state === "recording" ? "Stop and transcribe" : "Dictate (speech to text)"} aria-label="Dictate">
-      {icon}
+      <WIcon name={icon} />
     </button>
   );
 }

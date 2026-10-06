@@ -63,6 +63,7 @@ PDF_CRAWL_DIR = INGESTION_ROOT / "data" / "crawl_pdf"
 # Load corpus utilities (markdown cleanup, NUL-stripping) without duplicating them.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from load_corpus import _clean_crawl_pdf_markdown, _load_env, _upsert_solution  # noqa: E402
+from pdf_assets import paper_images, store_images  # noqa: E402
 
 ARCHIVE_POINTER_PREFIX = "PAPER_ARCHIVE_"
 DIRECT_LINK_SCOPES = {
@@ -256,6 +257,7 @@ def cmd_ingest(
         pg_paper_id = str(cur.fetchone()[0])
 
         q_count = s_count = 0
+        visuals = paper_images(paper_dir)
         for q_dir in sorted((paper_dir / "questions").glob("Q*")):
             problem_md = q_dir / "problem.md"
             q_match = re.match(r"Q(\d+)", q_dir.name)
@@ -300,21 +302,7 @@ def cmd_ingest(
                      paper_external_code, pg_problem_id),
                 )
 
-            images_dir = q_dir / "images"
-            if images_dir.is_dir():
-                for ordinal, image_path in enumerate(sorted(images_dir.iterdir()), start=1):
-                    if image_path.is_file():
-                        cur.execute(
-                            """
-                            INSERT INTO core.problem_image (problem_id, ordinal, local_path, source)
-                            VALUES (%s, %s, %s, %s)
-                            ON CONFLICT (problem_id, ordinal) DO UPDATE SET local_path = EXCLUDED.local_path,
-                              source=EXCLUDED.source
-                            """,
-                            (pg_problem_id, ordinal, str(image_path.resolve()),
-                             "PDF_SOLUTION_PAGE" if competition_code.startswith(("PURPLE_", "ARML")) and image_path.name.startswith("solution_")
-                             else "PDF_PROBLEM_PAGE" if competition_code.startswith(("PURPLE_", "ARML")) else "PDF_PARSED"),
-                        )
+            store_images(cur, pg_problem_id, visuals.get(problem_number, []))
 
             solution_md = q_dir / "solution.md"
             if solution_md.exists():

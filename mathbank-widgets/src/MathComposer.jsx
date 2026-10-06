@@ -5,6 +5,7 @@
 import { useRef, useState } from "react";
 import { SYMBOL_GROUPS, checkLatex, deterministicFormat, insertSnippet } from "./format.mjs";
 import { MicButton } from "./VoiceControls.jsx";
+import { WIcon, WidgetStyles } from "./icons.jsx";
 
 export default function MathComposer({
   value, onChange, onSubmit, renderMath, placeholder = "Type your answer… e.g. PA*PB = PT^2",
@@ -60,45 +61,49 @@ export default function MathComposer({
 
   return (
     <div className="mbw-composer" data-testid={testId}>
-      {tools && (
-        <div className="border rounded-top bg-body-tertiary px-2 py-1 d-flex flex-wrap gap-1 align-items-center" data-testid="symbol-toolbar">
-          <div className="btn-group btn-group-sm me-1" role="group" aria-label="symbol groups">
-            {SYMBOL_GROUPS.map((g, i) => (
-              <button key={g.name} type="button" className={`btn ${i === group ? "btn-secondary" : "btn-outline-secondary"}`} onClick={() => setGroup(i)}>{g.name}</button>
+      <WidgetStyles />
+      <div className={`mbw-field${disabled ? " is-disabled" : ""}`}>
+        {tools && (
+          <div className="mbw-toolbar" data-testid="symbol-toolbar">
+            <div className="d-flex gap-1 me-1" role="group" aria-label="symbol groups">
+              {SYMBOL_GROUPS.map((g, i) => (
+                <button key={g.name} type="button" className={`mbw-chip${i === group ? " is-active" : ""}`} aria-pressed={i === group}
+                  onClick={() => setGroup(i)}>{g.name}</button>
+              ))}
+            </div>
+            {SYMBOL_GROUPS[group].items.map(([label, tex]) => (
+              <button key={label} type="button" className="mbw-sym" title={tex.replace("|", "…")}
+                onMouseDown={(e) => e.preventDefault()} onClick={() => insert(tex)}>{label}</button>
             ))}
           </div>
-          {SYMBOL_GROUPS[group].items.map(([label, tex]) => (
-            <button key={label} type="button" className="btn btn-sm btn-light border" title={tex.replace("|", "…")}
-              onMouseDown={(e) => e.preventDefault()} onClick={() => insert(tex)}>{label}</button>
-          ))}
-        </div>
-      )}
-      <div className="input-group">
-        <textarea ref={ref} className={`form-control ${tools ? "rounded-top-0" : ""}`} rows={rows} value={value || ""}
+        )}
+        <textarea ref={ref} className="mbw-input" rows={rows} value={value || ""}
           placeholder={placeholder} onChange={(e) => { onChange(e.target.value); setNote(""); }} onKeyDown={onKeyDown}
           id={id} disabled={disabled} autoFocus={autoFocus} aria-label={ariaLabel} data-testid={`${testId}-input`} />
-        {children}
-      </div>
-      <div className="d-flex flex-wrap align-items-center gap-1 mt-1">
-        <button type="button" className={`btn btn-sm ${tools ? "btn-secondary" : "btn-outline-secondary"}`} onClick={() => setTools((t) => !t)}
-          title="Math symbols" aria-pressed={tools} data-testid="toggle-symbols">∑</button>
-        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={formatNow} disabled={disabled || !value?.trim()}
-          title="Quick format: wrap math in LaTeX (instant, offline)" data-testid="format-quick">$x$</button>
-        {allowAgentic && (
-          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={formatAgentic} disabled={disabled || busy || !value?.trim()}
-            title="AI format: tidy the math into LaTeX without changing your words" data-testid="format-ai">{busy ? "…" : "✨"}</button>
-        )}
-        {voice && <MicButton endpoint={sttEndpoint} disabled={disabled}
-          onTranscript={(t) => onChange(value?.trim() ? `${value.trimEnd()} ${deterministicFormat(t)}` : deterministicFormat(t))} />}
-        <span className="small text-secondary ms-1" data-testid="composer-note">{note}</span>
-        {warnings.length > 0 && <span className="small text-warning ms-1" data-testid="composer-warnings">⚠ {warnings.join(", ")}</span>}
-        {onSubmit && showSubmit && (
-          <button type="button" className="btn btn-sm btn-primary ms-auto" disabled={disabled || !value?.trim()} onClick={onSubmit}
-            data-testid={`${testId}-submit`}>{submitLabel}</button>
-        )}
+        <div className="mbw-actions">
+          <button type="button" className="mbw-ghost" onClick={() => setTools((t) => !t)}
+            title="Math symbols" aria-label="Math symbols" aria-pressed={tools} data-testid="toggle-symbols"><WIcon name="sigma" /></button>
+          <button type="button" className="mbw-ghost" onClick={formatNow} disabled={disabled || !value?.trim()}
+            title="Quick format: wrap math in LaTeX (instant, offline)" aria-label="Quick format" data-testid="format-quick"><WIcon name="dollar" /></button>
+          {allowAgentic && (
+            <button type="button" className="mbw-ghost" onClick={formatAgentic} disabled={disabled || busy || !value?.trim()}
+              title="AI format: tidy the math into LaTeX without changing your words" aria-label="AI format" data-testid="format-ai">
+              <WIcon name={busy ? "spinner" : "sparkles"} /></button>
+          )}
+          <span className="mbw-note ms-1" data-testid="composer-note" aria-live="polite">{note}</span>
+          {warnings.length > 0 && <span className="mbw-warn ms-1" data-testid="composer-warnings"><WIcon name="alert" size={14} /> {warnings.join(", ")}</span>}
+          <span className="mbw-spacer" />
+          {voice && <MicButton endpoint={sttEndpoint} disabled={disabled}
+            onTranscript={(t) => onChange(value?.trim() ? `${value.trimEnd()} ${deterministicFormat(t)}` : deterministicFormat(t))} />}
+          {children}
+          {onSubmit && showSubmit && (
+            <button type="button" className="mbw-send" disabled={disabled || !value?.trim()} onClick={onSubmit}
+              data-testid={`${testId}-submit`}><WIcon name="send" size={16} /><span>{submitLabel}</span></button>
+          )}
+        </div>
       </div>
       {hasMath && renderMath && (
-        <div className="border rounded px-2 py-1 mt-1 small bg-body-tertiary" data-testid="composer-preview" aria-live="polite">
+        <div className="mbw-preview" data-testid="composer-preview" aria-live="polite">
           {renderMath(value)}
         </div>
       )}

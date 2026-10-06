@@ -26,6 +26,7 @@ from fastapi.responses import FileResponse
 from mathbank_rest import mastery, security, step_diagnosis, step_recovery, step_runtime, step_tutor
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.db.step_search import similar_steps_for_step
+from mathbank_rest.db.problem_images import STUDENT_IMAGE_FILTER, list_images
 
 router = APIRouter(prefix="/v1", tags=["step-runtime"])
 log = logging.getLogger(__name__)
@@ -377,18 +378,16 @@ def practice_for_step(step_id: str, limit: int = Query(5, ge=1, le=20), same_ski
 def list_problem_diagrams(code: str) -> list[dict]:
     """Problem-statement diagrams (never solution diagrams) for the workspace."""
     with engine.connect() as conn:
-        rows = conn.execute(text(
-            "SELECT i.problem_image_id::text AS problem_image_id, i.ordinal FROM core.problem_image i "
-            "JOIN core.problem p USING (problem_id) WHERE p.canonical_code = :c ORDER BY i.ordinal"), {"c": code})
-        return [dict(r) for r in rows.mappings()]
+        return list_images(conn, code)
 
 
 @router.get("/problem-images/{image_id}", response_class=FileResponse)
 def get_problem_image(image_id: UUID):
     with engine.connect() as conn:
-        path = conn.execute(text("SELECT local_path FROM core.problem_image WHERE problem_image_id = :i"),
+        path = conn.execute(text(f"SELECT i.local_path FROM core.problem_image i "
+                                 f"WHERE i.problem_image_id = :i AND {STUDENT_IMAGE_FILTER}"),
                             {"i": str(image_id)}).scalar()
-    resolved = Path(path).resolve() if path else None
+    resolved = (IMAGE_ROOT / path).resolve() if path else None
     if resolved is None or not resolved.is_file() or IMAGE_ROOT not in resolved.parents:
         raise HTTPException(status_code=404, detail="image not found")
     return FileResponse(resolved, headers={"Cache-Control": "public, max-age=86400"})

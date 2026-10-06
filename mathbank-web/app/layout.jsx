@@ -1,4 +1,6 @@
 import "bootstrap/dist/css/bootstrap.min.css";
+import "bootstrap-icons/font/bootstrap-icons.min.css";
+import "@fontsource-variable/inter";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import AppShell from "./AppShell.jsx";
@@ -8,10 +10,12 @@ export const metadata = {
   description: "Chat with the MathBank competition-math tutor agent.",
 };
 
+export const viewport = { themeColor: "#4f46e5" };
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body style={{ margin: 0 }}><AppShell>{children}</AppShell></body>
+      <body><AppShell>{children}</AppShell></body>
     </html>
   );
 }

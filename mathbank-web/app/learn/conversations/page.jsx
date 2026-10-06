@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Transcript from "../../_components/Transcript.jsx";
+import { Callout, EmptyState, Icon, PageHeader } from "../../_components/ui.jsx";
 
 async function load(url) {
   const response = await fetch(url, { cache: "no-store" });
@@ -34,43 +35,43 @@ export default function ConversationsPage() {
   }, [selected]);
 
   if (error?.status === 401) {
-    return <div className="alert alert-info">Please <Link href="/login">sign in</Link> to see your saved tutor conversations.</div>;
+    return <Callout tone="neutral" icon="lock">Please <Link href="/login">sign in</Link> to see your saved tutor conversations.</Callout>;
   }
   return (
-    <div className="container-fluid px-0">
-      <div className="d-flex align-items-center justify-content-between mb-3">
+    <>
+      <PageHeader icon="chat-left-text" title="My tutor conversations"
+        subtitle="Every chat you have with the tutor while signed in is saved here."
+        actions={<Link href="/" className="btn btn-primary btn-sm"><Icon name="plus-lg" className="me-1" />New conversation</Link>} />
+      {error && <Callout tone="danger" role="alert" className="mb-3">{error.message}</Callout>}
+      <div className="app-master-detail">
         <div>
-          <h1 className="h3 fw-bold mb-1">My tutor conversations</h1>
-          <p className="text-secondary mb-0">Every chat you have with the MathBank tutor while signed in is saved here.</p>
-        </div>
-        <Link href="/" className="btn btn-primary">New conversation</Link>
-      </div>
-      {error && <div role="alert" className="alert alert-danger">{error.message}</div>}
-      <div className="row g-4">
-        <div className="col-12 col-lg-4">
-          <div className="list-group shadow-sm" data-testid="conversation-list">
-            {sessions === null && <div className="list-group-item text-secondary">Loading…</div>}
-            {sessions?.length === 0 && <div className="list-group-item text-secondary">No saved conversations yet.</div>}
+          <div className="list-group" data-testid="conversation-list">
+            {sessions === null && <div className="list-group-item text-secondary"><span className="spinner-border spinner-border-sm me-2" />Loading…</div>}
+            {sessions?.length === 0 && <div className="list-group-item"><EmptyState icon="chat-square-dots">No saved conversations yet.</EmptyState></div>}
             {sessions?.map((s) => (
               <button key={s.agent_session_id} type="button"
                 className={`list-group-item list-group-item-action${selected === s.agent_session_id ? " active" : ""}`}
                 onClick={() => setSelected(s.agent_session_id)}>
                 <div className="fw-semibold text-truncate">{s.preview || "(no messages yet)"}</div>
-                <div className="small opacity-75">{when(s.session_updated_at || s.last_seen_at)} · {s.event_count} messages · {s.surface.replaceAll("_", " ").toLowerCase()}</div>
+                <div className="d-flex flex-wrap gap-2 mt-1 small opacity-75">
+                  <span><Icon name="clock" className="me-1" />{when(s.session_updated_at || s.last_seen_at)}</span>
+                  <span><Icon name="chat" className="me-1" />{s.event_count}</span>
+                  <span><Icon name="window" className="me-1" />{s.surface.replaceAll("_", " ").toLowerCase()}</span>
+                </div>
               </button>
             ))}
           </div>
         </div>
-        <div className="col-12 col-lg-8">
-          <section className="card border-0 shadow-sm">
+        <div>
+          <section className="card">
             <div className="card-body">
-              {!selected && <p className="text-secondary mb-0">Choose a conversation to read it again.</p>}
-              {selected && !transcript && <p className="text-secondary mb-0">Loading conversation…</p>}
+              {!selected && <EmptyState icon="arrow-left-circle">Pick a conversation to read it again.</EmptyState>}
+              {selected && !transcript && <p className="text-secondary mb-0"><span className="spinner-border spinner-border-sm me-2" />Loading conversation…</p>}
               <Transcript transcript={transcript} />
             </div>
           </section>
         </div>
       </div>
-    </div>
+    </>
   );
 }

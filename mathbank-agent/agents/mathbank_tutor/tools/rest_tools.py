@@ -88,6 +88,19 @@ def get_problem_by_code(canonical_code: str) -> dict:
         return response.json()
 
 
+def get_problem_diagrams(canonical_code: str) -> list[dict]:
+    """Get student-visible source diagrams/pages, never solution or answer images.
+
+    Call when presenting a retrieved problem, especially if its statement mentions
+    a diagram. Paste the returned markdown exactly into the reply. An empty list
+    means diagrams are unavailable: disclose this and offer a different problem.
+    """
+    with _client() as client:
+        response = client.get(f"/v1/problems/by-code/{quote(canonical_code, safe='')}/diagrams")
+        response.raise_for_status()
+        return response.json()
+
+
 def list_competitions() -> list[dict]:
     """List all competitions/sources tracked in the corpus (AMC, AIME, HMMT, SMT,
     PUMaC, CHMMC, CMM, MPG, ARML, Purple Comet and the PRASOLOV_PGV1 textbook)."""

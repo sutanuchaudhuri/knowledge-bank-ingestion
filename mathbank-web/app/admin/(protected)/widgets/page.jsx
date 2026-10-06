@@ -3,6 +3,7 @@
 // plus a playground for the student input add-ons (math composer, quick/AI format, voice).
 import { restAdminPost, restGet } from "../../../../lib/restClient.js";
 import WidgetGallery from "./WidgetGallery.jsx";
+import { Callout, PageHeader, Pill } from "../../../_components/ui.jsx";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,11 @@ export default async function WidgetsPage() {
     error = err.message;
   }
   return (
-    <div className="container-fluid py-4">
-      <h1 className="h3">Widgets &amp; student input add-ons</h1>
-      <p className="text-secondary">Declarative, whitelisted widget specs rendered by <code>mathbank-widgets</code> — the same renderer
-        used by the tutor chat (<code>```widget</code> blocks) and the <code>mathbank-live</code> classroom.</p>
-      {error && <div className="alert alert-danger">Could not load widgets: {error}</div>}
+    <div>
+      <PageHeader icon="puzzle" title="Widgets & student input add-ons"
+        subtitle="Whitelisted widget specs rendered by mathbank-widgets — the same renderer as the tutor chat and live classroom."
+        pills={<Pill tone="neutral" icon="lightning">Fast path · nothing stored</Pill>} />
+      {error && <Callout tone="danger" title="Could not load widgets">{error}</Callout>}
       <WidgetGallery registry={registry} samples={samples} />
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { IconButton, PageHeader, TabBar } from "../../../../../_components/ui.jsx";
 import Link from "next/link";
 import MathText from "../../../../../_components/MathText.jsx";
 import { DagReview, ItemReview } from "../../../imports/importsClient.jsx";
@@ -283,23 +284,15 @@ export default function TextbookProblemPage({ params }) {
   const d = state.data;
   const counts = d && { solution: d.vector.steps, items: d.learning_items.length, diagrams: d.diagrams.length };
   return (
-    <div className="container-fluid py-4 px-lg-5">
-      <p className="small mb-2"><Link href="/admin/textbooks?tab=problems">← Textbook corpus</Link></p>
+    <div>
       {state.error && <div className="alert alert-danger">{state.error}</div>}
       {!d && !state.error && <div className="spinner-border spinner-border-sm text-primary" role="status" aria-label="Loading" />}
       {d && (
         <>
-          <h1 className="h3 mb-0">Problem {d.source_problem_id}</h1>
-          <div className="text-secondary small mb-3">Chapter {d.chapter_number} · {d.chapter_title} · §{d.section_number} {d.section_title}</div>
-          <ul className="nav nav-tabs mb-4" role="tablist">
-            {TABS.map(([k, label]) => (
-              <li className="nav-item" key={k} role="presentation">
-                <button type="button" role="tab" aria-selected={tab === k} className={`nav-link ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>
-                  {label}{counts[k] != null && <span className="badge text-bg-light border ms-1">{counts[k]}</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <PageHeader icon="triangle" tone="info" title={`Problem ${d.source_problem_id}`}
+            subtitle={`Chapter ${d.chapter_number} · ${d.chapter_title} · §${d.section_number} ${d.section_title}`}
+            actions={<IconButton icon="list-ul" label="All textbook problems" variant="outline-secondary" href="/admin/textbooks?tab=problems" />} />
+          <TabBar tabs={TABS} value={tab} onChange={setTab} counts={counts} label="Problem sections" />
           {tab === "problem" && <ProblemTab d={d} />}
           {tab === "solution" && <SolutionTab d={d} />}
           {tab === "items" && <div id="items"><ItemsTab d={d} /></div>}

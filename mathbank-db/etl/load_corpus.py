@@ -17,6 +17,7 @@ from pathlib import Path
 
 import psycopg
 from psycopg.types.json import Json
+from pdf_assets import paper_images, store_images
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INGESTION_ROOT = REPO_ROOT / "mathbank_data_ingestion"
@@ -372,6 +373,7 @@ def load_pdf_crawl_problems(cur, competition_by_code: dict[str, str]) -> tuple[i
                 paper_id = str(cur.fetchone()[0])
                 paper_cache[paper_id_external] = paper_id
 
+            visuals = paper_images(paper_dir)
             for q_dir in sorted((paper_dir / "questions").glob("Q*")):
                 problem_md = q_dir / "problem.md"
                 if not problem_md.exists():
@@ -405,18 +407,7 @@ def load_pdf_crawl_problems(cur, competition_by_code: dict[str, str]) -> tuple[i
                 problem_id = str(cur.fetchone()[0])
                 inserted += 1
 
-                images_dir = q_dir / "images"
-                if images_dir.is_dir():
-                    for ordinal, image_path in enumerate(sorted(images_dir.iterdir()), start=1):
-                        if image_path.is_file():
-                            cur.execute(
-                                """
-                                INSERT INTO core.problem_image (problem_id, ordinal, local_path, source)
-                                VALUES (%s, %s, %s, 'PDF_PARSED')
-                                ON CONFLICT (problem_id, ordinal) DO UPDATE SET local_path = EXCLUDED.local_path
-                                """,
-                                (problem_id, ordinal, str(image_path.resolve())),
-                            )
+                store_images(cur, problem_id, visuals.get(problem_number, []))
 
                 solution_md = q_dir / "solution.md"
                 if solution_md.exists():

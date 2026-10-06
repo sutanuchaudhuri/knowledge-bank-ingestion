@@ -1,5 +1,7 @@
 "use client";
 
+import { IconButton, PageHeader, Pill, TabBar } from "../../../_components/ui.jsx";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DagReview, Status, human, importsAction, num, useImports, when } from "./importsClient.jsx";
@@ -276,17 +278,12 @@ export default function ImportDashboard() {
   }, []);
   const choose = (k) => { setTab(k); window.history.replaceState(null, "", `?tab=${k}`); };
   return (
-    <div className="container-fluid py-4 px-lg-5">
-      <p className="small mb-2"><Link href="/admin">← Admin</Link> · <Link href="/admin/textbooks">Textbook corpus</Link></p>
-      <h1 className="h3 mb-0">Imports &amp; reconciliation</h1>
-      <div className="text-secondary small mb-3">Prasolov geometry packages: validation issues, conflicts, Postgres ↔ graph ↔ pgvector reconciliation, projection queue and semantic DAG review. Every decision is audited.</div>
-      <ul className="nav nav-tabs mb-4" role="tablist">
-        {TABS.map(([k, label]) => (
-          <li className="nav-item" key={k} role="presentation">
-            <button type="button" role="tab" aria-selected={tab === k} className={`nav-link ${tab === k ? "active" : ""}`} onClick={() => choose(k)}>{label}</button>
-          </li>
-        ))}
-      </ul>
+    <div>
+      <PageHeader icon="box-arrow-in-down" title="Imports & reconciliation"
+        subtitle="Validation issues, conflicts, Postgres ↔ graph ↔ pgvector reconciliation, projection queue and DAG review."
+        pills={<Pill tone="neutral" icon="journal-check">Every decision audited</Pill>}
+        actions={<IconButton icon="book" label="Textbook corpus" variant="outline-secondary" href="/admin/textbooks" />} />
+      <TabBar tabs={TABS} value={tab} onChange={choose} label="Import sections" />
       {tab === "packages" && <><Packages onOpen={setPkg} />{pkg && <PackageDetail key={pkg} packageId={pkg} onClose={() => setPkg(null)} />}</>}
       {tab === "reconciliation" && <Reconciliation />}
       {tab === "queue" && <Queue />}

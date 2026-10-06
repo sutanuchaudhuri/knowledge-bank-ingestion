@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Pager } from "../../_components/ui.jsx";
 import { PIPELINE_STAGES, formatPipelineTime, pipelineBadgeClass } from "../../../lib/pipelineStatus.mjs";
 
 function Badge({ status }) {
@@ -13,7 +14,7 @@ export default function PipelineJobs({ refreshToken }) {
   const [competition, setCompetition] = useState("");
   const [paper, setPaper] = useState("");
   const [offset, setOffset] = useState(0);
-  const limit = 25;
+  const limit = 10;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -34,7 +35,7 @@ export default function PipelineJobs({ refreshToken }) {
   return (
     <section className="card border-0 shadow-sm">
       <div className="card-body">
-        <h2 className="h4 fw-bold">End-to-end paper jobs</h2>
+        <h2 className="mb-section-title mb-2"><i className="bi bi-diagram-3" aria-hidden="true" />End-to-end paper jobs</h2>
         <p className="text-secondary small">
           All registered sources and canonical papers. Batch completion does not certify vectors or pedagogy.
           Counts are live inventory, not cumulative write operations. Times are UTC; missing history stays unrecorded.
@@ -63,11 +64,9 @@ export default function PipelineJobs({ refreshToken }) {
           <div className="d-flex flex-wrap gap-3 align-items-center mb-3">
             <span className="small text-secondary">Observed: {formatPipelineTime(data.observed_at)}</span>
             <span className="small">{data.total} papers in selected scope</span>
-            <button className="btn btn-outline-secondary btn-sm" disabled={offset === 0}
-              onClick={() => { setOffset(Math.max(0, offset - limit)); setData(null); }}>Previous</button>
-            <span className="small">{data.items.length ? offset + 1 : 0}-{offset + data.items.length}</span>
-            <button className="btn btn-outline-secondary btn-sm" disabled={offset + limit >= data.total}
-              onClick={() => { setOffset(offset + limit); setData(null); }}>Next</button>
+            <div className="ms-auto"><Pager offset={offset} limit={limit} count={data.items.length} hasMore={offset + limit < data.total}
+              onPrev={() => { setOffset(Math.max(0, offset - limit)); setData(null); }}
+              onNext={() => { setOffset(offset + limit); setData(null); }} /></div>
           </div>
           <div className="table-responsive">
             <table className="table table-hover align-middle small">

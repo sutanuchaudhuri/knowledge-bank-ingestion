@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import MathText from "../../../_components/MathText.jsx";
+import { Callout, Icon, IconButton, PageHeader, Pill } from "../../../_components/ui.jsx";
 import { MathComposer, SpeakButton } from "mathbank-widgets";
 
 const renderMath = (t) => <MathText>{t}</MathText>;
@@ -493,30 +494,24 @@ export default function SolveWorkspace({ code }) {
 
   return (
     <div className="solve-workspace">
-      <div className="d-flex flex-wrap align-items-center gap-3 mb-3">
-        <div>
-          <div className="small text-secondary text-uppercase fw-semibold">Step-by-step solving</div>
-          <h1 className="h4 mb-0">{attempt.problem_code}</h1>
-        </div>
-        <div className="flex-grow-1" style={{ minWidth: 200 }}>
-          <div className="d-flex justify-content-between small text-secondary mb-1">
-            <span>{progress.completed_steps} of {progress.total_steps} steps</span><span>{pct}%</span>
-          </div>
-          <div className="progress" role="progressbar" aria-label="Solution progress" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} style={{ height: 8 }}>
-            <div className="progress-bar" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-        <span className={`badge text-bg-${completed ? "success" : "primary"}`}>{humanize(attempt.status)}</span>
-        <Link className="btn btn-sm btn-outline-secondary" href={`/learn?problem=${enc(code)}`}>Guided view</Link>
+      <PageHeader icon="signpost-split" title={attempt.problem_code} subtitle="Step-by-step solving"
+        pills={<>
+          <Pill tone={completed ? "success" : "primary"} icon={completed ? "check-circle" : "play-circle"}>{humanize(attempt.status)}</Pill>
+          <Pill tone="neutral" icon="list-check">{progress.completed_steps}/{progress.total_steps} steps</Pill>
+          {detouring && <Pill tone="warning" icon="arrow-return-right">Detour</Pill>}
+        </>}
+        actions={<IconButton icon="compass" label="Guided view" variant="outline-secondary" href={`/learn?problem=${enc(code)}`} />} />
+      <div className="mb-bar-track mb-3" role="progressbar" aria-label="Solution progress" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className="mb-bar-fill" style={{ width: `${pct}%` }} />
       </div>
 
-      {notice && <div className="alert alert-info py-2" role="status">{notice}</div>}
-      {error && <div className="alert alert-danger py-2" role="alert">{error}</div>}
+      {notice && <Callout tone="neutral" role="status" className="mb-3">{notice}</Callout>}
+      {error && <Callout tone="danger" role="alert" className="mb-3">{error}</Callout>}
 
       <div className="row g-3">
         <div className="col-lg-7">
-          <div className="card shadow-sm border-0 mb-3">
-            <div className="card-header bg-white fw-semibold">Problem</div>
+          <div className="card mb-3">
+            <div className="card-header fw-semibold"><Icon name="file-earmark-text" className="me-2 text-primary" />Problem</div>
             <div className="card-body">
               <MathText>{attempt.statement_text}</MathText>
               {diagrams.length > 0 && (
@@ -536,7 +531,7 @@ export default function SolveWorkspace({ code }) {
           {completed ? (
             <div className="card shadow-sm border-0 border-start border-success border-4">
               <div className="card-body">
-                <h2 className="h5">🎉 Problem complete</h2>
+                <h2 className="h5"><Icon name="trophy" className="me-2 text-success" />Problem complete</h2>
                 <p className="mb-2">
                   {timeline.filter((t) => t.state === "SUCCESS_INDEPENDENT").length} steps solved independently,{" "}
                   {timeline.filter((t) => t.state === "SUCCESS_WITH_HELP").length} with help. Your mastery has been updated.
@@ -561,15 +556,15 @@ export default function SolveWorkspace({ code }) {
                 <p className="mb-1"><span className="fw-semibold">Goal:</span> {step.goal}</p>
                 {step.skill_name && <p className="small text-secondary mb-3">Skill: {step.skill_name}</p>}
                 {feedback && (
-                  <div className={`alert alert-${tone} py-2`} role="status">
-                    <span className="fw-semibold me-1">{feedback.result === "SUCCESS" ? "Correct." : `${humanize(feedback.verdict || "not yet")}.`}</span>
+                  <Callout tone={tone} role="status" className="mb-3"
+                    title={feedback.result === "SUCCESS" ? "Correct" : humanize(feedback.verdict || "not yet")}>
                     {feedback.feedback}
-                  </div>
+                  </Callout>
                 )}
                 <label htmlFor="step-response" className="form-label small fw-semibold">Your reasoning for this step</label>
                 <MathComposer id="step-response" ariaLabel="Your reasoning for this step" testId="step-composer" rows={4}
                   value={response} onChange={setResponse} renderMath={renderMath}
-                  placeholder="Write this step in words or LaTeX, e.g. Since PQ || AD, … (∑ symbols · $x$ quick format · ✨ AI format · 🎤 dictate)" />
+                  placeholder="Write this step in words or LaTeX, e.g. Since PQ || AD, …" />
                 <div className="d-flex gap-2 mt-3">
                   <button type="submit" className="btn btn-primary" disabled={!response.trim() || Boolean(busy)}>
                     {busy === "submit" ? <><span className="spinner-border spinner-border-sm me-1" />Checking…</> : "Check my step"}
@@ -583,7 +578,7 @@ export default function SolveWorkspace({ code }) {
         <div className="col-lg-5">
           {!completed && !detouring && (
             <div className="card shadow-sm border-0 mb-3">
-              <div className="card-header bg-white fw-semibold">Hints</div>
+              <div className="card-header fw-semibold"><Icon name="lightbulb" className="me-2 text-warning" />Hints</div>
               <div className="card-body">
                 <p className="small text-secondary">{hintSummary(step.help_level_used)}</p>
                 <div className="d-flex gap-1 mb-3" aria-label="Hint ladder">

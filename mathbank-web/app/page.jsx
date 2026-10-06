@@ -1,16 +1,14 @@
-import Chat from "./Chat.jsx";
 import Link from "next/link";
+import Chat from "./Chat.jsx";
+import { PageHeader, Icon } from "./_components/ui.jsx";
 
 export default function Page() {
   return (
-    <div>
-      <header className="mb-4">
-        <span className="badge text-bg-primary mb-2">Competition math, connected</span>
-        <h1 className="h2 fw-bold">MathBank Tutor</h1>
-        <p className="text-secondary mb-0">Explore ideas, retrieve problems, and learn with a streaming AI tutor. Sign in to save your conversations and track progress.</p>
-        <Link href="/learn" className="btn btn-outline-primary mt-3">Stuck on a problem? Start guided practice</Link>
-      </header>
+    <>
+      <PageHeader icon="stars" title="MathBank Tutor"
+        subtitle="Ask, explore and learn competition math with a streaming AI tutor."
+        actions={<Link href="/learn" className="btn btn-outline-primary btn-sm"><Icon name="signpost-split" className="me-1" />Guided practice</Link>} />
       <Chat />
-    </div>
+    </>
   );
 }

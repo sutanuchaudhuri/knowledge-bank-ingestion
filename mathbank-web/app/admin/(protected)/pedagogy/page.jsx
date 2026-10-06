@@ -1,7 +1,8 @@
 "use client";
 
+import { Callout, PageHeader, Pill } from "../../../_components/ui.jsx";
+
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import MathText from "../../../_components/MathText.jsx";
 import ProblemDetail from "../../../db/ProblemDetail.jsx";
 
@@ -197,18 +198,13 @@ export default function PedagogyReviewPage() {
 
   return (
     <div>
-      <header className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-        <div>
-          <span className="badge text-bg-primary mb-2">Human review</span>
-          <h1 className="h3 fw-bold">Pedagogical metadata approval</h1>
-          <p className="text-secondary mb-0">Inspect evidence, record a decision in Postgres, then explicitly publish to the teaching graph.</p>
-        </div>
-        <Link href="/admin" className="btn btn-outline-secondary">Ingestion admin</Link>
-      </header>
-      <div className="alert alert-info">
+      <PageHeader icon="patch-check" title="Pedagogical metadata approval"
+        subtitle="Inspect evidence, record a decision in Postgres, then explicitly publish to the teaching graph."
+        pills={<Pill tone="primary" icon="person-check">Human review</Pill>} />
+      <Callout tone="insight" title="Review order">
         Approve skills first, then their mappings and relations. Approval records your review of the displayed assertion, not automatic approval of related rows.
         Generated content and confidence are not expert validation. Publishing preserves each row&apos;s status; it never approves pending rows.
-      </div>
+      </Callout>
       {error && <div role="alert" className="alert alert-danger">{error}</div>}
       {notice && <div role="status" className="alert alert-success">{notice}</div>}
       <section className="card border-0 shadow-sm mb-4">

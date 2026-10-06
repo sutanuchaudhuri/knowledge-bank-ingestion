@@ -5,11 +5,16 @@ import rehypeKatex from "rehype-katex";
 import { WidgetHost } from "mathbank-widgets";
 import { normalizeMathDelimiters } from "../../lib/markdown.js";
 import { parseWidgetBlock, widgetSourceFromPre } from "../../lib/widgetBlocks.mjs";
+import { mentionedProblemCodes } from "../../lib/problemDiagrams.mjs";
+import ProblemDiagrams from "./ProblemDiagrams.jsx";
 
 const renderInline = (t) => <MathText>{t}</MathText>;
 
 // ```widget fenced JSON from the tutor becomes a whitelisted, declarative widget card (never executed).
 const components = {
+  img({ node, ...props }) {
+    return <img {...props} className="mb-source-image" loading="lazy" />;
+  },
   pre({ node, children, ...props }) {
     const source = widgetSourceFromPre(node);
     if (source == null) return <pre {...props}>{children}</pre>;
@@ -26,6 +31,7 @@ export default function MathText({ children }) {
       <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={components}>
         {normalizeMathDelimiters(children || "")}
       </ReactMarkdown>
+      {mentionedProblemCodes(children || "").map((code) => <ProblemDiagrams key={code} code={code} />)}
     </div>
   );
 }

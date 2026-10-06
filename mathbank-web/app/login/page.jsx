@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { panel, input, primaryButton, button } from "../db/dbStyles.js";
+import { input, primaryButton } from "../db/dbStyles.js";
+import { Avatar, Callout, Icon } from "../_components/ui.jsx";
 
 const DEMO_ACCOUNTS = [
   { email: "maya.chen@example.com", label: "Maya Chen — strong" },
@@ -48,17 +48,17 @@ export default function LoginPage() {
 
   return (
     <div className="app-auth">
-      <p style={{ marginTop: 0 }}>
-        <Link href="/" style={{ fontSize: 13, color: "#2563eb" }}>&larr; Back to chat</Link>
-      </p>
-      <h1 className="h3 fw-bold mb-4">{mode === "login" ? "Student login" : "Create your student account"}</h1>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <button className={mode === "login" ? primaryButton : button} aria-pressed={mode === "login"} onClick={() => setMode("login")}>Log in</button>
-        <button className={mode === "register" ? primaryButton : button} aria-pressed={mode === "register"} onClick={() => setMode("register")}>Register</button>
+      <div className="text-center mb-4">
+        <span className="mb-page-icon mb-tone-primary mx-auto mb-3"><Icon name="mortarboard" /></span>
+        <h1 className="mb-page-title">{mode === "login" ? "Student login" : "Create your student account"}</h1>
+        <p className="mb-page-sub">Save your conversations and track your progress.</p>
+      </div>
+      <div className="mb-segment mb-3" role="group" aria-label="Account mode">
+        <button type="button" className={mode === "login" ? "active" : ""} aria-pressed={mode === "login"} onClick={() => setMode("login")}>Log in</button>
+        <button type="button" className={mode === "register" ? "active" : ""} aria-pressed={mode === "register"} onClick={() => setMode("register")}>Register</button>
       </div>
 
-      <form onSubmit={submit} className={`${panel} gap-3`}>
+      <form onSubmit={submit} className="card p-4 d-grid gap-3">
         {mode === "register" && (
           <>
             <label className="form-label mb-0">First name
@@ -79,19 +79,17 @@ export default function LoginPage() {
         <button type="submit" className={primaryButton} disabled={status === "submitting"}>
           {status === "submitting" ? "Working…" : mode === "login" ? "Log in" : "Create account"}
         </button>
-        {status?.startsWith("error") && <p className="alert alert-danger mb-0" role="alert">{status}</p>}
+        {status?.startsWith("error") && <Callout tone="danger" role="alert">{status}</Callout>}
       </form>
 
-      <div className={`${panel} mt-4`}>
-        <h3 style={{ marginTop: 0, fontSize: 14 }}>Try a demo account</h3>
-        <p style={{ color: "#666", fontSize: 12, marginTop: 0 }}>
-          Three seeded profiles with real attempt history (password <code>{DEMO_PASSWORD}</code> for all three) —
-          see <code>mathbank-rest/scripts/seed_demo_students.py</code>.
-        </p>
-        <div style={{ display: "grid", gap: 6 }}>
+      <div className="mt-4">
+        <div className="small text-secondary text-center mb-2">
+          <Icon name="people" className="me-1" />Demo accounts · password <code>{DEMO_PASSWORD}</code>
+        </div>
+        <div className="d-flex flex-wrap justify-content-center gap-2">
           {DEMO_ACCOUNTS.map((d) => (
-            <button key={d.email} className={button} onClick={() => fillDemo(d.email)}>
-              {d.label}
+            <button key={d.email} type="button" className="mb-tab" onClick={() => fillDemo(d.email)} title={d.email}>
+              <Avatar name={d.label} size={22} />{d.label}
             </button>
           ))}
         </div>

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { panel, input, primaryButton } from "../../db/dbStyles.js";
+import { input, primaryButton } from "../../db/dbStyles.js";
+import { Callout, Icon } from "../../_components/ui.jsx";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -30,18 +30,12 @@ export default function AdminLoginPage() {
 
   return (
     <div className="app-auth">
-      <p style={{ marginTop: 0 }}>
-        <Link href="/" style={{ fontSize: 13, color: "#2563eb" }}>&larr; Back to chat</Link>
-      </p>
-      <h1 className="h3 fw-bold mb-4">Admin login</h1>
-      <p style={{ color: "#666", fontSize: 13 }}>
-        Predefined single admin account — a bridge until real OAuth login is built
-        (see requirements/12_STUDENT_PROFILE_AND_ADMIN_LOGIN_UI_REQUIREMENTS.md).
-        Default dev credentials: <code>admin</code> / <code>ChangeMe123!</code>
-        (set <code>ADMIN_LOGIN_USERNAME</code>/<code>ADMIN_LOGIN_PASSWORD</code> in
-        mathbank-web/.env to change).
-      </p>
-      <form onSubmit={submit} className={`${panel} gap-3`}>
+      <div className="text-center mb-4">
+        <span className="mb-page-icon mb-tone-warning mx-auto mb-3"><Icon name="shield-lock" /></span>
+        <h1 className="mb-page-title">Admin login</h1>
+        <p className="mb-page-sub">Single predefined admin account until OAuth lands.</p>
+      </div>
+      <form onSubmit={submit} className="card p-4 d-grid gap-3">
         <label className="form-label mb-0">Username
         <input
           className={input}
@@ -64,8 +58,11 @@ export default function AdminLoginPage() {
         <button type="submit" className={primaryButton} disabled={status === "checking"}>
           {status === "checking" ? "Checking…" : "Log in"}
         </button>
-        {status?.startsWith("error") && <p className="alert alert-danger mb-0" role="alert">{status}</p>}
+        {status?.startsWith("error") && <Callout tone="danger" role="alert">{status}</Callout>}
       </form>
+      <p className="small text-secondary text-center mt-3" title="Set ADMIN_LOGIN_USERNAME / ADMIN_LOGIN_PASSWORD in mathbank-web/.env to change (requirements/12).">
+        <Icon name="info-circle" className="me-1" />Dev default: <code>admin</code> / <code>ChangeMe123!</code>
+      </p>
     </div>
   );
 }
