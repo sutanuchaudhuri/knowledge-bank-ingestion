@@ -21,6 +21,15 @@ This folder defines the implementation plan and requirements for building the Ma
 15. [15_RELATIONSHIP_ENRICHMENT.md](15_RELATIONSHIP_ENRICHMENT.md) — semantic taxonomy relationship generation and graph publication.
 16. [16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md](16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md) — per-paper/competition completion evidence, timestamps and live metrics across all layers; graph + vector + lexical tutor retrieval.
 17. [17_DOMAIN_AND_TECHNICAL_GLOSSARY.md](17_DOMAIN_AND_TECHNICAL_GLOSSARY.md) — domain/technical vocabulary, actual database and graph representations, exact strength/weakness scoring, operational states and implemented-vs-planned distinctions.
+18. [18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md](18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md) — verifiable progress tracker for the v2 pack (phases 0–13): Prasolov package import, reconciliation, step-graph projection, safety SQL and commands.
+19. [19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md](19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md) — every known pitfall (source data, PostgreSQL/locking, graph, pipeline runners, credentials/tools, UI/REST, tests), each with its symptom, cause, fix or rule, and where it is enforced.
+20. [20_NOT_YET_IMPLEMENTED.md](20_NOT_YET_IMPLEMENTED.md) — register of what is not built yet: open v2 phases 6–13, gaps inside delivered phases, and the verified operational backlog (failed papers, failed enrichment jobs, stale runs).
+21. [21_V2_PACK_IMPLEMENTATION_AUDIT.md](21_V2_PACK_IMPLEMENTATION_AUDIT.md) — file-by-file audit of how much of the v2 pack (incl. `runtime_extension/`) is implemented (~79 % after doc 26), acceptance/golden-flow and what-not-to-do compliance; open gaps merged into 20.
+22. [22_AGENT_SESSION_TRANSCRIPTS.md](22_AGENT_SESSION_TRANSCRIPTS.md) — student_id ↔ agent session link (migration 016) and rebuilding full conversations for the student or an admin.
+23. [23_E2E_REGRESSION_SUITE.md](23_E2E_REGRESSION_SUITE.md) — Playwright browser regression suite: how to run, coverage, paid `@llm` opt-in, baseline.
+24. [24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md](24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md) — admin Prasolov corpus dashboard (problems, solutions/steps, transformations, taxonomy, diagrams) and the measured source → Postgres → pgvector → Neo4j coverage matrix.
+25. [25_LEARNING_ITEM_CONCEPT_EDGES.md](25_LEARNING_ITEM_CONCEPT_EDGES.md) — `LearningItem -[:TARGETS_CONCEPT|TARGETS_SUBCONCEPT]->` graph edges (NYI-ATB-7): contract, implementation, run results, queries, acceptance.
+26. [26_GEOMETRY_RUNTIME_COMPLETION_PLAN.md](26_GEOMETRY_RUNTIME_COMPLETION_PLAN.md) — Prasolov-only completion of the runtime extension: step→technique tags (WP1), agent step-runtime tools (WP2), admin import/reconciliation/DAG review UI (WP3), outbox consumers and event lifecycle (WP4), remaining WPs, and the NULL policy + runtime population plan for non-Prasolov corpora.
 
 ## Scope Summary
 
@@ -30,6 +39,7 @@ This folder defines the implementation plan and requirements for building the Ma
 - Indexing model: category + concept + competition + year + difficulty indexes.
 - Retrieval model: hybrid reviewed graph evidence, vector similarity and lexical RAG for curriculum and question search.
 - Integration model: APIs for future agentic workflows.
+- Current implementation reference: [reference/](reference/) contains the canonical source-derived PostgreSQL schema/DML, Neo4j graph projection schema, REST/OpenAPI snapshot and web/agent HTTP notes.
 
 ## Naming And Versioning
 
@@ -45,4 +55,5 @@ This folder defines the implementation plan and requirements for building the Ma
   - MST-* for student mastery extraction requirements
   - SPL-* for student profile / login UI requirements (and the admin login bridge)
   - PED-* for pedagogical graph and anonymous tutoring requirements
+  - GOT-* for gotchas / operational pitfalls (doc 19)
 - Version baseline: v1.0 for spreadsheet migration and first production RAG.

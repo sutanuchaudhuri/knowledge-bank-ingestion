@@ -8,13 +8,12 @@ import rehypeKatex from "rehype-katex";
 import { createSession, newSessionId, streamMessage } from "./agentClient.js";
 import { normalizeMathDelimiters } from "../lib/markdown.js";
 
-const USER_ID = "anonymous";
-
 export default function Chat() {
   const sessionRef = useRef(null);
   const streamRef = useRef(null);
   const bottomRef = useRef(null);
   const [ready, setReady] = useState(false);
+  const [saved, setSaved] = useState(null);
   const [messages, setMessages] = useState([
     { role: "assistant", text: "Ask me about any competition math topic, e.g. \"What are the recent questions on combinatorics?\"" },
   ]);
@@ -27,10 +26,10 @@ export default function Chat() {
     let cancelled = false;
     if (!sessionRef.current) {
       const id = newSessionId();
-      sessionRef.current = { id, request: createSession(USER_ID, id) };
+      sessionRef.current = { id, request: createSession(id) };
     }
     sessionRef.current.request
-      .then(() => { if (!cancelled) setReady(true); })
+      .then((session) => { if (!cancelled) { setReady(true); setSaved(session); } })
       .catch((err) => { if (!cancelled) setError(`Could not reach the agent: ${err.message}`); });
     return () => { cancelled = true; streamRef.current?.abort(); };
   }, []);
@@ -52,7 +51,7 @@ export default function Chat() {
     setActivity([]);
     setSending(true);
     try {
-      await streamMessage(USER_ID, sessionRef.current.id, text, (update) => {
+      await streamMessage(sessionRef.current.id, text, (update) => {
         if (update.type === "answer") {
           setMessages((items) => items.map((item, index) => index === answerIndex ? { ...item, text: update.text } : item));
         } else if (update.type === "activity") {
@@ -107,6 +106,13 @@ export default function Chat() {
           </div>
           <div className="card-footer bg-white p-3">
             {error && <div role="alert" className="alert alert-danger">{error}</div>}
+            {saved && (
+              <p className="small text-secondary mb-2" data-testid="chat-saved-state">
+                {saved.linked
+                  ? <>This conversation is saved to <a href="/learn/conversations">your conversations</a>.</>
+                  : <>Chatting anonymously — <a href="/login">sign in</a> to keep a history of your conversations.</>}
+              </p>
+            )}
             <form onSubmit={handleSend} className="d-flex gap-2">
               <label htmlFor="chat-input" className="visually-hidden">Your question</label>
               <input id="chat-input" className="form-control form-control-lg" value={input}

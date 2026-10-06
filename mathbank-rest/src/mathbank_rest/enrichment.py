@@ -19,6 +19,7 @@ from mathbank_rest.db.pedagogy_admin import operator_module
 from mathbank_rest.db.postgres import engine
 
 Scale = Annotated[int, Field(ge=1, le=5, strict=True)]
+STRUCTURED_OUTPUT_ENUM_LIMIT = 1000
 logger = logging.getLogger(__name__)
 
 
@@ -149,6 +150,11 @@ def build_manifest(
 
 
 def generation_schema(concepts: set[str], techniques: set[str]) -> dict:
+    if len(concepts) + len(techniques) > STRUCTURED_OUTPUT_ENUM_LIMIT:
+        raise EnrichmentUnavailable(
+            f"Concept/technique catalog has {len(concepts) + len(techniques)} slugs; structured outputs "
+            f"allow at most {STRUCTURED_OUTPUT_ENUM_LIMIT} enum values. Scope the catalog before generation."
+        )
     schema = TeachingMetadata.model_json_schema()
     for properties in (schema["properties"], schema["$defs"]["Skill"]["properties"]):
         if concepts:
@@ -369,11 +375,29 @@ def _enrich_problem(code: str, force: bool = False) -> dict:
         if existing and not force:
             return {"problem_code": code, "status": "already_enriched"}
         catalogs = {}
+        textbook_tables = conn.execute(
+            text("SELECT to_regclass('pedagogy.taxonomy_node') IS NOT NULL")
+        ).scalar_one()
         for table in ("concept", "technique"):
+            # Textbook-package taxonomy (migration 010) is finer-grained than the contest catalog and
+            # would push the structured-output enum past the model's 1000-value limit; keep only
+            # textbook nodes that a non-textbook problem already uses.
+            textbook_filter = (
+                f"""WHERE NOT EXISTS (
+                      SELECT 1 FROM pedagogy.taxonomy_node t
+                       WHERE t.{table}_id = k.{table}_id AND t.node_type <> 'DOMAIN')
+                   OR EXISTS (
+                      SELECT 1 FROM knowledge.problem_{table} pk
+                       WHERE pk.{table}_id = k.{table}_id
+                         AND NOT EXISTS (SELECT 1 FROM pedagogy.problem_source_ref r
+                                          WHERE r.problem_id = pk.problem_id))"""
+                if textbook_tables
+                else ""
+            )
             catalogs[table] = [
                 dict(row)
                 for row in conn.execute(
-                    text(f"SELECT slug,name FROM knowledge.{table} ORDER BY slug")
+                    text(f"SELECT k.slug,k.name FROM knowledge.{table} k {textbook_filter} ORDER BY k.slug")
                 ).mappings()
             ]
         solutions = (

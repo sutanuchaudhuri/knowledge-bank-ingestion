@@ -66,15 +66,19 @@ export async function restAdminGet(path, searchParams) {
 }
 
 export async function restAdminPost(path, payload) {
+  return restAdminSend("POST", path, payload);
+}
+
+export async function restAdminSend(method, path, payload) {
   const res = await fetch(buildUrl(path), {
-    method: "POST",
+    method,
     headers: adminHeaders(),
     body: JSON.stringify(payload),
     cache: "no-store",
   });
   const body = await parseJsonSafely(res);
   if (!res.ok) {
-    const err = new Error(body?.detail ? JSON.stringify(body.detail) : `mathbank-rest POST ${path} failed: ${res.status}`);
+    const err = new Error(body?.detail ? JSON.stringify(body.detail) : `mathbank-rest ${method} ${path} failed: ${res.status}`);
     err.status = res.status;
     throw err;
   }
@@ -108,10 +112,10 @@ export async function restAuthGet(path, token, searchParams) {
   return body;
 }
 
-export async function restAuthPost(path, token, payload) {
+export async function restAuthPost(path, token, payload, extraHeaders = {}) {
   const res = await fetch(buildUrl(path), {
     method: "POST",
-    headers: bearerHeaders(token),
+    headers: { ...bearerHeaders(token), ...extraHeaders },
     body: JSON.stringify(payload),
     cache: "no-store",
   });
@@ -122,4 +126,14 @@ export async function restAuthPost(path, token, payload) {
     throw err;
   }
   return body;
+}
+
+// Binary passthrough (problem diagrams): returns the upstream Response untouched.
+export async function restRaw(path) {
+  return fetch(buildUrl(path), { cache: "no-store" });
+}
+
+// Admin binary passthrough (all textbook diagrams, including solution-hidden ones).
+export async function restAdminRaw(path) {
+  return fetch(buildUrl(path), { headers: { "X-Admin-Api-Key": process.env.MATHBANK_ADMIN_API_KEY || "" }, cache: "no-store" });
 }

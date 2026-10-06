@@ -220,6 +220,100 @@ project-pedagogy-remote:        ## Explicit remote Neon to AuraDB metadata proje
 
 .PHONY: migrate-pedagogy-review migrate-pedagogy-review-remote
 .PHONY: migrate-automatic-metadata-remote
+.PHONY: migrate-textbook-import-remote textbook-import-dry-run textbook-import-remote textbook-import-status-remote
+TEXTBOOK_ROOT     ?= $(CURDIR)/../math_tutor_new_requirements_copilot_pack_v2_expanded/GEOMETRY-TEXTBOOKS
+TEXTBOOK_PACKAGES ?= $(TEXTBOOK_ROOT)/Prasolov_Geometry_Corpus_Ch01_20 $(TEXTBOOK_ROOT)/Prasolov_Geometry_Corpus_Ch21_30
+TEXTBOOK_PYTHON   ?= $(CURDIR)/../mathbank-rest/.venv/bin/python
+TEXTBOOK_CHAPTER_ARGS = $(foreach c,$(CHAPTER),--chapter $(c))
+migrate-textbook-import-remote: ## Add ingest.* package/staging/reconciliation + pedagogy.* step tables (migration 010)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/010_textbook_import.sql
+textbook-import-dry-run:        ## Validate Prasolov packages offline (CHAPTER="1 2" for a pilot)
+	$(TEXTBOOK_PYTHON) etl/import_textbook_package.py $(TEXTBOOK_PACKAGES) $(TEXTBOOK_CHAPTER_ARGS) --dry-run
+textbook-import-remote:         ## Idempotent Prasolov import into Neon (CHAPTER="1" for a pilot)
+	PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" $(TEXTBOOK_PYTHON) etl/import_textbook_package.py $(TEXTBOOK_PACKAGES) $(TEXTBOOK_CHAPTER_ARGS)
+textbook-import-status-remote:  ## Package status + reconciliation from Neon
+	PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" $(TEXTBOOK_PYTHON) etl/import_textbook_package.py --status
+TEXTBOOK_GRAPH = GRAPH_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" "$(PEDAGOGY_GRAPH_PYTHON)" ../mathbank-graph/etl/project_textbook_steps.py
+.PHONY: textbook-graph-dry-run-remote textbook-graph-remote textbook-graph-status-remote
+textbook-graph-dry-run-remote:  ## Planned SolutionPart/SolutionStep graph counts from Neon (no graph writes)
+	$(TEXTBOOK_GRAPH) --dry-run
+textbook-graph-remote:          ## Base --pedagogy projection, then idempotent step layer (Phase 4) into Aura
+	GRAPH_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" "$(PEDAGOGY_GRAPH_PYTHON)" ../mathbank-graph/etl/project_from_postgres.py --pedagogy
+	$(TEXTBOOK_GRAPH)
+textbook-graph-status-remote:   ## Reconcile Neon step counts against Aura (read-only)
+	$(TEXTBOOK_GRAPH) --status
+TEXTBOOK_VECTOR = PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" .venv/bin/python etl/embed_textbook_steps.py
+.PHONY: migrate-step-vector-remote textbook-vector-build-remote textbook-vector-remote textbook-vector-status-remote textbook-problem-vector-remote
+migrate-step-vector-remote:     ## Add step/learning-item vector metadata columns (migration 011)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/011_step_vector_metadata.sql
+textbook-vector-build-remote:   ## Step/learning-item/taxonomy-node representations + chunks only (no paid calls)
+	$(TEXTBOOK_VECTOR) build
+textbook-vector-remote:         ## Build + embed step/published learning-item/taxonomy-node chunks (Phase 5, paid, idempotent)
+	$(TEXTBOOK_VECTOR) backfill
+textbook-vector-status-remote:  ## Reconcile eligible steps/items/taxonomy nodes against ACTIVE embeddings (read-only)
+	$(TEXTBOOK_VECTOR) status
+PROJECTION_QUEUE = PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" .venv/bin/python etl/run_projection_requests.py
+.PHONY: projection-queue-status-remote projection-queue-run-remote projection-queue-run-paid-remote
+projection-queue-status-remote:    ## Pending pipeline.projection_request rows by target (read-only)
+	$(PROJECTION_QUEUE) --status
+projection-queue-run-remote:       ## Free: run textbook-graph-remote for pending graph requests, mark DONE; list paid ones
+	$(PROJECTION_QUEUE)
+projection-queue-run-paid-remote:  ## PAID: also run textbook-vector-remote for pending embedding requests
+	$(PROJECTION_QUEUE) --allow-paid
+textbook-problem-vector-remote: ## Embed textbook problem statements/solutions via the existing corpus embedder (paid)
+	PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" .venv/bin/python etl/embed_corpus.py backfill \
+	  $$(PG_ENV_FILE="$(CURDIR)/../mathbank-graph/remote.env" .venv/bin/python etl/embed_textbook_steps.py papers)
+.PHONY: migrate-step-runtime-remote
+migrate-step-runtime-remote:    ## Student step runtime: solve_attempt, step state, events, tutor.runtime_state, outbox (migration 012)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/012_step_runtime.sql
+.PHONY: migrate-step-hints-remote
+migrate-step-hints-remote:      ## Shared per-step hint cache for the Phase 8 hint ladder (migration 013)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/013_step_hints.sql
+.PHONY: migrate-gap-diagnosis-remote
+migrate-gap-diagnosis-remote:   ## Phase 9 gap diagnosis + knowledge-gap hypotheses (migration 014)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/014_gap_diagnosis.sql
+.PHONY: migrate-recovery-remote textbook-approve-learning-items-remote
+migrate-recovery-remote:        ## Phase 10 recovery plans/items + learning-item approval columns (migration 015)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/015_recovery_runtime.sql
+.PHONY: migrate-agent-session-link-remote
+migrate-agent-session-link-remote: ## Student ↔ ADK agent session link for transcripts (migration 016)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/016_agent_session_link.sql
+.PHONY: migrate-step-technique-remote textbook-step-techniques-remote
+migrate-step-technique-remote:  ## Step → technique tags + derivation runs (migration 017)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/017_step_techniques.sql
+textbook-step-techniques-remote: ## Derive rule-tier step techniques for the Prasolov book (free, idempotent)
+	cd etl && PG_ENV_FILE=../../mathbank-graph/remote.env ../.venv/bin/python derive_step_techniques.py
+	cd etl && PG_ENV_FILE=../../mathbank-graph/remote.env ../.venv/bin/python derive_step_techniques.py --status
+textbook-approve-learning-items-remote: ## Auto-approve validated PENDING_REVIEW learning items (idempotent; then vector + graph)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/ops/approve_learning_items_auto.sql
+.PHONY: migrate-outbox-consumers-remote
+migrate-outbox-consumers-remote: ## Outbox consumers: analytics rollup, projection requests, ATTEMPT_ABANDONED (migration 018)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/018_outbox_consumers.sql
+.PHONY: migrate-admin-import-review-remote
+migrate-admin-import-review-remote: ## Admin import/DAG review audit, conflict decisions, step edit guard (migration 019)
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/019_admin_import_review.sql
 .PHONY: migrate-relationship-enrichment-remote
 migrate-relationship-enrichment-remote: ## Add durable auto-approved relationship jobs (migration 009)
 	@. $(CURDIR)/../mathbank-graph/remote.env; \

@@ -4,6 +4,8 @@ archive/
 # Node (mathbank-web)
 node_modules/
 .next/
+mathbank-web/playwright-report/
+mathbank-web/test-results/
 
 # Python
 __pycache__/

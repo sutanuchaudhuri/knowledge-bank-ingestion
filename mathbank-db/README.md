@@ -165,9 +165,47 @@ source of truth for whether the new corpus batch is now searchable.
 | `003_learner_schema.sql` | `migrate-learner` / `migrate-learner-remote` | `learner.*` — student accounts, attempts, mastery |
 | `004_admin_pipeline.sql` | `migrate-admin` / `migrate-admin-remote` | `pipeline.pdf_source.source_kind`, admin-registered paper tracking |
 | `005_student_profile_names.sql` | `migrate-student-names` / `migrate-student-names-remote` | `learner.student_profile.first_name`/`last_name` |
+| `010_textbook_import.sql` | `migrate-textbook-import-remote` | `ingest.*` package/staging/conflict/reconciliation; `pedagogy.*` taxonomy bridge, solution parts/steps/dependencies, learning items, diagrams |
+| `011_step_vector_metadata.sql` | `migrate-step-vector-remote` | `search.*` step / learning-item chunk metadata (skill, subconcept, step type, …) and filter indexes for Phase 5 retrieval |
+| `012_step_runtime.sql` | `migrate-step-runtime-remote` | `learner.solve_attempt`, `attempt_step_state`, append-only `learner.event`, `idempotency_record`; `tutor.runtime_state`; `pipeline.outbox_event`/`outbox_consumption` |
+| `013_step_hints.sql` | `migrate-step-hints-remote` | `pedagogy.step_hint` — generated hint text cached per step, level (1–4) and prompt version |
+| `014_gap_diagnosis.sql` | `migrate-gap-diagnosis-remote` | `pedagogy.gap_diagnosis` and ranked `pedagogy.knowledge_gap` hypotheses (Phase 9); adds `GAP_DIAGNOSED` / `GAP_HYPOTHESIS_RESOLVED` to the `learner.event` type CHECK |
+| `015_recovery_runtime.sql` | `migrate-recovery-remote` | `pedagogy.recovery_plan` / `recovery_plan_item` (Phase 10 detours), `learning_item.approval_method`/`approved_at`, `gap_diagnosis.ai_rerank`, recovery FKs on `solve_attempt`/`runtime_state`, `RECOVERY_*` event types |
+| `016_agent_session_link.sql` | `migrate-agent-session-link-remote` | `learner.agent_session_link` — student ↔ ADK agent session mapping used to rebuild conversations ([22](../requirements/22_AGENT_SESSION_TRANSCRIPTS.md)); logical link into framework-owned `agent_sessions`, cascades on learner deletion |
 
 Every migration is an idempotent `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN
 IF NOT EXISTS` — safe to re-run.
+
+### Textbook package import (Prasolov geometry)
+
+`etl/import_textbook_package.py` imports the enriched `pedagogy_v3` packages under
+`math_tutor_new_requirements_copilot_pack_v2_expanded/GEOMETRY-TEXTBOOKS/`. It goes through
+register → stage → validate → upsert → reconcile, and every step is idempotent. Source quirks are
+recorded in `ingest.import_conflict` and do not abort the import. Learning items import as
+`PENDING_REVIEW`; `make textbook-approve-learning-items-remote` auto-approves the structurally valid ones
+(`approval_method='automatic'`, current product decision) so recovery detours and probes can use them.
+Re-imports never overwrite an approval. After approving, run `textbook-vector-remote` and then
+`textbook-graph-remote` so the item vectors and `:LearningItem` nodes catch up.
+
+```bash
+make textbook-import-dry-run [CHAPTER=1]   # offline validation
+make textbook-import-remote  [CHAPTER=1]   # import into Neon
+make textbook-import-status-remote         # status + reconciliation counts
+make textbook-graph-remote                 # Aura: --pedagogy base, then SolutionPart/SolutionStep layer
+make textbook-graph-status-remote          # Postgres vs Aura step-graph reconciliation (read-only)
+make textbook-vector-remote                # build + embed step chunks (paid, idempotent)
+make textbook-vector-status-remote         # eligible vs ACTIVE embeddings (read-only)
+make textbook-problem-vector-remote        # embed Prasolov problem/solution statements (paid)
+make migrate-step-runtime-remote           # student step runtime schema (migration 012)
+make migrate-step-hints-remote             # step hint cache (migration 013)
+make migrate-gap-diagnosis-remote          # gap diagnosis (migration 014)
+make migrate-recovery-remote               # recovery plans + item approval columns (migration 015)
+make migrate-agent-session-link-remote     # student ↔ agent session link for transcripts (migration 016)
+make textbook-approve-learning-items-remote  # auto-approve valid learning items (idempotent)
+```
+
+Progress and verification SQL: `requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md`.
+Pitfalls (BOM, duplicate IDs, lock order, projection kinds): `requirements/19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md`.
 
 ## Local vs. remote
 

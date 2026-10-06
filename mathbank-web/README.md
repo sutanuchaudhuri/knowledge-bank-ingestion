@@ -31,8 +31,31 @@ turn requires `mathbank-rest` running (`make -C ../mathbank-rest run`).
 
 ## Current user model
 
-There is no login yet — every browser session is `user_id="anonymous"` with a
-random per-tab `session_id`. An `ADMIN` role and real student profiles/attempt
-history are planned (see
-[`mathematics_tutor_db_plan/agent/06_security_and_access_model.md`](../mathematics_tutor_db_plan/agent/06_security_and_access_model.md))
-but not implemented in this UI yet.
+Students sign in at `/login` (httpOnly JWT cookie); admins at `/admin/login`.
+The ADK `user_id` is derived on the server (`/api/agent/session`): the student
+UUID when signed in, otherwise `anonymous`; any client-supplied id is ignored.
+Signed-in chats are linked to the student in `learner.agent_session_link`, so
+the full conversation can be rebuilt at `/learn/conversations` (student) and
+`/admin/conversations` (admin, incl. tool calls). Anonymous chats stay
+unlinked. See [requirements/22](../requirements/22_AGENT_SESSION_TRANSCRIPTS.md).
+
+Admins can browse the imported Prasolov corpus at `/admin/textbooks`:
+
+- Coverage matrix across source, Postgres, pgvector and Neo4j.
+- Problems, transformations and taxonomy.
+- `/admin/textbooks/problems/{canonical_code}`, which shows solution steps, transformations, diagrams (including solution-hidden ones) and per-store status.
+
+See [requirements/24](../requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md).
+
+## Tests
+
+```bash
+make test           # node unit tests (tests/*.test.mjs), no services needed
+make e2e-install    # one-time: Playwright Chromium
+make e2e            # Playwright regression against the running stack (no paid calls)
+make e2e-llm        # also runs @llm specs (small paid OpenAI calls)
+make e2e-report     # open the last HTML report
+```
+
+`E2E_BASE_URL` overrides `http://localhost:5173`. See
+[requirements/23](../requirements/23_E2E_REGRESSION_SUITE.md).

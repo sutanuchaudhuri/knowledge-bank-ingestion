@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { hasStepSolution } from "../../lib/solveFlow.mjs";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -36,6 +37,11 @@ export default function ProblemDetail({ code }) {
       <Link className="btn btn-sm btn-outline-primary mb-3" href={`/learn?problem=${encodeURIComponent(problem.canonical_code)}`}>
         Learn with diagnosis and hints
       </Link>
+      {hasStepSolution(problem.canonical_code) && (
+        <Link className="btn btn-sm btn-primary mb-3 ms-2" href={`/learn/solve/${encodeURIComponent(problem.canonical_code)}`}>
+          Solve step by step
+        </Link>
+      )}
       <p style={{ color: "#666", fontSize: 13 }}>
         {problem.competition} {problem.year} · {problem.paper_code} · Problem {problem.problem_number}
         {problem.source_url && (

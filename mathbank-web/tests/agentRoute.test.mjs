@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { POST } from "../app/api/agent/run/route.js";
+import { createAgentRunHandler } from "../lib/agentRunProxy.mjs";
+import { ANONYMOUS_USER, createAgentIdentity, linkPayload } from "../lib/agentIdentity.mjs";
+
+const POST = createAgentRunHandler({ resolveUser: async () => ({ userId: ANONYMOUS_USER }) });
 import { GENERATED_COACHING_NOTICE, readSse } from "../lib/agentStream.mjs";
 
 function request(body) {
@@ -93,4 +96,48 @@ test("non-streaming generated hints have the same deterministic review notice", 
   ]));
   const response = await POST(request(input));
   assert.deepEqual(await response.json(), { reply: `${GENERATED_COACHING_NOTICE}\n\nTry counting.` });
+});
+
+test("the ADK user id comes from the server identity, never the client body", async (t) => {
+  const handler = createAgentRunHandler({ resolveUser: async () => ({ userId: "student-123" }) });
+  let sent;
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    sent = JSON.parse(init.body);
+    return Response.json([{ author: "tutor", content: { parts: [{ text: "Answer" }] } }]);
+  });
+  await handler(request({ ...input, userId: "someone-else" }));
+  assert.equal(sent.user_id, "student-123");
+  assert.equal((await handler(request({ ...input, sessionId: "bad id/with slash" }))).status, 400);
+});
+
+test("agent identity resolves the logged-in student or falls back to anonymous", async () => {
+  const calls = [];
+  const get = async (path, token) => { calls.push(path); if (token === "bad") throw new Error("401"); return { student_id: "s-1" }; };
+  assert.deepEqual(await createAgentIdentity({ getToken: async () => null, get }).resolve(),
+    { userId: ANONYMOUS_USER, token: null, studentId: null });
+  const ok = createAgentIdentity({ getToken: async () => "tok", get });
+  assert.equal((await ok.resolve()).userId, "s-1");
+  await ok.resolve();
+  assert.deepEqual(calls, ["/v1/learner/me"]); // cached per token
+  assert.equal((await createAgentIdentity({ getToken: async () => "bad", get }).resolve()).userId, ANONYMOUS_USER);
+});
+
+test("link payload keeps only allowlisted surface and context keys", () => {
+  assert.deepEqual(linkPayload("s", { surface: "SOLVE_WORKSPACE", context: { problem_code: "P1", secret: "x" } }),
+    { agent_session_id: "s", surface: "SOLVE_WORKSPACE", context: { problem_code: "P1" } });
+  assert.equal(linkPayload("s", { surface: "EMAIL" }).surface, "HOME_CHAT");
+});
+
+test("a signed-in student's token is forwarded only as ADK temp state", async (t) => {
+  let sent;
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    sent = JSON.parse(options.body);
+    return Response.json([{ author: "tutor", content: { parts: [{ text: "ok" }] } }]);
+  });
+  const signedIn = createAgentRunHandler({ resolveUser: async () => ({ userId: "stu-1", token: "tok-1" }) });
+  await signedIn(request(input));
+  assert.equal(sent.user_id, "stu-1");
+  assert.deepEqual(sent.state_delta, { "temp:student_token": "tok-1" });
+  await POST(request(input));
+  assert.equal(sent.state_delta, undefined);
 });

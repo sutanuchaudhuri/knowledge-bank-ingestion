@@ -205,3 +205,17 @@ def test_admin_attribute_validation_rejects_unsafe_fields_and_invalid_dimensions
     ]:
         with pytest.raises(ValueError):
             edit("problem_pedagogy", key, "a" * 64, changes, "Fixture invalid input")
+
+
+def test_generation_schema_rejects_catalog_over_structured_output_enum_limit():
+    from mathbank_rest.enrichment import (
+        STRUCTURED_OUTPUT_ENUM_LIMIT,
+        EnrichmentUnavailable,
+        generation_schema,
+    )
+
+    concepts = {f"concept-{i}" for i in range(STRUCTURED_OUTPUT_ENUM_LIMIT - 100)}
+    within = generation_schema(concepts, {f"technique-{i}" for i in range(100)})
+    assert len(within["$defs"]["ConceptSlug"]["enum"]) == STRUCTURED_OUTPUT_ENUM_LIMIT - 100
+    with pytest.raises(EnrichmentUnavailable, match="enum values"):
+        generation_schema(concepts, {f"technique-{i}" for i in range(101)})

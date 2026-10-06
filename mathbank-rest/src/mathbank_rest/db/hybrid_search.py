@@ -47,18 +47,32 @@ def graph_candidates(
             dict(r)
             for r in session.run(
                 """
+            // Resolve the small set of candidate tags first; expanding every
+            // reviewed Problem->tag link before filtering took 30s+ on Aura.
+            CALL {
+              MATCH (tag)
+              WHERE (tag:Concept OR tag:Technique OR
+                     (tag:Skill AND tag.review_status='REVIEWED'))
+              WITH tag,
+                size([term IN $terms WHERE toLower(coalesce(tag.name,'')+' '+
+                     replace(coalesce(tag.slug,''),'-',' ')) CONTAINS term]) AS matches
+              WHERE matches > 0
+              RETURN tag, matches, [] AS seed_codes
+              UNION ALL
+              MATCH (seed:Problem)-[sr:TESTS|USES_TECHNIQUE|REQUIRES|PRACTICES]->(tag)
+              WHERE seed.canonical_code IN $seeds AND sr.review_status='REVIEWED'
+                AND (tag:Concept OR tag:Technique OR
+                     (tag:Skill AND tag.review_status='REVIEWED'))
+              RETURN tag, 0 AS matches, collect(DISTINCT seed.canonical_code) AS seed_codes
+            }
+            WITH tag, max(matches) AS matches, collect(seed_codes) AS nested
+            WITH tag, matches,
+              reduce(acc=[], s IN nested | acc + s) AS seed_codes
             MATCH (p:Problem)-[link:TESTS|USES_TECHNIQUE|REQUIRES|PRACTICES]->(tag)
-            WHERE (tag:Concept OR tag:Technique OR
-                   (tag:Skill AND tag.review_status='REVIEWED'))
-              AND link.review_status='REVIEWED'
+            WHERE link.review_status='REVIEWED'
               AND ($eligible IS NULL OR p.canonical_code IN $eligible)
-            WITH p,tag,link,
-              size([term IN $terms WHERE toLower(coalesce(tag.name,'')+' '+
-                   replace(coalesce(tag.slug,''),'-',' ')) CONTAINS term]) AS matches
-            OPTIONAL MATCH (seed:Problem)-[sr:TESTS|USES_TECHNIQUE|REQUIRES|PRACTICES]->(tag)
-            WHERE seed.canonical_code IN $seeds AND sr.review_status='REVIEWED'
-              AND seed <> p
-            WITH p,tag,link,matches,count(DISTINCT seed) AS shared
+            WITH p,tag,link,matches,
+              size([c IN seed_codes WHERE c <> p.canonical_code]) AS shared
             WHERE matches > 0 OR shared > 0
             WITH p,sum(matches*2+shared) AS score,
               collect({kind:type(link),slug:tag.slug,name:tag.name,

@@ -205,7 +205,8 @@ def build_representations_and_chunks(cur, profile_id: str, limit: int | None,
 
 
 def embed_pending_chunks(cur, conn, model_id: str, limit: int | None,
-                         paper_codes: list[str] | None = None) -> tuple[int, int]:
+                         paper_codes: list[str] | None = None,
+                         representation_kinds: list[str] | None = None) -> tuple[int, int]:
     client = OpenAI()  # reads OPENAI_API_KEY from the environment (see _ensure_openai_api_key)
 
     cur.execute(
@@ -238,6 +239,13 @@ def embed_pending_chunks(cur, conn, model_id: str, limit: int | None,
                 JOIN core.paper t USING(paper_id) WHERE t.external_code=ANY(%s)))
         """
         params.extend([paper_codes, paper_codes])
+    if representation_kinds is not None:
+        query += """
+          AND EXISTS (SELECT 1 FROM search.representation r
+                      WHERE r.representation_id=c.representation_id AND r.status='ACTIVE'
+                        AND r.representation_kind=ANY(%s))
+        """
+        params.append(representation_kinds)
     if limit:
         query += " LIMIT %s"
         params.append(limit)

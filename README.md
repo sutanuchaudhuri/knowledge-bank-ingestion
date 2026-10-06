@@ -19,6 +19,11 @@ picture and the end-to-end corpus pipeline (crawl → classify → ETL → graph
 vector embeddings). See [GOTCHAS.md](GOTCHAS.md) for environment
 troubleshooting accumulated across this project's history.
 
+For the source-derived implementation reference, see
+[requirements/reference/](requirements/reference/): PostgreSQL DDL/DML,
+Neo4j projection schema, FastAPI/Swagger OpenAPI, web proxy routes and
+agent-session ownership.
+
 ## Do I need local Postgres/Neo4j at all?
 
 **Usually no.** `mathbank-db` and `mathbank-graph` are literally the names
@@ -323,6 +328,13 @@ The non-streaming API response remains available for existing callers.
 Streaming parser and event-mapping tests run with
 `node --test mathbank-web/tests/*.test.mjs`.
 
+Browser regression (Playwright) runs against the running stack:
+`make -C mathbank-web e2e` (no paid calls) or `make -C mathbank-web e2e-llm`
+(includes small paid tutor/grader calls). First run `make -C mathbank-web e2e-install`.
+See [requirements/23_E2E_REGRESSION_SUITE.md](requirements/23_E2E_REGRESSION_SUITE.md).
+Agent conversations are rebuilt per student at `/learn/conversations` and for
+admins at `/admin/conversations` ([requirements/22](requirements/22_AGENT_SESSION_TRANSCRIPTS.md)).
+
 ### Guided pedagogical practice
 
 Open http://localhost:5173/learn, or choose **Learn with diagnosis and hints**
@@ -338,6 +350,27 @@ default to reviewed-only data. Before metadata is reviewed and projected,
 the UI explicitly reports missing enrichment instead of inventing skills,
 prerequisites, or lower-level same-skill practice. Lower required levels on a
 shared skill are not a guarantee of lower overall problem difficulty.
+
+### Step-by-step solving (Prasolov problems)
+
+Log in as a student (or use a demo account), then open
+`http://localhost:5173/learn/solve/{code}`, for example
+http://localhost:5173/learn/solve/PRASOLOV_PGV1_CH01_P001, or click **Solve
+step by step** on a Prasolov problem. Each step is graded on the server, hints
+come one level at a time, and progress is saved: reloading the page resumes
+where you left off. The grader and hint writer use `STEP_TUTOR_MODEL` (default
+`gpt-4.1-mini`) through the project `.env` key. When a step keeps failing
+(two wrong tries or three hints), the **What's tripping you up?** card names
+the skill most likely missing and links quick practice checks; students can
+also ask for it with **Diagnose where I'm stuck**. From that card the student can
+start a **short detour**: a few staged practice items on the missing skill (theory,
+multiple choice, a short subproblem, then a transfer check). Afterwards **Return**
+brings them back to the exact step they were stuck on. Admins can review gaps and
+detours at http://localhost:5173/admin/knowledge-gaps. Optional AI re-ranking of
+the diagnosis is off by default; set `DIAGNOSIS_LLM_RERANK=1` (model
+`DIAGNOSIS_RERANK_MODEL`, falling back to `STEP_TUTOR_MODEL`) to turn it on.
+Details and evidence are in
+[tracker 18](requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md).
 
 The explicitly authorized 2026-10-04 Neon/Aura rollout is complete: migration
 006, 6 starter skills, 18 skill-related edges, 65 additional concept-hierarchy
@@ -424,5 +457,6 @@ embedding-backfill step: [DATABASES.md § Full corpus pipeline](DATABASES.md#ful
 ## Requirements & design docs
 
 - [requirements/00_INDEX.md](requirements/00_INDEX.md) — product/data-model/ingestion/RAG/API/infra/agentic-tutor/student-UI requirements, numbered and cross-referenced.
+- [requirements/reference/](requirements/reference/) — canonical source-derived PostgreSQL, graph, DML and REST/OpenAPI reference for the current implementation.
 - [mathematics_tutor_db_plan/](mathematics_tutor_db_plan/) — the detailed Postgres/Neo4j/vector/agent architecture these requirements are built from.
 - [presentation/](presentation/) — a static HTML walkthrough of the whole system (`index.html`) for a mixed technical/business audience, including real screenshots and live-captured data.

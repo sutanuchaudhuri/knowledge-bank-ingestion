@@ -86,7 +86,7 @@ def test_agent_registers_all_teaching_tools_and_diagnostic_first_instruction():
         and node.value.func.id == "Agent"
     )
     registered = {
-        item.id
+        (item.value if isinstance(item, ast.Starred) else item).id  # *STEP_RUNTIME_TOOLS is a starred list
         for keyword in agent.keywords
         if keyword.arg == "tools"
         for item in keyword.value.elts
@@ -96,6 +96,7 @@ def test_agent_registers_all_teaching_tools_and_diagnostic_first_instruction():
         "get_prerequisite_path",
         "get_next_hint",
         "find_easier_same_skill_problems",
+        "STEP_RUNTIME_TOOLS",
     } <= registered
     assert "FIRST call get_problem_learning_context" in instruction
     assert "Do not fetch get_problem_by_code or full solutions" in instruction

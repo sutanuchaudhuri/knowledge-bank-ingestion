@@ -6,33 +6,34 @@ export function newSessionId() {
   return `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export async function createSession(userId, sessionId) {
+// The server derives the agent user (logged-in student or "anonymous"); the browser never sends one.
+export async function createSession(sessionId, { surface = "HOME_CHAT", context = {} } = {}) {
   const res = await fetch("/api/agent/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, sessionId }),
+    body: JSON.stringify({ sessionId, surface, context }),
   });
   if (!res.ok) throw new Error(`createSession failed: ${res.status}`);
   return res.json();
 }
 
 /** Sends one user message, returns the agent's final reply text. */
-export async function sendMessage(userId, sessionId, text) {
+export async function sendMessage(sessionId, text) {
   const res = await fetch("/api/agent/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, sessionId, text }),
+    body: JSON.stringify({ sessionId, text }),
   });
   if (!res.ok) throw new Error(`run failed: ${res.status}`);
   const { reply } = await res.json();
   return reply;
 }
 
-export async function streamMessage(userId, sessionId, text, onEvent, signal) {
+export async function streamMessage(sessionId, text, onEvent, signal) {
   const res = await fetch("/api/agent/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, sessionId, text, stream: true }),
+    body: JSON.stringify({ sessionId, text, stream: true }),
     signal,
   });
   if (!res.ok) {

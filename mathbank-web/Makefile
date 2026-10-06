@@ -20,6 +20,26 @@ access:                         ## Show frontend access URLs
 	@printf '  %-20s %s\n' 'Web (student)' 'http://localhost:$(WEB_PORT)/login' \
 	  'Web (admin)' 'http://localhost:$(WEB_PORT)/admin/login'
 
+.PHONY: test
+test:                           ## Node unit tests (no browser, no services)
+	node --test tests/*.test.mjs
+
+.PHONY: e2e-install
+e2e-install:                    ## Install the Playwright Chromium browser (one-time)
+	npx playwright install chromium
+
+.PHONY: e2e
+e2e:                            ## Playwright regression suite against running stack (no paid model calls)
+	npx playwright test
+
+.PHONY: e2e-llm
+e2e-llm:                        ## Playwright suite INCLUDING @llm specs (small paid OpenAI calls)
+	E2E_LLM=1 npx playwright test
+
+.PHONY: e2e-report
+e2e-report:                     ## Open the last Playwright HTML report
+	npx playwright show-report
+
 .PHONY: install
 install:                        ## npm install
 	npm install

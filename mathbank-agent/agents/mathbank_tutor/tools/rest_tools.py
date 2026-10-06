@@ -15,7 +15,7 @@ REST_BASE_URL = os.environ.get("MATHBANK_REST_BASE_URL", "http://127.0.0.1:8000"
 
 
 def _client() -> httpx.Client:
-    return httpx.Client(base_url=REST_BASE_URL, timeout=15.0)
+    return httpx.Client(base_url=REST_BASE_URL, timeout=30.0)
 
 
 def search_problems(
@@ -31,13 +31,18 @@ def search_problems(
     Use this for any open-ended question about what problems exist on a topic,
     e.g. "recent questions on combinatorics", "problems about cyclic
     quadrilaterals", "AIME problems on polynomial roots since 2015".
+    For textbook geometry topics, enrich the query with related terms (e.g.
+    "power of a point secant tangent radical axis") or filter by PRASOLOV_PGV1.
 
     Args:
         query: The natural-language topic or concept to search for (required).
         competition: Optional exact competition code to filter by, one of
             AMC10, AMC12, AIME, HMMT_FEB, HMMT_NOV, HMMT_INV, SMT, PUMAC,
             CHMMC, CMM, MPG_MAIN, MPG_OLY, PURPLE_MS, PURPLE_HS, ARML,
-            ARML_LOCAL, ARML_POWER. Leave empty to search all.
+            ARML_LOCAL, ARML_POWER, or PRASOLOV_PGV1 (Prasolov "Problems in
+            Plane Geometry" textbook, chapters 1-30, with step-by-step
+            solutions; use it for geometry theory practice such as power of a
+            point / radical axis). Leave empty to search all.
         year_min: Optional earliest competition year to include (0 = no limit).
         year_max: Optional latest competition year to include (0 = no limit).
         recent_first: If true, sort matching problems by year descending
@@ -84,7 +89,8 @@ def get_problem_by_code(canonical_code: str) -> dict:
 
 
 def list_competitions() -> list[dict]:
-    """List all competitions tracked in the corpus (AMC, AIME, HMMT, SMT, PUMaC, CHMMC, CMM, MPG)."""
+    """List all competitions/sources tracked in the corpus (AMC, AIME, HMMT, SMT,
+    PUMaC, CHMMC, CMM, MPG, ARML, Purple Comet and the PRASOLOV_PGV1 textbook)."""
     with _client() as client:
         response = client.get("/v1/competitions")
         response.raise_for_status()

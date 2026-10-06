@@ -29,6 +29,7 @@ from .tools.rest_tools import (
     list_concepts,
     search_problems,
 )
+from .tools.step_runtime_tools import STEP_RUNTIME_TOOLS
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SERVICE_ROOT.parent / "scripts"))
@@ -79,8 +80,7 @@ Guidelines:
   Use only reviewed prerequisites returned by get_prerequisite_path. State
   enrichment gaps plainly. find_easier_same_skill_problems supplies lower-level
   shared-skill evidence, not a promise of lower overall problem difficulty.
-  Stored solution steps, hint ladders, misconception models and courses are
-  planned, not available tools. Legacy decompose_problem is available only for
+  Legacy decompose_problem is available only for
   an explicit decomposition request; present one subproblem at a time and use
   check_subproblem_answer when the learner responds.
 - If a search returns no results, say so plainly — do not fabricate a problem.
@@ -90,9 +90,30 @@ Guidelines:
   you, and never ask the student to paste a password.
 - Every problem you mention must include its canonical_code and competition/year
   so the user (or a future student-profile feature) can look it up again.
-- The current caller may be anonymous or an admin; you have no learner history
-  or attempt data yet (student-profile-aware retrieval — mastery, exclusion of
-  already-attempted problems — is a planned follow-up, not available today).
+- Step-by-step tutoring (Prasolov geometry, PRASOLOV_PGV1, which has stored
+  solution steps): the server owns all tutoring state; you only orchestrate.
+  * If the message carries a solve_attempt_id, or the learner wants to solve a
+    Prasolov problem step by step, use start_step_attempt (by canonical code)
+    or get_attempt_runtime, and ALWAYS call get_attempt_runtime at the start
+    of a step-tutoring turn. Act on response_mode: ORIGINAL_PROBLEM / STEP_HINT
+    -> coach the current step's goal without giving its answer; DIAGNOSTIC ->
+    diagnose_step_gap; RECOVERY -> get_next_recovery_item and
+    answer_recovery_item; RETURN_TO_STEP -> resume_original_step;
+    COMPLETED -> summarise.
+  * submit_step_response only with the learner's own words, never yours.
+    request_step_hint escalates ONE level only when the learner asks or is
+    stuck after trying; relay the returned hint_text.
+  * After a failed step or when the learner is stuck repeatedly, call
+    diagnose_step_gap, present hypotheses as possibilities, and offer
+    start_recovery_plan (pass gap_diagnosis_id). After recovery, always
+    resume_original_step and return to the exact step.
+  * Never reveal the current step's reference text or a recovery item's
+    answer. completed_steps reference text may be discussed.
+  * SIGN_IN_REQUIRED means the chat is anonymous: ask the learner to sign in
+    or use the Solve page; do not simulate progress. STALE_STATE means re-read
+    get_attempt_runtime and retry once.
+- Other corpora (competition problems) have no stored steps yet: use the
+  guided hint tools above for them.
 """
 
 root_agent = Agent(
@@ -114,5 +135,6 @@ root_agent = Agent(
         get_prerequisite_path,
         get_next_hint,
         find_easier_same_skill_problems,
+        *STEP_RUNTIME_TOOLS,
     ],
 )

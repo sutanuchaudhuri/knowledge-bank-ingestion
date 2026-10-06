@@ -47,6 +47,27 @@ def _load_env() -> dict[str, str]:
     return env
 
 
+def pg_conninfo(env: dict[str, str]) -> str:
+    return (
+        f"host={env.get('NEON_PG_HOST', '127.0.0.1')} port={env.get('NEON_PG_PORT') or env.get('PG_PORT', '5433')} "
+        f"dbname={env.get('NEON_PG_DATABASE') or env.get('APP_DB', 'mathbank')} "
+        f"user={env.get('NEON_PG_USER') or env.get('APP_USER', 'mathbank_app')} "
+        f"password={env.get('NEON_PG_PASSWORD') or env.get('APP_DB_PASSWORD', '')}"
+        + (f" sslmode={env['NEON_PG_SSLMODE']}" if env.get("NEON_PG_SSLMODE") else "")
+    )
+
+
+def graph_target(env: dict[str, str]) -> GraphTarget:
+    # Remote (AuraDB) creds use the NEO4J_URI/NEO4J_USERNAME/NEO4J_DATABASE names
+    # Aura's console download uses verbatim; local dev uses bolt://localhost + NEO4J_PASSWORD only.
+    neo4j_uri = env.get("NEO4J_URI") or f"bolt://localhost:{env.get('NEO4J_BOLT_PORT', '7687')}"
+    neo4j_user = env.get("NEO4J_USERNAME") or env.get("NEO4J_USER", "neo4j")
+    return GraphTarget(
+        GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, env.get("NEO4J_PASSWORD", ""))),
+        env.get("NEO4J_DATABASE") or None,
+    )
+
+
 def chunks(seq, size):
     for i in range(0, len(seq), size):
         yield seq[i : i + size]
@@ -566,23 +587,8 @@ def main() -> None:
     parser.add_argument("--pedagogy", action="store_true", help="Opt in to migration-006 skills and provenance-bearing semantic inventory")
     args = parser.parse_args()
     env = _load_env()
-    pg_conninfo = (
-        f"host={env.get('NEON_PG_HOST', '127.0.0.1')} port={env.get('NEON_PG_PORT') or env.get('PG_PORT', '5433')} "
-        f"dbname={env.get('NEON_PG_DATABASE') or env.get('APP_DB', 'mathbank')} "
-        f"user={env.get('NEON_PG_USER') or env.get('APP_USER', 'mathbank_app')} "
-        f"password={env.get('NEON_PG_PASSWORD') or env.get('APP_DB_PASSWORD', '')}"
-        + (f" sslmode={env['NEON_PG_SSLMODE']}" if env.get("NEON_PG_SSLMODE") else "")
-    )
-    # Remote (AuraDB) creds use the NEO4J_URI/NEO4J_USERNAME/NEO4J_DATABASE names
-    # Aura's console download uses verbatim; local dev uses bolt://localhost + NEO4J_PASSWORD only.
-    neo4j_uri = env.get("NEO4J_URI") or f"bolt://localhost:{env.get('NEO4J_BOLT_PORT', '7687')}"
-    neo4j_user = env.get("NEO4J_USERNAME") or env.get("NEO4J_USER", "neo4j")
-    neo4j_password = env.get("NEO4J_PASSWORD", "")
-    driver = GraphTarget(
-        GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password)),
-        env.get("NEO4J_DATABASE") or None,
-    )
-    with psycopg.connect(pg_conninfo) as pg_conn:
+    driver = graph_target(env)
+    with psycopg.connect(pg_conninfo(env)) as pg_conn:
         with pg_conn.cursor() as pg_cur:
             if args.pedagogy:
                 require_pedagogy_schema(pg_cur)

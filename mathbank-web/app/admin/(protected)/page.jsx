@@ -295,6 +295,10 @@ export default function AdminPage() {
       <button className="btn btn-outline-secondary btn-sm mb-3 me-2" onClick={bump}>Refresh pipeline status</button>
       <span className="small text-secondary">Auto-refresh every 15 seconds. Generated metadata is automatically approved with provenance; human corrections are protected. Every pipeline layer is verified separately.</span>
       <Link href="/admin/pedagogy" className="btn btn-primary mb-3">Review pedagogical metadata</Link>
+      <Link href="/admin/knowledge-gaps" className="btn btn-outline-primary mb-3 ms-2">Knowledge gaps &amp; recovery</Link>
+      <Link href="/admin/conversations" className="btn btn-outline-primary mb-3 ms-2">Student conversations</Link>
+      <Link href="/admin/textbooks" className="btn btn-outline-primary mb-3 ms-2">Textbook corpus (Prasolov)</Link>
+      <Link href="/admin/imports" className="btn btn-outline-primary mb-3 ms-2">Imports &amp; reconciliation</Link>
       <p style={{ color: "#666", fontSize: 13 }}>
         Add a competition and its paper URLs — rows are tracked as PENDING in{" "}
         <code>pipeline.pdf_source</code> immediately; the download/parse/ingest/embed/graph

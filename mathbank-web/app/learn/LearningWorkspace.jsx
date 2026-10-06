@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import MathText from "../_components/MathText.jsx";
 import { DIAGNOSES, hintRequestState } from "../../lib/learningFlow.mjs";
+import { hasStepSolution } from "../../lib/solveFlow.mjs";
 
 async function tutorRequest(path, options = {}) {
   const response = await fetch(`/api/tutor/${path}`, options);
@@ -146,6 +147,11 @@ export default function LearningWorkspace() {
               <div className="card-body">
                 <div className="d-flex flex-wrap justify-content-between gap-2 mb-2">
                   <h2 className="h5">{context.problem.canonical_code}</h2>
+                  {hasStepSolution(context.problem.canonical_code) && (
+                    <Link className="btn btn-sm btn-primary ms-auto" href={`/learn/solve/${encodeURIComponent(context.problem.canonical_code)}`}>
+                      Solve step by step
+                    </Link>
+                  )}
                   <span className={`badge ${context.metadata_status === "reviewed" ? "text-bg-success" : "text-bg-warning"}`}>
                     {context.metadata_status === "automatic" ? "Automatically enriched" : context.metadata_status === "reviewed" ? "Human-reviewed teaching metadata" : "Not yet enriched"}
                   </span>

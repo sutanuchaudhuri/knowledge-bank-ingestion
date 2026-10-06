@@ -33,7 +33,8 @@ export default function LoginPage() {
       });
       const resBody = await res.json();
       if (!res.ok) throw new Error(resBody.error || `status ${res.status}`);
-      router.push("/profile");
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/profile");
       router.refresh();
     } catch (err) {
       setStatus(`error: ${err.message}`);

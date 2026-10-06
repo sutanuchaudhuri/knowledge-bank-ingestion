@@ -80,5 +80,18 @@ help:                           ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 .PHONY: enrich-corpus
+.PHONY: outbox-drain outbox-watch outbox-status abandon-stale-attempts
+outbox-drain:                    ## Drain outbox consumers once (analytics rollup + projection requests; free)
+	$(BIN)/python -m mathbank_rest.outbox_worker --once
+
+outbox-watch:                    ## Poll the outbox every $(or $(INTERVAL),30)s (free; INTERVAL=seconds)
+	$(BIN)/python -m mathbank_rest.outbox_worker --watch $(or $(INTERVAL),30)
+
+outbox-status:                   ## Outbox events, consumer lag and pending projection requests
+	$(BIN)/python -m mathbank_rest.outbox_worker --status
+
+abandon-stale-attempts:          ## Mark solve attempts idle for DAYS (default 30) as ABANDONED, then drain
+	$(BIN)/python -m mathbank_rest.outbox_worker --abandon-idle-days $(or $(DAYS),30)
+
 enrich-corpus:                   ## Paid, resumable automatic teaching enrichment (WATCH=1 for new questions)
 	$(BIN)/python scripts/enrich_corpus.py $(if $(WATCH),--watch,) $(if $(LIMIT),--limit $(LIMIT),) $(if $(WORKERS),--workers $(WORKERS),) $(if $(RELATIONSHIPS),--relationships,)

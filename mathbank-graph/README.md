@@ -123,3 +123,29 @@ The integration suite also verified that a deliberate failure after deleting
 owned edges rolled back completely. Review/publication is an admin-authorized
 operation, not inferred from confidence or successful projection.
 P1/P2 semantic steps, hint ladders, courses, and adaptive inference are deferred.
+
+# Textbook solution-step layer (Graph Projection v2)
+
+`etl/project_textbook_steps.py` projects the imported textbook packages (migration 010;
+see `requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md`) as metadata-only nodes:
+`(Solution)-[:HAS_PART]->(SolutionPart)-[:HAS_STEP]->(SolutionStep)`. Steps link to
+`Skill` with `USES_SKILL`, to `Concept` with `USES_CONCEPT`, and to `Concept:Subconcept`
+with `USES_SUBCONCEPT`. Step-to-step `NEXT`/`DEPENDS_ON` edges carry confidence, source_type
+and review_status. Approved, student-visible learning items become
+`LearningItem` nodes with `DERIVED_FROM`/`ANCHORED_AT`/`ASSESSES` edges, plus
+`TARGETS_CONCEPT`/`TARGETS_SUBCONCEPT` to the item's target concept and subconcept
+(see `requirements/25_LEARNING_ITEM_CONCEPT_EDGES.md`).
+
+Step text stays in PostgreSQL. Every write is tagged `projection_kind='solution_steps'`,
+so the `--pedagogy` replacement never removes it. Stale nodes and edges of that kind are
+pruned. Each run reconciles graph counts against Postgres and records a
+`pipeline.graph_projection` row with `graph_name='textbook_step_graph'`.
+
+```bash
+make -C mathbank-db textbook-graph-dry-run-remote   # planned counts, no writes
+make -C mathbank-db textbook-graph-remote           # --pedagogy base layer, then the step layer
+make -C mathbank-db textbook-graph-status-remote    # read-only reconciliation
+mathbank-rest/.venv/bin/python -m pytest -q mathbank-graph/tests
+```
+
+Pitfalls: `requirements/19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md` (GOT-GR-*).

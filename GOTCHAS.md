@@ -20,6 +20,24 @@ Every item here was hit for real while building this repo. `make bootstrap`
 explains *why* each workaround exists, for when it inevitably breaks again on
 a different macOS version / Xcode CLT version / Homebrew state.
 
+## Textbook packages (Prasolov) and the solution-step graph
+
+The categorized, exhaustive catalog is [requirements/19](requirements/19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md);
+progress and verification SQL are in [requirements/18](requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md).
+Package CSVs carry a BOM (`utf-8-sig`). Source quirks (duplicate 13.39, orphan
+solutions, repeated part/step IDs) become `ingest.import_conflict` rows and
+`#k` occurrences, never aborts. Any writer of `knowledge.*` must take the shared
+`LOCK TABLE … SHARE ROW EXCLUSIVE` list in the same order, or it deadlocks with
+the enrichment watcher. The step graph uses `projection_kind='solution_steps'`
+so the batch `--pedagogy` replacement never deletes it. It needs the base
+Problem/Solution/Skill nodes first (`make -C mathbank-db textbook-graph-remote`)
+and fails if a MERGE endpoint is missing. Cypher aliases need `AS` on Aura.
+Bridging textbook taxonomy into `knowledge.*` pushed the contest enrichment
+schema past OpenAI's 1,000 enum-value limit. Enrichment now leaves out
+textbook-only nodes, and `generation_schema` refuses an oversized catalog
+before making a paid call (GOT-ENR-10). A deadlock can kill the enrichment
+watcher silently, so check it after imports (GOT-RUN-12).
+
 ## Automatic enrichment: generation and graph publication are separate
 
 For automatic enrichment recovery, see the
