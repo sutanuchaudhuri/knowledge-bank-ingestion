@@ -1,19 +1,20 @@
 /** Split only explicitly labelled problem/source sections; never guess from prose. */
 export function splitTutorProblem(text) {
   const source = String(text || "");
-  const problem = /^[ \t]*(?:#{1,4}[ \t]+Problem\b[^\n]*|\*\*Problem(?:[ \t]*:[^*\n]*)?\*\*[ \t]*:?[^\n]*)$/im.exec(source);
+  const problem = /^[ \t]*(?:#{1,4}[ \t]+Problem\b|\*\*Problem(?=[ \t]*:|\*\*))[^\n]*$/im.exec(source);
   if (!problem) return null;
   const after = source.slice(problem.index + problem[0].length);
-  const attribution = /^[ \t]*(?:\*\*Source:\*\*|\*\*Source\*\*:|#{1,4}[ \t]+Source\b)[ \t]*([^\n]*)/im.exec(after);
+  const attribution = /^[ \t]*(?:\*\*Source(?=:|\*\*|[A-Z])|#{1,4}[ \t]+Source\b)(?:\*\*)?[ \t]*:?(?:\*\*)?[ \t]*([^\n]*)/m.exec(after);
   if (!attribution) return null;
-  const statement = after.slice(0, attribution.index).trim();
+  const inline = problem[0].replace(/^[ \t]*(?:#{1,4}[ \t]+|\*\*)Problem(?:\*\*)?[ \t]*:?(?:\*\*)?[ \t]*/i, "").replace(/\*\*[ \t]*$/, "");
+  const statement = (inline + "\n" + after.slice(0, attribution.index)).trim();
   if (!statement) return null;
   const tail = after.slice(attribution.index + attribution[0].length);
   const boundary = tail.search(/\n\s*\n/);
   const continuation = boundary >= 0 ? tail.slice(0, boundary) : tail;
   return {
     intro: source.slice(0, problem.index).trim(),
-    title: problem[0].replace(/^\s*#{1,4}\s*|\*\*/g, "").trim(),
+    title: "Problem",
     statement,
     source: (attribution[1] + continuation).trim(),
     outro: boundary >= 0 ? tail.slice(boundary).trim() : "",

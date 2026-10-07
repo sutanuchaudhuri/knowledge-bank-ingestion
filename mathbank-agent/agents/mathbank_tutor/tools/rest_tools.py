@@ -7,6 +7,7 @@ docstring IS the tool description the LLM sees. Keep it accurate.
 from __future__ import annotations
 
 import os
+import re
 from urllib.parse import quote
 
 import httpx
@@ -93,12 +94,93 @@ def get_problem_diagrams(canonical_code: str) -> list[dict]:
 
     Call when presenting a retrieved problem, especially if its statement mentions
     a diagram. Paste the returned markdown exactly into the reply. An empty list
-    means diagrams are unavailable: disclose this and offer a different problem.
+    means diagrams are unavailable: do not recommend diagram-dependent problems.
     """
     with _client() as client:
         response = client.get(f"/v1/problems/by-code/{quote(canonical_code, safe='')}/diagrams")
         response.raise_for_status()
         return response.json()
+
+
+def get_practice_problem(canonical_code: str) -> dict:
+    """Verify a candidate before recommending it for practice.
+
+    Returns learner-safe statement, working source diagrams, original source and
+    ready-to-display markdown. Never present a candidate with eligible=false.
+    If a required diagram is missing/unreadable or embedded code is unparsed,
+    silently choose another candidate; do not show the broken question.
+    This is read-only and never returns answers/solutions.
+    """
+    with _client() as client:
+        response = client.get(f"/v1/problems/by-code/{quote(canonical_code, safe='')}")
+        response.raise_for_status()
+        problem = response.json()
+        statement = problem.get("statement_text", "").strip()
+        response = client.get(f"/v1/problems/by-code/{quote(canonical_code, safe='')}/diagrams")
+        response.raise_for_status()
+        diagrams = response.json()
+        working = []
+        for diagram in diagrams:
+            image = client.get(f"/v1/problem-images/{quote(diagram['problem_image_id'], safe='')}")
+            if image.status_code == 404:
+                continue
+            image.raise_for_status()
+            if image.headers.get("content-type", "").startswith("image/") and image.content:
+                working.append(diagram)
+        dependent = bool(diagrams) or bool(re.search(
+            r"\b(?:diagram|figure|pictured|shown|illustrated)\b|\[asy\]|```(?:asy|asymptote)",
+            statement, re.IGNORECASE,
+        ))
+        unparsed = bool(re.search(r"\[asy\]|```(?:asy|asymptote)|\[IMG:", statement, re.IGNORECASE))
+        if not statement or statement.startswith("[Placeholder]") or (dependent and not working):
+            return {"eligible": False, "canonical_code": canonical_code,
+                    "reason": "Required statement or source diagram is unavailable."}
+        if unparsed:
+            if not working:
+                return {"eligible": False, "canonical_code": canonical_code,
+                        "reason": "Embedded source figure has not been parsed."}
+            statement = re.sub(r"\[asy\][\s\S]*?\[/asy\]|```(?:asy|asymptote)\b[\s\S]*?```",
+                               "", statement, flags=re.IGNORECASE).strip()
+            if re.search(r"\[asy\]|```(?:asy|asymptote)|\[IMG:", statement, re.IGNORECASE):
+                return {"eligible": False, "canonical_code": canonical_code,
+                        "reason": "Statement contains incomplete source artifacts."}
+        response = client.get(f"/v1/problems/by-code/{quote(canonical_code, safe='')}/source")
+        response.raise_for_status()
+        source = response.json()
+        label = f"{problem.get('competition', '')} {problem.get('year', '')} {canonical_code}".strip()
+        link = (source or {}).get("url") or (source or {}).get("embed_url")
+        attribution = f"{label}\n\n[Original source]({link})" if link else label
+        markdown = f"**Problem:**\n{statement}\n\n"
+        markdown += "\n\n".join(image["markdown"] for image in working)
+        markdown += f"\n\n**Source:** {attribution}"
+        return {"eligible": True, "canonical_code": canonical_code,
+                "statement_text": statement, "diagrams": working, "source": source,
+                "markdown_block": markdown}
+
+
+def search_practice_problems(
+    query: str, competition: str = "", year_min: int = 0, year_max: int = 0,
+) -> dict:
+    """Search for complete learner-ready practice problems, not broken corpus entries.
+
+    Use for 'a problem to try', 'give me a geometry problem' and recommendations.
+    Checks up to five candidates, returning at most two with verified working
+    diagrams whenever required. Rejected statements/answers are never returned.
+    Paste a result's markdown_block unchanged; empty results means none qualified.
+    """
+    search = search_problems(query, competition, year_min, year_max, limit=5)
+    results = []
+    skipped = 0
+    for candidate in search.get("results", [])[:5]:
+        checked = get_practice_problem(candidate["canonical_code"])
+        if checked["eligible"]:
+            results.append(checked)
+            if len(results) == 2:
+                break
+        else:
+            skipped += 1
+    return {"query": query, "results": results, "skipped_incomplete": skipped,
+            "retrieval": search.get("retrieval", {}), "warnings": search.get("warnings", [])}
 
 
 def list_competitions() -> list[dict]:

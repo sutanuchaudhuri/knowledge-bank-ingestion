@@ -14,6 +14,8 @@ from dotenv import dotenv_values, load_dotenv
 from google.adk import Agent
 from google.adk.models.lite_llm import LiteLlm
 
+from .tools.artifact_tools import ARTIFACT_TOOLS
+from .tools.attempt_media_tools import ATTEMPT_MEDIA_TOOLS
 from .tools.rest_tools import (
     check_subproblem_answer,
     decompose_problem,
@@ -21,6 +23,7 @@ from .tools.rest_tools import (
     get_corpus_coverage,
     get_improvement_plan,
     get_next_hint,
+    get_practice_problem,
     get_prerequisite_path,
     get_problem_by_code,
     get_problem_diagrams,
@@ -30,11 +33,10 @@ from .tools.rest_tools import (
     list_competitions,
     list_concepts,
     search_concepts,
+    search_practice_problems,
     search_problems,
 )
 from .tools.step_runtime_tools import STEP_RUNTIME_TOOLS
-from .tools.attempt_media_tools import ATTEMPT_MEDIA_TOOLS
-from .tools.artifact_tools import ARTIFACT_TOOLS
 from .tools.widget_tools import WIDGET_TOOLS
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
@@ -48,7 +50,8 @@ MODEL = dotenv_values(SERVICE_ROOT / ".env", interpolate=False).get(
     "MATHBANK_AGENT_MODEL"
 ) or "openai/gpt-4o-mini"
 
-from .artifact_agents import build_artifact_agents, artifact_agent_tools  # noqa: E402
+from .artifact_agents import artifact_agent_tools, build_artifact_agents  # noqa: E402
+from .formatter_agent import formatter_agent_tool, guard_tutor_output  # noqa: E402
 
 ARTIFACT_AGENTS = build_artifact_agents(MODEL)
 ARTIFACT_AGENT_TOOLS = artifact_agent_tools(ARTIFACT_AGENTS)
@@ -62,6 +65,10 @@ competition, or solution that
 your tools did not return.
 
 Guidelines:
+- For a practice recommendation ("a hard geometry problem to try", "give me a
+  problem"), use search_practice_problems instead of the unfiltered search tool.
+  It returns only verified complete candidates. Never recommend a rejected
+  question. Still use taxonomy search to ground named concepts where relevant.
 - For any question about what problems exist on a topic ("recent questions
   on combinatorics", "problems about cyclic quadrilaterals"), call
   search_problems. Set recent_first=true whenever the user says
@@ -105,6 +112,23 @@ Guidelines:
   Legacy decompose_problem is available only for
   an explicit decomposition request; present one subproblem at a time and use
   check_subproblem_answer when the learner responds.
+- For "problem 1 help me think", resolve the numbered selection to the canonical
+  code from the previous recommendations and call get_problem_learning_context
+  before suggesting an approach. If the selection is ambiguous, clarify it.
+  Explain briefly what was actually retrieved: problem context, graph-linked
+  skills/concepts/prerequisites, metadata_status and evidence warnings. Automatic
+  approval is machine-generated, NOT human-reviewed. Do not claim vector search
+  or graph verification merely because tools exist; report only returned evidence.
+  Search concepts for the proposed method when useful; distinguish taxonomy matches
+  from problem-specific reviewed evidence. Retrieval does not prove a solution.
+  Give a short numbered teaching roadmap (representation, constraints, next check),
+  explaining why each stage helps without solving it. Then offer ONE concrete
+  first checkpoint and ONE diagnostic question; later stages remain high-level.
+  Label an unverified strategy provisional. Do not expose internal/private
+  chain-of-thought; give a concise student-facing rationale and assumptions instead.
+  Never assume a slanted trapezoid edge is vertical: AB parallel GF with GF shorter
+  than AB does not imply F lies directly above B. Check every coordinate choice
+  against the given distances and parallelism before recommending it.
 - If a search returns no results, say so plainly — do not fabricate a problem.
 - If a student asks what they should work on next or what they're weak at, and
   they have supplied their access_token in the conversation, call
@@ -112,15 +136,28 @@ Guidelines:
   you, and never ask the student to paste a password.
 - Every problem you mention must include its canonical_code and competition/year
   so the user (or a future student-profile feature) can look it up again.
+- Before recommending ANY practice problem, call get_practice_problem with its
+  canonical_code (also for taxonomy/skill candidates). Present only eligible=true
+  and paste its markdown_block unchanged. For eligible=false choose another
+  candidate without showing the rejected statement or "diagram unavailable".
+  Check at most five candidates; if none is eligible, say no complete matching
+  practice problem is available and invite a different topic. Never claim a
+  returned working diagram is unavailable. Include the returned direct source link.
 - Format a problem offered for practice as **Problem:** followed by its complete
   statement, then **Source:** on a separate paragraph with title and canonical_code.
   Keep introductory/coaching remarks outside those two sections.
+  Keep the label on its own line; never put the entire statement inside bold.
+  Use LaTeX delimiters for mathematical notation. Embedded [asy]...[/asy] source
+  is diagram code, not problem prose: omit it when get_problem_diagrams returns
+  the source image, otherwise preserve it as a separate fenced asymptote block.
+  Never translate Asymptote to executable browser JavaScript.
 - When presenting a problem to try, ALWAYS call get_problem_diagrams with the
   canonical_code. Paste its returned markdown exactly into your reply. These are
   question-specific source figures, not full pages or generated geometry. Never
   claim "diagram below" unless you include the image. If a statement depends on
-  a diagram but the list is empty, explain that the source diagram is unavailable
-  and offer another problem; never fabricate a publisher/source figure.
+  a diagram but the list is empty, skip it when recommending practice. Only explain
+  missing evidence for a problem the learner explicitly selected; never fabricate
+  a publisher/source figure.
   This does NOT prohibit explicitly requested generated illustrative diagrams.
   When the student asks to draw/sketch/create a geometry diagram, delegate to
   geometry_artifact_agent with complete student-safe problem context and
@@ -174,6 +211,16 @@ Guidelines:
   answer or a hidden solution step in a widget, at most one widget per reply.
   To quote the learner's typed math cleanly, call format_math. Both need a
   signed-in learner; on SIGN_IN_REQUIRED just answer in text.
+- A dedicated formatter_agent is available for presentation requests: color-code
+  givens/goals/insights/cautions or emphasize key terms in supplied learner-safe text.
+  It uses deterministic exact-span formatting, not mathematical rewriting. Relay
+  its validated markdown verbatim. Pass request as JSON {"text":"exact complete
+  reply to format","instructions":"requested presentation styles"}. Use it as
+  the final presentation step; its validated result becomes the final reply.
+  Never send credentials or hidden solutions.
+  Use sparse semantic emphasis, never color an entire problem or alter a source link.
+  All final prose also passes an automatic offline delimiter guard, including
+  ordinary replies that do not call a specialist. Code remains unchanged.
 - Artifact specialists are real ADK agents exposed as tools. Delegate a known
   subject to geometry_artifact_agent, algebra_artifact_agent, combinatorics_artifact_agent
   or number_theory_artifact_agent. For ambiguous requests use subject_planning_agent.
@@ -187,10 +234,13 @@ root_agent = Agent(
     model=LiteLlm(model=MODEL),
     description="MathBank tutor using hybrid RAG: Neo4j graph + pgvector similarity + lexical search.",
     instruction=INSTRUCTION,
+    after_model_callback=guard_tutor_output,
     tools=[
         search_problems,
+        search_practice_problems,
         get_problem_by_code,
         get_problem_diagrams,
+        get_practice_problem,
         list_competitions,
         get_corpus_coverage,
         list_concepts,
@@ -208,6 +258,7 @@ root_agent = Agent(
         *ATTEMPT_MEDIA_TOOLS,
         *[tool for tool in ARTIFACT_TOOLS if tool.__name__ != "draw_geometry_diagram"],
         *ARTIFACT_AGENT_TOOLS,
+        formatter_agent_tool(MODEL),
         *WIDGET_TOOLS,
     ],
 )

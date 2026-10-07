@@ -26,6 +26,8 @@ export function resolveSolveRoute(method, segments, searchParams = new URLSearch
     if (head === "diagrams" && rest.length === 1) return { path: `/v1/problems/by-code/${enc(rest[0])}/diagrams` };
     if (head === "source" && rest.length === 1) return { path: `/v1/problems/by-code/${enc(rest[0])}/source` };
     if (head === "source-pdf" && rest.length === 1) return { path: `/v1/problems/by-code/${enc(rest[0])}/source-pdf`, raw: true };
+    if (head === "source-highlight" && rest.length === 1) return { path: `/v1/problems/by-code/${enc(rest[0])}/source-highlight`, raw: true, query: { page: searchParams.get("page") || undefined } };
+    if (head === "source-marked-pdf" && rest.length === 1) return { path: `/v1/problems/by-code/${enc(rest[0])}/source-marked-pdf`, raw: true };
     if (head === "images" && rest.length === 1) return { path: `/v1/problem-images/${enc(rest[0])}`, raw: true };
     return null;
   }
@@ -69,7 +71,7 @@ export function createSolveHandlers({ getToken, get, post, raw }) {
     const route = resolveSolveRoute(method, segments, new URL(request.url).searchParams);
     if (!route) return Response.json({ error: "Unknown solve endpoint" }, { status: 404 });
     if (route.raw) {
-      const upstream = await raw(route.path);
+      const upstream = await raw(route.path, route.query);
       return new Response(upstream.body, { status: upstream.status, headers: {
         "Content-Type": upstream.headers.get("content-type") || "application/octet-stream",
         "Cache-Control": upstream.ok ? upstream.headers.get("cache-control") || "no-cache" : "no-store" } });

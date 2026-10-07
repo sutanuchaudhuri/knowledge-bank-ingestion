@@ -5,7 +5,7 @@
 - Evidence mode: source-derived for route/API descriptions, plus separately labelled operator-reported deployment observations (not independently verified).
 - Source revision: `3e915d015aa34268996724a3014c850f5892596e`, with uncommitted worktree changes included (refreshed 2026-10-06 for migrations 021/022).
 - Files examined: `mathbank-rest/src/mathbank_rest/main.py`, every router registered there and its referenced DB/runtime/model modules, including `routers/attempt_media.py`, `routers/artifacts.py`, `attempt_media.py`, `attempt_media_models.py`, `media_processing.py`, `artifact_runtime.py`, `object_store.py`, `runtime_ai.py`, `security.py`, and `config.py`; `mathbank-agent/agents/mathbank_tutor/tools/attempt_media_tools.py`, `artifact_tools.py`, and registry wiring; plus `mathbank-web/lib/privateRuntimeProxy.mjs`, the catch-all proxies under `app/api/rest/{attempt-media,artifacts}`, attempt/artifact pages/components, `mathbank-live/server.mjs` and `mathbank-live/lib/attemptEvents.mjs`.
-- OpenAPI snapshot: [openapi.json](openapi.json), generated from `app.openapi()` without starting a server. Snapshot validation observed OpenAPI `3.1.0`, 178 paths and 90 component schemas. Subject-preview/ADK contract refresh: 2026-10-07 (UTC), including current worktree router/model/tool/proxy changes; credential-like content was screened before saving. This incremental refresh covers the preview/chat/agent contract, not a new full-system schema audit.
+- OpenAPI snapshot: [openapi.json](openapi.json), generated from `app.openapi()` without starting a server. Snapshot validation observed OpenAPI `3.1.0`, 180 paths and 90 component schemas. Source-pane/practice contract refresh: 2026-10-07 (UTC), including current worktree router/model/tool/proxy changes; credential-like content was screened before saving. This incremental refresh covers the source/preview/chat/agent contract, not a new full-system schema audit.
 - No endpoint handlers were invoked during source OpenAPI generation. Separately, the parent reports a restarted REST process exposing the attempt-media and artifact path sets; see the dated runtime observation below. This documentation did not independently query that service.
 
 ## Auth mechanisms
@@ -255,9 +255,34 @@ Model bounds/defaults: `ArtifactPlan` supports GEOMETRY, ALGEBRA, COMBINATORICS 
 - FastAPI serves live `/docs`, `/redoc`, and `/openapi.json` when a server is running. Those reflect the running process, not necessarily this source revision.
 - The committed [openapi.json](openapi.json) is a source-generated snapshot and must be regenerated when FastAPI source changes.
 - OpenAPI captures Pydantic validation and declared response models where present. Many endpoints return plain `dict`/`list[dict]`, so response schemas are intentionally generic. Implementation-specific errors (for example 409 review conflict or 503 graph failure) are not exhaustively declared in OpenAPI and are documented in the table above.
-- This refresh generated the snapshot from checked-in `main:app.openapi()` using the existing REST virtual environment without starting a server or invoking route handlers/providers. The source snapshot is OpenAPI 3.1.0 with 178 paths and 90 schemas: 18 attempt-media paths, 20 artifact paths and 140 other paths. This is not a live-service or deployment observation.
+- This refresh generated the snapshot from checked-in `main:app.openapi()` using the existing REST virtual environment without starting a server or invoking route handlers/providers. The source snapshot is OpenAPI 3.1.0 with 180 paths and 90 schemas: 18 attempt-media paths, 20 artifact paths and 142 other paths. This is not a live-service or deployment observation.
 
 ### Artifact specialist communication
+
+Incremental source-viewer additions: `GET /v1/problems/by-code/{code}/source`
+also returns `problem_number`, optional `location` (`page`, PDF-coordinate
+rectangles, and `pages` for verified multi-page regions), `highlight_url` and `highlight_pdf_url`. Locations use an unambiguous
+statement-text match or extraction metadata matching the current PDF hash;
+unknown/ambiguous locations remain null. `GET .../source-highlight` returns a
+bounded PNG preview (optional `page` selects only a verified problem/diagram page);
+`GET .../source-marked-pdf` highlights all verified regions in a copy of the
+full PDF. Both are public corpus reads, no-store, and return 404 when no cached
+PDF/verified location exists. Neither modifies originals or writes media/data.
+Next.js allowlists `solve/source-highlight/{code}` and
+`solve/source-marked-pdf/{code}` alongside the existing source/PDF proxy.
+The shared source pane opens the annotated PDF at `#page=N`, retaining a direct
+untouched original link and page pills for diagrams continued on another page.
+Known web sources do not become invented PDFs.
+
+Separate Next.js surface: `POST /api/diagrams/asymptote` accepts `{source}` for
+embedded problem Asymptote. Same-origin and REST-verified student authentication
+are required. It returns private/no-store PNG, with 400 invalid JSON, 401/403
+authentication/origin denial, 413 oversized request, 422 unsupported/failed
+compilation, 429 busy renderer, 503 unavailable isolation/tooling and 504 timeout.
+Rendering is isolated to a unique temporary directory on macOS; no application
+credentials/network access or persistent media writes. Other operating systems
+fail closed. This route is owned by Next.js and is not in FastAPI OpenAPI.
+See [renderer setup/limits](../../mathbank-web/README.md#math-and-embedded-source-diagrams).
 
 The existing ADK tutor uses ten real specialists built in
 `mathbank-agent/agents/mathbank_tutor/artifact_agents.py`: Subject Planning,

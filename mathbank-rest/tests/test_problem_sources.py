@@ -1,5 +1,8 @@
+import hashlib
+import json
 from unittest.mock import MagicMock
 
+import pymupdf
 import pytest
 from fastapi import HTTPException
 
@@ -11,7 +14,9 @@ def test_cached_problem_pdf_is_embedded_without_exposing_local_paths(tmp_path, m
     monkeypatch.setattr(sources, "PDF_ROOT", tmp_path)
     pdf = tmp_path / "smt/PAPER_SMT_2010_GEOM/problem.pdf"
     pdf.parent.mkdir(parents=True)
-    pdf.write_bytes(b"%PDF-fixture")
+    with pymupdf.open() as document:
+        document.new_page()
+        document.save(pdf)
     record = {
         "crawl_dir": "smt",
         "paper_external_code": "PAPER_SMT_2010_GEOM",
@@ -23,6 +28,100 @@ def test_cached_problem_pdf_is_embedded_without_exposing_local_paths(tmp_path, m
     assert metadata["kind"] == "pdf"
     assert str(tmp_path) not in str(metadata)
     assert sources.source_pdf(record) == pdf
+
+
+def test_unique_source_text_is_highlighted_without_modifying_pdf(tmp_path):
+    pdf = tmp_path / "problem.pdf"
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text((50, 60), "6. In the diagram below, let OT = 25 and AM = MB = 30.")
+        document.save(pdf)
+    original = pdf.read_bytes()
+    record = {
+        "statement_text": "In the diagram below, let OT = 25 and AM = MB = 30.",
+        "problem_number": 6,
+    }
+    location = sources.problem_location(pdf, record, "PAPER_SMT_2010_GEOM_Q06")
+    assert location["page"] == 1 and location["rectangles"]
+    assert sources.highlighted_page(pdf, location).startswith(b"\x89PNG")
+    marked = sources.highlighted_pdf(pdf, location)
+    with pymupdf.open(stream=marked, filetype="pdf") as document:
+        annotations = list(document[0].annots())
+        assert len(annotations) > 0
+        assert annotations[0].colors["fill"] == pytest.approx([1, 0.9, 0.2])
+        assert annotations[0].opacity == pytest.approx(0.25)
+        assert document[0].get_text().startswith("6. In the diagram")
+    assert pdf.read_bytes() == original
+
+
+def test_ambiguous_source_text_never_guesses_a_highlight(tmp_path):
+    pdf = tmp_path / "problem.pdf"
+    with pymupdf.open() as document:
+        for _ in range(2):
+            document.new_page().insert_text((50, 60), "In the diagram below find the length.")
+        document.save(pdf)
+    assert (
+        sources.problem_location(
+            pdf, {"statement_text": "In the diagram below find the length."}, "CODE"
+        )
+        is None
+    )
+
+
+def test_extracted_figure_coordinates_require_current_pdf_hash(tmp_path):
+    pdf = tmp_path / "problem.pdf"
+    with pymupdf.open() as document:
+        document.new_page()
+        document.save(pdf)
+    directory = tmp_path / "questions/Q06/images"
+    directory.mkdir(parents=True)
+    metadata = {
+        "source_side": "problem",
+        "question": 6,
+        "page": 1,
+        "clip": [40, 40, 120, 120],
+        "pdf_sha256_prefix": hashlib.sha256(pdf.read_bytes()).hexdigest()[:16],
+    }
+    file = directory / "problem_figure_test.json"
+    file.write_text(json.dumps(metadata))
+    record = {"problem_number": 6, "statement_text": "Find MD."}
+    assert sources.problem_location(pdf, record, "PAPER_Q06")["page"] == 1
+    metadata["pdf_sha256_prefix"] = "stale"
+    file.write_text(json.dumps(metadata))
+    assert sources.problem_location(pdf, record, "PAPER_Q06") is None
+
+
+def test_statement_and_continued_diagram_are_highlighted_on_both_pages(tmp_path):
+    pdf = tmp_path / "problem.pdf"
+    with pymupdf.open() as document:
+        document.new_page().insert_text((50, 60), "6. In the diagram below find the length.")
+        document.new_page()
+        document.save(pdf)
+    directory = tmp_path / "questions/Q06/images"
+    directory.mkdir(parents=True)
+    (directory / "problem_figure_test.json").write_text(
+        json.dumps(
+            {
+                "source_side": "problem",
+                "question": 6,
+                "page": 2,
+                "clip": [40, 40, 120, 120],
+                "pdf_sha256_prefix": hashlib.sha256(pdf.read_bytes()).hexdigest()[:16],
+            }
+        )
+    )
+    location = sources.problem_location(
+        pdf,
+        {
+            "problem_number": 6,
+            "statement_text": "In the diagram below find the length.",
+        },
+        "PAPER_Q06",
+    )
+    assert location["page"] == 1
+    assert [region["page"] for region in location["pages"]] == [1, 2]
+    with pymupdf.open(stream=sources.highlighted_pdf(pdf, location), filetype="pdf") as document:
+        assert all(list(page.annots()) for page in document)
 
 
 def test_remote_pdf_and_web_sources_are_distinct():

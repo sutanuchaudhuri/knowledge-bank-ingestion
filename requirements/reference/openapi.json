@@ -16184,6 +16184,103 @@
         ]
       }
     },
+    "/v1/problems/by-code/{code}/source-highlight": {
+      "get": {
+        "operationId": "get_problem_source_highlight_v1_problems_by_code__code__source_highlight_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Problem Source Highlight",
+        "tags": [
+          "step-runtime"
+        ]
+      }
+    },
+    "/v1/problems/by-code/{code}/source-marked-pdf": {
+      "get": {
+        "operationId": "get_problem_source_marked_pdf_v1_problems_by_code__code__source_marked_pdf_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Problem Source Marked Pdf",
+        "tags": [
+          "step-runtime"
+        ]
+      }
+    },
     "/v1/problems/by-code/{code}/source-pdf": {
       "get": {
         "operationId": "get_problem_source_pdf_v1_problems_by_code__code__source_pdf_get",

@@ -3,24 +3,37 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { WidgetHost } from "mathbank-widgets";
-import { normalizeMathDelimiters } from "../../lib/markdown.js";
+import { prepareMathMarkdown } from "../../lib/markdownText.mjs";
 import { parseWidgetBlock, widgetSourceFromPre } from "../../lib/widgetBlocks.mjs";
 import { mentionedProblemCodes } from "../../lib/problemDiagrams.mjs";
 import ProblemDiagrams, { SourceImage } from "./ProblemDiagrams.jsx";
 import ProblemSource from "./ProblemSource.jsx";
 import { geometryArtifactSource } from "../../lib/tutorProblem.mjs";
 import GeometryArtifact from "./GeometryArtifact.jsx";
+import AsymptoteDiagram from "./AsymptoteDiagram.jsx";
 
 const renderInline = (t) => <MathText>{t}</MathText>;
 
 // ```widget fenced JSON from the tutor becomes a whitelisted, declarative widget card (never executed).
 const components = {
+  a({ node, href, children, ...props }) {
+    const tone = /^#mb-tone-(given|goal|insight|warning)$/.exec(href || "")?.[1];
+    if (tone) return <span className={`mb-format-${tone}`} title={{ given: "Given", goal: "Goal", insight: "Key insight", warning: "Caution" }[tone]}>{children}</span>;
+    return <a href={href} {...props}>{children}</a>;
+  },
   img({ node, ...props }) {
     const src = props.src?.startsWith("/api/rest/solve/images/") && !props.src.includes("?")
       ? `${props.src}?v=question-figures` : props.src;
     return <SourceImage key={src} {...props} src={src} className="mb-source-image" />;
   },
   pre({ node, children, ...props }) {
+    const code = node?.children?.find((child) => child.tagName === "code");
+    const classes = code?.properties?.className || [];
+    const languages = Array.isArray(classes) ? classes : [classes];
+    if (languages.includes("language-asymptote-pending")) return <div role="status" className="text-secondary small">Receiving diagram source...</div>;
+    if (languages.includes("language-asymptote") || languages.includes("language-asy")) {
+      return <AsymptoteDiagram source={(code.children || []).map((child) => child.value || "").join("").trim()} />;
+    }
     const geometry = geometryArtifactSource(node);
     if (geometry?.plan) return <GeometryArtifact plan={geometry.plan} renderMath={renderInline} />;
     if (geometry?.error) return <div role="alert" className="text-danger">{geometry.error}</div>;
@@ -39,7 +52,7 @@ export default function MathText({ children }) {
     <div className="markdown-body">
       {mentionedProblemCodes(children || "", { includeEmbedded: true }).map((code) => <ProblemSource key={code} code={code} />)}
       <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={components}>
-        {normalizeMathDelimiters(children || "")}
+        {prepareMathMarkdown(children || "")}
       </ReactMarkdown>
       {mentionedProblemCodes(children || "").map((code) => <ProblemDiagrams key={code} code={code} showSource={false} />)}
     </div>

@@ -180,6 +180,7 @@ export default function Chat() {
       <aside className="col-12 col-xl-3">
         <section className="card p-3 mb-sticky" aria-label="Agent activity">
           <SectionTitle icon="activity">Agent activity</SectionTitle>
+          <div className="small text-secondary mb-2">Tool evidence and progress · not private reasoning</div>
           {activity.length ? (
             <ol className="mb-activity" aria-live="polite">
               {activity.map((item, index) => {

@@ -72,6 +72,11 @@ test("original document routes are public and stream PDFs, not arbitrary URLs", 
   const pdf = await h.GET(new Request("http://localhost/x"), ["source-pdf", "PAPER_SMT_2010_GEOM_Q06"]);
   assert.equal(pdf.headers.get("content-type"), "application/pdf");
   assert.equal(resolveSolveRoute("GET", ["source-pdf", "code", "solution"]), null);
+  assert.equal(resolveSolveRoute("GET", ["source-highlight", "CODE"]).path, "/v1/problems/by-code/CODE/source-highlight");
+  assert.equal(resolveSolveRoute("GET", ["source-marked-pdf", "CODE"]).path, "/v1/problems/by-code/CODE/source-marked-pdf");
+  assert.equal(resolveSolveRoute("GET", ["source-marked-pdf", "CODE"]).raw, true);
+  assert.equal(resolveSolveRoute("GET", ["source-highlight", "CODE", "other"]), null);
+  assert.equal(resolveSolveRoute("GET", ["source-highlight", "CODE"], new URLSearchParams("page=2")).query.page, "2");
 });
 
 test("recovery detour routes are allowlisted for the student; admin plan views are not", () => {

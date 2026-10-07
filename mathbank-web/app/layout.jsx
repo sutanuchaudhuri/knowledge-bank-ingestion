@@ -4,6 +4,7 @@ import "@fontsource-variable/inter";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import AppShell from "./AppShell.jsx";
+import SourcePane from "./_components/SourcePane.jsx";
 
 export const metadata = {
   title: "MathBank Tutor",
@@ -15,7 +16,7 @@ export const viewport = { themeColor: "#4f46e5" };
 export default function RootLayout({ children }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body><AppShell>{children}</AppShell></body>
+      <body><SourcePane><AppShell>{children}</AppShell></SourcePane></body>
     </html>
   );
 }

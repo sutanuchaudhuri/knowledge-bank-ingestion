@@ -47,6 +47,71 @@ Admins can browse the imported Prasolov corpus at `/admin/textbooks`:
 
 See [requirements/24](../requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md).
 
+## Math and embedded source diagrams
+
+The tutor activity timeline shows actual tool progress and allowlisted evidence:
+graph queried/unavailable/disabled, vector/text search configuration, candidate
+counts and learning-context metadata provenance. Machine-approved skill metadata
+and pending generated hints are visibly qualified. Raw tool payloads, private
+thoughts and provider/database warning strings are never copied to the timeline.
+Missing retrieval telemetry is not presented as successful graph/vector evidence.
+
+Every canonical problem's Source controls include a direct registered original
+link. Clicking Source or Original PDF opens a shared right-hand split pane;
+modifier-click/new-tab links still open the untouched original. On mobile this
+becomes a bottom pane with its own Close control. Cached PDFs with an unambiguous
+text match or current-hash extraction coordinates open at the verified physical
+page and highlight the problem in an annotated full-document copy. A highlighted
+page preview is also shown. Originals are never modified; annotated responses
+are no-store and never registered as individual problem diagrams.
+Statements and diagrams on different physical pages have separate page pills;
+all verified regions are highlighted in the annotated document.
+
+Unknown/ambiguous locations are not highlighted. When only a web source is
+registered, its direct link remains available and the pane explicitly says no
+PDF is known; it never fabricates a PDF URL. Missing source registration is
+shown explicitly. Full documents may include other questions/answers.
+
+Chat, guided practice and corpus details share `MathText`: prose LaTeX
+`\(...\)` / `\[...\]` becomes KaTeX math without modifying code strings.
+Single and double-escaped legacy delimiters normalize without visible backslashes;
+complete expressions render during streaming and when reopening saved messages.
+The agent also guards final prose server-side. Its optional presentation formatter
+returns deterministic exact-span emphasis: bold, italic, and semantic givens/goals/
+insights/cautions. Reserved links `#mb-tone-given`, `#mb-tone-goal`,
+`#mb-tone-insight`, `#mb-tone-warning` render as styled spans (not clickable links),
+using theme tokens rather than arbitrary agent-supplied colors or executable HTML.
+Legacy `[asy]...[/asy]` and fenced `asy`/`asymptote` blocks render as PNG
+diagrams; their code stays in collapsed source details, not the statement.
+Incomplete streaming blocks wait until complete. Malformed inline Problem/Source
+labels are separated into the same tinted problem and neutral source panels.
+
+`POST /api/diagrams/asymptote` requires a same-origin request and a student token
+verified through REST `/v1/learner/me` (not merely a cookie's presence).
+It uses the installed macOS `/usr/bin/sandbox-exec`, Asymptote and TeX/Ghostscript.
+Default compiler: `/Library/TeX/texbin/asy`; server-only
+`MATHBANK_ASYMPTOTE_PATH` can select an installed executable. Child processes
+receive no application/provider credentials, cannot read project/home files or
+use the network, and can write only their unique temporary directory.
+Unsafe imports/process/file/configuration primitives are rejected too.
+PNG responses are private/no-store; temporary files are removed after rendering.
+
+Limits: 32,000 source characters, two concurrent renders per server process,
+15-second wall/10-second CPU timeout, 8 MiB per generated file, 2 MiB returned
+PNG, and a 512 MiB process-group RSS monitor polled every 250 ms (not a hard
+instantaneous allocation ceiling). Raster conversion uses the supplied source
+projection, not model-invented geometry. Source scale parameters are not answers.
+Unsupported code and missing dependencies produce explicit errors. Other
+operating systems fail closed with 503 until an equivalent isolation backend is
+implemented; there is no unsandboxed fallback or browser JavaScript execution.
+
+Verify the real compiler/isolation without paid calls:
+
+```sh
+RUN_ASYMPTOTE_TESTS=1 node --test tests/asymptoteRenderer.test.mjs tests/markdownText.test.mjs tests/tutorProblem.test.mjs
+RUN_ASYMPTOTE_TESTS=1 npx playwright test e2e/tutor-asymptote.spec.mjs
+```
+
 ## Tests
 
 ```bash

@@ -89,6 +89,64 @@ Manual smoke test (no terminal chat loop, good for CI/quick checks):
 
 ## Tools (`agents/mathbank_tutor/tools/rest_tools.py`)
 
+### Complete practice recommendations
+
+Selected-problem coaching is instructed to resolve numbered recommendations,
+fetch answer-free learning context first, disclose graph metadata provenance/
+limitations, and provide a short provisional teaching roadmap plus one diagnostic
+checkpoint. A taxonomy match is not proof of a strategy. Automatically approved
+metadata is distinguished from human review. No private chain-of-thought is shown.
+The web activity mapper exposes only allowlisted retrieval statuses and counts,
+not raw tool contexts, solutions or warning strings. This prompt contract is not
+a deterministic guarantee that a live model will call every requested tool.
+
+For practice suggestions the tutor uses `search_practice_problems`, which checks
+up to five retrieved candidates and returns at most two eligible problems.
+`get_practice_problem` also verifies direct taxonomy/skill candidates. These
+read-only tools return statement/diagrams/source and ready-to-display Markdown,
+never answers or solutions. Required-diagram markers, unparsed Asymptote/image
+placeholders, missing statements and unreadable registered diagrams exclude a
+candidate. Image availability is verified through the student-safe image route,
+not inferred from a database row or model narration.
+
+Rejected statements are not returned by practice search. The tutor is instructed
+to select another candidate, not offer a broken question with a “diagram
+unavailable” warning. Explicit learner-selected problems remain accessible
+through ordinary lookup/source routes. Known original source/PDF links accompany
+eligible recommendations. This does not certify paid-model tool choice; offline
+tests verify filtering and actual tutor tool registration.
+
+### Presentation formatter and automatic math guard
+
+The root tutor applies an offline `after_model_callback` to every final visible
+response: single/double-escaped `\(...\)` and `\[...\]` become canonical Markdown
+math; whitespace at the delimiters is trimmed. Code, Asymptote, link destinations,
+thought parts, tool arguments and partial streaming chunks are untouched. The UI
+independently normalizes accumulated text, including older saved messages.
+
+An additional real ADK `formatter_agent` uses the existing authenticated/bounded
+AgentTool delegation (not remote A2A). Ask, for example:
+“Keep the wording; color givens blue and the goal indigo, bold key terms and
+italicize qualifications.” Its `format_tutor_text` tool accepts the original
+text plus at most 24 nonoverlapping `{start,end,style}` annotations, using Python
+character offsets. Allowed styles are `bold`, `italic`, `given`, `goal`,
+`insight`, `warning`; colors come exclusively from UI theme tokens. Text is
+64,000 characters maximum; annotation JSON is 16,000 maximum. Whole inline
+formulas may be selected; partial math, existing markup, code, links, arbitrary
+CSS/HTML and multiline selections are rejected with `FORMAT_INVALID`.
+
+The formatter's final response is pinned to its last deterministic tool result,
+not its model's rewritten prose; the root's final reply is pinned too after
+successful delegation. Delegate requests must be JSON `{"text":"exact original",
+"instructions":"desired styles"}`. Invocation-scoped source binding rejects a
+formatter model that changes the original text before calling its tool.
+This is presentation, not mathematical
+verification. Formatting cannot repair invalid TeX or infer missing math
+delimiters. Ordinary delimiter correction adds no model call; optional semantic
+delegation uses the configured model and therefore can incur provider charges.
+Scripted ADK tests verify contracts/authorization without paid inference; live
+model style/tool-selection quality is not certified.
+
 ### Artifact specialist agents
 
 The tutor now delegates through **Google ADK `AgentTool`**, not a public remote

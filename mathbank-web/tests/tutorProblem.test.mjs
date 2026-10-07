@@ -13,6 +13,13 @@ test("plain tutoring prose and incomplete streaming sections are unchanged", () 
   assert.equal(splitTutorProblem("Discuss the source of this problem."), null);
   assert.equal(splitTutorProblem("**Problem:**\nAn incomplete statement"), null);
 });
+test("inline and malformed model labels keep the entire statement in the math panel", () => {
+  const parsed = splitTutorProblem("Try this.\n\n**Problem: A right prism with height \\(h\\). Find \\(h^2\\).\n[asy]draw((0,0)--(1,1));[/asy]\n\n**SourceAIME, 2016, Problem 4.");
+  assert.equal(parsed.title, "Problem");
+  assert.match(parsed.statement, /^A right prism/);
+  assert.match(parsed.statement, /\\\(h\^2\\\)/);
+  assert.equal(parsed.source, "AIME, 2016, Problem 4.");
+});
 test("geometry blocks are declarative only, bounded and streaming-safe", () => {
   const node = (value) => ({ children: [{ tagName: "code", properties: { className: ["language-geometry-artifact"] }, children: [{ value }] }] });
   assert.equal(geometryArtifactSource(node("{")).pending, true);

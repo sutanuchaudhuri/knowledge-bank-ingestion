@@ -50,6 +50,29 @@ requirements and records progress.
 
 ## 4. Verification
 
+### Evidence-backed coaching activity
+
+Activity includes deterministic allowlisted retrieval/context summaries, with
+graph degradation and machine approval qualified rather than implied verified.
+Private thoughts and raw tool payloads remain excluded. The tutor prompt requests
+an answer-free context lookup, a concise teaching roadmap and one first checkpoint
+for selected-problem coaching; this is not a full solution or internal reasoning.
+Unit and desktop/mobile mocked browser cases cover evidence visibility and redaction.
+
+### Server and UI formatting controls
+
+Shared math preparation handles single/double-escaped delimiters and trims inner
+delimiter whitespace without changing code or link destinations. A real ADK
+presentation formatter provides bounded exact-span bold/italic and token-driven
+given/goal/insight/warning styles; final formatter output is pinned to a validated
+tool result. An automatic root-agent final-output guard runs without extra
+inference; the UI independently handles streaming text and archived messages.
+Desktop/mobile mocked browser tests verify three rendered SMT formulas, no
+visible delimiter backslashes, inline math within semantic highlights, preserved
+code, distinct Problem/Source panels and no overflow/page errors. Existing
+diagram/source-pane cases and production build pass. Scripted ADK delegation
+tests verify preservation/authorization, not live paid-model style selection.
+
 ### Multimodal attempts and artifacts
 
 Tutor practice statements now have a tinted problem panel and a separate neutral
@@ -66,6 +89,38 @@ and Number Theory. Algebra equation lines render through the existing KaTeX
 renderer below the safe SVG image. An additional mocked browser case verifies
 this path; the latest production build passes. Root specialist tool calls appear
 in chat activity, but nested ADK AgentTool child events are not yet streamed.
+
+Embedded source-diagram rendering now recognizes `[asy]...[/asy]` and fenced
+Asymptote in the shared math renderer (chat, practice, corpus detail/solutions).
+The statement is KaTeX-formatted; source code is collapsed below the rendered
+PNG. Inline/unclosed model Problem/Source labels keep the full statement in
+the problem panel instead of turning it into an unformatted title.
+Incomplete streaming blocks wait. The macOS compiler is authenticated,
+OS-isolated and credential-free; missing/unsupported renderers show explicit
+errors. No browser code execution or fabricated replacement figure is used.
+Verification: 90 web units (including real isolated compiler and filesystem/network
+denial checks) and seven focused browser cases passed. AIME_2016_I_Q04 had
+flattened `//` comments in its imported diagram; with explicit user approval,
+only that block was replaced with the supplied valid source. Problem wording and
+official answer were preserved. Live authenticated rendering returned PNG/200
+and the corpus detail image loaded at 283 pixels wide. No paid inference or
+embedding refresh was run.
+
+Practice recommendations now use verified complete candidates: required diagrams
+must be present and readable; unparsed figures are skipped instead of offered
+with an unavailable-image warning. The direct original PDF/source link stays
+visible beside Source. Source or ordinary PDF-link click opens the shared split
+pane; mobile uses a bottom pane with an accessible Close control.
+
+Cached PDFs with an unambiguous text location or current-PDF-hash extraction
+coordinates open at the verified physical page. Both a highlighted page preview
+and an annotated full-document PDF are shown, without altering the original.
+Ambiguous/unknown locations receive no guessed highlight. Web-only sources
+explicitly report no registered PDF and retain their original link.
+SMT 2010 Geometry Q06's image and direct PDF were verified live; the actual
+question text is on physical page 1. Seven focused browser regressions passed,
+including mobile closing and web-only fallback. Paid tutor tool-selection
+quality was not tested.
 
 The shared shell now includes `/learn/attempt-media`, `/admin/attempt-media` and
 `/artifacts`. They reuse the wide layout, Inter/Bootstrap theme, status pills,

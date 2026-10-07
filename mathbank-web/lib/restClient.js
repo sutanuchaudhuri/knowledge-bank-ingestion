@@ -129,8 +129,8 @@ export async function restAuthPost(path, token, payload, extraHeaders = {}) {
 }
 
 // Binary passthrough (problem diagrams): returns the upstream Response untouched.
-export async function restRaw(path) {
-  return fetch(buildUrl(path), { cache: "no-store" });
+export async function restRaw(path, searchParams) {
+  return fetch(buildUrl(path, searchParams), { cache: "no-store" });
 }
 
 // Admin binary passthrough (all textbook diagrams, including solution-hidden ones).

@@ -38,16 +38,28 @@ test("chat renders real SMT images without a paid agent call", async ({ page }) 
   await expect(source).toHaveCount(1);
   await expect(source.locator("iframe")).toHaveCount(0);
   await source.getByRole("button", { name: "Source", exact: true }).click();
-  await expect(source.locator("iframe")).toHaveAttribute("src", `/api/rest/solve/source-pdf/${CODE}`);
+  const pane = page.getByRole("complementary", { name: "Original source split pane" });
+  await expect(pane.locator("iframe")).toHaveAttribute("src", `/api/rest/solve/source-marked-pdf/${CODE}#page=1`);
+  await expect(pane.getByRole("img", { name: `Highlighted location of ${CODE} in the original PDF` })).toBeVisible();
+  await expect.poll(() => pane.locator("img").evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+  await expect(source.getByRole("link", { name: "Original PDF" })).toHaveAttribute("href", /geometry_tst.pdf/);
   const pdf = await page.request.get(`/api/rest/solve/source-pdf/${CODE}`);
   expect(pdf.ok()).toBeTruthy();
   expect(pdf.headers()["content-type"]).toContain("application/pdf");
   expect((await pdf.body()).subarray(0, 5).toString()).toBe("%PDF-");
+  const highlighted = await page.request.get(`/api/rest/solve/source-marked-pdf/${CODE}`);
+  expect(highlighted.ok()).toBeTruthy();
+  expect(highlighted.headers()["content-type"]).toContain("application/pdf");
+  expect((await highlighted.body()).subarray(0, 5).toString()).toBe("%PDF-");
+  await pane.getByRole("button", { name: "Diagram · Page 2" }).click();
+  await expect(pane.locator("iframe")).toHaveAttribute("src", `/api/rest/solve/source-marked-pdf/${CODE}#page=2`);
+  await expect(pane.locator("img")).toHaveAttribute("src", `/api/rest/solve/source-highlight/${CODE}?page=2`);
+  await expect.poll(() => pane.locator("img").evaluate((img) => img.complete && img.naturalWidth)).toBeGreaterThan(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(images.first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
-  await source.getByRole("button", { name: "Source", exact: true }).click();
-  await expect(source.locator("iframe")).toHaveCount(0);
+  await pane.getByRole("button", { name: "Close source pane" }).click();
+  await expect(pane).toHaveCount(0);
 });
 
 test("original PDF remains available when a problem has no extracted diagram", async ({ page }) => {
@@ -68,6 +80,28 @@ test("original PDF remains available when a problem has no extracted diagram", a
   await page.getByRole("button", { name: "Send", exact: true }).click();
   const source = page.getByTestId("problem-source");
   await source.getByRole("button", { name: "Source", exact: true }).click();
-  await expect(source.locator("iframe")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Original source split pane" }).locator("iframe")).toBeVisible();
   await expect(page.getByTestId("problem-diagrams")).toHaveCount(0);
+});
+
+test("web-only source is explicit and does not invent a PDF or highlight", async ({ page }) => {
+  await page.route("**/api/agent/session", (route) => route.fulfill({ json: { linked: false } }));
+  await page.route("**/api/rest/solve/source/**", (route) => route.fulfill({ json: {
+    url: "https://example.test/wiki/Problem_6", kind: "web", embed_url: null,
+    label: "Original source page", location: null, highlight_url: null,
+  } }));
+  await page.route("**/api/rest/solve/diagrams/**", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/agent/run", (route) => route.fulfill({
+    contentType: "text/event-stream",
+    body: `data: ${JSON.stringify({ type: "answer", text: `Original source for **${CODE}**.` })}\n\ndata: {"type":"done"}\n\n`,
+  }));
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Your question" }).fill("Open the source");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByTestId("problem-source").getByRole("button", { name: "Source", exact: true }).click();
+  const pane = page.getByRole("complementary", { name: "Original source split pane" });
+  await expect(pane).toContainText("No PDF is registered");
+  await expect(pane.locator("iframe")).toHaveCount(0);
+  await expect(pane.locator("img")).toHaveCount(0);
+  await expect(pane.getByRole("link", { name: "Open original in new tab" })).toHaveAttribute("href", "https://example.test/wiki/Problem_6");
 });

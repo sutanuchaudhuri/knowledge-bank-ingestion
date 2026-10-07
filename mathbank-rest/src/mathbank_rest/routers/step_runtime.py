@@ -11,23 +11,28 @@ reference step (level 5). Mutations accept an ``Idempotency-Key`` header and req
 """
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
-import logging
-from pathlib import Path
-
-from fastapi.responses import FileResponse
-
 from mathbank_rest import mastery, security, step_diagnosis, step_recovery, step_runtime, step_tutor
 from mathbank_rest.db.postgres import engine
-from mathbank_rest.db.step_search import similar_steps_for_step
 from mathbank_rest.db.problem_images import STUDENT_IMAGE_FILTER, list_images
-from mathbank_rest.db.problem_sources import source_metadata, source_pdf, source_record
+from mathbank_rest.db.problem_sources import (
+    highlighted_page,
+    highlighted_pdf,
+    problem_location,
+    source_metadata,
+    source_pdf,
+    source_record,
+)
+from mathbank_rest.db.step_search import similar_steps_for_step
 
 router = APIRouter(prefix="/v1", tags=["step-runtime"])
 log = logging.getLogger(__name__)
@@ -400,6 +405,39 @@ def get_problem_source_pdf(code: str):
         raise HTTPException(status_code=404, detail="original PDF is not cached")
     return FileResponse(path, media_type="application/pdf", content_disposition_type="inline",
                         filename="original-problem-document.pdf", headers={"Cache-Control": "no-cache"})
+
+
+@router.get("/problems/by-code/{code}/source-highlight")
+def get_problem_source_highlight(code: str, page: int | None = Query(default=None, ge=1)):
+    from fastapi.responses import Response
+
+    with engine.connect() as conn:
+        record = source_record(conn, code)
+    path = source_pdf(record) if record else None
+    location = problem_location(path, record, code) if path else None
+    if location is None:
+        raise HTTPException(status_code=404, detail="verified problem location is unavailable")
+    if page is not None:
+        location = next((region for region in location["pages"] if region["page"] == page), None)
+        if location is None:
+            raise HTTPException(status_code=404, detail="verified problem page is unavailable")
+    return Response(highlighted_page(path, location), media_type="image/png",
+                    headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+
+@router.get("/problems/by-code/{code}/source-marked-pdf")
+def get_problem_source_marked_pdf(code: str):
+    from fastapi.responses import Response
+
+    with engine.connect() as conn:
+        record = source_record(conn, code)
+    path = source_pdf(record) if record else None
+    location = problem_location(path, record, code) if path else None
+    if location is None:
+        raise HTTPException(status_code=404, detail="verified problem location is unavailable")
+    return Response(highlighted_pdf(path, location), media_type="application/pdf",
+                    headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                             "Content-Disposition": 'inline; filename="highlighted-source.pdf"'})
 
 
 @router.get("/problem-images/{image_id}", response_class=FileResponse)

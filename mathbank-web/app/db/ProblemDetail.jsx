@@ -3,11 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { hasStepSolution } from "../../lib/solveFlow.mjs";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import { normalizeMathDelimiters } from "../../lib/markdown.js";
+import MathText from "../_components/MathText.jsx";
 import { panel } from "./dbStyles.js";
 import ProblemDiagrams from "../_components/ProblemDiagrams.jsx";
 
@@ -49,9 +45,7 @@ export default function ProblemDetail({ code }) {
 
       {problem.statement_text && (
         <div className="markdown-body" style={{ fontSize: 14, marginBottom: 12 }}>
-          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-            {normalizeMathDelimiters(problem.statement_text)}
-          </ReactMarkdown>
+          <MathText>{problem.statement_text}</MathText>
         </div>
       )}
 
@@ -86,9 +80,7 @@ export default function ProblemDetail({ code }) {
                 {sol.solution_kind} rev {sol.revision} · {sol.verification_status}
               </summary>
               <div className="markdown-body" style={{ fontSize: 13, marginTop: 6 }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                  {normalizeMathDelimiters(sol.body_markdown || "")}
-                </ReactMarkdown>
+                <MathText>{sol.body_markdown || ""}</MathText>
               </div>
             </details>
           ))}

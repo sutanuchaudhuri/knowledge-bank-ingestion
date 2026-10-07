@@ -58,7 +58,15 @@ html, body { background: var(--mb-bg); }
 .mb-tutor-source { background: var(--mb-neutral-soft); border-radius: var(--mb-radius-sm); padding: .75rem 1rem; margin-bottom: .75rem; color: var(--mb-muted); }
 .mb-tutor-source > span { display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem; }
 .mb-tutor-source .markdown-body > :last-child, .mb-tutor-problem .markdown-body > :last-child { margin-bottom: 0; }
+.mb-format-given, .mb-format-goal, .mb-format-insight, .mb-format-warning { border-radius: .25rem; padding-inline: .2rem; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.mb-format-given { color: var(--mb-info-ink); background: var(--mb-info-soft); }
+.mb-format-goal { color: var(--mb-primary-ink); background: var(--mb-primary-soft); font-weight: 650; }
+.mb-format-insight { color: var(--mb-success-ink); background: var(--mb-success-soft); }
+.mb-format-warning { color: var(--mb-warning-ink); background: var(--mb-warning-soft); }
 .mb-generated-diagram { background: var(--mb-surface); border: 1px solid var(--mb-border); border-radius: var(--mb-radius); padding: 1rem; margin-block: 1rem; }
+.mb-diagram-code { margin-top: .75rem; min-width: 0; }
+.mb-diagram-code summary { color: var(--mb-muted); cursor: pointer; }
+.mb-diagram-code pre { max-height: 20rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 body {
   font-family: var(--mb-font);
   font-feature-settings: "cv11", "ss01";
@@ -351,4 +359,12 @@ details[open] > summary.mb-section-title::after { transform: rotate(180deg); }
 }
 .mb-problem-diagram figcaption { margin-top: .5rem; }
 .mb-original-source { min-width: 0; margin-block: .75rem; }
+.mb-source-pane { position: fixed; top: var(--mb-topbar); right: 0; bottom: 0; width: min(45vw, 52rem); z-index: 1030; background: var(--mb-surface); border-left: 1px solid var(--mb-border); box-shadow: var(--mb-shadow-md); display: flex; flex-direction: column; }
+.mb-source-pane > header { padding: 1rem; border-bottom: 1px solid var(--mb-border); }
+.mb-source-pane-body { overflow: auto; padding: 1rem; min-width: 0; }
+body:has(.mb-source-pane) main { margin-right: min(45vw, 52rem); }
+@media (max-width: 991.98px) {
+  .mb-source-pane { top: auto; height: 65vh; width: 100%; border-top: 1px solid var(--mb-border); }
+  body:has(.mb-source-pane) main { margin-right: 0; padding-bottom: 65vh; }
+}
 .mb-source-frame { display: block; width: 100%; height: min(75vh, 52rem); min-height: 20rem; border: 1px solid var(--mb-border); border-radius: var(--mb-radius); background: var(--mb-surface); }
