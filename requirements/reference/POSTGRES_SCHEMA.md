@@ -9,6 +9,55 @@
 
 ## Migration order and ownership
 
+### Corpus authoring (migration 025)
+
+Incremental source revision `77eb6784a000a9cc6077526fa4accc7c4111afac` plus
+relevant worktree changes. Examined `025_corpus_authoring.sql`,
+`corpus_authoring.py`, `routers/admin_corpus.py`, `object_store.py` and
+`scripts/migrate_corpus_authoring.py`. This section extends the earlier
+composite inventory; it is not a fresh audit of unrelated migrations.
+
+`ingest.corpus_draft` belongs to migration 025:
+
+| Column | Type | Nullable / default | Purpose |
+|---|---|---|---|
+| `draft_id` | uuid | NOT NULL; `gen_random_uuid()` | Primary key |
+| `kind` | text | NOT NULL | TEXT_EDIT, IMAGE or NEW_PROBLEM |
+| `problem_id` | uuid | Nullable | FK to `core.problem`, ON DELETE RESTRICT, default NO ACTION on update |
+| `payload` | jsonb | NOT NULL | Proposed text/solution/answer or image-side metadata; text edits retain `before_statement` |
+| `base_hash` | text | Nullable | SHA-256 of the canonical text at draft creation |
+| `object_key` | text | Nullable | Private immutable uploaded object; never in public metadata |
+| `state` | text | NOT NULL; DRAFT | DRAFT, APPROVED or REJECTED |
+| `origin` | text | NOT NULL | ADMIN or AI |
+| `provenance` | jsonb | NOT NULL; `{}` | Immutable creation note and AI model when applicable |
+| `revision` | int | NOT NULL; 1 | Positive draft-content version |
+| `note` | text | NOT NULL | Author/source note, editable only before review |
+| `review_note` | text | Nullable | Explicit review decision rationale |
+| `created_at` | timestamptz | NOT NULL; `now()` | Creation time |
+| `reviewed_at` | timestamptz | Nullable | Review time |
+
+Checks enforce the enumerations, positive revision, a problem FK for non-new
+drafts, and object-key presence exactly for IMAGE drafts. Index
+`corpus_draft_state_idx(state,created_at DESC)` supports review listings.
+The API additionally validates payload lengths, image type/size, consent,
+source concurrency and draft revision; SQL checks alone do not certify payload
+mathematics, rights or image classification.
+
+Migration 025 adds nullable `core.problem.admin_edited_at timestamptz`
+without a default (IF NOT EXISTS). Function/trigger
+`ingest.protect_corpus_draft` runs BEFORE UPDATE OR DELETE per row, refusing
+deletion, changes to reviewed records, or origin/provenance changes.
+`core.protect_admin_statement` runs BEFORE UPDATE per row and refuses changing
+previously admin-edited question text without a changed admin-edit timestamp.
+Normal authoring approval sets that timestamp explicitly. No new grants,
+extension, graph table, view or learner relationship is added.
+
+Separate implementation observation, 2026-10-07 UTC: user-approved migration
+025 was applied transactionally to the explicitly selected, configured REST
+database. The 14-column inventory and both protection-trigger names matched
+the new migration, and authenticated reads were verified; this is not
+a complete live catalog-parity audit. Documentation generation did not apply it.
+
 ### Solution-grounded planning boundary
 
 Incremental source revision `1582f808a731e571e79b588d4c73e717eefc7956` plus related

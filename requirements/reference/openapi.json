@@ -1255,6 +1255,125 @@
         "title": "DiagnoseRequest",
         "type": "object"
       },
+      "DraftRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Answer",
+            "type": "string"
+          },
+          "diagram_required": {
+            "default": false,
+            "title": "Diagram Required",
+            "type": "boolean"
+          },
+          "expected_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Hash"
+          },
+          "kind": {
+            "enum": [
+              "TEXT_EDIT",
+              "NEW_PROBLEM"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Note",
+            "type": "string"
+          },
+          "problem_code": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem Code"
+          },
+          "solution": {
+            "default": "",
+            "maxLength": 30000,
+            "title": "Solution",
+            "type": "string"
+          },
+          "statement": {
+            "maxLength": 20000,
+            "minLength": 10,
+            "title": "Statement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "statement",
+          "kind",
+          "note"
+        ],
+        "title": "DraftRequest",
+        "type": "object"
+      },
+      "DraftUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Answer",
+            "type": "string"
+          },
+          "diagram_required": {
+            "default": false,
+            "title": "Diagram Required",
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Note",
+            "type": "string"
+          },
+          "solution": {
+            "default": "",
+            "maxLength": 30000,
+            "title": "Solution",
+            "type": "string"
+          },
+          "statement": {
+            "maxLength": 20000,
+            "minLength": 10,
+            "title": "Statement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "statement",
+          "note",
+          "expected_revision"
+        ],
+        "title": "DraftUpdate",
+        "type": "object"
+      },
       "EditRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1530,6 +1649,28 @@
           "overlay_id"
         ],
         "title": "Frame",
+        "type": "object"
+      },
+      "GenerateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm_paid": {
+            "const": true,
+            "title": "Confirm Paid",
+            "type": "boolean"
+          },
+          "theme": {
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Theme",
+            "type": "string"
+          }
+        },
+        "required": [
+          "theme",
+          "confirm_paid"
+        ],
+        "title": "GenerateRequest",
         "type": "object"
       },
       "GeometryPreview": {
@@ -1827,6 +1968,66 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ImageRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "data_base64": {
+            "maxLength": 7000000,
+            "minLength": 1,
+            "title": "Data Base64",
+            "type": "string"
+          },
+          "expected_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expected Hash",
+            "type": "string"
+          },
+          "mime_type": {
+            "enum": [
+              "image/png",
+              "image/jpeg"
+            ],
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Note",
+            "type": "string"
+          },
+          "problem_code": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Problem Code",
+            "type": "string"
+          },
+          "rights_confirmed": {
+            "const": true,
+            "title": "Rights Confirmed",
+            "type": "boolean"
+          },
+          "side": {
+            "enum": [
+              "problem",
+              "solution"
+            ],
+            "title": "Side",
+            "type": "string"
+          }
+        },
+        "required": [
+          "problem_code",
+          "side",
+          "mime_type",
+          "data_base64",
+          "note",
+          "rights_confirmed",
+          "expected_hash"
+        ],
+        "title": "ImageRequest",
         "type": "object"
       },
       "IndexBody": {
@@ -2516,6 +2717,67 @@
         "title": "Point",
         "type": "object"
       },
+      "PracticeProgressResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PracticeThemeProgress"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PracticeProgressResponse",
+        "type": "object"
+      },
+      "PracticeThemeProgress": {
+        "properties": {
+          "attempted": {
+            "minimum": 0.0,
+            "title": "Attempted",
+            "type": "integer"
+          },
+          "available": {
+            "minimum": 0.0,
+            "title": "Available",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "concept",
+              "technique"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "remaining": {
+            "minimum": 0.0,
+            "title": "Remaining",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "slug",
+          "name",
+          "available",
+          "attempted",
+          "remaining"
+        ],
+        "title": "PracticeThemeProgress",
+        "type": "object"
+      },
       "ProblemSearchRequest": {
         "properties": {
           "filters": {
@@ -2974,61 +3236,6 @@
           "decision"
         ],
         "title": "ReviewBody",
-        "type": "object"
-      },
-      "ReviewRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "expected_revision": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Expected Revision",
-            "type": "string"
-          },
-          "key": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Key",
-            "type": "object"
-          },
-          "kind": {
-            "enum": [
-              "skill",
-              "skill_concept",
-              "skill_relation",
-              "concept_relation",
-              "problem_skill",
-              "problem_pedagogy",
-              "problem_concept",
-              "problem_technique"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "note": {
-            "maxLength": 2000,
-            "minLength": 10,
-            "title": "Note",
-            "type": "string"
-          },
-          "review_status": {
-            "enum": [
-              "PENDING",
-              "REVIEWED",
-              "REJECTED"
-            ],
-            "title": "Review Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "key",
-          "expected_revision",
-          "review_status",
-          "note"
-        ],
-        "title": "ReviewRequest",
         "type": "object"
       },
       "SearchBody": {
@@ -4319,6 +4526,37 @@
         "title": "GenerateBody",
         "type": "object"
       },
+      "mathbank_rest__routers__admin_corpus__ReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "APPROVED",
+              "REJECTED"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "note",
+          "expected_revision"
+        ],
+        "title": "ReviewRequest",
+        "type": "object"
+      },
       "mathbank_rest__routers__fluid__GenerateBody": {
         "properties": {
           "context": {
@@ -4353,6 +4591,61 @@
           "intent"
         ],
         "title": "GenerateBody",
+        "type": "object"
+      },
+      "mathbank_rest__routers__pedagogy_admin__ReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expected Revision",
+            "type": "string"
+          },
+          "key": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Key",
+            "type": "object"
+          },
+          "kind": {
+            "enum": [
+              "skill",
+              "skill_concept",
+              "skill_relation",
+              "concept_relation",
+              "problem_skill",
+              "problem_pedagogy",
+              "problem_concept",
+              "problem_technique"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Note",
+            "type": "string"
+          },
+          "review_status": {
+            "enum": [
+              "PENDING",
+              "REVIEWED",
+              "REJECTED"
+            ],
+            "title": "Review Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "key",
+          "expected_revision",
+          "review_status",
+          "note"
+        ],
+        "title": "ReviewRequest",
         "type": "object"
       }
     },
@@ -4791,6 +5084,661 @@
         "summary": "Create Competition",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/v1/admin/corpus/drafts": {
+      "get": {
+        "operationId": "drafts_v1_admin_corpus_drafts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "default": "DRAFT",
+              "enum": [
+                "DRAFT",
+                "APPROVED",
+                "REJECTED"
+              ],
+              "title": "State",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Drafts",
+        "tags": [
+          "admin-corpus"
+        ]
+      },
+      "post": {
+        "operationId": "create_draft_v1_admin_corpus_drafts_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Draft",
+        "tags": [
+          "admin-corpus"
+        ]
+      }
+    },
+    "/v1/admin/corpus/drafts/{draft_id}": {
+      "put": {
+        "operationId": "update_draft_v1_admin_corpus_drafts__draft_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Draft",
+        "tags": [
+          "admin-corpus"
+        ]
+      }
+    },
+    "/v1/admin/corpus/drafts/{draft_id}/image": {
+      "get": {
+        "operationId": "draft_image_v1_admin_corpus_drafts__draft_id__image_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Draft Image",
+        "tags": [
+          "admin-corpus"
+        ]
+      }
+    },
+    "/v1/admin/corpus/drafts/{draft_id}/review": {
+      "post": {
+        "operationId": "review_v1_admin_corpus_drafts__draft_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/mathbank_rest__routers__admin_corpus__ReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review",
+        "tags": [
+          "admin-corpus"
+        ]
+      }
+    },
+    "/v1/admin/corpus/generate": {
+      "post": {
+        "operationId": "generate_v1_admin_corpus_generate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate",
+        "tags": [
+          "admin-corpus"
+        ]
+      }
+    },
+    "/v1/admin/corpus/images": {
+      "post": {
+        "operationId": "upload_v1_admin_corpus_images_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload",
+        "tags": [
+          "admin-corpus"
+        ]
+      }
+    },
+    "/v1/admin/corpus/problems": {
+      "get": {
+        "operationId": "problems_v1_admin_corpus_problems_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "competition",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competition"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paper",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paper"
+            }
+          },
+          {
+            "in": "query",
+            "name": "number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "missing_only",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Missing Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Problems",
+        "tags": [
+          "admin-corpus"
+        ]
+      }
+    },
+    "/v1/admin/corpus/problems/{code}": {
+      "get": {
+        "operationId": "detail_v1_admin_corpus_problems__code__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detail",
+        "tags": [
+          "admin-corpus"
         ]
       }
     },
@@ -7042,7 +7990,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReviewRequest"
+                "$ref": "#/components/schemas/mathbank_rest__routers__pedagogy_admin__ReviewRequest"
               }
             }
           },
@@ -14392,6 +15340,33 @@
           }
         ],
         "summary": "Get Me",
+        "tags": [
+          "learner"
+        ]
+      }
+    },
+    "/v1/learner/practice-progress": {
+      "get": {
+        "description": "Distinct available/attempted/unattempted problems per exact corpus theme.\n\nAll recorded learner attempts count, including ungraded work. Coverage is\nnot correctness or mastery. Technique eligibility matches the corpus filter.",
+        "operationId": "get_practice_progress_v1_learner_practice_progress_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeProgressResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Practice Progress",
         "tags": [
           "learner"
         ]

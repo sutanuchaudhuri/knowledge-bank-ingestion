@@ -35,6 +35,27 @@
     workflow and do not certify its deployment or metadata population.</p>
   </section>
 
+  <h2 id="corpus-repair">Reviewed source repair and original practice</h2>
+  <div class="grid cols-3 reveal">
+    <div class="card"><span class="pill pg">Implemented</span><h3>Repair the canonical source</h3>
+      <p>Filter competition, year, paper and question number. Inspect collapsed previews,
+      flag likely required-but-missing figures, and stage permitted images or text edits.
+      A question without images is not automatically defective.</p></div>
+    <div class="card"><span class="pill ai">Explicit opt-in</span><h3>Author new practice</h3>
+      <p>Write an original draft manually or authorize one paid AI request. Review the
+      question and unverified solution before approval. Synthetic practice receives a
+      fresh identity and a nonofficial paper, never an official contest identity.</p></div>
+    <div class="card"><span class="pill pg">210 queries</span><h3>Investigate the corpus</h3>
+      <p>Use explained read-only PostgreSQL diagnostics for statements, source figures,
+      solutions, taxonomy, imports and vector health. All templates passed server
+      parsing/binding; execution costs and result semantics still require operator review.</p></div>
+  </div>
+  <p><a href="http://localhost:5173/admin/corpus">Open corpus repair</a> &middot;
+    <a href="../requirements/35_CORPUS_REPAIR_AND_AUTHORING.md">Requirements and safeguards</a> &middot;
+    <a href="../mathbank_data_ingestion/queries/README.md">Developer query index</a>.
+    Source/solution images remain separated. Approval publishes SQL content, not graph or
+    vector projections, and does not certify mathematical correctness.</p>
+
   <h2 id="anonymous-learning"><span class="section-no">P0</span>“Help me with what is blocking me”</h2>
   <div class="grid cols-2 reveal">
     <div class="card"><h3>Anonymous, attempt-first support</h3><p>Select a problem at <code>/learn</code>,

@@ -6,6 +6,7 @@ from fastapi import FastAPI, Response, status
 from mathbank_rest.db.graph import check_neo4j
 from mathbank_rest.db.postgres import check_postgres
 from mathbank_rest.routers.admin import router as admin_router
+from mathbank_rest.routers.admin_corpus import router as admin_corpus_router
 from mathbank_rest.routers.admin_imports import router as admin_imports_router
 from mathbank_rest.routers.admin_textbooks import router as admin_textbooks_router
 from mathbank_rest.routers.agent_sessions import router as agent_sessions_router
@@ -24,6 +25,7 @@ app = FastAPI(title="mathbank-rest", version="0.1.0")
 app.include_router(v1_router)
 app.include_router(learner_router)
 app.include_router(admin_router)
+app.include_router(admin_corpus_router)
 app.include_router(tutor_router)
 app.include_router(pedagogy_router)
 app.include_router(pedagogy_admin_router)

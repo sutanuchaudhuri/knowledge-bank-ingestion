@@ -31,6 +31,15 @@ turn requires `mathbank-rest` running (`make -C ../mathbank-rest run`).
 
 ## Current user model
 
+Admins use `/admin/corpus` for competition/problem-number filters, likely
+missing-diagram triage, collapsed canonical previews, reviewed text repair,
+private permitted source/solution-image uploads and original practice drafts.
+Manual drafts are free; optional configured-provider AI generation requires
+explicit paid consent. Approval is separate and new practice is labelled
+synthetic/nonofficial with UNVERIFIED solutions. No graph/vector publication
+or source scraping happens automatically. See
+[requirement 35](../requirements/35_CORPUS_REPAIR_AND_AUTHORING.md).
+
 Students sign in at `/login` (httpOnly JWT cookie); admins at `/admin/login`.
 The ADK `user_id` is derived on the server (`/api/agent/session`): the student
 UUID when signed in, otherwise `anonymous`; any client-supplied id is ignored.
@@ -63,6 +72,12 @@ codes. Free text uses existing graph/text search without paid embeddings;
 up to ten collapsed canonical question/diagram previews require an explicit
 practice selection. Exact AMC/AIME references are optional shortcuts; ambiguous
 papers require a choice. Search does not discard the current question or work.
+
+The profile's Practice by theme tab shows per-skill/technique available,
+distinct attempted and remaining problem counts from the authenticated
+`/v1/learner/practice-progress` read. Coverage uses the full recorded history,
+not the recent-attempts window; repeated/ungraded attempts do not imply mastery.
+Cards link to exact theme-filtered corpus previews to choose a practice problem.
 
 The compact view collapses change-problem controls, source metadata, working
 preferences and routine warnings. Real service/upload errors remain visible;

@@ -7,6 +7,21 @@
 - Sources: `mathbank-graph/etl/project_from_postgres.py`, `mathbank-graph/etl/project_textbook_steps.py`, graph-related migrations and readers, `mathbank-web/lib/graphConfig.js`, `mathbank-web/lib/graphMetadata.mjs`; migrations 021/022 and their REST writers were checked to confirm their learner-evidence/artifact data is not projected.
 - No live Neo4j target was queried; counts in older READMEs remain dated audits, not current proof.
 
+### Corpus authoring boundary
+
+Incremental source revision `77eb6784a000a9cc6077526fa4accc7c4111afac` plus
+related worktree changes; inspected migration 025, authoring approval,
+`project_from_postgres.py` corpus projection and student-safe image metadata.
+`ingest.corpus_draft`, review versions, private object locators and creation
+provenance remain PostgreSQL/storage data. No new graph labels, properties,
+edges, constraints, projector filters or automatic graph publication are added.
+Approved new practice has an ordinary canonical problem identity under the
+dedicated generated competition/nonofficial paper; any later explicit corpus
+projection follows the existing projector. A successful admin review does not
+prove graph synchronization, taxonomy coverage or mathematical correctness.
+No Neo4j live verification or publication was run.
+See [requirement 35](../35_CORPUS_REPAIR_AND_AUTHORING.md).
+
 ### Topic-first incremental boundary
 
 Source revision `c79060ac0771175baa6e04b37bede840f8c30ee1` plus relevant worktree

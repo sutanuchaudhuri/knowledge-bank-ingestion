@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, Callout, EmptyState, IconButton, PageHeader, Pager, Pill, SectionTitle, StatCard } from "../_components/ui.jsx";
 import { assessedAccuracy, attemptResult } from "../../lib/attemptHistory.mjs";
+import PracticeThemes from "./PracticeThemes.jsx";
 
 const TIER = {
   critical: { tone: "danger", icon: "exclamation-octagon" },
@@ -112,6 +113,23 @@ export default function ProfilePage() {
   const [mastery, setMastery] = useState(null);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
+  const [tab, setTab] = useState("practice");
+  const [practice, setPractice] = useState(null);
+  const [practiceError, setPracticeError] = useState("");
+  const [practiceRetry, setPracticeRetry] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setPracticeError("");
+    fetch("/api/rest/learner/practice-progress", { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Practice progress unavailable (${response.status}).`);
+        if (!Array.isArray(data.items)) throw new Error("Practice progress returned invalid data.");
+        if (!controller.signal.aborted) setPractice(data);
+      }).catch((err) => { if (!controller.signal.aborted) setPracticeError(err.message); });
+    return () => controller.abort();
+  }, [practiceRetry]);
 
   useEffect(() => {
     async function load() {
@@ -125,6 +143,9 @@ export default function ProfilePage() {
         if (profileRes.status === 401) {
           router.push("/login");
           return;
+        }
+        for (const response of [profileRes, attemptsRes, masteryRes, planRes]) {
+          if (!response.ok) throw new Error(`Progress data could not be loaded (${response.status}).`);
         }
         setProfile(await profileRes.json());
         setAttempts(await attemptsRes.json());
@@ -177,24 +198,34 @@ export default function ProfilePage() {
         <div className="col-6 col-xl-3"><StatCard icon="award" tone="info" label="Solid skills" value={`${solid}/${skills.length}`} progress={skills.length ? (solid / skills.length) * 100 : null} /></div>
       </div>
 
+      <div className="nav nav-pills gap-2 mb-4" role="tablist" aria-label="Progress views">
+        {[["practice", "Practice by theme"], ["mastery", "Strength & weakness"], ["attempts", "Past attempts"]].map(([value, label]) =>
+          <button key={value} role="tab" id={`progress-${value}`} aria-selected={tab === value} aria-controls="progress-panel"
+            className={`nav-link${tab === value ? " active" : ""}`} onClick={() => setTab(value)}>{label}</button>)}
+      </div>
+      <div id="progress-panel" role="tabpanel" aria-labelledby={`progress-${tab}`}>
+      {tab === "practice" && (practiceError ? <Callout tone="danger" role="alert">{practiceError}
+        <button className="btn btn-sm btn-outline-secondary ms-2" onClick={() => setPracticeRetry((value) => value + 1)}>Retry practice progress</button>
+      </Callout> : practice ? <PracticeThemes items={practice.items} /> : <p role="status">Loading practice coverage…</p>)}
+      {tab === "mastery" && <>
       <section className="mb-4">
         <SectionTitle icon="signpost-2">What to improve next</SectionTitle>
         <ImprovementPlan plan={plan} />
       </section>
 
-      <div className="row g-4">
-        <section className="col-12 col-xxl-6">
+        <section>
           <div className="card p-3 h-100">
             <SectionTitle icon="bar-chart-line">Strength &amp; weakness</SectionTitle>
             <MasteryBreakdown mastery={mastery} />
           </div>
         </section>
-        <section className="col-12 col-xxl-6">
+        </>}
+        {tab === "attempts" && <section>
           <div className="card p-3 h-100">
             <SectionTitle icon="clock-history">Past attempts</SectionTitle>
             <AttemptsTable attempts={attempts} />
           </div>
-        </section>
+        </section>}
       </div>
     </>
   );

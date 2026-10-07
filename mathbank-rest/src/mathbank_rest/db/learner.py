@@ -11,6 +11,42 @@ from uuid import UUID
 from sqlalchemy import text
 
 from mathbank_rest.db.postgres import engine
+from mathbank_rest.db.queries import technique_problem_evidence_sql
+
+
+def get_practice_progress(student_id: UUID) -> dict:
+    """Count distinct corpus problems, not repeated attempts or mastery events."""
+    query = text(f"""
+        {technique_problem_evidence_sql(filter_slug=False)},
+        theme_problems AS (
+            SELECT 'concept' AS kind, c.slug, c.name, pc.problem_id
+            FROM knowledge.concept c
+            LEFT JOIN knowledge.problem_concept pc USING(concept_id)
+            UNION
+            SELECT 'technique', t.slug, t.name, te.problem_id
+            FROM knowledge.technique t
+            LEFT JOIN technique_evidence te USING(technique_id)
+        ), attempted AS (
+            SELECT DISTINCT problem_id FROM learner.attempt WHERE student_id=:student_id
+        )
+        SELECT tp.kind, tp.slug, tp.name,
+               count(DISTINCT p.problem_id) AS available,
+               count(DISTINCT p.problem_id) FILTER (WHERE a.problem_id IS NOT NULL) AS attempted,
+               count(DISTINCT p.problem_id) FILTER (WHERE a.problem_id IS NULL) AS remaining
+        FROM theme_problems tp
+        LEFT JOIN (
+            SELECT p.problem_id FROM core.problem p
+            JOIN core.paper pa USING(paper_id)
+            JOIN core.competition_edition ed USING(edition_id)
+            JOIN core.competition comp USING(competition_id)
+        ) p ON p.problem_id=tp.problem_id
+        LEFT JOIN attempted a ON a.problem_id=p.problem_id
+        GROUP BY tp.kind, tp.slug, tp.name
+        ORDER BY tp.kind, lower(tp.name), tp.slug
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query, {"student_id": str(student_id)}).mappings()
+        return {"items": [dict(row) for row in rows]}
 
 
 def get_student_by_email(email: str) -> dict | None:

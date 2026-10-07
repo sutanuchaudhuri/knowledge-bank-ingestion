@@ -2,6 +2,78 @@
 
 ## Evidence
 
+### Admin corpus authoring
+
+Incremental source revision `77eb6784a000a9cc6077526fa4accc7c4111afac` with
+relevant worktree changes; inspected `routers/admin_corpus.py`,
+`corpus_authoring.py`, admin security, `main.py`, image metadata/serving,
+browser corpus proxy and its consumers/tests. Screened source OpenAPI has
+**198 paths / 102 schemas**; earlier inventory counts below are historical.
+
+All routes below have prefix `/v1/admin/corpus` and require the shared
+`X-Admin-Api-Key` (401 otherwise). Storage failure is not success-shaped;
+missing authoring schema is 503, validation is 422, missing problem/draft
+is 404, and source/content/review conflicts are 409.
+
+| Method / suffix | Input | Success / effects |
+|---|---|---|
+| GET `/problems` | Optional exact competition/year/paper/number, code-fragment `q`; `missing_only=true`, limit 1–100 default 20, offset >=0 default 0 | `{items,hasMore,warnings}`; safe-diagram counts and heuristic missing requirement, no mutations |
+| GET `/problems/{code}` | Canonical code | Canonical question fields plus SHA-256 `expected_hash`, no mutation |
+| GET `/drafts` | state DRAFT/APPROVED/REJECTED default DRAFT, limit/offset as above | `{items,hasMore}` with payload, provenance, revision and review metadata; private admin content |
+| POST `/drafts` | Strict DraftRequest: kind TEXT_EDIT/NEW_PROBLEM, statement 10–20,000, solution <=30,000, answer <=500, diagram_required, note 3–2,000; text edits require problem_code and matching expected_hash | 201, private durable draft. New practice rejects supplied official problem identity |
+| PUT `/drafts/{uuid}` | Strict DraftUpdate: problem-body fields, note and expected_revision >=1 | Pending NEW_PROBLEM only; increments revision while preserving origin and creation provenance |
+| POST `/images` | Strict ImageRequest: canonical code and expected_hash, problem/solution side, PNG/JPEG MIME, bounded base64, source note and rights_confirmed=true | 201 private IMAGE draft. 409 changed source, 415 type/signature, 413 size/dimensions, 422 decoding. Native-resolution normalized PNG stored privately |
+| POST `/generate` | Strict GenerateRequest: theme 5–2,000, confirm_paid=true | 201 private AI draft; one configured paid request, never automatic approval. Invalid provider result/provider failure 502; solution required and self-contained visual constraint |
+| GET `/drafts/{uuid}/image` | Admin-only draft UUID | PNG bytes; private/no-store and nosniff; object storage failure 503 |
+| POST `/drafts/{uuid}/review` | Strict ReviewRequest: APPROVED/REJECTED, note 3–2,000, expected_revision >=1 | `{draft_id,state,canonical_code,warning}`; transactional review/publication or no-op repeated identical decision |
+
+Approval publishes PostgreSQL canonical content, not vector or graph
+projections. New practice receives a GENERATED identity and nonofficial paper;
+its worked solution remains UNVERIFIED. Solution-image approval does not make
+it a student question figure or automatically insert it into solution Markdown.
+Text correction preserves source identity/solutions and marks statement vector
+representations STALE.
+
+`GET /v1/problem-images/{uuid}` retains the existing student-visibility check.
+Approved private-store source figures return normalized PNG; solution figures
+remain 404. Private-store failures return 503, never a local-path fallback.
+
+Next.js `GET|POST|PUT /api/rest/admin/corpus/[...path]` is a separate
+allowlisted proxy, not a FastAPI endpoint. It requires a signed admin session,
+same-origin mutations, attaches the shared key only server-side, preserves
+upstream failures and proxies private image bytes with no-store/nosniff.
+
+OpenAPI lists request schemas but these new JSON responses are not typed
+response models; their exact shapes above are derived from implementation.
+Shared-key security and application-specific 409/413/415/503 behavior are
+enforced by code, not fully enumerated in generated OpenAPI responses.
+Separate deployment observation on 2026-10-07 UTC: after user-authorized
+activation, source and running OpenAPI matched exactly; authenticated reads
+returned 200 and anonymous inventory returned 401. No paid request or draft
+publication accompanied that verification.
+
+### Profile practice-coverage incremental contract
+
+Source-derived from `db/learner.py`, shared technique evidence in `db/queries.py`,
+`routers/learner.py` and profile/proxy callers, including current worktree changes.
+Source revision `77eb6784a000a9cc6077526fa4accc7c4111afac`; screened source OpenAPI
+has 190 paths / 97 schemas. Earlier inventory counts are historical.
+`GET /v1/learner/practice-progress` requires the learner bearer token and returns
+`{items: [{kind, slug, name, available, attempted, remaining}]}`. Kind is
+`concept|technique`; counts are nonnegative integers, over distinct problems.
+No request parameters; the full theme catalogue is returned for client search
+and pagination. Authentication failure is 401; storage failure is not masked.
+Next.js `GET /api/rest/learner/practice-progress` forwards the httpOnly student
+token server-side, preserves upstream errors and returns 401 without a cookie.
+No learner ID supplied by the browser, answer bodies, enrichment or mutations.
+
+Availability matches the exact `/v1/problems?concept=slug` or `technique=slug`
+filter (including the corpus paper/edition/competition joins). It does not use
+the broader concept-descendant endpoint. Attempted counts all distinct recorded
+learner attempts, including ungraded ones, over the entire history—not the
+profile's last 50 rows. Remaining = available minus attempted; coverage is not
+mastery, correctness, or the completion of temporary guided drafts.
+
 - Latest guided-workspace incremental source revision:
   `1582f808a731e571e79b588d4c73e717eefc7956` plus related worktree changes.
   Inspected `guided_orientation.py`, `guided_visuals.py`, `pedagogy.py`, `routers/pedagogy.py`,

@@ -9,6 +9,73 @@
 
 ## High-level write boundaries
 
+### Reviewed corpus authoring
+
+Incremental source revision `77eb6784a000a9cc6077526fa4accc7c4111afac` plus
+related worktree changes; inspected `corpus_authoring.py`,
+`routers/admin_corpus.py`, migration 025, `db/problem_images.py`,
+`routers/step_runtime.py`, `object_store.py`, and `etl/pdf_assets.py`.
+
+All corpus-admin endpoints require the shared admin API key. Browser mutations
+add signed-session and same-origin checks; neither identifies an individual
+reviewer. SQL operations use bound parameters and a single `engine.begin`
+transaction per operation. Inventory reads distinguish heuristic figure
+references from verified student-safe image metadata; a zero count alone
+does not prove a missing required diagram.
+
+| Operation | Tables / effects | Conflict and safety behavior |
+|---|---|---|
+| Save text draft | Read `core.problem`; insert `ingest.corpus_draft` with old/new text and base hash | Submitted hash must match current canonical text; no public edit yet |
+| Upload image draft | Validate bounded PNG/JPEG dimensions before decode; normalize at native pixel resolution; write immutable private object; insert IMAGE draft | Rights consent and matching source hash required; classification is problem/solution; unreviewed bytes are admin-only |
+| Save/generate new draft | Insert NEW_PROBLEM draft only | Generation requires explicit paid consent and available schema before calling the configured provider; retains AI origin/model/creation note |
+| Edit pending new draft | Lock draft; replace payload/note; increment revision | Expected revision and DRAFT/NEW_PROBLEM required; immutable origin/provenance retained |
+| Reject | Lock draft; set REJECTED, review note/time | No canonical problem, image or solution writes |
+| Approve text | Lock draft and problem; update statement/hash/timestamps, clear `statement_latex`; mark PROBLEM_STATEMENT representations linked by `search.chunk` STALE | Source hash and expected draft revision must match; existing canonical identity and solution records are retained |
+| Approve image | Lock problem; allocate next ordinal; insert `core.problem_image` metadata | Object key is stored as an internal `object-store:` locator; source is ADMIN_SOURCE_DIAGRAM or ADMIN_SOLUTION_DIAGRAM |
+| Approve new practice | Upsert dedicated generated competition/edition; insert nonofficial paper, fresh GENERATED problem and ADMIN_AUTHORED solution; attach draft to new problem | Never overwrites an official contest identity; solution verification stays UNVERIFIED |
+
+Approval and rejection lock the draft. An identical repeated state/note/version
+returns the existing result, without duplicate publication; conflicting review
+or changed content returns 409. After review the SQL trigger forbids changing
+or deleting the record. New-problem approval requires a worked solution and
+no declared absent required diagram; there is no correctness certification.
+
+Approved solution figures are excluded from both normal image metadata and
+public UUID-image serving. Their admin review remains available; linking them
+into solution Markdown is not automatic. Source images use the same public
+UUID route, reading through the existing private storage client rather than
+revealing storage keys.
+
+`pdf_assets.store_images` excludes admin-image sources from conflict updates.
+The migration-025 trigger blocks source ingestion from silently replacing
+admin-reviewed text; a conflicting importer fails explicitly. Source-index
+STALENESS is transactional with text approval. No embeddings, graph writes,
+classification, mastery or outbox publication are performed automatically;
+operator indexing/publication is separate. Object storage is not atomic with
+SQL: local save failures attempt targeted object cleanup, while commit failures
+may leave an unreferenced private object, never a public draft.
+
+The [210-query library](../../mathbank_data_ingestion/queries/README.md)
+adds explained SELECT/WITH diagnostics, read-only transaction guards and
+aggregate learner privacy thresholds. PREPARE-only checks verified all 210
+against the selected configured REST database; result semantics, scan costs
+and privileges on other deployments remain unverified.
+
+### Profile theme coverage (read-only)
+
+Current incremental source: `db/learner.get_practice_progress` and shared
+`queries.technique_problem_evidence_sql`, plus authenticated router/proxy callers.
+No DDL or graph change. Reads all concept/technique identities, direct concept
+problem tags, published/approved step technique support and eligible reviewed
+problem technique tags. The technique CTE is shared with corpus filtering;
+human approval/step-evidence/legacy eligibility behavior is unchanged.
+Joins corpus paper/edition/competition identities for parity with practice lists.
+An authenticated `:student_id` scopes distinct `learner.attempt.problem_id`
+records, regardless of correctness. Aggregation counts distinct eligible
+problems to avoid inflation from repeated attempts or multiple evidence rows.
+Themes with no eligible practice return zeros. No mastery recomputation,
+attempt writes, publication, provider calls or migration occurs.
+
 ### Private solution-reference planning
 
 Incremental source revision `1582f808a731e571e79b588d4c73e717eefc7956` plus related

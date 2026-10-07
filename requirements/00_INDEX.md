@@ -38,6 +38,7 @@ This folder defines the implementation plan and requirements for building the Ma
 32. [32_MULTIMODAL_ATTEMPTS_AND_ARTIFACTS.md](32_MULTIMODAL_ATTEMPTS_AND_ARTIFACTS.md) — private multimodal student attempts with versioned evidence, explicit approval and step assessment, plus deterministic declarative artifact generation, validation, publication, private storage and explicit indexing.
 33. [33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md](33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md) — durable expanded requirements for intent routing, persisted interactive lesson progress, evidence-gated/versioned practice selection, structural audits, reviewed negatives, source provenance and context-bound printed-work review.
 34. [34_GUIDED_PROBLEM_WORKSPACE.md](34_GUIDED_PROBLEM_WORKSPACE.md) — Tutor + My work, authored orientation checks, progressive Q31 construction, step-bound provisional coaching, private upload/paste and explicit learning-data recovery; delivered/partial/planned mapping of the student workspace brief.
+35. [35_CORPUS_REPAIR_AND_AUTHORING.md](35_CORPUS_REPAIR_AND_AUTHORING.md) — admin missing-figure triage, reviewed question/image repairs, manual and explicit paid AI original practice drafts, nonofficial publication, and the indexed 210-query developer library.
 
 ## Scope Summary
 

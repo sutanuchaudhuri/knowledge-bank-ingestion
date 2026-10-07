@@ -446,6 +446,15 @@ def get_problem_image(image_id: UUID):
         path = conn.execute(text(f"SELECT i.local_path FROM core.problem_image i "
                                  f"WHERE i.problem_image_id = :i AND {STUDENT_IMAGE_FILTER}"),
                             {"i": str(image_id)}).scalar()
+    if path and path.startswith("object-store:"):
+        from fastapi.responses import Response
+        from mathbank_rest import object_store
+        try:
+            data = object_store.read_bytes(path.removeprefix("object-store:"))
+        except object_store.ObjectStoreError:
+            raise HTTPException(503, detail="Published image storage is unavailable.") from None
+        return Response(data, media_type="image/png",
+                        headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
     resolved = (IMAGE_ROOT / path).resolve() if path else None
     if resolved is None or not resolved.is_file() or IMAGE_ROOT not in resolved.parents:
         raise HTTPException(status_code=404, detail="image not found")

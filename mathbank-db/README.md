@@ -1,5 +1,16 @@
 # mathbank-db
 
+## Reviewed corpus authoring (migration 025)
+
+[`sql/025_corpus_authoring.sql`](sql/025_corpus_authoring.sql) adds private
+question/image/new-practice drafts, immutable origin and review records,
+optimistic content versions and reviewed-text protection.
+`make -C ../mathbank-rest migrate-corpus-authoring` applies only this migration
+transactionally to **REST's configured database**, not an assumed local target.
+Review does not regenerate vectors or publish graphs.
+See [requirement 35](../requirements/35_CORPUS_REPAIR_AND_AUTHORING.md) and
+the indexed [210 read-only developer queries](../mathbank_data_ingestion/queries/README.md).
+
 ## Learner relevance feedback (migration 023)
 
 [`sql/023_pedagogy_feedback.sql`](sql/023_pedagogy_feedback.sql) adds a pending

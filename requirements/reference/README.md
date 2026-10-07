@@ -4,6 +4,52 @@ This folder is the canonical architecture reference for the checked-in MathBank 
 
 ## Evidence and revision
 
+### Corpus authoring incremental reference
+
+Source revision `77eb6784a000a9cc6077526fa4accc7c4111afac` with relevant
+worktree changes; inspected migration 025, authoring runtime/router, private
+storage, canonical image readers/serving, source-image upsert protection,
+admin proxy/navigation/UI and focused tests. Refreshed the related
+[DDL](POSTGRES_SCHEMA.md#corpus-authoring-migration-025),
+[DML](POSTGRES_DML.md#reviewed-corpus-authoring),
+[HTTP](REST_API.md#admin-corpus-authoring) and
+[graph boundary](GRAPH_SCHEMA.md#corpus-authoring-boundary).
+This is an incremental implementation-grounded refresh, not a complete new
+catalog audit of unrelated tables/projectors.
+
+Screened source OpenAPI has **198 paths / 102 schemas**. Separate implementation
+verification on 2026-10-07 UTC: the user explicitly selected REST's configured
+database; migration 025 was applied and REST reloaded. Source/running OpenAPI
+matched, anonymous access was denied and authenticated read-only authoring
+queries worked. No paid models, draft publication or Neo4j writes occurred.
+These activation actions were implementation work, not documentation generation.
+
+The [developer query library](../../mathbank_data_ingestion/queries/README.md)
+contains 210 explained read-only diagnostics, with indexed categories and
+single-query emission. All 210 passed PostgreSQL PREPARE/DEALLOCATE against the
+selected target without executing diagnostics or exporting data. Result
+semantics, scan cost and privileges on other databases remain unverified.
+
+
+### Profile theme-coverage incremental reference
+
+Source revision `77eb6784a000a9cc6077526fa4accc7c4111afac` plus relevant worktree changes; inspected `db/learner.py`, shared
+corpus evidence in `db/queries.py`, learner route/models and web profile/proxy.
+Adds authenticated read-only per-theme distinct available/attempted/remaining
+counts. See [REST contract](REST_API.md#profile-practice-coverage-incremental-contract)
+and [DML](POSTGRES_DML.md#profile-theme-coverage-read-only).
+No schema migration, mastery write or graph projection changes. This is a
+narrow REST/DML/UI refresh, not a full-system schema audit.
+The screened source OpenAPI now has **190 paths / 97 schemas**. Earlier
+snapshot counts and deployment-parity checks below are historical.
+Separate verification, 2026-10-07 UTC: after the user-authorized REST-only
+reload, running OpenAPI matched source, the anonymous route returned 401 and
+a synthetic nonexistent-learner read returned zero attempted coverage without
+writing learner data. Sample theme counts matched the exact corpus filters.
+Twelve focused REST tests, three desktop/mobile profile browser tests and the
+production web build passed. No live schema-parity or mastery-certification
+claim accompanies these checks.
+
 ### Solution-grounded planning and compact practice incremental reference
 
 Source revision `1582f808a731e571e79b588d4c73e717eefc7956` plus relevant worktree

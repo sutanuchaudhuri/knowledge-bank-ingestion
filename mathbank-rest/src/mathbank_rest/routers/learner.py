@@ -5,6 +5,7 @@ requirements/10_AGENTIC_TUTOR_AND_STUDENT_MASTERY_REQUIREMENTS.md (MST-01..MST-0
 """
 from __future__ import annotations
 
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -44,6 +45,30 @@ class AttemptRequest(BaseModel):
     time_spent_seconds: int | None = Field(default=None, ge=0)
     hint_count: int = Field(default=0, ge=0)
     source: str = "web"
+
+class PracticeThemeProgress(BaseModel):
+    kind: Literal["concept", "technique"]
+    slug: str
+    name: str
+    available: int = Field(ge=0)
+    attempted: int = Field(ge=0)
+    remaining: int = Field(ge=0)
+
+
+class PracticeProgressResponse(BaseModel):
+    items: list[PracticeThemeProgress]
+
+
+@router.get("/practice-progress", response_model=PracticeProgressResponse)
+def get_practice_progress(
+    student_id: Annotated[UUID, Depends(security.get_current_student_id)],
+) -> dict:
+    """Distinct available/attempted/unattempted problems per exact corpus theme.
+
+    All recorded learner attempts count, including ungraded work. Coverage is
+    not correctness or mastery. Technique eligibility matches the corpus filter.
+    """
+    return learner_db.get_practice_progress(student_id)
 
 
 @router.post("/register", response_model=AuthResponse, status_code=201)

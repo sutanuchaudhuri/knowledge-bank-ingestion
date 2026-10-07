@@ -115,8 +115,9 @@ def store_images(
             VALUES (%s, %s, %s, %s)
             ON CONFLICT (problem_id, ordinal) DO UPDATE
               SET local_path = EXCLUDED.local_path, source = EXCLUDED.source
-            WHERE core.problem_image.local_path IS DISTINCT FROM EXCLUDED.local_path
-               OR core.problem_image.source IS DISTINCT FROM EXCLUDED.source
+            WHERE core.problem_image.source NOT IN ('ADMIN_SOURCE_DIAGRAM','ADMIN_SOLUTION_DIAGRAM')
+              AND (core.problem_image.local_path IS DISTINCT FROM EXCLUDED.local_path
+               OR core.problem_image.source IS DISTINCT FROM EXCLUDED.source)
         """,
             (problem_id, ordinal, str(path), source),
         )

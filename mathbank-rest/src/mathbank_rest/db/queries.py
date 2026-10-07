@@ -11,14 +11,16 @@ from mathbank_rest.db.postgres import engine
 from mathbank_rest.db.problem_images import list_images
 
 
-_TECHNIQUE_PROBLEM_EVIDENCE = """
+def technique_problem_evidence_sql(*, filter_slug: bool = True) -> str:
+    predicate = "t.slug=:technique" if filter_slug else "TRUE"
+    return f"""
 WITH step_support AS (
     SELECT s.problem_id,n.technique_id,min(st.confidence) AS confidence
     FROM pedagogy.solution_step_technique st
     JOIN pedagogy.solution_step s USING(solution_step_id)
     JOIN pedagogy.taxonomy_node n ON n.taxonomy_node_id=st.technique_node_id
     JOIN knowledge.technique t ON t.technique_id=n.technique_id
-    WHERE t.slug=:technique AND s.publication_status='PUBLISHED'
+    WHERE {predicate} AND s.publication_status='PUBLISHED'
       AND st.review_status='APPROVED'
     GROUP BY s.problem_id,n.technique_id
 ), technique_evidence AS (
@@ -26,7 +28,7 @@ WITH step_support AS (
     FROM knowledge.problem_technique pt
     JOIN knowledge.technique t USING(technique_id)
     LEFT JOIN step_support ss USING(problem_id,technique_id)
-    WHERE t.slug=:technique AND pt.review_status='REVIEWED'
+    WHERE {predicate} AND pt.review_status='REVIEWED'
       AND (pt.approval_method='human' OR ss.problem_id IS NOT NULL
         OR NOT EXISTS (SELECT 1 FROM pedagogy.solution_step s WHERE s.problem_id=pt.problem_id))
     UNION ALL
@@ -36,6 +38,8 @@ WITH step_support AS (
         WHERE pt.problem_id=ss.problem_id AND pt.technique_id=ss.technique_id)
 )
 """
+
+_TECHNIQUE_PROBLEM_EVIDENCE = technique_problem_evidence_sql()
 
 
 def list_competitions() -> list[dict]:

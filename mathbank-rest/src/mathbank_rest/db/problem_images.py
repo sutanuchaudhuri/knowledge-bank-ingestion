@@ -6,7 +6,7 @@ from sqlalchemy import text
 # Legacy imports have no verified problem/solution provenance.
 STUDENT_IMAGE_FILTER = """
     i.source NOT IN ('PDF_PARSED', 'AOPS_CRAWL', 'PDF_SOLUTION_PAGE', 'PDF_SOLUTION_FIGURE',
-                     'PDF_ANSWER_PAGE', 'AOPS_SOLUTION_DIAGRAM')
+                     'PDF_ANSWER_PAGE', 'AOPS_SOLUTION_DIAGRAM', 'ADMIN_SOLUTION_DIAGRAM')
     AND i.local_path !~* '(^|/)(solution|answer)[_.-]'
     AND i.local_path !~* '(^|/)problem_page_[0-9]+[.]png$'
     AND NOT EXISTS (

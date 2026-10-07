@@ -65,6 +65,16 @@ export async function restAdminGet(path, searchParams) {
   return body;
 }
 
+export async function restAdminImage(path) {
+  const response = await fetch(buildUrl(path), { headers: adminHeaders(), cache: "no-store" });
+  if (!response.ok) {
+    const error = new Error("Draft image could not be loaded");
+    error.status = response.status;
+    throw error;
+  }
+  return response;
+}
+
 export async function restAdminPost(path, payload) {
   return restAdminSend("POST", path, payload);
 }

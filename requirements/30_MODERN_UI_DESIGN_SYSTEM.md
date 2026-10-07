@@ -29,6 +29,7 @@ requirements and records progress.
 | UI-17 | **Guided problem workspace:** Tutor + My work, short journey controls, collapsed source, orientation radio checks, step-bound feedback, optional construction frames and upload/paste entry. | Delivered for the bounded behavior in [34](34_GUIDED_PROBLEM_WORKSPACE.md); durable/adaptive workspace sessions remain planned. |
 | UI-18 | **Step-aligned geometry:** visual intents require the current prompt's objects/relations; progressive frames never default to a generic sketch. Every element has a definition, and small second-level constructions have an explicitly independently magnified panel. | Delivered for Q31; unsupported semantics fail visibly. See [34](34_GUIDED_PROBLEM_WORKSPACE.md). |
 | UI-19 | **Compact practice and trustworthy math:** collapsed routine diagnostics/settings, visible functional errors, matching KaTeX renderer/CSS, conservative PDF prose repair and measured subscript layout. | Delivered and checked at 1440/390 px; mathematical extraction/correctness certification remains out of scope. |
+| UI-20 | **Corpus repair and authoring:** responsive canonical-question master-detail, collapsed previews, Repair/New practice/Review pills, provenance warnings, pending/approved/rejected views and explicit paid-generation consent. | Delivered at `/admin/corpus`, checked at 1440/390 px. See [35](35_CORPUS_REPAIR_AND_AUTHORING.md); no automatic source recovery or mathematical certification. |
 
 ## 2. Building blocks
 
@@ -148,6 +149,15 @@ Tutor learning plans separate “Why this route”, “Your first checkpoint” 
 “Evidence” into compact tinted panels: indigo, sky and amber respectively,
 using shared theme tokens and left accents. Labels remain visible so meaning
 does not depend on colour; math, evidence caveats and plan text are unchanged.
+
+The profile defaults to **Practice by theme**, with separate Skills (concepts)
+and Techniques tabs, search, coverage filters and 12-card pagination. Each card
+shows available / distinct attempted / left problems, a coverage bar and a
+“Jump to practice” link to the exact corpus theme filter and question previews.
+Repeat attempts count once; ungraded recorded attempts count as attempted.
+“Left” is unattempted coverage, not unsolved or mastery. Zero-coverage themes
+have no practice link. Mastery/improvement and recent attempts use separate
+top-level tabs. Empty/error/retry states never substitute invented counts.
 
 Tutor replies keep semantic Markdown headings but render them at body-scale
 size (1rem), with a token-colored divider and consistent spacing before each

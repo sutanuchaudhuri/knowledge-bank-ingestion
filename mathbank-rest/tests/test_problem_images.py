@@ -58,3 +58,42 @@ def test_relative_image_is_resolved_against_repository_not_working_directory(tmp
     conn.execute.return_value.scalar.return_value = "../outside.png"
     with pytest.raises(HTTPException):
         routes.get_problem_image(uuid4())
+
+
+def test_approved_private_store_image_uses_visibility_filter_and_hides_key(monkeypatch):
+    from mathbank_rest import object_store
+
+    engine = MagicMock()
+    conn = engine.connect.return_value.__enter__.return_value
+    conn.execute.return_value.scalar.return_value = "object-store:example.png"
+    monkeypatch.setattr(routes, "engine", engine)
+    keys = []
+
+    def read(key):
+        keys.append(key)
+        return b"png-fixture"
+
+    monkeypatch.setattr(object_store, "read_bytes", read)
+    response = routes.get_problem_image(uuid4())
+    assert response.body == b"png-fixture"
+    assert response.media_type == "image/png"
+    assert keys == ["example.png"]
+    assert "example.png" not in str(response.headers)
+    assert STUDENT_IMAGE_FILTER in str(conn.execute.call_args.args[0])
+
+
+def test_private_store_failure_is_explicit_not_a_local_file_fallback(monkeypatch):
+    from mathbank_rest import object_store
+
+    engine = MagicMock()
+    conn = engine.connect.return_value.__enter__.return_value
+    conn.execute.return_value.scalar.return_value = "object-store:example.png"
+    monkeypatch.setattr(routes, "engine", engine)
+
+    def read(key):
+        raise object_store.ObjectStoreError("private storage unavailable")
+
+    monkeypatch.setattr(object_store, "read_bytes", read)
+    with pytest.raises(HTTPException) as error:
+        routes.get_problem_image(uuid4())
+    assert error.value.status_code == 503

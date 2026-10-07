@@ -13,9 +13,11 @@ test("profile treats approved ungraded work as awaiting and excludes it from acc
       { attempt_id: "incorrect", canonical_code: "INCORRECT", is_correct: false, hint_count: 1, attempted_at: "2026-10-06T12:00:00Z" },
     ] });
     if (path.endsWith("/improvement-plan")) return route.fulfill({ json: { focus_areas: [], recommended_problems: [] } });
+    if (path.endsWith("/practice-progress")) return route.fulfill({ json: { items: [] } });
     return route.fulfill({ json: { concepts: [], techniques: [] } });
   });
   await page.goto("/profile");
+  await page.getByRole("tab", { name: "Past attempts", exact: true }).click();
   await expect(page.getByRole("row").filter({ hasText: "UNGRADED" })).toContainText("Awaiting assessment");
   await expect(page.getByRole("row").filter({ hasText: "UNGRADED" })).not.toContainText("Not yet");
   await expect(page.getByText("50%", { exact: true })).toBeVisible();

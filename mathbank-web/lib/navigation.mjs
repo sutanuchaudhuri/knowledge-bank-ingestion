@@ -24,6 +24,7 @@ export const NAV_GROUPS = [
     label: "Admin",
     items: [
       { href: "/admin", label: "Dashboard", icon: "speedometer2" },
+      { href: "/admin/corpus", label: "Corpus repair", icon: "database" },
       { href: "/admin/attempt-media", label: "Attempt media review", icon: "clipboard-check" },
       { href: "/admin/textbooks", label: "Textbooks", icon: "book" },
       { href: "/admin/pedagogy", label: "Pedagogy review", icon: "patch-check" },
@@ -52,7 +53,7 @@ const SEGMENT_LABELS = {
   graph: "Knowledge graph", learn: "Practice", solve: "Solve", conversations: "Conversations",
   profile: "My progress", admin: "Admin", textbooks: "Textbooks", pedagogy: "Pedagogy review",
   "knowledge-gaps": "Knowledge gaps", imports: "Imports", widgets: "Widgets", login: "Sign in",
-  "attempt-media": "My submitted work", artifacts: "Artifact library",
+  "attempt-media": "My submitted work", artifacts: "Artifact library", corpus: "Corpus repair",
 };
 
 const titleCase = (s) => s.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());

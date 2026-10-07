@@ -61,6 +61,20 @@
   starter approval and explicit publication enable reviewed teaching queries.
   <a href="pedagogy.html#runtime">Full runtime validation record</a>.</p>
 
+  <h2 id="reviewed-corpus-authoring">Human-reviewed corpus authoring</h2>
+  <ol class="pedagogy-flow reveal">
+    <li><strong>Admin triage</strong><span>Competition/question filters and heuristic missing-figure flags at /admin/corpus.</span></li>
+    <li><strong>Private draft</strong><span>ingest.corpus_draft retains proposed edits, immutable origin, source hash and content revision.</span></li>
+    <li><strong>Explicit review</strong><span>Review notes and row locks protect against stale edits; identical repeated decisions do not publish twice.</span></li>
+    <li><strong>Canonical publication</strong><span>Approved source images use private storage behind the existing public UUID route; solution images stay out of student question figures.</span></li>
+    <li><strong>New practice boundary</strong><span>Optional paid AI generation is separate from approval; new questions use nonofficial papers and UNVERIFIED solutions.</span></li>
+    <li><strong>Derived projections</strong><span>Text repairs mark statement search representations STALE. Embeddings and Neo4j publication remain explicit operator work.</span></li>
+  </ol>
+  <p><a href="../requirements/reference/POSTGRES_SCHEMA.md#corpus-authoring-migration-025">Migration 025</a>
+    &middot; <a href="../requirements/reference/REST_API.md#admin-corpus-authoring">Admin HTTP contract</a>
+    &middot; <a href="../mathbank_data_ingestion/queries/README.md">210-query developer library</a>.
+    This workflow does not bypass inaccessible source sites or automatically recover missing original content.</p>
+
   <h2 id="pipeline"><span class="section-no">A</span>The ingestion pipeline (click to expand each stage)</h2>
   <div data-flow-root>
   <div class="flow reveal">

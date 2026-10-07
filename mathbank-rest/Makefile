@@ -16,6 +16,10 @@ access:                         ## Show REST API and Swagger URLs
 	@printf '  %-20s %s\n' 'REST API (base)' 'http://localhost:$(PORT)' \
 	  'REST Swagger' 'http://localhost:$(PORT)/docs'
 
+.PHONY: migrate-corpus-authoring
+migrate-corpus-authoring:        ## Explicitly apply migration 025 to REST's configured PostgreSQL (no ingestion/models)
+	$(BIN)/python scripts/migrate_corpus_authoring.py --apply
+
 # ── Environment ────────────────────────────────────────────────────────────
 # Uses `uv` (https://docs.astral.sh/uv/) to manage the venv — plain
 # `python3.11 -m venv` can produce a broken interpreter on this machine when
