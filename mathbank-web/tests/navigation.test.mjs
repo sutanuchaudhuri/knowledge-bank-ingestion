@@ -19,6 +19,9 @@ test("activeHref picks the most specific item and keeps home exact", () => {
   assert.equal(activeHref("/db/problems/X"), "/db");
   assert.equal(activeHref("/admin/textbooks/problems/X"), "/admin/textbooks");
   assert.equal(activeHref("/admin"), "/admin");
+  assert.equal(activeHref("/learn/attempt-media"), "/learn/attempt-media");
+  assert.equal(activeHref("/admin/attempt-media"), "/admin/attempt-media");
+  assert.equal(activeHref("/artifacts"), "/artifacts");
   assert.equal(activeHref("/dbx"), null);
 });
 
@@ -35,6 +38,9 @@ test("breadcrumbs label known segments, keep codes verbatim and title-case slugs
   assert.equal(breadcrumbs("/graph/some-view").at(-1).label, "Some View");
   assert.equal(breadcrumbs("/graph/uses-technique", { "uses-technique": "Problem → Technique" }).at(-1).label,
     "Problem → Technique");
+  assert.equal(breadcrumbs("/learn/attempt-media").at(-1).label, "My submitted work");
+  assert.equal(breadcrumbs("/admin/attempt-media").at(-1).label, "Attempt media review");
+  assert.equal(breadcrumbs("/artifacts").at(-1).label, "Artifact library");
 });
 
 test("avatarFor is deterministic with sensible initials", () => {

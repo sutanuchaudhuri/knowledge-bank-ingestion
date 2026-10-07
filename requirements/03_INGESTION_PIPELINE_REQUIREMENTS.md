@@ -4,6 +4,48 @@
 
 The ingestion pipeline reads structured data from the master spreadsheet, normalises it to canonical entities, produces markdown artifacts, and writes back to the Google Cloud storage and Sheets layers.
 
+## Missing AMC/AIME source-text repair
+
+- Source-text completeness must be audited independently from taxonomy/concept
+  mapping. Already-mapped questions with empty/placeholder statements remain
+  eligible for `crawl_unmapped.py --missing-text`.
+- Persist original statement, solution and answer text into SQLite staging;
+  preserve legitimate existing text, classifications, mappings and image metadata.
+  An existing but empty/corrupt parse is not a completed crawl.
+- `mathbank-db/etl/repair_question_text.py` is read-only by default and imports
+  missing original text into Neon only with `--apply`. No migration or AI calls.
+  Preserve nonempty Postgres solution bodies and reviewed staging fields.
+- Browser-export bundles must match the selected question inventory and exact
+  registered source URL, have HTTP 200 and parse a nonempty Problem section.
+  Validate the entire bundle before writes; reject unknown questions, duplicates,
+  wrong URLs, blocked responses and empty/challenge documents.
+- Build representations/chunks separately from paid embedding. Do not embed
+  empty/placeholder statements. Audit only ACTIVE representations matching the
+  current statement and ACTIVE vectors/models, rather than raw embedding counts.
+- Paid backfill supports exact paper scope and `--max-cost-usd`, with a
+  conservative $1/million input-token ceiling checked before provider calls.
+  The cap applies to one invocation; it is not a cumulative billing limit.
+  Record embedding failures explicitly and do not declare a failed run complete.
+- Respect source blocking/rate limits. A stopped batch is incomplete, not evidence
+  that a missing statement can be inferred. Retain source URLs and gap inventory
+  for authorized source PDFs/exports or a later bounded retry.
+
+### Verified repair snapshot
+
+| Competition | Questions | Missing statements before | Missing after | Current statement vectors after | Missing solutions after |
+|---|---:|---:|---:|---:|---:|
+| AIME | 1,065 | 352 | 330 | 735 | 329 |
+| AMC10 | 1,300 | 76 | 76 | 1,224 | 75 |
+| AMC12 | 1,300 | 111 | 111 | 1,189 | 109 |
+
+22 original AIME pages restored 22 statements and solution coverage. The scoped
+backfill embedded 122 statement/solution chunks with zero failures, using 33,946
+input tokens and a conservative $0.033946 ceiling against the authorized $20 cap.
+Every available statement has a current vector; 517 statements remain unavailable
+locally (511 unfetched and six invalid local parses). Source fetching stopped
+on HTTP 429. AMC missing-source coverage is not yet repaired.
+See the [operational commands](../mathbank-db/README.md#repairing-missing-amcaime-text-and-vectors).
+
 ## Official Purple Comet archive extension
 
 - Discover both MS and HS English contests from `https://purplecomet.org/answers`.

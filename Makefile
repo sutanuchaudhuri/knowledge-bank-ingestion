@@ -37,8 +37,16 @@ check-eleven:                     ## Check ElevenLabs auth (free models/voices);
 sync-live-env:                    ## Write mathbank-live/.env (REST URL, admin key/login, session secret, ELEVEN key) from root .env only, hidden
 	@node scripts/sync-live-env.mjs
 
+.PHONY: sync-neon-env
+sync-neon-env:                   ## Copy Neon production S3 + AI Gateway settings from root .env to server env files, hidden
+	@node scripts/sync-neon-env.mjs
+
+.PHONY: migrate-multimodal-remote
+migrate-multimodal-remote:       ## Apply multimodal evidence + instructional artifact migrations 021/022 to configured Neon
+	$(MAKE) -C mathbank-db migrate-multimodal-remote
+
 .PHONY: sync-keys
-sync-keys: sync-openai-key sync-eleven-key sync-live-env  ## Sync OpenAI + ElevenLabs keys and mathbank-live/.env from root .env
+sync-keys: sync-openai-key sync-eleven-key sync-live-env sync-neon-env  ## Sync provider/Neon credentials from root .env (server-only)
 
 .PHONY: setup
 setup:                           ## Check/create .env files, flag missing secrets (OPENAI_API_KEY etc.), install every venv/node_modules not already present

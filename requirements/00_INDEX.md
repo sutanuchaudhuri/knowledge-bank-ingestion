@@ -35,6 +35,7 @@ This folder defines the implementation plan and requirements for building the Ma
 29. [29_STUDENT_INPUT_ADDONS.md](29_STUDENT_INPUT_ADDONS.md) — slim student add-ons: LaTeX MathComposer, ElevenLabs voice (TTS/STT) and agentic/deterministic math formatting, delegated through Next.js server routes.
 30. [30_MODERN_UI_DESIGN_SYSTEM.md](30_MODERN_UI_DESIGN_SYSTEM.md) — modern UI design system and navigation revamp: tokens, Inter font, icons and pills, sidebar, breadcrumbs, avatars, analytics dashboards, pagination, master-detail, a composer with the mic inside the field, and page coverage; contract in `.github/skills/modern-ui-design`.
 31. [31_QUESTION_SPECIFIC_DIAGRAMS.md](31_QUESTION_SPECIFIC_DIAGRAMS.md) — question-specific PDF figure extraction, safe student visibility, tutor rendering, corrective backfill and regression coverage; no full-page fallback.
+32. [32_MULTIMODAL_ATTEMPTS_AND_ARTIFACTS.md](32_MULTIMODAL_ATTEMPTS_AND_ARTIFACTS.md) — private multimodal student attempts with versioned evidence, explicit approval and step assessment, plus deterministic declarative artifact generation, validation, publication, private storage and explicit indexing.
 
 ## Scope Summary
 
@@ -44,7 +45,7 @@ This folder defines the implementation plan and requirements for building the Ma
 - Indexing model: category + concept + competition + year + difficulty indexes.
 - Retrieval model: hybrid reviewed graph evidence, vector similarity and lexical RAG for curriculum and question search.
 - Integration model: APIs for future agentic workflows.
-- Current implementation reference: [reference/](reference/) contains the canonical source-derived PostgreSQL schema/DML, Neo4j graph projection schema, REST/OpenAPI snapshot and web/agent HTTP notes.
+- Current implementation reference: [reference/](reference/) contains the canonical source-derived PostgreSQL schema through migrations 001–022, DML, Neo4j projection schema, REST/OpenAPI snapshot and web/agent HTTP notes. It distinguishes checked-in source from migration deployment and live acceptance evidence.
 
 ## Naming And Versioning
 

@@ -5,6 +5,7 @@ import { createSession, newSessionId, streamMessage } from "./agentClient.js";
 import { MathComposer, SpeakButton } from "mathbank-widgets";
 import Link from "next/link";
 import MathText from "./_components/MathText.jsx";
+import TutorAnswer from "./_components/TutorAnswer.jsx";
 import { Avatar, Callout, EmptyState, Icon, Pill, SectionTitle } from "./_components/ui.jsx";
 
 const SUGGESTIONS = [
@@ -104,6 +105,10 @@ export default function Chat() {
     <div className="row g-4">
       <div className="col-12 col-xl-9">
         <section className="card mb-chat" aria-label="Tutor conversation">
+          <div className="d-flex justify-content-end gap-2 px-3 pt-2">
+            <Link className="btn btn-ghost btn-sm" href="/learn/attempt-media"><Icon name="file-earmark-richtext" />Upload my written attempt</Link>
+            <Link className="btn btn-ghost btn-sm" href="/artifacts"><Icon name="collection" />Artifact library</Link>
+          </div>
           <div className="mb-chat-scroll" aria-live="polite" aria-busy={sending}>
             {messages.map((message, index) => {
               const mine = message.role === "user";
@@ -121,7 +126,7 @@ export default function Chat() {
                         /\$|\\\(|\\\[/.test(message.text) ? <MathText>{message.text}</MathText>
                           : <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
                       ) : message.text ? (
-                        <MathText>{message.text}</MathText>
+                        <TutorAnswer>{message.text}</TutorAnswer>
                       ) : sending ? (
                         <span className="mb-typing" role="status" aria-label="Working on your question"><span /><span /><span /></span>
                       ) : (

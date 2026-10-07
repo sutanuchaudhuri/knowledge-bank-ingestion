@@ -2,11 +2,11 @@
 
 ## Evidence
 
-- Evidence mode: source-derived only.
-- Source revision: `43c3316d5b6f8a838874de4aa384cb28ef00aa1a`, with uncommitted worktree changes included (fluid/live refresh 2026-10-06).
-- Sources: `mathbank-rest/src/mathbank_rest/main.py`, routers under `routers/` including `step_runtime.py`, DB modules under `db/`, `security.py`, `pedagogy.py`, `tutor.py`, `enrichment.py`, `relationship_enrichment.py`, `step_runtime.py`, `step_tutor.py`, `step_diagnosis.py`, `step_recovery.py`, `agent_transcripts.py`, `routers/agent_sessions.py`, `db/textbook_admin.py`, `routers/admin_textbooks.py`, `db/import_admin.py`, `routers/admin_imports.py`, `app/api/rest/admin/imports/[[...path]]/route.js`, `lib/adminImportsProxy.mjs`, `mathbank-agent/agents/mathbank_tutor/tools/step_runtime_tools.py`, `mathbank-web/app/api/**`, especially `app/api/rest/solve/[...path]/route.js`, `app/api/rest/admin/knowledge-gaps/route.js`, `app/api/agent/session/route.js`, `app/api/rest/learner/conversations/[[...path]]/route.js`, `app/api/rest/admin/conversations/route.js`, `app/api/rest/admin/textbooks/[...path]/route.js`, `lib/adminTextbooksProxy.mjs`, `lib/agentIdentity.mjs`, `lib/solveProxy.mjs`, `lib/adminGapsProxy.mjs`, `app/admin/(protected)/knowledge-gaps/page.jsx`, and `app/learn/solve/[code]`, `mathbank-agent/server.py`, `session_config.py`; 2026-10-06 additions: `routers/live.py`, `routers/fluid.py`, `live_runtime.py`, `authoring.py`, `widgets.py`, `math_format.py`, `mathbank-agent/agents/mathbank_tutor/tools/widget_tools.py`, `mathbank-widgets/src/server.mjs`, `mathbank-web/app/api/{voice,format-math}/**`, `mathbank-live/{server.mjs,lib/gateway.mjs,lib/events.mjs,app/api/**}`.
-- OpenAPI snapshot: [openapi.json](openapi.json), generated from `app.openapi()` without starting a server. Snapshot validation observed OpenAPI `3.1.0`, 138 paths, and 65 component schemas. Generation observation: 2026-10-06 (UTC), after `POST /v1/search/concepts` (taxonomy concept search) was registered.
-- No endpoint handlers were invoked and no running service drift was checked.
+- Evidence mode: source-derived for route/API descriptions, plus separately labelled operator-reported deployment observations (not independently verified).
+- Source revision: `3e915d015aa34268996724a3014c850f5892596e`, with uncommitted worktree changes included (refreshed 2026-10-06 for migrations 021/022).
+- Files examined: `mathbank-rest/src/mathbank_rest/main.py`, every router registered there and its referenced DB/runtime/model modules, including `routers/attempt_media.py`, `routers/artifacts.py`, `attempt_media.py`, `attempt_media_models.py`, `media_processing.py`, `artifact_runtime.py`, `object_store.py`, `runtime_ai.py`, `security.py`, and `config.py`; `mathbank-agent/agents/mathbank_tutor/tools/attempt_media_tools.py`, `artifact_tools.py`, and registry wiring; plus `mathbank-web/lib/privateRuntimeProxy.mjs`, the catch-all proxies under `app/api/rest/{attempt-media,artifacts}`, attempt/artifact pages/components, `mathbank-live/server.mjs` and `mathbank-live/lib/attemptEvents.mjs`.
+- OpenAPI snapshot: [openapi.json](openapi.json), generated from `app.openapi()` without starting a server. Snapshot validation observed OpenAPI `3.1.0`, 178 paths and 90 component schemas. Subject-preview/ADK contract refresh: 2026-10-07 (UTC), including current worktree router/model/tool/proxy changes; credential-like content was screened before saving. This incremental refresh covers the preview/chat/agent contract, not a new full-system schema audit.
+- No endpoint handlers were invoked during source OpenAPI generation. Separately, the parent reports a restarted REST process exposing the attempt-media and artifact path sets; see the dated runtime observation below. This documentation did not independently query that service.
 
 ## Auth mechanisms
 
@@ -18,6 +18,8 @@
 | Admin routes and internal step outcome route | `X-Admin-Api-Key` header checked against configured admin key | `security.require_admin_api_key` |
 | Live/fluid routes (`routers/live.py`) | `live_actor`: admin key → actor INSTRUCTOR `instructor:{X-Actor-Id}`, or student bearer → STUDENT `student:{uuid}`; `staff_actor` additionally requires INSTRUCTOR/ADMIN (403 otherwise). `/v1/tutor/sessions/*` with the admin key acts as AI_TUTOR. | `routers/live.py` (`live_actor`, `staff_actor`) |
 | Widgets / format-math (`routers/fluid.py`) | `staff_or_student`: admin key or student bearer; registry is public; store/list/review are admin-key only; all `/v1/authoring/*` are admin-key only | `routers/fluid.py` |
+| Attempt media (`routers/attempt_media.py`) | `staff_or_student`: student bearer JWT or `X-Admin-Api-Key`; every submission read is owner-scoped for students (non-owner is 404). Create/edit/approve require a student; override requires ADMIN role. | `attempt_media.py`, `routers/fluid.py` |
+| Artifacts (`routers/artifacts.py`) | `staff_or_student` for request/read/validation/search; request reads are owner-scoped, non-admin bundle reads require PUBLISHED. Generation, publish and index explicitly require `X-Admin-Api-Key`. | `artifact_runtime.py`, `routers/fluid.py` |
 | Web app proxies | Browser/session-level cookies for app auth wrappers; server-side proxies forward REST/agent calls | `mathbank-web/app/api/**` |
 | ADK agent server | ADK FastAPI app manages its own app/user/session URL structure; MathBank server configures DB-backed sessions | `mathbank-agent/server.py` |
 
@@ -33,6 +35,8 @@ OpenAPI operation IDs are in `openapi.json`. Status/error notes include implemen
 | GET | `/v1/competitions` | none | none | list of competition dicts | Read-only. |
 | GET | `/v1/problems` | none | query: `competition`, `year_min`, `year_max`, `concept`, `technique`, `limit<=200`, `offset>=0` | list of problem summaries | Read-only. |
 | GET | `/v1/problems/by-code/{canonical_code}` | none | path code | problem detail | 404 if not found. |
+| GET | `/v1/problems/by-code/{code}/source` | none | path canonical code | Original source metadata `{url, kind, embed_url, label}` or null when no source exists | Read-only Postgres lookup; invalid/missing problem 404. URLs with credentials/invalid schemes are omitted. |
+| GET | `/v1/problems/by-code/{code}/source-pdf` | none | path canonical code | Cached original problem PDF (`application/pdf`, inline, `no-cache`) | Read-only; 404 if problem/source PDF is not cached. Resolved path is constrained under the ingestion PDF root. |
 | GET | `/v1/concepts` | none | `domain`, `limit<=200`, `offset>=0` | list | Read-only. |
 | GET | `/v1/concepts/{slug}/problems` | none | `limit<=200`, `offset>=0` | list of problems | Read-only. |
 | GET | `/v1/concepts/{slug}/neighbors` | none | slug | graph-like concept neighbors | Read-only Postgres query. |
@@ -182,11 +186,100 @@ Mutating live routes accept `client_command_id` (idempotent via `live.command_re
 | POST | `/v1/widgets/specs/{spec_id}/review` | A | `ReviewBody` (NOMINATE/PROMOTE/REJECT) | NOMINATE → `PROMOTION_CANDIDATE`; PROMOTE → `PROMOTED_TO_TEMPLATE` + STATIC (409 `NOT_A_CANDIDATE`). |
 | POST | `/v1/tutor/format-math` | SS | `FormatBody` (text ≤4000, mode deterministic/agentic) | `{input, formatted, engine, model?, warnings}`; agentic mode is a small paid model call with deterministic fallback. |
 
+## Private attempt-media routes (migration 021)
+
+All paths are under `/v1/attempt-media`. `S` is a student bearer JWT and `A` is the configured admin API key accepted by `staff_or_student`; resource ownership is checked in the database. The OpenAPI currently declares generic object responses for most handlers and only its usual 422 validation response; the implemented status/error details below come from router/runtime code and are not complete OpenAPI guarantees.
+
+| Method and path | Auth | Request / response contract and effects |
+|---|---|---|
+| `POST /submissions` | S | `SubmissionIn {problem_ref}`; 201 snapshot after resolving canonical code or problem UUID. Non-student gets 403 `STUDENT_SUBMISSION_REQUIRED`; unknown problem 404. |
+| `GET /submissions` | S/A | `limit` default 25, 1..100; `offset` default 0, >=0. Returns `{items, has_more}` newest first; students see their submissions, admins all. |
+| `GET /submissions/{sid}` | S/A | Owner-scoped snapshot containing metadata, current evidence/steps, approvals, current assessments, events; admin additionally sees assessment history. Non-owner/missing submission 404. |
+| `GET /submissions/{sid}/events` | S/A | `after_sequence` default 0, >=0; `{events}` in sequence order, up to 500 rows. Owner/admin only. |
+| `POST /submissions/{sid}/assets` | S/A | Raw request bytes with supported media `Content-Type`; `expected_version` query >=1 and optional `filename` (≤200 chars). 201 `{media_asset_id, transcription_version}`. Streams are limited to 20 MiB by REST; type/signature, page count and duration are validated. Stale version 409; invalid media 413/415/422; storage unavailable 503. |
+| `GET /submissions/{sid}/assets/{aid}/content` | S/A | Authenticated original media bytes; private/no-store and `nosniff`. Purged media 410; storage failure 503. |
+| `GET /submissions/{sid}/assets/{aid}/pages/{page}` | S/A | Rasterized page PNG; page must exist on an IMAGE/PDF asset or 404 `PAGE_NOT_FOUND`. |
+| `DELETE /submissions/{sid}/assets/{aid}` | S/A | Purges source object and direct derivatives, records `purged_at`; returns `{purged, approved_attempt_preserved}`. 409 during processing; 503 object-store failure. |
+| `POST /submissions/{sid}/process` | S/A | `Versioned {expected_version}`. Explicit provider-backed transcription of active original assets; emits progress and saves a new candidate version. Errors include `UPLOAD_MEDIA_FIRST`, 409 version/processing conflicts, and 502 provider/processing failures with `manual_review_available`. |
+| `GET /submissions/{sid}/transcription` | S/A | Returns the owner-scoped snapshot/current transcription. |
+| `PUT /submissions/{sid}/transcription` | S | Full `Transcript` (`expected_version`, ordered steps, optional evidence regions); persists a new STUDENT candidate version. Admin receives 403 `STUDENT_EDIT_REQUIRED`. |
+| `PATCH /submissions/{sid}/transcription/steps/{step_id}` | S/A | `StepPatch` extends `Versioned` with optional plain/LaTeX text; edits current candidate into a new version. Missing step 404. |
+| `POST /submissions/{sid}/transcription/merge` | S/A | `Merge` extends `Versioned` with 2..100 adjacent unique `step_ids`; returns a new candidate version. Non-adjacent/unknown selection 422. |
+| `POST /submissions/{sid}/transcription/split` | S/A | `Split` extends `Versioned` with `step_id` and 2..10 replacement `parts`; returns a new candidate version. Missing step 404. |
+| `POST /submissions/{sid}/approve` | S/A | `Versioned`; student only. Creates an approved immutable candidate link and an unevaluated `learner.attempt` with `is_correct=null`. Empty candidate 422; stale version or in-progress transcription 409. |
+| `GET /attempts/{aid}/steps` | S/A | Approved step list keyed by the learner attempt; owner/admin checked via approval. Missing attempt 404. |
+| `GET /attempts/{aid}/steps/{step_id}/assessment` | S/A | Most recent assessment for the approved attempt/step; 404 if unavailable. |
+| `GET /attempts/{aid}/steps/{step_id}/visual` | S/A | Alias of the assessment route; returns assessment/evidence explanation metadata, not a separate image renderer. |
+| `POST /submissions/{sid}/analyse` | S/A | `Versioned`; requires current transcript approval, then explicitly aligns/critiques against published solution steps and reviewed dependencies. Provider failure 502 with `approved_attempt_preserved`; does not update mastery. |
+| `POST /submissions/{sid}/override` | A | `Override` (`expected_version`, step, correctness, rationale, next action; alignment defaults to `UNMATCHED_BUT_PLAUSIBLE`); appends instructor assessment. Non-admin 403 `INSTRUCTOR_REQUIRED`; missing step 404. |
+
+Spatial evidence must refer to a page and full normalized rectangle; temporal evidence must refer to an increasing timestamp interval. Steps carry one or more evidence IDs. Student edits use optimistic `expected_version`; the API preserves previous candidate versions, and approval links to the exact one reviewed. Nullable `learner.attempt.is_correct` is not counted as incorrect/mastery evidence.
+
+`Transcript` accepts at most 100 contiguous, 1-based steps and 300 regions; each step has 1..30 unique evidence IDs, plain text ≤4,000 characters, LaTeX ≤8,000, and confidence 0..1. Region coordinates are normalized 0..1, page numbers 1..10, and media intervals are bounded to the 120-second media limit. Request models reject unknown fields. The object-store write limit is 25 MiB, but this REST upload route caps the incoming media at 20 MiB.
+
+For video processing, the implementation uses `ffprobe` to detect an audio stream before extraction. It skips only audio extraction/speech transcription for silent video; keyframe extraction and exact FFmpeg `pts_time` evidence continue. Synthetic fixtures with and without audio were reported passing. This is implementation behavior, not a request/response schema change.
+
+## Declarative artifact routes (migration 022)
+
+All paths are under `/v1/artifacts`; bearer/admin-key access follows the artifact row visibility rules above. `ArtifactPlan`, `SearchBody`, `IndexBody`, and `GenerateBody` are strict Pydantic request models. Most successful JSON outputs are generic dictionaries; content routes return binary SVG/asset bytes. As with attempt-media, OpenAPI does not describe every runtime error.
+
+| Method and path | Auth | Request / response contract and effects |
+|---|---|---|
+| `GET /embedding-profile` | S/A | Configured provider/model/dimensions as `{status: AVAILABLE, ...}` or explicit `{status: UNAVAILABLE, reason}`; does not request an embedding. |
+| `POST /validate` | S/A | `ArtifactPlan`; deterministic `{valid, errors}` validation, no write or model call. |
+| `POST /requests` | S/A | `ArtifactPlan`; 201 request row after validation and optional linked-problem check. |
+| `POST /geometry-preview` | S/A | `GeometryPreview`: geometry-only `ArtifactPlan` plus optional ≤8 triples of named vertices in `incircle_triangles`. Computes exact Euclidean triangle incircles, applies shared geometry validation/rendering, returns validation/rule profile and a declarative `geometry-artifact` markdown block. Ephemeral: no database/object-store writes, publication, embeddings or paid provider calls. Invalid/missing/degenerate triangle references and invalid geometry return 422. |
+| `POST /geometry-preview/content` | S/A | Same private validated preview input; returns generated `image/svg+xml` bytes with no-store/nosniff/sandbox headers. Browser uses an image blob URL, never injects SVG markup. Generated construction sketches are not original source figures and do not prove equal-radius hypotheses. |
+| `POST /preview` | S/A | Strict `ArtifactPlan`, all four subjects; shared deterministic validation/generation. Returns validation/rule profile and a declarative `artifact-preview` markdown block. Ephemeral: no storage, publication, indexing or provider calls. Invalid plan returns 422. |
+| `POST /preview/content` | S/A | Same plan; returns private validated SVG bytes with no-store/nosniff/sandbox headers. Chat renders SVG only as an image, with separate KaTeX equation lines for algebra. |
+| `GET /requests/{request_id}` | S/A | Owner/admin request detail; missing or other-student request 404. |
+| `POST /requests/{request_id}/generate` | A | `GenerateBody {publish=false}`; deterministic generation and private asset storage; admin-only. Optional publication is explicit. |
+| `GET /bundles/{bundle_id}` | S/A | Bundle metadata; students see published bundles only, admins can see drafts. |
+| `GET /bundles/{bundle_id}/assets` | S/A | Asset metadata with authenticated `content_path`; internal object keys are removed. |
+| `GET /bundles/{bundle_id}/assets/{asset_id}/content` | S/A | Private asset bytes with integrity verification, no-store, `nosniff` and sandbox CSP. |
+| `GET /bundles/{bundle_id}/frames` | S/A | Validated manifest with authenticated per-frame content paths. |
+| `GET /bundles/{bundle_id}/frames/{ordinal}/content` | S/A | Rendered SVG; ordinal 0..127, revalidated from declarative source; private/no-store sandbox response. |
+| `POST /bundles/{bundle_id}/validate` | S/A | Recomputes output and checks stored asset integrity/safety. Admin validation appends `validation_result`; student access is read-only. |
+| `POST /bundles/{bundle_id}/publish` | A | Locks, validates and publishes/approves a bundle; validation failure is surfaced instead of publication. |
+| `POST /bundles/{bundle_id}/index` | A | `IndexBody`; requires current search-text hash and configured model/dimensions; accepts a supplied nonzero vector or explicit `generate_embedding=true` for provider generation. Upserts the bundle's embedding row. |
+| `POST /search` | S/A | `SearchBody`; lexical full-text retrieval with subject/tag/difficulty/asset filters, limit 1..100 and offset >=0. Student results are published bundles only. |
+| `POST /search/semantic` | S/A | `SearchBody`; requires supplied `query_embedding` or explicit `generate_embedding=true`. Returns `UNAVAILABLE` when profile/index/vectors/provider are unavailable; no lexical fallback. |
+| `POST /bundles/{bundle_id}/similar` | S/A | `SearchBody`; semantic neighbors using the bundle's current indexed vector, excluding itself; explicit `UNAVAILABLE` when the source is not indexed. |
+
+The generation/validation renderer is deterministic and does not call a generative model. Embedding providers are called only through explicit indexing/query-generation options. Returned content uses authenticated REST paths, never public or presigned object URLs. `AWS_ENDPOINT_URL_S3` configures object storage independently of Neon Auth and the AI Gateway. Object-store and SQL writes are not one atomic transaction.
+
+Model bounds/defaults: `ArtifactPlan` supports GEOMETRY, ALGEBRA, COMBINATORICS and NUMBER_THEORY; topic/title are required, canvas defaults to 800×600 (240..2000), with 1..128 elements, at most 64 overlays and 128 frames. Per-element/action and subject-specific mathematical checks are described by the strict source model and deterministic validator. `GenerateBody.publish` defaults false. `SearchBody.query` defaults empty (max 2,000), limit defaults 20 (1..100), offset defaults 0 (≤100,000), and optional subject/tag/difficulty/asset filters are exact. `IndexBody` and semantic `SearchBody` default to the requested model identifier `text-embedding-3-small` and 1,536 dimensions; vectors are 1..8,192 finite numeric values and must match the declared/configured dimensions. Index input requires a 64-character lowercase source hash and exactly one of a supplied nonzero vector or `generate_embedding=true`. These source-level defaults do not establish provider support or inference availability.
+
 ## OpenAPI and Swagger guidance
 
 - FastAPI serves live `/docs`, `/redoc`, and `/openapi.json` when a server is running. Those reflect the running process, not necessarily this source revision.
 - The committed [openapi.json](openapi.json) is a source-generated snapshot and must be regenerated when FastAPI source changes.
 - OpenAPI captures Pydantic validation and declared response models where present. Many endpoints return plain `dict`/`list[dict]`, so response schemas are intentionally generic. Implementation-specific errors (for example 409 review conflict or 503 graph failure) are not exhaustively declared in OpenAPI and are documented in the table above.
+- This refresh generated the snapshot from checked-in `main:app.openapi()` using the existing REST virtual environment without starting a server or invoking route handlers/providers. The source snapshot is OpenAPI 3.1.0 with 178 paths and 90 schemas: 18 attempt-media paths, 20 artifact paths and 140 other paths. This is not a live-service or deployment observation.
+
+### Artifact specialist communication
+
+The existing ADK tutor uses ten real specialists built in
+`mathbank-agent/agents/mathbank_tutor/artifact_agents.py`: Subject Planning,
+Geometry, Algebra, Combinatorics, Number Theory, LaTeX, SVG, Overlay/Frame,
+Annotation and Validation. The root exposes planner/subjects as ADK AgentTools;
+subjects call refinement/validation agents as tools. They use the existing
+OpenAI/LiteLLM model and private REST boundary. Auth is restored into child
+invocations from async-context-local `temp:` state, not prompts or persisted
+conversation events. Limits: 16 delegations and 24 specialist model calls per
+invocation; 120-second delegate timeout. Anonymous calls fail before inference.
+No remote A2A endpoint, agent card, discovery or cross-service authentication is
+introduced. These are agent-tool contracts, not additional FastAPI HTTP routes.
+
+### Reported runtime provider observation
+
+On 2026-10-06 (UTC), final operator direction is to use official direct OpenAI endpoints and the shared project credential loader as `mathbank-agent` does for new agentic runtime stages; Gateway inference is avoided unless explicitly selected. This is explicit provider selection, not automatic fallback. The Gateway listed 49 models, but the first paid vision request failed with HTTP 403 over a billing-credit blocker. A subsequent direct OpenAI runtime request failed with HTTP 429 `insufficient_quota`; no successful runtime/Gateway inference or model-token response is reported, and the user chose available tests rather than adding credits. Runtime provider defaults to OpenAI. Runtime model configuration follows service `MATHBANK_AGENT_MODEL` (`openai/gpt-4o-mini` default); a root model value applies to a service only when synchronized. The explicit `MATHBANK_RUNTIME_AI_MODEL` override is supported and takes precedence. The current checked worktree also reads runtime-specific root/REST settings before agent model-file values, so the effective deployed override is not independently verified here. Runtime credentials and explicit `OPENAI_API_BASE` / `OPENAI_BASE_URL` use the shared project OpenAI loader/client path. Gateway credentials remain unchanged and Gateway remains a separate explicit option. Timestamped speech uses direct OpenAI `whisper-1`; artifact-agent embeddings use the shared direct OpenAI client with `text-embedding-3-small` at 1,536 dimensions by default. These settings describe selected configuration only, not inference success.
+
+### Reported live integration and agent tools
+
+On 2026-10-06 (UTC), the parent reports that the final REST and agent processes were responsive after restart and the live REST OpenAPI exposed 18 `/v1/attempt-media` and 16 `/v1/artifacts` paths (34 new paths total). These route-group counts match the source-generated OpenAPI snapshot, which has 174 total paths (140 other paths); source snapshot regeneration matched the checked-in JSON byte-for-byte. Three anonymous private REST/proxy GETs reportedly returned 401. These are operator-reported deployment observations; this documentation task did not independently query the running processes. The parent reports the agent registry now includes five new tools: `get_multimodal_attempt`, `get_multimodal_step_assessment`, `search_artifacts`, `get_artifact_bundle`, and `request_artifact`. The first four provide owner-scoped/read-only context or lexical artifact retrieval; `request_artifact` submits a structured request only. No agent tool approves student work, generates/publishes an artifact, or invokes a model/embedding provider.
+
+Final selected checks reported by the parent include 184 focused REST offline passes, six media and one artifact rollback-only Neon tests passed, 15 agent tool tests passed, 25 focused UI unit tests, 17 mocked E2E cases, and a successful web production build. The artifact rollback-only test covered create, generate, publish, access and lexical/semantic search using a supplied fake 1,536-dimensional vector; it used a mocked object store and no AI/provider call or real object bytes. A sanitized constructed client reportedly confirmed provider `openai`, official `api.openai.com` endpoint, and `gpt-4o-mini`; this confirms configuration only, not inference. Live API path availability and these scoped test passes do not constitute full feature-pack acceptance.
 
 ## Step runtime evaluator and hint behavior
 
@@ -235,6 +328,12 @@ These are Next.js server routes, not FastAPI-owned OpenAPI paths.
 | `/api/voice/health` (GET), `/api/voice/tts` (POST `{text}` ≤1,200 chars → `audio/mpeg`), `/api/voice/stt` (POST multipart `file` ≤10 MB → `{text}`) | Server-side ElevenLabs proxy (`mathbank-widgets/src/server.mjs` `createVoiceHandlers`; models `eleven_flash_v2_5` / `scribe_v1`). Same-origin only (403), 30 requests/min per caller (429), 503 when `ELEVEN_API_KEY` is unset. TTS/STT are paid; health uses the free models list. |
 | `/api/format-math` (POST `{text, mode}`) | `createFormatHandler` → FastAPI `POST /v1/tutor/format-math` with the caller's student/live token; without a token answers deterministically. Same-origin only. |
 | `/admin/widgets` | Admin page: widget gallery from `GET /v1/widgets/specs` and the registry, server-side with the admin key. |
+| `/api/rest/attempt-media/[[...path]]` | Same-origin private proxy to `/v1/attempt-media/*`; gets student cookie/admin session server-side, applies a strict method/path/query allow-list, bounds body size, forwards only auth headers, and uses no-store/nosniff responses. The proxy allow-list is narrower than FastAPI: it does not include transcription merge/split, approved-attempt step/assessment/visual reads, or every REST transcription read. |
+| `/api/rest/artifacts/[[...path]]` | Private proxy to `/v1/artifacts/*`; authenticates from student/admin session and method/path/query allow-list. Supports ephemeral geometry preview/content, embedding profile, request/bundle/assets/frames/frame-content/search/similar and admin generation/indexing. Plan/bundle validation and publication are not separately proxied. |
+| `/learn/attempt-media`, `/admin/attempt-media` | Student-gated and admin-session-gated views of the attempt-media workspace. |
+| `/artifacts` | Artifact library page; shows generation affordances only for a valid admin session. |
+
+The attempt proxy separately caps uploads at 25 MiB and its MIME prefilter includes WebP and OGG, while `media_processing.media_info` currently accepts only PNG/JPEG/PDF, WAV/MP3/MP4/WebM audio and MP4/WebM video and the REST handler caps uploads at 20 MiB. Thus passing the web proxy's prefilter is not proof the REST processor accepts the upload; unsupported types/sizes can still return upstream 415/413.
 
 ### `mathbank-live` (:5174) Next.js routes and Socket.IO surface
 
@@ -249,6 +348,7 @@ Separate deployable (doc [28](../28_DISTRIBUTED_LIVE_PLATFORM.md)); not part of 
 | `/api/format-math`, `/api/voice/{health,tts,stt}` | Same shared handlers as `mathbank-web`. |
 | Pages `/`, `/login`, `/s/[sid]` (student classroom), `/i/[sid]` (instructor console) | UI. |
 | Socket.IO `ws://<host>:5174/socket.io` | `live:join {session_id, last_sequence}` → ack `{ok, role, participant_id, state, events}`; `live:op {session_id, op, args}` → ack `{ok, data}` or `{ok:false, status, error, code}` (ops: `state`, `command`, `respond`, `ask_tutor` [6/min], staff `transition`, `pause`, `resume`, `open_activity`, `close_activity`, `reveal_activity`, `show_widget`, `hide_widget`, `override`, `instructor_nl`, `decide`); server pushes `live:event` (one envelope) to rooms `${sid}|session`, `|student:<id>`, `|group:<id>`, `|instructor`, pumped from `GET /v1/live/sessions/{sid}/events` every 700 ms. Anonymous sockets get `connect_error` `UNAUTHENTICATED`. |
+| Socket.IO private attempt relay | `attempt:watch {submission_id, after_sequence?}` and `attempt:unwatch {submission_id}` use the socket actor's student/admin cookie identity, then call the owner-checked REST events route. Up to 10 watched submissions per socket; it emits each private event only to that socket (not classroom rooms), polls every second, and returns `attempt.progress.error {code: REPLAY_UNAVAILABLE}` when polling fails. |
 
 ## Agent HTTP surface
 

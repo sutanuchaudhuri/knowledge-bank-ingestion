@@ -3,8 +3,8 @@
 ## Evidence
 
 - Evidence mode: source-derived only.
-- Source revision: `0925f37d82cc428202a12746df5112a3978c46b5`, with uncommitted worktree changes included.
-- Sources: `mathbank-graph/etl/project_from_postgres.py`, `mathbank-graph/etl/project_textbook_steps.py`, `mathbank-db/sql/015_recovery_runtime.sql`, `017_step_techniques.sql`, `019_admin_import_review.sql`, `mathbank-db/sql/ops/approve_learning_items_auto.sql`, `mathbank-rest/src/mathbank_rest/db/graph.py`, pedagogy readers, `mathbank-web/lib/graphConfig.js`, `mathbank-web/lib/graphMetadata.mjs`.
+- Source revision: `3e915d015aa34268996724a3014c850f5892596e`, with uncommitted worktree changes included.
+- Sources: `mathbank-graph/etl/project_from_postgres.py`, `mathbank-graph/etl/project_textbook_steps.py`, graph-related migrations and readers, `mathbank-web/lib/graphConfig.js`, `mathbank-web/lib/graphMetadata.mjs`; migrations 021/022 and their REST writers were checked to confirm their learner-evidence/artifact data is not projected.
 - No live Neo4j target was queried; counts in older READMEs remain dated audits, not current proof.
 
 ## Projection ownership
@@ -103,3 +103,4 @@ Required means required by the source table/query for the projector path, not en
 - `project_textbook_steps.py` deliberately omits `SolutionStep.step_text`, `LearningItem.question_text`, correct answers, and solution seeds from Neo4j.
 - Learning items become graph-eligible only after `pedagogy.learning_item.review_status = 'APPROVED'` and `student_visible = true`; Phase 10 automatic approval records `approval_method`/`approved_at` in Postgres but the current graph projector uses those columns as eligibility provenance only and does not project them as `LearningItem` properties.
 - Step-level retrieval in Postgres (`step_search.py`) can include solution step text only when callers explicitly request it; no current REST route exposes it.
+- Migrations 021/022 add private PostgreSQL attempt/evidence and artifact-runtime tables, but neither graph projector reads them. The graph has no learner-attempt, media, transcript, assessment, artifact-asset or artifact-bundle label/edge. Private evidence, learner utterances, approved step text and artifact content are therefore not graph properties; no graph inventory or live server was queried in this refresh.

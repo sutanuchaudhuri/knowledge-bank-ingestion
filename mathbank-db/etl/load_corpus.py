@@ -220,15 +220,17 @@ def load_problems(cur, paper_ids: dict[str, str]) -> tuple[int, int]:
     return inserted, skipped
 
 
-def _upsert_solution(cur, problem_id: str, solution_kind: str, revision: int, body_markdown: str) -> None:
+def _upsert_solution(cur, problem_id: str, solution_kind: str, revision: int, body_markdown: str,
+                     *, only_missing: bool = False) -> None:
     cur.execute(
         """
         INSERT INTO core.solution (problem_id, solution_kind, revision, body_markdown, verification_status)
         VALUES (%s, %s, %s, %s, 'UNVERIFIED')
         ON CONFLICT (problem_id, solution_kind, revision) DO UPDATE
           SET body_markdown = EXCLUDED.body_markdown
+        WHERE NOT %s OR trim(coalesce(core.solution.body_markdown,''))=''
         """,
-        (problem_id, solution_kind, revision, body_markdown),
+        (problem_id, solution_kind, revision, body_markdown, only_missing),
     )
 
 

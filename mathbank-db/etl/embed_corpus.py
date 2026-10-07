@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import math
 import sys
 from pathlib import Path
 
@@ -171,7 +172,8 @@ def build_representations_and_chunks(cur, profile_id: str, limit: int | None,
                                      paper_codes: list[str] | None = None) -> tuple[int, int]:
     reps = chunks = 0
 
-    query = "SELECT problem_id, statement_text FROM core.problem WHERE statement_text NOT LIKE '[Placeholder]%%'"
+    query = ("SELECT problem_id, statement_text FROM core.problem "
+             "WHERE statement_text NOT LIKE '[Placeholder]%%' AND trim(statement_text)!=''")
     params = []
     if paper_codes is not None:
         query += " AND paper_id IN (SELECT paper_id FROM core.paper WHERE external_code=ANY(%s))"
@@ -186,7 +188,7 @@ def build_representations_and_chunks(cur, profile_id: str, limit: int | None,
             reps += 1
             chunks += _upsert_chunks(cur, rep_id, rendered, str(problem_id), None)
 
-    query = "SELECT solution_id, body_markdown FROM core.solution WHERE body_markdown IS NOT NULL"
+    query = "SELECT solution_id, body_markdown FROM core.solution WHERE trim(coalesce(body_markdown,''))!=''"
     params = []
     if paper_codes is not None:
         query += " AND problem_id IN (SELECT p.problem_id FROM core.problem p JOIN core.paper t USING(paper_id) WHERE t.external_code=ANY(%s))"
@@ -206,7 +208,8 @@ def build_representations_and_chunks(cur, profile_id: str, limit: int | None,
 
 def embed_pending_chunks(cur, conn, model_id: str, limit: int | None,
                          paper_codes: list[str] | None = None,
-                         representation_kinds: list[str] | None = None) -> tuple[int, int]:
+                         representation_kinds: list[str] | None = None,
+                         max_cost_usd: float | None = None) -> tuple[int, int]:
     client = OpenAI()  # reads OPENAI_API_KEY from the environment (see _ensure_openai_api_key)
 
     cur.execute(
@@ -222,12 +225,14 @@ def embed_pending_chunks(cur, conn, model_id: str, limit: int | None,
     query = """
         SELECT c.chunk_id, c.chunk_text, c.chunk_hash, c.representation_id
         FROM search.chunk c
+        JOIN search.representation current_rep ON current_rep.representation_id=c.representation_id
         LEFT JOIN search.embedding e ON e.chunk_id = c.chunk_id AND e.embedding_model_id = %s
+          AND e.status='ACTIVE'
         WHERE e.embedding_id IS NULL
+          AND current_rep.status='ACTIVE'
     """
     params: list = [model_id]
     if paper_codes is not None:
-        query = query.replace("e.embedding_model_id = %s", "e.embedding_model_id = %s AND e.status='ACTIVE'")
         query += """
           AND EXISTS (SELECT 1 FROM search.representation r
                       WHERE r.representation_id=c.representation_id AND r.status='ACTIVE')
@@ -251,6 +256,18 @@ def embed_pending_chunks(cur, conn, model_id: str, limit: int | None,
         params.append(limit)
     cur.execute(query, params)
     pending = cur.fetchall()
+    # Conservative ceiling ($1/million tokens), above this model's published rate.
+    token_count = sum(len(_encoding.encode(row[1])) for row in pending)
+    cost_ceiling = token_count / 1_000_000
+    print(f"pending chunks: {len(pending)} tokens: {token_count} cost ceiling: ${cost_ceiling:.6f}")
+    if max_cost_usd is not None and cost_ceiling > max_cost_usd:
+        cur.execute(
+            "UPDATE pipeline.run SET status='FAILED',completed_at=now(),"
+            "metadata=metadata || jsonb_build_object('error','embedding budget exceeded') "
+            "WHERE run_id=%s", (run_id,),
+        )
+        conn.commit()
+        raise RuntimeError(f"Embedding cost ceiling ${cost_ceiling:.6f} exceeds ${max_cost_usd:.2f} cap")
 
     embedded = failed = 0
     for batch_start in range(0, len(pending), BATCH_SIZE):
@@ -375,17 +392,24 @@ def cmd_status(cur) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=["backfill", "index", "status"])
+    parser.add_argument("command", choices=["build", "backfill", "index", "status"])
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--paper", action="append", help="Exact paper external code; repeat for a scoped backfill")
+    parser.add_argument("--max-cost-usd", type=float, help="Refuse embedding if conservative token-cost ceiling exceeds cap")
     args = parser.parse_args()
+    if args.max_cost_usd is not None and (not math.isfinite(args.max_cost_usd) or args.max_cost_usd <= 0):
+        parser.error("--max-cost-usd must be positive")
 
     with _connect() as conn:
         with conn.cursor() as cur:
             model_id, profile_id = ensure_model_and_profile(cur)
             conn.commit()
 
-            if args.command == "backfill":
+            if args.command == "build":
+                reps, chunks = build_representations_and_chunks(cur, profile_id, args.limit, args.paper)
+                conn.commit()
+                print(f"representations: {reps} chunks: {chunks}; no embedding calls")
+            elif args.command == "backfill":
                 _ensure_openai_api_key()
                 cur.execute(
                     "INSERT INTO pipeline.run (run_type, status, started_at) "
@@ -397,7 +421,8 @@ def main() -> None:
                     reps, chunks = build_representations_and_chunks(cur, profile_id, args.limit, args.paper)
                     conn.commit()
                     print(f"representations: {reps} chunks: {chunks}")
-                    embedded, failed = embed_pending_chunks(cur, conn, model_id, args.limit, args.paper)
+                    embedded, failed = embed_pending_chunks(cur, conn, model_id, args.limit, args.paper,
+                                                           max_cost_usd=args.max_cost_usd)
                     print(f"embedded: {embedded} failed: {failed}")
                     if failed:
                         raise RuntimeError(f"{failed} embedding chunks failed; backfill is incomplete")

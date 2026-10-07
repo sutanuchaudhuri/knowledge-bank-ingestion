@@ -13,6 +13,7 @@ Usage:
     python scripts/crawl_unmapped.py --level "AIME"     # one competition only
     python scripts/crawl_unmapped.py --retry-failed     # re-process FAILED rows
     python scripts/crawl_unmapped.py --dry-run          # print queue, no fetches
+    python scripts/crawl_unmapped.py --missing-text    # includes already-mapped questions
 
 Artifacts written per question under:
     data/crawl/<exam_level_slug>/<question_id>/
@@ -40,11 +41,12 @@ sys.path.insert(0, str(ROOT / "src"))
 from mathbank.db import DB_PATH
 from mathbank.db.migrations import apply_all as apply_migrations
 from mathbank.db.tracking import IngestionRun
-from mathbank.crawl.downloader import DownloadError, fetch_html, make_session, save_html
+from mathbank.crawl.downloader import BlockedError, DownloadError, fetch_html, make_session, save_html
 from mathbank.crawl.aops_parser import ParsedQuestion, parse_aops_page
 from mathbank.crawl.image_downloader import save_aops_images
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCompleteColumn, TimeElapsedColumn
+from requests import RequestException
 
 console = Console()
 
@@ -63,14 +65,41 @@ def _question_dir(exam_level: str, question_id: str) -> Path:
 
 def _already_crawled(question_id: str, exam_level: str) -> bool:
     parsed = _question_dir(exam_level, question_id) / "parsed.json"
-    return parsed.exists()
+    return parsed.is_file() and bool(json.loads(parsed.read_text()).get("problem_text", "").strip())
+
+
+def _persist_question_text(conn: sqlite3.Connection, question_id: str, record: dict) -> None:
+    problem = (record.get("problem_text") or "").strip()
+    if not problem:
+        raise ValueError(f"{question_id}: empty problem text cannot be marked crawled")
+    solutions = record.get("solution_texts") or []
+    conn.execute(
+        """UPDATE questions SET
+           problem_text_latex=CASE WHEN trim(coalesce(problem_text_latex,''))=''
+             OR ltrim(problem_text_latex) LIKE '[Placeholder]%' THEN ? ELSE problem_text_latex END,
+           problem_text_raw=CASE WHEN trim(coalesce(problem_text_raw,''))=''
+             OR ltrim(problem_text_raw) LIKE '[Placeholder]%' THEN ? ELSE problem_text_raw END,
+           solution_text_latex=CASE WHEN trim(coalesce(solution_text_latex,''))=''
+             THEN ? ELSE solution_text_latex END,
+           all_solutions_json=CASE WHEN coalesce(all_solutions_json,'') IN ('','[]','null')
+             THEN ? ELSE all_solutions_json END,
+           answer_value=CASE WHEN trim(coalesce(answer_value,''))='' THEN ? ELSE answer_value END,
+           parse_warnings=?
+           WHERE question_id=?""",
+        (problem, problem, solutions[0] if solutions else "",
+         json.dumps(solutions, ensure_ascii=False), record.get("answer_value", ""),
+         json.dumps(record.get("parse_warnings", [])), question_id),
+    )
+    conn.commit()
 
 
 def _save_artifacts(q: ParsedQuestion, exam_level: str) -> Path:
     qdir = _question_dir(exam_level, q.question_id)
     qdir.mkdir(parents=True, exist_ok=True)
     (qdir / "problem_text.md").write_text(q.to_md(), encoding="utf-8")
-    record = {
+    parsed_path = qdir / "parsed.json"
+    record = json.loads(parsed_path.read_text()) if parsed_path.is_file() else {}
+    record.update({
         "question_id": q.question_id,
         "url": q.url,
         "problem_text": q.problem_text,
@@ -80,8 +109,8 @@ def _save_artifacts(q: ParsedQuestion, exam_level: str) -> Path:
         "image_urls": q.image_urls,
         "parse_warnings": q.parse_warnings,
         "crawled_at": datetime.now(timezone.utc).isoformat(),
-    }
-    (qdir / "parsed.json").write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+    })
+    parsed_path.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
     return qdir
 
 
@@ -92,7 +121,11 @@ def _update_db(
     error: str = "",
     has_problem: bool = False,
     solution_count: int = 0,
+    *,
+    preserve_mapping: bool = False,
 ) -> None:
+    if preserve_mapping:
+        return
     conn.execute(
         """UPDATE unmapped_questions
            SET mapping_status = ?,
@@ -116,7 +149,22 @@ def _fetch_queue(
     limit: int,
     level_filter: str | None,
     retry_failed: bool,
+    missing_text: bool = False,
 ) -> list[tuple[str, str, str]]:
+    if missing_text:
+        sql = """SELECT question_id, exam_level, aops_question_url FROM questions
+                 WHERE (trim(coalesce(problem_text_latex,''))=''
+                        OR ltrim(problem_text_latex) LIKE '[Placeholder]%')
+                   AND (trim(coalesce(problem_text_raw,''))=''
+                        OR ltrim(problem_text_raw) LIKE '[Placeholder]%')
+                   AND trim(coalesce(aops_question_url, '')) != ''"""
+        params = []
+        if level_filter:
+            sql += " AND exam_level = ?"
+            params.append(level_filter)
+        sql += " ORDER BY exam_level, question_id LIMIT ?"
+        params.append(limit)
+        return conn.execute(sql, params).fetchall()
     statuses = ("PENDING", "UNMAPPED") + (("FAILED",) if retry_failed else ())
     placeholders = ",".join("?" for _ in statuses)
     params: list = list(statuses)
@@ -160,21 +208,24 @@ def main() -> None:
     p.add_argument("--retry-failed", action="store_true", help="Re-process FAILED rows")
     p.add_argument("--reparse",      action="store_true", help="Re-parse already-downloaded HTML (no network)")
     p.add_argument("--dry-run", action="store_true", help="Show queue only, no network requests")
+    p.add_argument("--missing-text", action="store_true",
+                   help="Select all questions missing source text, including already concept-mapped rows")
     args = p.parse_args()
 
     conn = sqlite3.connect(args.db)
     run = IngestionRun(conn, "crawl_unmapped", params=vars(args) | {"db": str(args.db)})
     run.__enter__()
-    queue = _fetch_queue(conn, args.limit, args.level, args.retry_failed)
+    queue = _fetch_queue(conn, args.limit, args.level, args.retry_failed, args.missing_text)
 
-    if not queue:
+    if not queue and not args.reparse:
         console.print("[yellow]No unmapped questions to process.[/]")
         _print_db_summary(conn)
         run.__exit__(None, None, None)
         conn.close()
         return
 
-    console.print(f"\n[bold]Crawling {len(queue)} unmapped questions[/]  "
+    selection = "questions missing source text" if args.missing_text else "unmapped questions"
+    console.print(f"\n[bold]Crawling {len(queue)} {selection}[/]  "
                   f"(delay={args.delay}s, dry_run={args.dry_run})")
 
     if args.dry_run:
@@ -197,9 +248,14 @@ def main() -> None:
         db_lookup: dict[str, tuple[str, str]] = {
             qid: (level, url)
             for qid, level, url in conn.execute(
+                "SELECT question_id, exam_level, aops_question_url FROM questions"
+                if args.missing_text else
                 "SELECT question_id, exam_level, problem_url FROM unmapped_questions"
             ).fetchall()
         }
+        if args.missing_text:
+            selected = {qid for qid, _, _ in queue}
+            html_files = [path for path in html_files if path.parent.name in selected]
 
         console.print(f"Reparsing {len(html_files)} downloaded HTML files...")
         ok = failed = 0
@@ -214,7 +270,10 @@ def main() -> None:
                 try:
                     html = html_path.read_text(encoding="utf-8")
                     parsed = parse_aops_page(html, question_id, url)
+                    if not parsed.has_problem:
+                        raise ValueError("Cached HTML has no problem statement; not a successful reparse")
                     _save_artifacts(parsed, level or html_path.parent.parent.name)
+                    _persist_question_text(conn, question_id, asdict(parsed))
                     from mathbank.crawl.image_downloader import save_aops_images
 
                     save_aops_images(
@@ -223,7 +282,8 @@ def main() -> None:
                     )
                     _update_db(conn, question_id, "CRAWLED",
                                has_problem=parsed.has_problem,
-                               solution_count=parsed.solution_count)
+                               solution_count=parsed.solution_count,
+                               preserve_mapping=args.missing_text)
                     ok += 1
                 except Exception as exc:
                     console.print(f"  [red]FAIL {question_id}: {exc}")
@@ -257,18 +317,23 @@ def main() -> None:
 
             # Skip questions already crawled in a previous run.
             if _already_crawled(question_id, exam_level):
-                _update_db(conn, question_id, "CRAWLED")
+                _persist_question_text(conn, question_id, json.loads((qdir / "parsed.json").read_text()))
+                _update_db(conn, question_id, "CRAWLED", preserve_mapping=args.missing_text)
                 skipped += 1
                 progress.advance(task)
                 continue
 
             try:
                 html = fetch_html(session, url, delay=args.delay)
-            except (DownloadError, Exception) as exc:
+            except (DownloadError, RequestException) as exc:
                 console.print(f"  [red]FAIL download {question_id}: {exc}")
-                _update_db(conn, question_id, "FAILED", error=str(exc)[:200])
+                _update_db(conn, question_id, "FAILED", error=str(exc)[:200],
+                           preserve_mapping=args.missing_text)
                 failed += 1
                 progress.advance(task)
+                if args.missing_text and isinstance(exc, BlockedError):
+                    console.print("[red]Source access blocked; stopping the repair batch. No challenge page is ingested.")
+                    break
                 continue
 
             save_html(html, qdir / "problem.html")
@@ -276,14 +341,18 @@ def main() -> None:
             # Parse.
             try:
                 parsed = parse_aops_page(html, question_id, url)
+                if not parsed.has_problem:
+                    raise ValueError("Source HTML has no problem statement; not a successful crawl")
             except Exception as exc:
                 console.print(f"  [red]FAIL parse {question_id}: {exc}")
-                _update_db(conn, question_id, "FAILED", error=f"parse:{exc}"[:200])
+                _update_db(conn, question_id, "FAILED", error=f"parse:{exc}"[:200],
+                           preserve_mapping=args.missing_text)
                 failed += 1
                 progress.advance(task)
                 continue
 
             _save_artifacts(parsed, exam_level)
+            _persist_question_text(conn, question_id, asdict(parsed))
 
             # Download actual diagram images (non-LaTeX) from the AoPS page.
             img_count = 0
@@ -300,6 +369,7 @@ def main() -> None:
                 "CRAWLED",
                 has_problem=parsed.has_problem,
                 solution_count=parsed.solution_count,
+                preserve_mapping=args.missing_text,
             )
 
             if parsed.parse_warnings:

@@ -28,11 +28,14 @@
 #                                  MATHBANK_ADMIN_API_KEY, ADMIN_LOGIN_USERNAME,
 #                                  ADMIN_LOGIN_PASSWORD, ADMIN_SESSION_SECRET,
 #                                  ELEVEN_API_KEY (+ optional LIVE_PORT)
+#   - scripts/sync-neon-env.mjs    Neon production S3 + AI Gateway server keys;
+#                                  agents receive gateway keys, not S3 master keys.
 # A missing ELEVEN_API_KEY or live key makes this script exit non-zero; the
 # same syncs run in `make up` / `make up-app` (target sync-keys), so set them
 # in the root .env first. Rewriting mathbank-web/.env drops the synced keys,
 # which is why these syncs always run last.
 set -uo pipefail
+umask 077
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
@@ -186,6 +189,9 @@ if ! node scripts/sync-eleven-key.mjs; then
   exit 1
 fi
 if ! node scripts/sync-live-env.mjs; then
+  exit 1
+fi
+if ! node scripts/sync-neon-env.mjs; then
   exit 1
 fi
 echo "Done. Every service .env is now in sync with the root .env."

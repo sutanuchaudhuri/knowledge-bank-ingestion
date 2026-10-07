@@ -11,6 +11,7 @@ import next from "next";
 import { Server } from "socket.io";
 import { createGateway, buildRequest, createOpLimiter, originAllowed, replay, resolveActor, roomName } from "./lib/gateway.mjs";
 import { createRest } from "./lib/rest.mjs";
+import { createAttemptReplay } from "./lib/attemptEvents.mjs";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const dev = process.env.NODE_ENV !== "production";
@@ -56,6 +57,15 @@ const fail = (ack, err) => typeof ack === "function" && ack({ ok: false, status:
 
 io.on("connection", (socket) => {
   const { actor } = socket.data;
+  const attempts = createAttemptReplay({ rest, actor, emit: (event, data) => socket.emit(event, data),
+    onError: () => socket.emit("attempt.progress.error", { code: "REPLAY_UNAVAILABLE" }) });
+  socket.on("attempt:watch", async (msg, ack) => {
+    try {
+      const events = await attempts.watch(String(msg?.submission_id || ""), msg?.after_sequence ?? 0);
+      if (typeof ack === "function") ack({ ok: true, events });
+    } catch (error) { fail(ack, error); }
+  });
+  socket.on("attempt:unwatch", (msg) => attempts.unwatch(String(msg?.submission_id || "")));
 
   socket.on("live:join", async (msg, ack) => {
     try {
@@ -94,6 +104,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    attempts.close();
     for (const sid of socket.data.joined.keys()) gateway.detach(sid, socket.id);
   });
 });

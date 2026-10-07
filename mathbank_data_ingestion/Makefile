@@ -8,6 +8,10 @@ MYPY      := $(BIN)/mypy
 
 .DEFAULT_GOAL := help
 
+.PHONY: crawl-missing-text
+crawl-missing-text:             ## Fetch missing question text, including mapped rows (no classification/AI)
+	$(BIN)/python scripts/crawl_unmapped.py --missing-text --limit $(or $(LIMIT),20) --delay $(or $(DELAY),10) $(if $(LEVEL),--level "$(LEVEL)",) $(if $(DRY_RUN),--dry-run,)
+
 .PHONY: repair-diagrams repair-diagrams-apply
 repair-diagrams:                ## Audit question-specific PDF/AoPS diagrams (local only, no AI)
 	$(BIN)/python scripts/repair_diagram_artifacts.py $(if $(PAPER),--paper $(PAPER),) $(if $(COMPETITION),--competition $(COMPETITION),)

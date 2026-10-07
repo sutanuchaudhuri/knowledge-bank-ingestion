@@ -89,6 +89,52 @@ Manual smoke test (no terminal chat loop, good for CI/quick checks):
 
 ## Tools (`agents/mathbank_tutor/tools/rest_tools.py`)
 
+### Artifact specialist agents
+
+The tutor now delegates through **Google ADK `AgentTool`**, not a public remote
+A2A endpoint. All ten agents in the artifact handoff's topology are instantiated
+in [artifact_agents.py](agents/mathbank_tutor/artifact_agents.py):
+
+| Agent | Delegation / capability |
+|---|---|
+| Subject Planning | Routes to Geometry, Algebra, Combinatorics or Number Theory |
+| Geometry | Geometry plans, exact triangle incircles and validated SVG previews |
+| Algebra | Equation/term plans and stable LaTeX alignment |
+| Combinatorics | Labelled cases, nodes, tables and trees |
+| Number Theory | Modulus, factors, divisibility and Euclidean structures |
+| LaTeX | Mathematical text refinement for subject agents |
+| SVG | Declarative layout/semantic-ID refinement; never executable SVG |
+| Overlay/Frame | Ordered valid-target pedagogical highlights |
+| Annotation | Captions, concept tags and supplied explanation/step links |
+| Validation | Calls authoritative REST plan validation and reports actual errors |
+
+The root exposes the planner and four subject agents as tools; subjects can
+delegate to the five refinement/validation agents. This is a directed acyclic
+Agent-as-Tool network: the tutor retains conversational control, and specialists
+return results to their caller. Simple drawings do not invoke every refinement
+agent unnecessarily. Reusable publication/indexing remains an explicit staff
+operation; previews are private, ephemeral and do not write the corpus or store.
+
+Each specialist uses the tutor's existing OpenAI/LiteLLM model configuration.
+Student authentication is invocation-scoped: ADK child runners require restoring
+`temp:` authorization via an async-context-local handoff because child session
+creation strips it. Tokens are never model arguments/prompts/results or saved
+conversation events. Anonymous delegation stops before inference/REST access.
+At most 16 delegations and 24 specialist model calls are allowed per invocation;
+each delegate times out after 120 seconds. These are operational limits, not a
+dollar spending cap. Provider failures do not select a different model/provider.
+
+The tested ADK baseline is `google-adk[db]>=2.11`. Verify without paid calls:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_artifact_agents.py
+```
+
+These tests use real ADK Runner/AgentTool execution with scripted models and
+mocked REST, proving nested routing/authentication and all subject paths. They do
+not certify live model tool-selection quality or implement remote A2A discovery,
+agent cards, cross-service tasks, or a remote trust/authentication protocol.
+
 | Tool | Calls | Use for |
 |---|---|---|
 | `search_problems` | `POST /v1/search/problems` | Hybrid RAG — "recent questions on X", "problems about Y" |

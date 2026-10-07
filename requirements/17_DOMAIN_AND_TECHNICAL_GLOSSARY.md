@@ -432,22 +432,38 @@ scoring while maintaining this glossary.
 | MathComposer | The student text box with a symbol palette, quick (deterministic) and ✨ (agentic) formatting, and a live KaTeX preview. | `mathbank-widgets/src/MathComposer.jsx`; [29](29_STUDENT_INPUT_ADDONS.md). |
 | Agentic formatting | A small model adds LaTeX delimiters without changing the student's words. If its output fails validation, the deterministic result is used. | `POST /v1/tutor/format-math` `mode=agentic`; `math_format.py`. |
 | Voice (TTS/STT) | ElevenLabs read-aloud (🔊) and dictation (🎤), proxied by Next.js server routes so the key stays server-side. | `/api/voice/{health,tts,stt}`; `ELEVEN_API_KEY`. |
+| Multimodal submission | A student-owned attempt containing private uploads and versioned transcribed work. It is not a live-class event or graph node. | `attempt_media.submission`; `/v1/attempt-media/submissions`; migration 021. |
+| Evidence region | A page rectangle or timestamp interval tied to a media asset; each step and assessment references evidence IDs. | `attempt_media.evidence_region`; spatial and temporal coordinates are mutually exclusive. |
+| Transcription candidate | Immutable version of machine-transcribed or student-edited steps and their evidence links. New edits create a new version rather than rewriting approved mathematical content. | `attempt_media.transcription_candidate`, `step_candidate`, `step_candidate_evidence`. |
+| Approved multimodal attempt | An explicit student approval linking one exact transcription version to a `learner.attempt` row. Approval itself does not assert correctness. | `attempt_media.approval`; the linked attempt has `source='multimodal_approved'` and `is_correct=NULL`. NULL is excluded from mastery. |
+| Step assessment / instructor override | Evidence-grounded, versioned alignment and correctness assessment; instructor rows are protected from AI overwrite. This is not a calibrated skill/mastery score. | `attempt_media.step_assessment`; `AI` or `INSTRUCTOR`; `/analyse` or admin `/override`. |
+| Private attempt event | Ordered progress/status event, replayable only after ownership checks. The transactional outbox gets identifiers and sequence/version metadata, not private media or transcript content. | `attempt_media.event`; `pipeline.outbox_event`; `mathbank-live` `attempt:watch` emits to that socket only. |
+| Declarative artifact plan | Strict structured instructions for a subject-specific diagram, equation card or frame sequence; output generation and validation are deterministic. | `ArtifactPlan`; `/v1/artifacts/validate`; migration 022. |
+| Artifact bundle | Versioned, validated package of artifact metadata and private object-store assets; draft bundles are admin-only and students see published bundles. | `artifact_runtime.artifact_bundle`, `artifact_asset`, `artifact_lineage`; `/v1/artifacts/bundles/*`. |
+| Artifact publication | Explicit validated change from DRAFT/VALIDATED to PUBLISHED/APPROVED, requiring staff. It does not publish a Neo4j graph projection. | Admin `POST /v1/artifacts/bundles/{id}/publish`; validated bytes remain in private object storage. |
+| Explicit artifact embedding | A vector indexed for one bundle using a supplied vector or an explicit provider request; its source-text hash, model and dimensions must match. | `artifact_runtime.artifact_embedding`; semantic retrieval reports UNAVAILABLE rather than falling back to lexical search. |
+| Private object store | S3-compatible storage for attempt media and generated artifact bytes. REST serves bytes only through owner/publication checks, never public or presigned URLs. | `AWS_ENDPOINT_URL_S3` and storage credentials; separate from Neon Auth and AI Gateway configuration. |
+
+`attempt_media` and `artifact_runtime` are source-implemented schema/runtime surfaces; their migration application and object-store deployment acceptance are not verified by these documentation references. They are not projected into Neo4j.
 
 ## 9. Planned terms that must not be confused with live functionality
 
 - **Course / curriculum / learning path:** versioned ordering of lessons,
   skills and practice. Rich course orchestration is roadmap work; an existing
   prerequisite path is not a complete course.
-- **Skill evidence event / calibrated skill mastery:** fine-grained,
-  source-supported learner performance tied to observable objectives.
-  Concept/technique caches are not an implementation of this richer model.
+- **Calibrated skill mastery:** a validated estimate of performance against
+  observable skill objectives. Multimodal step assessments are versioned
+  evidence, not calibrated mastery; concept/technique caches remain a distinct,
+  coarse model.
 - **Misconception diagnosis / remediation policy:** validated interpretation
   of reasoning errors plus targeted interventions; not a generic wrong-answer
   response relabelled as diagnosis. The rules-v1 gap diagnosis and staged
   recovery detours (Phases 9–10) are implemented, but they are not validated
   misconception models.
-- **Partial credit / method attribution:** grading of intermediate reasoning
-  and which method was actually used. Current mastery consumes Boolean outcomes.
+- **Aggregated partial-credit mastery / method attribution:** the current
+  multimodal assessment records step-level correctness/alignment, but no
+  aggregation into mastery or method attribution is implemented. Existing
+  mastery consumes assessed Boolean outcomes.
 - **Expert certification:** domain-expert validation of generated metadata.
   Auto approval and a second model verifier do not establish this.
 - **Retrieval-quality target achieved:** needs labelled measurement and
@@ -459,7 +475,7 @@ scoring while maintaining this glossary.
 
 - [Canonical schema](../mathbank-db/sql/001_schema.sql), [vector schema](../mathbank-db/sql/002_vector_schema.sql), [learner schema](../mathbank-db/sql/003_learner_schema.sql).
 - [Pedagogy schema](../mathbank-db/sql/006_pedagogy.sql), [automatic approval](../mathbank-db/sql/008_automatic_metadata.sql), [relationship jobs](../mathbank-db/sql/009_relationship_enrichment.sql).
-- [Canonical implementation reference](reference/README.md): source-derived PostgreSQL schema/DML, graph schema, REST/OpenAPI snapshot, web proxies and agent session ownership.
+- [Canonical implementation reference](reference/README.md): source-derived PostgreSQL schema through migrations 001–022, DML, graph schema, REST/OpenAPI snapshot, web proxies, multimodal attempts and artifact runtime.
 - [Mastery formula](../mathbank-rest/src/mathbank_rest/mastery.py), [learner attribution and queries](../mathbank-rest/src/mathbank_rest/db/learner.py).
 - [Hybrid ranking](../mathbank-rest/src/mathbank_rest/db/hybrid_search.py), [vector/lexical retrieval](../mathbank-rest/src/mathbank_rest/db/vector_search.py).
 - [Pipeline metrics](../mathbank-rest/src/mathbank_rest/db/pipeline_jobs.py), [nine-layer completion requirements](16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md).

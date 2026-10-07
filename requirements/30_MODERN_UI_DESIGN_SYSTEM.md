@@ -50,6 +50,40 @@ requirements and records progress.
 
 ## 4. Verification
 
+### Multimodal attempts and artifacts
+
+Tutor practice statements now have a tinted problem panel and a separate neutral
+source panel; surrounding coaching remains outside both. Explicit generated
+geometry requests render private validated SVG previews in chat, labelled
+"Generated illustration · not the source figure". Desktop/mobile mocked
+browser tests at 1440/390 px verify distinct backgrounds, loaded diagrams and
+no horizontal overflow. The immediate geometry capability is separate from
+staff publication; illustrative quadrilateral incircles are computed from
+actual vertices, not guessed to satisfy the theorem.
+
+The same private declarative preview component supports Algebra, Combinatorics
+and Number Theory. Algebra equation lines render through the existing KaTeX
+renderer below the safe SVG image. An additional mocked browser case verifies
+this path; the latest production build passes. Root specialist tool calls appear
+in chat activity, but nested ADK AgentTool child events are not yet streamed.
+
+The shared shell now includes `/learn/attempt-media`, `/admin/attempt-media` and
+`/artifacts`. They reuse the wide layout, Inter/Bootstrap theme, status pills,
+breadcrumbs, master-detail pattern and pagination. Original student evidence is
+primary; LaTeX candidates and assessments are distinct, ungraded attempts show
+"Awaiting assessment", and private image/video regions and audio seeking remain
+inside the review workspace. Destructive/paid actions require explicit controls.
+
+Artifact playback uses validated server-rendered SVG frames rather than injecting
+model-authored SVG into the page. Semantic search/index requests use the verified
+embedding profile and explicit confirmation. Expired-session and service errors
+are visible and disable creation rather than masquerading as empty data.
+
+Verified: 25 focused unit/regression tests, 17 mocked Playwright cases with
+desktop/mobile checks, and a successful production Next.js build. Live-provider
+quality verification remains blocked by external account quota; see
+[runtime acceptance progress](32_MULTIMODAL_ATTEMPTS_AND_ARTIFACTS.md).
+
 - Unit tests: `make -C mathbank-web test` (includes `tests/navigation.test.mjs` and the widget tests).
 - E2E: `cd mathbank-web && npx playwright test` against the running stack. The suite relies on the accessible names and
   test ids listed in the skill; keep them when restyling.

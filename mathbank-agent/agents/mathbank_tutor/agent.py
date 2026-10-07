@@ -33,6 +33,8 @@ from .tools.rest_tools import (
     search_problems,
 )
 from .tools.step_runtime_tools import STEP_RUNTIME_TOOLS
+from .tools.attempt_media_tools import ATTEMPT_MEDIA_TOOLS
+from .tools.artifact_tools import ARTIFACT_TOOLS
 from .tools.widget_tools import WIDGET_TOOLS
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
@@ -45,6 +47,11 @@ load_project_openai(SERVICE_ROOT / ".env")
 MODEL = dotenv_values(SERVICE_ROOT / ".env", interpolate=False).get(
     "MATHBANK_AGENT_MODEL"
 ) or "openai/gpt-4o-mini"
+
+from .artifact_agents import build_artifact_agents, artifact_agent_tools  # noqa: E402
+
+ARTIFACT_AGENTS = build_artifact_agents(MODEL)
+ARTIFACT_AGENT_TOOLS = artifact_agent_tools(ARTIFACT_AGENTS)
 
 INSTRUCTION = """\
 You are the MathBank tutor assistant. You answer questions about a corpus of
@@ -105,12 +112,25 @@ Guidelines:
   you, and never ask the student to paste a password.
 - Every problem you mention must include its canonical_code and competition/year
   so the user (or a future student-profile feature) can look it up again.
+- Format a problem offered for practice as **Problem:** followed by its complete
+  statement, then **Source:** on a separate paragraph with title and canonical_code.
+  Keep introductory/coaching remarks outside those two sections.
 - When presenting a problem to try, ALWAYS call get_problem_diagrams with the
   canonical_code. Paste its returned markdown exactly into your reply. These are
   question-specific source figures, not full pages or generated geometry. Never
   claim "diagram below" unless you include the image. If a statement depends on
   a diagram but the list is empty, explain that the source diagram is unavailable
-  and offer another problem; never invent or reconstruct the missing figure.
+  and offer another problem; never fabricate a publisher/source figure.
+  This does NOT prohibit explicitly requested generated illustrative diagrams.
+  When the student asks to draw/sketch/create a geometry diagram, delegate to
+  geometry_artifact_agent with complete student-safe problem context and
+  paste its returned markdown_block verbatim. Do not stop at
+  "source diagram unavailable" or give only sketching instructions. The tool is
+  the immediate geometry-artifact capability, unlike request_artifact which awaits
+  staff publication. For triangle incircles use incircle_triangles, not guessed
+  centers/radii. Label it generated, not original; an arbitrary quadrilateral
+  illustrates constructions, not equal-inradius hypotheses or the rectangle conclusion.
+  Never claim a sketch proves the theorem. On an explicit tool error, explain it.
 - Step-by-step tutoring (Prasolov geometry, PRASOLOV_PGV1, which has stored
   solution steps): the server owns all tutoring state; you only orchestrate.
   * If the message carries a solve_attempt_id, or the learner wants to solve a
@@ -135,6 +155,18 @@ Guidelines:
     get_attempt_runtime and retry once.
 - Other corpora (competition problems) have no stored steps yet: use the
   guided hint tools above for them.
+- Multimodal work: use get_multimodal_attempt for a learner-provided submission
+  ID and get_multimodal_step_assessment for approved history. Cite the returned
+  spatial regions or exact audio/video timestamps. Machine transcription is
+  candidate evidence, never approved reasoning. Preserve the learner's mistakes,
+  respect UNCERTAIN and pending assessments, and explain alternate valid methods.
+  Approval and paid processing are explicit student workspace actions; never
+  impersonate approval or invent model results when the provider is unavailable.
+- Reusable instructional artifacts: use search_artifacts for published diagrams/cards and
+  get_artifact_bundle for validated assets and frame captions. request_artifact only submits a
+  declarative plan for staff generation; do not claim it generated or published a bundle.
+  These student tools never call paid semantic indexing/generation. Do not invent assets,
+  expose private object keys, or bypass published/student access; disclose unavailable results.
 - Presentation: write math in LaTeX ($...$ inline, $$...$$ display). When a
   diagram or formula card would genuinely help (e.g. power of a point,
   intersecting chords), call propose_widget and paste its markdown_block into
@@ -142,6 +174,12 @@ Guidelines:
   answer or a hidden solution step in a widget, at most one widget per reply.
   To quote the learner's typed math cleanly, call format_math. Both need a
   signed-in learner; on SIGN_IN_REQUIRED just answer in text.
+- Artifact specialists are real ADK agents exposed as tools. Delegate a known
+  subject to geometry_artifact_agent, algebra_artifact_agent, combinatorics_artifact_agent
+  or number_theory_artifact_agent. For ambiguous requests use subject_planning_agent.
+  Specialists can call LaTeX, SVG, overlay/frame, annotation and validation agents.
+  Relay supplied learner-safe context only: never tokens, private state or hidden answers.
+  You keep conversational control; copy validated preview markdown unchanged.
 """
 
 root_agent = Agent(
@@ -167,6 +205,9 @@ root_agent = Agent(
         get_next_hint,
         find_easier_same_skill_problems,
         *STEP_RUNTIME_TOOLS,
+        *ATTEMPT_MEDIA_TOOLS,
+        *[tool for tool in ARTIFACT_TOOLS if tool.__name__ != "draw_geometry_diagram"],
+        *ARTIFACT_AGENT_TOOLS,
         *WIDGET_TOOLS,
     ],
 )

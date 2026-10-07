@@ -1,6 +1,89 @@
 {
   "components": {
     "schemas": {
+      "Action": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "HIGHLIGHT",
+              "DIM",
+              "SHOW",
+              "HIDE",
+              "LABEL",
+              "RELABEL",
+              "MARK_EQUAL",
+              "MARK_PARALLEL",
+              "MARK_PERPENDICULAR",
+              "SHOW_RATIO",
+              "FOCUS_REGION",
+              "EMPHASIZE_EQUATION_LINE",
+              "EMPHASIZE_TERM"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "latex": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latex"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "items": {
+                  "maximum": 2000.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "targets": {
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Targets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "action",
+          "targets"
+        ],
+        "title": "Action",
+        "type": "object"
+      },
       "ActivityIn": {
         "properties": {
           "activity_id": {
@@ -95,6 +178,314 @@
           "agent_session_id"
         ],
         "title": "AgentSessionLinkRequest",
+        "type": "object"
+      },
+      "Angle": {
+        "additionalProperties": false,
+        "properties": {
+          "end_degrees": {
+            "maximum": 360.0,
+            "minimum": 0.0,
+            "title": "End Degrees",
+            "type": "number"
+          },
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "ANGLE",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "radius": {
+            "default": 20,
+            "maximum": 80.0,
+            "minimum": 8.0,
+            "title": "Radius",
+            "type": "number"
+          },
+          "start_degrees": {
+            "maximum": 360.0,
+            "minimum": 0.0,
+            "title": "Start Degrees",
+            "type": "number"
+          },
+          "vertex": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Vertex",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "vertex",
+          "start_degrees",
+          "end_degrees",
+          "label"
+        ],
+        "title": "Angle",
+        "type": "object"
+      },
+      "ArtifactPlan": {
+        "additionalProperties": false,
+        "properties": {
+          "concept_ids": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Concept Ids",
+            "type": "array"
+          },
+          "difficulty_band": {
+            "default": "UNSPECIFIED",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Difficulty Band",
+            "type": "string"
+          },
+          "elements": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "ANGLE": "#/components/schemas/Angle",
+                  "CELL": "#/components/schemas/Cell",
+                  "CIRCLE": "#/components/schemas/Circle",
+                  "EDGE": "#/components/schemas/Segment",
+                  "EQUATION": "#/components/schemas/Equation",
+                  "NODE": "#/components/schemas/Node",
+                  "POINT": "#/components/schemas/Point",
+                  "SEGMENT": "#/components/schemas/Segment"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Point"
+                },
+                {
+                  "$ref": "#/components/schemas/Segment"
+                },
+                {
+                  "$ref": "#/components/schemas/Circle"
+                },
+                {
+                  "$ref": "#/components/schemas/Angle"
+                },
+                {
+                  "$ref": "#/components/schemas/Node"
+                },
+                {
+                  "$ref": "#/components/schemas/Cell"
+                },
+                {
+                  "$ref": "#/components/schemas/Equation"
+                }
+              ]
+            },
+            "maxItems": 128,
+            "minItems": 1,
+            "title": "Elements",
+            "type": "array"
+          },
+          "frames": {
+            "items": {
+              "$ref": "#/components/schemas/Frame"
+            },
+            "maxItems": 128,
+            "title": "Frames",
+            "type": "array"
+          },
+          "goal_type": {
+            "default": "DEMONSTRATE",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Goal Type",
+            "type": "string"
+          },
+          "grade_band": {
+            "default": "UNSPECIFIED",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Grade Band",
+            "type": "string"
+          },
+          "height": {
+            "default": 600,
+            "maximum": 2000.0,
+            "minimum": 240.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "linked_problem_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Problem Id"
+          },
+          "linked_solution_step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Solution Step Id"
+          },
+          "modulus": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 2.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modulus"
+          },
+          "number_theory_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "MODULAR",
+                  "FACTOR_TREE",
+                  "EUCLIDEAN",
+                  "DIVISIBILITY"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number Theory Mode"
+          },
+          "overlays": {
+            "items": {
+              "$ref": "#/components/schemas/Overlay"
+            },
+            "maxItems": 64,
+            "title": "Overlays",
+            "type": "array"
+          },
+          "parent_bundle_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Bundle Id"
+          },
+          "request_source": {
+            "default": "AUTHORING",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Request Source",
+            "type": "string"
+          },
+          "skill_ids": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Skill Ids",
+            "type": "array"
+          },
+          "subject": {
+            "enum": [
+              "GEOMETRY",
+              "ALGEBRA",
+              "COMBINATORICS",
+              "NUMBER_THEORY"
+            ],
+            "title": "Subject",
+            "type": "string"
+          },
+          "subtopic": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtopic"
+          },
+          "summary": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Summary",
+            "type": "string"
+          },
+          "theorem_ids": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Theorem Ids",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "topic": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Topic",
+            "type": "string"
+          },
+          "width": {
+            "default": 800,
+            "maximum": 2000.0,
+            "minimum": 240.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "subject",
+          "topic",
+          "title",
+          "elements"
+        ],
+        "title": "ArtifactPlan",
         "type": "object"
       },
       "AttemptRequest": {
@@ -281,6 +672,48 @@
         "title": "BulkReviewRequest",
         "type": "object"
       },
+      "Cell": {
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Column",
+            "type": "integer"
+          },
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "CELL",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "row": {
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Row",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "row",
+          "column",
+          "label"
+        ],
+        "title": "Cell",
+        "type": "object"
+      },
       "ChatIn": {
         "properties": {
           "plan_id": {
@@ -310,6 +743,48 @@
           "student_answer"
         ],
         "title": "CheckSubproblemRequest",
+        "type": "object"
+      },
+      "Circle": {
+        "additionalProperties": false,
+        "properties": {
+          "cx": {
+            "maximum": 2000.0,
+            "minimum": 0.0,
+            "title": "Cx",
+            "type": "number"
+          },
+          "cy": {
+            "maximum": 2000.0,
+            "minimum": 0.0,
+            "title": "Cy",
+            "type": "number"
+          },
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "CIRCLE",
+            "title": "Kind",
+            "type": "string"
+          },
+          "radius": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 900.0,
+            "title": "Radius",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "cx",
+          "cy",
+          "radius"
+        ],
+        "title": "Circle",
         "type": "object"
       },
       "CoachRequest": {
@@ -863,6 +1338,62 @@
         "title": "EntityRequest",
         "type": "object"
       },
+      "Equation": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "EQUATION",
+            "title": "Kind",
+            "type": "string"
+          },
+          "latex": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Latex",
+            "type": "string"
+          },
+          "linked_step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Step Id"
+          },
+          "reason": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/Term"
+            },
+            "maxItems": 32,
+            "title": "Terms",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "latex",
+          "reason"
+        ],
+        "title": "Equation",
+        "type": "object"
+      },
       "FormatBody": {
         "properties": {
           "mode": {
@@ -887,40 +1418,303 @@
         "title": "FormatBody",
         "type": "object"
       },
-      "GenerateBody": {
+      "Frame": {
+        "additionalProperties": false,
         "properties": {
-          "context": {
-            "additionalProperties": true,
-            "title": "Context",
-            "type": "object"
+          "duration_ms": {
+            "default": 1000,
+            "maximum": 30000.0,
+            "minimum": 100.0,
+            "title": "Duration Ms",
+            "type": "integer"
           },
-          "intent": {
-            "maxLength": 1000,
-            "minLength": 1,
-            "title": "Intent",
+          "overlay_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Overlay Id",
             "type": "string"
           },
-          "source_type": {
-            "default": "LIVE_AGENT_CREATED",
+          "transition": {
+            "default": "NONE",
             "enum": [
-              "PRECOMPILED",
-              "CORPUS_DERIVED",
-              "LIVE_AGENT_CREATED",
-              "INSTRUCTOR_CREATED"
+              "NONE",
+              "FADE",
+              "HIGHLIGHT"
             ],
-            "title": "Source Type",
+            "title": "Transition",
             "type": "string"
-          },
-          "store": {
-            "default": false,
-            "title": "Store",
-            "type": "boolean"
           }
         },
         "required": [
-          "intent"
+          "overlay_id"
         ],
-        "title": "GenerateBody",
+        "title": "Frame",
+        "type": "object"
+      },
+      "GeometryPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "concept_ids": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Concept Ids",
+            "type": "array"
+          },
+          "difficulty_band": {
+            "default": "UNSPECIFIED",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Difficulty Band",
+            "type": "string"
+          },
+          "elements": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "ANGLE": "#/components/schemas/Angle",
+                  "CELL": "#/components/schemas/Cell",
+                  "CIRCLE": "#/components/schemas/Circle",
+                  "EDGE": "#/components/schemas/Segment",
+                  "EQUATION": "#/components/schemas/Equation",
+                  "NODE": "#/components/schemas/Node",
+                  "POINT": "#/components/schemas/Point",
+                  "SEGMENT": "#/components/schemas/Segment"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Point"
+                },
+                {
+                  "$ref": "#/components/schemas/Segment"
+                },
+                {
+                  "$ref": "#/components/schemas/Circle"
+                },
+                {
+                  "$ref": "#/components/schemas/Angle"
+                },
+                {
+                  "$ref": "#/components/schemas/Node"
+                },
+                {
+                  "$ref": "#/components/schemas/Cell"
+                },
+                {
+                  "$ref": "#/components/schemas/Equation"
+                }
+              ]
+            },
+            "maxItems": 128,
+            "minItems": 1,
+            "title": "Elements",
+            "type": "array"
+          },
+          "frames": {
+            "items": {
+              "$ref": "#/components/schemas/Frame"
+            },
+            "maxItems": 128,
+            "title": "Frames",
+            "type": "array"
+          },
+          "goal_type": {
+            "default": "DEMONSTRATE",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Goal Type",
+            "type": "string"
+          },
+          "grade_band": {
+            "default": "UNSPECIFIED",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Grade Band",
+            "type": "string"
+          },
+          "height": {
+            "default": 600,
+            "maximum": 2000.0,
+            "minimum": 240.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "incircle_triangles": {
+            "items": {
+              "items": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "maxItems": 8,
+            "title": "Incircle Triangles",
+            "type": "array"
+          },
+          "linked_problem_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Problem Id"
+          },
+          "linked_solution_step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Solution Step Id"
+          },
+          "modulus": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 2.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modulus"
+          },
+          "number_theory_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "MODULAR",
+                  "FACTOR_TREE",
+                  "EUCLIDEAN",
+                  "DIVISIBILITY"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number Theory Mode"
+          },
+          "overlays": {
+            "items": {
+              "$ref": "#/components/schemas/Overlay"
+            },
+            "maxItems": 64,
+            "title": "Overlays",
+            "type": "array"
+          },
+          "parent_bundle_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Bundle Id"
+          },
+          "request_source": {
+            "default": "AUTHORING",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Request Source",
+            "type": "string"
+          },
+          "skill_ids": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Skill Ids",
+            "type": "array"
+          },
+          "subject": {
+            "enum": [
+              "GEOMETRY",
+              "ALGEBRA",
+              "COMBINATORICS",
+              "NUMBER_THEORY"
+            ],
+            "title": "Subject",
+            "type": "string"
+          },
+          "subtopic": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtopic"
+          },
+          "summary": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Summary",
+            "type": "string"
+          },
+          "theorem_ids": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Theorem Ids",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "topic": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Topic",
+            "type": "string"
+          },
+          "width": {
+            "default": 800,
+            "maximum": 2000.0,
+            "minimum": 240.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "subject",
+          "topic",
+          "title",
+          "elements"
+        ],
+        "title": "GeometryPreview",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -934,6 +1728,58 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IndexBody": {
+        "additionalProperties": false,
+        "properties": {
+          "dimensions": {
+            "default": 1536,
+            "maximum": 8192.0,
+            "minimum": 1.0,
+            "title": "Dimensions",
+            "type": "integer"
+          },
+          "embedding": {
+            "anyOf": [
+              {
+                "items": {
+                  "maximum": 1000000.0,
+                  "minimum": -1000000.0,
+                  "type": "number"
+                },
+                "maxItems": 8192,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding"
+          },
+          "generate_embedding": {
+            "default": false,
+            "title": "Generate Embedding",
+            "type": "boolean"
+          },
+          "model": {
+            "default": "text-embedding-3-small",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "search_text_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Search Text Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "search_text_sha256"
+        ],
+        "title": "IndexBody",
         "type": "object"
       },
       "ItemReview": {
@@ -1012,6 +1858,32 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "Merge": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "step_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 2,
+            "title": "Step Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_version",
+          "step_ids"
+        ],
+        "title": "Merge",
+        "type": "object"
+      },
       "MessageIn": {
         "properties": {
           "content": {
@@ -1057,6 +1929,185 @@
           "message"
         ],
         "title": "NLIn",
+        "type": "object"
+      },
+      "Node": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "NODE",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "prime": {
+            "default": false,
+            "title": "Prime",
+            "type": "boolean"
+          },
+          "x": {
+            "maximum": 2000.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 2000.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "x",
+          "y",
+          "label"
+        ],
+        "title": "Node",
+        "type": "object"
+      },
+      "Overlay": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/Action"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Actions",
+            "type": "array"
+          },
+          "caption": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Caption",
+            "type": "string"
+          },
+          "concept_tag": {
+            "default": "instruction",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Concept Tag",
+            "type": "string"
+          },
+          "explanation_text": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Explanation Text",
+            "type": "string"
+          },
+          "hint_tag": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Tag"
+          },
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "linked_step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Step Id"
+          }
+        },
+        "required": [
+          "id",
+          "caption",
+          "actions"
+        ],
+        "title": "Overlay",
+        "type": "object"
+      },
+      "Override": {
+        "additionalProperties": false,
+        "properties": {
+          "alignment_type": {
+            "default": "UNMATCHED_BUT_PLAUSIBLE",
+            "enum": [
+              "MATCHES_SOLUTION_STEP",
+              "VALID_ALTERNATE_STEP",
+              "PARTIAL_STEP",
+              "PREREQUISITE_STEP",
+              "IRRELEVANT_STEP",
+              "UNSUPPORTED_LEAP",
+              "UNMATCHED_BUT_PLAUSIBLE"
+            ],
+            "title": "Alignment Type",
+            "type": "string"
+          },
+          "correctness": {
+            "enum": [
+              "CORRECT",
+              "PARTIALLY_CORRECT",
+              "INCORRECT",
+              "UNJUSTIFIED",
+              "UNCERTAIN"
+            ],
+            "title": "Correctness",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "next_action": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Next Action",
+            "type": "string"
+          },
+          "step_id": {
+            "format": "uuid",
+            "title": "Step Id",
+            "type": "string"
+          },
+          "why": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "step_id",
+          "correctness",
+          "why",
+          "next_action"
+        ],
+        "title": "Override",
         "type": "object"
       },
       "OverrideIn": {
@@ -1289,6 +2340,53 @@
         "title": "PlanIn",
         "type": "object"
       },
+      "Point": {
+        "additionalProperties": false,
+        "properties": {
+          "contact": {
+            "default": false,
+            "title": "Contact",
+            "type": "boolean"
+          },
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "POINT",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "x": {
+            "maximum": 2000.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 2000.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "x",
+          "y",
+          "label"
+        ],
+        "title": "Point",
+        "type": "object"
+      },
       "ProblemSearchRequest": {
         "properties": {
           "filters": {
@@ -1496,6 +2594,147 @@
         "title": "RecoveryItemResponse",
         "type": "object"
       },
+      "Region": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "default": 1,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "end_ms": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 120000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Ms"
+          },
+          "height_norm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Norm"
+          },
+          "media_asset_id": {
+            "format": "uuid",
+            "title": "Media Asset Id",
+            "type": "string"
+          },
+          "page_number": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Number"
+          },
+          "reading_order": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Reading Order",
+            "type": "integer"
+          },
+          "region_id": {
+            "format": "uuid",
+            "title": "Region Id",
+            "type": "string"
+          },
+          "region_type": {
+            "default": "MATH_LINE",
+            "enum": [
+              "MATH_LINE",
+              "PROSE_LINE",
+              "DIAGRAM_LABEL",
+              "DIAGRAM_MARK",
+              "SCRATCH",
+              "CANCELLED",
+              "TABLE",
+              "ARROW_OR_CALLOUT",
+              "SPEECH",
+              "KEYFRAME"
+            ],
+            "title": "Region Type",
+            "type": "string"
+          },
+          "start_ms": {
+            "anyOf": [
+              {
+                "maximum": 120000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Ms"
+          },
+          "width_norm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width Norm"
+          },
+          "x_norm": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X Norm"
+          },
+          "y_norm": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Norm"
+          }
+        },
+        "required": [
+          "media_asset_id"
+        ],
+        "title": "Region",
+        "type": "object"
+      },
       "RegisterRequest": {
         "properties": {
           "email": {
@@ -1663,6 +2902,156 @@
         "title": "ReviewRequest",
         "type": "object"
       },
+      "SearchBody": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "SVG_DIAGRAM",
+                  "LATEX_CARD",
+                  "FRAME_SEQUENCE",
+                  "MANIM_EXPORT_SPEC"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Type"
+          },
+          "concept_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concept Id"
+          },
+          "difficulty_band": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty Band"
+          },
+          "dimensions": {
+            "default": 1536,
+            "maximum": 8192.0,
+            "minimum": 1.0,
+            "title": "Dimensions",
+            "type": "integer"
+          },
+          "generate_embedding": {
+            "default": false,
+            "title": "Generate Embedding",
+            "type": "boolean"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "model": {
+            "default": "text-embedding-3-small",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "query": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Query",
+            "type": "string"
+          },
+          "query_embedding": {
+            "anyOf": [
+              {
+                "items": {
+                  "maximum": 1000000.0,
+                  "minimum": -1000000.0,
+                  "type": "number"
+                },
+                "maxItems": 8192,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Embedding"
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Id"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "enum": [
+                  "GEOMETRY",
+                  "ALGEBRA",
+                  "COMBINATORICS",
+                  "NUMBER_THEORY"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "theorem_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theorem Id"
+          }
+        },
+        "title": "SearchBody",
+        "type": "object"
+      },
       "SearchFilters": {
         "properties": {
           "competition": {
@@ -1721,6 +3110,47 @@
           }
         },
         "title": "SearchRetrieval",
+        "type": "object"
+      },
+      "Segment": {
+        "additionalProperties": false,
+        "properties": {
+          "auxiliary": {
+            "default": false,
+            "title": "Auxiliary",
+            "type": "boolean"
+          },
+          "end": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "End",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "SEGMENT",
+              "EDGE"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "start": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "start",
+          "end"
+        ],
+        "title": "Segment",
         "type": "object"
       },
       "SessionIn": {
@@ -1815,6 +3245,37 @@
         "title": "SpecBody",
         "type": "object"
       },
+      "Split": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "maxItems": 10,
+            "minItems": 2,
+            "title": "Parts",
+            "type": "array"
+          },
+          "step_id": {
+            "format": "uuid",
+            "title": "Step Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "step_id",
+          "parts"
+        ],
+        "title": "Split",
+        "type": "object"
+      },
       "StarterReviewRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1835,6 +3296,79 @@
           "note"
         ],
         "title": "StarterReviewRequest",
+        "type": "object"
+      },
+      "Step": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "default": 1,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "latex_text": {
+            "default": "",
+            "maxLength": 8000,
+            "title": "Latex Text",
+            "type": "string"
+          },
+          "ordinal": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "plain_text": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Plain Text",
+            "type": "string"
+          },
+          "step_id": {
+            "format": "uuid",
+            "title": "Step Id",
+            "type": "string"
+          },
+          "step_type": {
+            "default": "OBSERVATION",
+            "enum": [
+              "SETUP",
+              "OBSERVATION",
+              "CONSTRUCTION",
+              "THEOREM_SELECTION",
+              "THEOREM_APPLICATION",
+              "ANGLE_RELATION",
+              "LENGTH_RELATION",
+              "SIMILARITY_CLAIM",
+              "CONGRUENCE_CLAIM",
+              "RATIO",
+              "ALGEBRA",
+              "CASE",
+              "INTERMEDIATE_RESULT",
+              "CONCLUSION",
+              "QUESTION_OR_UNCERTAINTY"
+            ],
+            "title": "Step Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ordinal",
+          "evidence_ids"
+        ],
+        "title": "Step",
         "type": "object"
       },
       "StepEdit": {
@@ -1919,6 +3453,45 @@
         "title": "StepOutcomeRequest",
         "type": "object"
       },
+      "StepPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "latex_text": {
+            "anyOf": [
+              {
+                "maxLength": 8000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latex Text"
+          },
+          "plain_text": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plain Text"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "StepPatch",
+        "type": "object"
+      },
       "StepResponseRequest": {
         "properties": {
           "evaluate": {
@@ -1980,6 +3553,43 @@
           "spec"
         ],
         "title": "StoreBody",
+        "type": "object"
+      },
+      "SubmissionIn": {
+        "properties": {
+          "problem_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Problem Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "problem_ref"
+        ],
+        "title": "SubmissionIn",
+        "type": "object"
+      },
+      "Term": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "latex": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Latex",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "latex"
+        ],
+        "title": "Term",
         "type": "object"
       },
       "TimingIn": {
@@ -2117,6 +3727,45 @@
           "topics"
         ],
         "title": "TopicsIn",
+        "type": "object"
+      },
+      "Transcript": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "regions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Region"
+                },
+                "maxItems": 300,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regions"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "maxItems": 100,
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_version",
+          "steps"
+        ],
+        "title": "Transcript",
         "type": "object"
       },
       "TransitionIn": {
@@ -2291,6 +3940,21 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "Versioned": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "Versioned",
+        "type": "object"
+      },
       "VersionedIn": {
         "properties": {
           "client_command_id": {
@@ -2440,6 +4104,54 @@
           }
         },
         "title": "WidgetStateIn",
+        "type": "object"
+      },
+      "mathbank_rest__artifact_runtime__GenerateBody": {
+        "additionalProperties": false,
+        "properties": {
+          "publish": {
+            "default": false,
+            "title": "Publish",
+            "type": "boolean"
+          }
+        },
+        "title": "GenerateBody",
+        "type": "object"
+      },
+      "mathbank_rest__routers__fluid__GenerateBody": {
+        "properties": {
+          "context": {
+            "additionalProperties": true,
+            "title": "Context",
+            "type": "object"
+          },
+          "intent": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Intent",
+            "type": "string"
+          },
+          "source_type": {
+            "default": "LIVE_AGENT_CREATED",
+            "enum": [
+              "PRECOMPILED",
+              "CORPUS_DERIVED",
+              "LIVE_AGENT_CREATED",
+              "INSTRUCTOR_CREATED"
+            ],
+            "title": "Source Type",
+            "type": "string"
+          },
+          "store": {
+            "default": false,
+            "title": "Store",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "intent"
+        ],
+        "title": "GenerateBody",
         "type": "object"
       }
     },
@@ -6172,6 +7884,3176 @@
           }
         },
         "summary": "Get Weak Concepts"
+      }
+    },
+    "/v1/artifacts/bundles/{bundle_id}": {
+      "get": {
+        "operationId": "get_bundle_v1_artifacts_bundles__bundle_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Bundle V1 Artifacts Bundles  Bundle Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Bundle",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/bundles/{bundle_id}/assets": {
+      "get": {
+        "operationId": "assets_v1_artifacts_bundles__bundle_id__assets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Assets V1 Artifacts Bundles  Bundle Id  Assets Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assets",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/bundles/{bundle_id}/assets/{asset_id}/content": {
+      "get": {
+        "operationId": "asset_content_v1_artifacts_bundles__bundle_id__assets__asset_id__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Asset Content",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/bundles/{bundle_id}/frames": {
+      "get": {
+        "operationId": "frames_v1_artifacts_bundles__bundle_id__frames_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Frames V1 Artifacts Bundles  Bundle Id  Frames Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Frames",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/bundles/{bundle_id}/frames/{ordinal}/content": {
+      "get": {
+        "operationId": "frame_content_v1_artifacts_bundles__bundle_id__frames__ordinal__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ordinal",
+            "required": true,
+            "schema": {
+              "maximum": 127,
+              "minimum": 0,
+              "title": "Ordinal",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Frame Content",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/bundles/{bundle_id}/index": {
+      "post": {
+        "operationId": "index_v1_artifacts_bundles__bundle_id__index_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndexBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Index V1 Artifacts Bundles  Bundle Id  Index Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Index",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/bundles/{bundle_id}/publish": {
+      "post": {
+        "operationId": "publish_v1_artifacts_bundles__bundle_id__publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Publish V1 Artifacts Bundles  Bundle Id  Publish Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/bundles/{bundle_id}/similar": {
+      "post": {
+        "operationId": "similar_v1_artifacts_bundles__bundle_id__similar_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Similar V1 Artifacts Bundles  Bundle Id  Similar Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Similar",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/bundles/{bundle_id}/validate": {
+      "post": {
+        "operationId": "validate_bundle_v1_artifacts_bundles__bundle_id__validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Validate Bundle V1 Artifacts Bundles  Bundle Id  Validate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Bundle",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/embedding-profile": {
+      "get": {
+        "operationId": "embedding_profile_v1_artifacts_embedding_profile_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Embedding Profile V1 Artifacts Embedding Profile Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Embedding Profile",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/geometry-preview": {
+      "post": {
+        "description": "Private, ephemeral drawing; never publishes, stores, or calls a paid provider.",
+        "operationId": "geometry_preview_v1_artifacts_geometry_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeometryPreview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Geometry Preview V1 Artifacts Geometry Preview Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Geometry Preview",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/geometry-preview/content": {
+      "post": {
+        "operationId": "geometry_preview_content_v1_artifacts_geometry_preview_content_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeometryPreview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Geometry Preview Content",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/preview": {
+      "post": {
+        "operationId": "preview_v1_artifacts_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactPlan"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview V1 Artifacts Preview Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/preview/content": {
+      "post": {
+        "operationId": "preview_content_v1_artifacts_preview_content_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactPlan"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Content",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/requests": {
+      "post": {
+        "operationId": "request_artifact_v1_artifacts_requests_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactPlan"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Request Artifact V1 Artifacts Requests Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Artifact",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/requests/{request_id}": {
+      "get": {
+        "operationId": "get_request_v1_artifacts_requests__request_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Request V1 Artifacts Requests  Request Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Request",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/requests/{request_id}/generate": {
+      "post": {
+        "operationId": "generate_v1_artifacts_requests__request_id__generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/mathbank_rest__artifact_runtime__GenerateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Generate V1 Artifacts Requests  Request Id  Generate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/search": {
+      "post": {
+        "operationId": "search_v1_artifacts_search_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Search V1 Artifacts Search Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/search/semantic": {
+      "post": {
+        "operationId": "semantic_search_v1_artifacts_search_semantic_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Semantic Search V1 Artifacts Search Semantic Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Semantic Search",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/artifacts/validate": {
+      "post": {
+        "operationId": "validate_v1_artifacts_validate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactPlan"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Validate V1 Artifacts Validate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/v1/attempt-media/attempts/{aid}/steps": {
+      "get": {
+        "operationId": "approved_steps_v1_attempt_media_attempts__aid__steps_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "aid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Aid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approved Steps",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/attempts/{aid}/steps/{step_id}/assessment": {
+      "get": {
+        "operationId": "approved_assessment_v1_attempt_media_attempts__aid__steps__step_id__assessment_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "aid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Aid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "step_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Step Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approved Assessment",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/attempts/{aid}/steps/{step_id}/visual": {
+      "get": {
+        "operationId": "approved_assessment_v1_attempt_media_attempts__aid__steps__step_id__visual_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "aid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Aid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "step_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Step Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approved Assessment",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions": {
+      "get": {
+        "operationId": "listing_v1_attempt_media_submissions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listing",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      },
+      "post": {
+        "operationId": "create_v1_attempt_media_submissions_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}": {
+      "get": {
+        "operationId": "get_v1_attempt_media_submissions__sid__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/analyse": {
+      "post": {
+        "description": "Explicit paid alignment then critique; uncertainty does not change mastery.",
+        "operationId": "analyse_v1_attempt_media_submissions__sid__analyse_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Versioned"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyse",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/approve": {
+      "post": {
+        "operationId": "approve_v1_attempt_media_submissions__sid__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Versioned"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/assets": {
+      "post": {
+        "operationId": "upload_v1_attempt_media_submissions__sid__assets_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_version",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filename",
+            "required": false,
+            "schema": {
+              "default": "upload",
+              "maxLength": 200,
+              "title": "Filename",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/assets/{aid}": {
+      "delete": {
+        "operationId": "purge_v1_attempt_media_submissions__sid__assets__aid__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "aid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Aid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Purge",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/assets/{aid}/content": {
+      "get": {
+        "operationId": "content_v1_attempt_media_submissions__sid__assets__aid__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "aid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Aid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Content",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/assets/{aid}/pages/{page}": {
+      "get": {
+        "operationId": "pdf_page_v1_attempt_media_submissions__sid__assets__aid__pages__page__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "aid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Aid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "page",
+            "required": true,
+            "schema": {
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pdf Page",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/events": {
+      "get": {
+        "operationId": "events_v1_attempt_media_submissions__sid__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after_sequence",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "After Sequence",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Events",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/override": {
+      "post": {
+        "operationId": "override_v1_attempt_media_submissions__sid__override_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Override"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Override",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/process": {
+      "post": {
+        "description": "Explicit paid transcription request. Errors preserve uploads for manual review.",
+        "operationId": "process_v1_attempt_media_submissions__sid__process_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Versioned"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Process",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/transcription": {
+      "get": {
+        "operationId": "transcription_v1_attempt_media_submissions__sid__transcription_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transcription",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      },
+      "put": {
+        "operationId": "replace_v1_attempt_media_submissions__sid__transcription_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Transcript"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/transcription/merge": {
+      "post": {
+        "operationId": "merge_v1_attempt_media_submissions__sid__transcription_merge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Merge"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Merge",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/transcription/split": {
+      "post": {
+        "operationId": "split_v1_attempt_media_submissions__sid__transcription_split_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Split"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Split",
+        "tags": [
+          "multimodal-attempts"
+        ]
+      }
+    },
+    "/v1/attempt-media/submissions/{sid}/transcription/steps/{step_id}": {
+      "patch": {
+        "operationId": "patch_v1_attempt_media_submissions__sid__transcription_steps__step_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "step_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Step Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch",
+        "tags": [
+          "multimodal-attempts"
+        ]
       }
     },
     "/v1/attempts/{attempt_id}": {
@@ -11251,6 +16133,92 @@
         ]
       }
     },
+    "/v1/problems/by-code/{code}/source": {
+      "get": {
+        "operationId": "get_problem_source_v1_problems_by_code__code__source_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Problem Source V1 Problems By Code  Code  Source Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Problem Source",
+        "tags": [
+          "step-runtime"
+        ]
+      }
+    },
+    "/v1/problems/by-code/{code}/source-pdf": {
+      "get": {
+        "operationId": "get_problem_source_pdf_v1_problems_by_code__code__source_pdf_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Problem Source Pdf",
+        "tags": [
+          "step-runtime"
+        ]
+      }
+    },
     "/v1/realtime/sessions/{sid}": {
       "get": {
         "description": "Connection hints for the Socket.IO gateway (``mathbank-live``).",
@@ -12745,7 +17713,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GenerateBody"
+                "$ref": "#/components/schemas/mathbank_rest__routers__fluid__GenerateBody"
               }
             }
           },

@@ -8,6 +8,8 @@ import { parseWidgetBlock, widgetSourceFromPre } from "../../lib/widgetBlocks.mj
 import { mentionedProblemCodes } from "../../lib/problemDiagrams.mjs";
 import ProblemDiagrams, { SourceImage } from "./ProblemDiagrams.jsx";
 import ProblemSource from "./ProblemSource.jsx";
+import { geometryArtifactSource } from "../../lib/tutorProblem.mjs";
+import GeometryArtifact from "./GeometryArtifact.jsx";
 
 const renderInline = (t) => <MathText>{t}</MathText>;
 
@@ -19,6 +21,10 @@ const components = {
     return <SourceImage key={src} {...props} src={src} className="mb-source-image" />;
   },
   pre({ node, children, ...props }) {
+    const geometry = geometryArtifactSource(node);
+    if (geometry?.plan) return <GeometryArtifact plan={geometry.plan} renderMath={renderInline} />;
+    if (geometry?.error) return <div role="alert" className="text-danger">{geometry.error}</div>;
+    if (geometry?.pending) return <div role="status" className="text-secondary small">Preparing a geometry diagram…</div>;
     const source = widgetSourceFromPre(node);
     if (source == null) return <pre {...props}>{children}</pre>;
     const parsed = parseWidgetBlock(source);

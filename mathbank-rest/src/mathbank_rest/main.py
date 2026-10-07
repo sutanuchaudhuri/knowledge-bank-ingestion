@@ -12,6 +12,8 @@ from mathbank_rest.routers.agent_sessions import router as agent_sessions_router
 from mathbank_rest.routers.fluid import router as fluid_router
 from mathbank_rest.routers.learner import router as learner_router
 from mathbank_rest.routers.live import router as live_router
+from mathbank_rest.routers.attempt_media import router as attempt_media_router
+from mathbank_rest.routers.artifacts import router as artifacts_router
 from mathbank_rest.routers.pedagogy import router as pedagogy_router
 from mathbank_rest.routers.pedagogy_admin import router as pedagogy_admin_router
 from mathbank_rest.routers.step_runtime import router as step_runtime_router
@@ -31,6 +33,8 @@ app.include_router(admin_textbooks_router)
 app.include_router(admin_imports_router)
 app.include_router(fluid_router)
 app.include_router(live_router)
+app.include_router(attempt_media_router)
+app.include_router(artifacts_router)
 
 
 @app.get("/health")

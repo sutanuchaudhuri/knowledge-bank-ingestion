@@ -6,6 +6,7 @@ export const NAV_GROUPS = [
     items: [
       { href: "/", label: "Tutor", icon: "chat-dots" },
       { href: "/learn", label: "Guided practice", icon: "signpost-split" },
+      { href: "/learn/attempt-media", label: "My submitted work", icon: "file-earmark-richtext" },
       { href: "/learn/conversations", label: "My conversations", icon: "chat-left-text" },
       { href: "/profile", label: "My progress", icon: "graph-up-arrow" },
     ],
@@ -15,6 +16,7 @@ export const NAV_GROUPS = [
     items: [
       { href: "/db", label: "Corpus", icon: "database" },
       { href: "/db/search", label: "Find similar", icon: "stars" },
+      { href: "/artifacts", label: "Artifact library", icon: "collection" },
       { href: "/graph", label: "Knowledge graph", icon: "bezier2" },
     ],
   },
@@ -22,6 +24,7 @@ export const NAV_GROUPS = [
     label: "Admin",
     items: [
       { href: "/admin", label: "Dashboard", icon: "speedometer2" },
+      { href: "/admin/attempt-media", label: "Attempt media review", icon: "clipboard-check" },
       { href: "/admin/textbooks", label: "Textbooks", icon: "book" },
       { href: "/admin/pedagogy", label: "Pedagogy review", icon: "patch-check" },
       { href: "/admin/knowledge-gaps", label: "Knowledge gaps", icon: "exclamation-diamond" },
@@ -49,6 +52,7 @@ const SEGMENT_LABELS = {
   graph: "Knowledge graph", learn: "Practice", solve: "Solve", conversations: "Conversations",
   profile: "My progress", admin: "Admin", textbooks: "Textbooks", pedagogy: "Pedagogy review",
   "knowledge-gaps": "Knowledge gaps", imports: "Imports", widgets: "Widgets", login: "Sign in",
+  "attempt-media": "My submitted work", artifacts: "Artifact library",
 };
 
 const titleCase = (s) => s.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -66,6 +70,7 @@ export function breadcrumbs(pathname = "/", relationshipTitles = {}) {
     const decoded = decodeURIComponent(part);
     const previous = parts[index - 1];
     let label = SEGMENT_LABELS[decoded];
+    if (decoded === "attempt-media" && previous === "admin") label = "Attempt media review";
     if (previous === "graph" && relationshipTitles[decoded]) label = relationshipTitles[decoded];
     if (!label) label = /^[A-Z0-9_.-]+$/.test(decoded) ? decoded : titleCase(decoded);
     // "/learn/solve" has no page of its own; link it back to guided practice.

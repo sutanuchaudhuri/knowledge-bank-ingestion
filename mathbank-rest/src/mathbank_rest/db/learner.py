@@ -163,6 +163,7 @@ def get_attempts_for_concept(student_id: UUID, concept_id: UUID) -> list[dict]:
                 "JOIN knowledge.problem_concept pc ON pc.problem_id = a.problem_id "
                 "JOIN core.problem p ON p.problem_id = a.problem_id "
                 "WHERE a.student_id = :student_id AND pc.concept_id = :concept_id "
+                "AND a.is_correct IS NOT NULL "
                 "ORDER BY a.attempted_at"
             ),
             {"student_id": str(student_id), "concept_id": str(concept_id)},
@@ -179,6 +180,7 @@ def get_attempts_for_technique(student_id: UUID, technique_id: UUID) -> list[dic
                 "JOIN knowledge.problem_technique pt ON pt.problem_id = a.problem_id "
                 "JOIN core.problem p ON p.problem_id = a.problem_id "
                 "WHERE a.student_id = :student_id AND pt.technique_id = :technique_id "
+                "AND a.is_correct IS NOT NULL "
                 "ORDER BY a.attempted_at"
             ),
             {"student_id": str(student_id), "technique_id": str(technique_id)},

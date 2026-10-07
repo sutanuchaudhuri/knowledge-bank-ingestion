@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, Callout, EmptyState, IconButton, PageHeader, Pager, Pill, SectionTitle, StatCard } from "../_components/ui.jsx";
+import { assessedAccuracy, attemptResult } from "../../lib/attemptHistory.mjs";
 
 const TIER = {
   critical: { tone: "danger", icon: "exclamation-octagon" },
@@ -36,7 +37,7 @@ function AttemptsTable({ attempts }) {
             <tr key={a.attempt_id}>
               <td><code>{a.canonical_code}</code></td>
               <td>{a.competition} {a.year}</td>
-              <td>{a.is_correct ? <Pill tone="success" icon="check-lg">Correct</Pill> : <Pill tone="danger" icon="x-lg">Not yet</Pill>}</td>
+              <td><Pill tone={attemptResult(a.is_correct).tone} icon={attemptResult(a.is_correct).icon}>{attemptResult(a.is_correct).label}</Pill></td>
               <td className="text-end mb-num">{a.hint_count}</td>
               <td className="text-end mb-num">{a.time_spent_seconds ? `${a.time_spent_seconds}s` : "—"}</td>
               <td className="text-secondary small">{new Date(a.attempted_at).toLocaleString()}</td>
@@ -148,8 +149,8 @@ export default function ProfilePage() {
   }
 
   const name = `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || profile.email;
-  const correct = attempts.filter((a) => a.is_correct).length;
-  const accuracy = attempts.length ? Math.round((correct / attempts.length) * 100) : null;
+  const accuracy = assessedAccuracy(attempts);
+  const awaiting = attempts.filter((a) => a.is_correct == null).length;
   const avgHints = attempts.length ? (attempts.reduce((n, a) => n + (a.hint_count || 0), 0) / attempts.length).toFixed(1) : "—";
   const skills = [...mastery.concepts, ...mastery.techniques];
   const solid = skills.filter((r) => tierFor(Number(r.mastery_score)) === "solid").length;
@@ -162,6 +163,7 @@ export default function ProfilePage() {
           <PageHeader title={name} subtitle={profile.email}
             pills={<>
               <Pill tone="neutral" icon="person-badge" title={`Student ID ${profile.student_id}`}>{String(profile.student_id).slice(0, 8)}</Pill>
+              {awaiting > 0 && <Pill tone="warning" icon="hourglass-split">{awaiting} awaiting assessment</Pill>}
               {profile.last_login_at && <Pill tone="neutral" icon="clock-history">{new Date(profile.last_login_at).toLocaleDateString()}</Pill>}
             </>}
             actions={<IconButton icon="box-arrow-right" label="Log out" variant="outline-secondary" onClick={logout} />} />
@@ -170,7 +172,7 @@ export default function ProfilePage() {
 
       <div className="row g-3 mb-4">
         <div className="col-6 col-xl-3"><StatCard icon="pencil-square" label="Attempts" value={attempts.length} hint="last 50" /></div>
-        <div className="col-6 col-xl-3"><StatCard icon="bullseye" tone="success" label="Accuracy" value={accuracy === null ? "—" : `${accuracy}%`} progress={accuracy} /></div>
+        <div className="col-6 col-xl-3"><StatCard icon="bullseye" tone="success" label="Accuracy" value={accuracy === null ? "—" : `${accuracy}%`} hint="Assessed attempts only" progress={accuracy} /></div>
         <div className="col-6 col-xl-3"><StatCard icon="lightbulb" tone="warning" label="Hints per attempt" value={avgHints} /></div>
         <div className="col-6 col-xl-3"><StatCard icon="award" tone="info" label="Solid skills" value={`${solid}/${skills.length}`} progress={skills.length ? (solid / skills.length) * 100 : null} /></div>
       </div>

@@ -499,7 +499,8 @@ export default function SolveWorkspace({ code }) {
           <Pill tone="neutral" icon="list-check">{progress.completed_steps}/{progress.total_steps} steps</Pill>
           {detouring && <Pill tone="warning" icon="arrow-return-right">Detour</Pill>}
         </>}
-        actions={<IconButton icon="compass" label="Guided view" variant="outline-secondary" href={`/learn?problem=${enc(code)}`} />} />
+        actions={<><IconButton icon="file-earmark-richtext" label="Upload my written attempt" href={`/learn/attempt-media?problem_ref=${enc(code)}`} />
+          <IconButton icon="compass" label="Guided view" variant="outline-secondary" href={`/learn?problem=${enc(code)}`} /></>} />
       <div className="mb-bar-track mb-3" role="progressbar" aria-label="Solution progress" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
         <div className="mb-bar-fill" style={{ width: `${pct}%` }} />
       </div>

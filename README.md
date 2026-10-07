@@ -340,7 +340,7 @@ make sync-eleven-key       # copy ELEVEN_API_KEY into mathbank-web/.env and math
 make check-eleven          # authenticate (lists voices) — no paid synthesis
 make check-eleven TTS=1    # tiny paid text-to-speech check
 make sync-live-env         # write mathbank-live/.env (REST URL, admin key/login, session secret, Eleven key, LIVE_PORT)
-make sync-keys             # = sync-openai-key + sync-eleven-key + sync-live-env
+make sync-keys             # OpenAI + ElevenLabs + live + Neon private-storage configuration
 ```
 
 The Eleven key stays server-side: the browser only calls the same-origin
@@ -349,6 +349,75 @@ buttons show a brief "!" (voice unavailable) and typing keeps working; there is
 no browser speech fallback. `make sync-env`
 also runs the Eleven and live syncs, so it no longer drops `ELEVEN_API_KEY`.
 Restart web/live after changing the key.
+
+#### Multimodal attempts and instructional artifacts
+
+Student work is reviewed at `/learn/attempt-media`; instructor overrides are at
+`/admin/attempt-media`, and reusable instructional SVG/LaTeX bundles are at
+`/artifacts`. Uploads stay private. Machine transcription must be explicitly
+approved by the student before entering learner history; pending work is not
+scored as incorrect.
+
+The tutor includes ten real Google ADK specialists using **Agent-as-Tool**
+communication: Subject Planning, Geometry, Algebra, Combinatorics, Number Theory,
+LaTeX, SVG, Overlay/Frame, Annotation and Validation. The tutor delegates to a
+planner or subject agent; subjects can delegate to refinement/validation agents.
+Requested illustrations render as private, validated previews directly in chat.
+This uses the existing OpenAI model and requires ADK 2.11 or newer, not a remote
+A2A server. See [agent topology and limits](mathbank-agent/README.md#artifact-specialist-agents).
+
+Set these **server-only** settings in the root `.env`:
+
+```dotenv
+AWS_ENDPOINT_URL_S3=https://<branch-storage-endpoint>
+AWS_REGION=<storage-region>
+AWS_ACCESS_KEY_ID=<storage-access-key>
+AWS_SECRET_ACCESS_KEY=<storage-secret>
+MATHBANK_OBJECT_BUCKET=mathbank-runtime
+NEON_AI_GATEWAY_BASE_URL=https://<gateway-endpoint>
+NEON_AI_GATEWAY_TOKEN=<gateway-token>
+MATHBANK_RUNTIME_AI_PROVIDER=openai
+```
+
+The S3 endpoint is not a Neon Auth URL. The bucket must be private; media bytes
+are served through authenticated, owner-scoped REST/Next.js endpoints rather
+than public storage URLs. Agent tools use REST and do not receive S3 master keys.
+
+```sh
+make sync-openai-key        # existing root-file-only OpenAI credential setup
+make sync-neon-env          # private S3/Gateway settings; mode 0600; values hidden
+make migrate-multimodal-remote  # additive migrations 021 + 022 on configured remote Postgres
+make up                    # starts the existing separately deployable services
+```
+
+Check the configured remote target before running migrations. Python REST
+dependencies include `boto3`; audio/video normalization additionally requires
+`ffmpeg` and `ffprobe`. Install service dependencies through the existing setup
+targets after pulling these manifest changes.
+
+New agentic stages use the same OpenAI credential loader and
+`OPENAI_API_BASE` / `OPENAI_BASE_URL` settings as `mathbank-agent`, not a silent
+Gateway fallback. The model follows `MATHBANK_AGENT_MODEL` (default
+`openai/gpt-4o-mini`); `MATHBANK_RUNTIME_AI_MODEL` can explicitly override it.
+Timestamped speech uses `whisper-1`; artifact embeddings explicitly use
+`text-embedding-3-small`, 1536 dimensions, unless a different verified embedding
+profile is configured. Switching `MATHBANK_RUNTIME_AI_PROVIDER=neon` is an
+explicit opt-in; Gateway artifact embeddings additionally require a verified
+model/dimension configuration.
+
+Processing, analysis, and embedding are explicit actions, never triggered by
+opening a page. Authentication/model-list success does not establish paid
+inference access. Initial provider smoke checks were blocked by Gateway
+billing permissions and direct OpenAI `insufficient_quota`. After the user
+increased the balance, some synthetic vision/segmentation requests succeeded,
+but a subsequent `credit_balance_exhausted` response stopped further checks.
+Full live AI quality and specialist tool selection remain unverified; manual
+transcription, review, approval and deterministic artifacts remain available.
+Restart the intended service after configuration
+changes; do not interrupt ingestion/enrichment workers.
+
+See [implementation and acceptance progress](requirements/32_MULTIMODAL_ATTEMPTS_AND_ARTIFACTS.md)
+and [architecture references](requirements/reference/README.md).
 
 Terminology and exact score semantics are in the
 [domain and technical glossary](requirements/17_DOMAIN_AND_TECHNICAL_GLOSSARY.md).

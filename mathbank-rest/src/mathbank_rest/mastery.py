@@ -8,7 +8,8 @@ read/upsert round-trip and are what the learner router calls after each
 attempt is recorded.
 
 Simplifications vs the full design doc (tracked as follow-ups there):
-- `is_correct` is boolean in this schema (no PARTIAL credit yet).
+- `is_correct` is boolean for evaluated answers; NULL means unassessed multimodal work
+  and is excluded from mastery (no PARTIAL credit yet).
 - `problem_concept`/`problem_technique` role/confidence weighting is not
   wired in yet (every linked concept/technique is treated as PRIMARY).
 """
@@ -83,6 +84,7 @@ def difficulty_weight(difficulty_band: str | None) -> float:
 def compute_mastery_score(attempts: list[dict], *, now: datetime | None = None) -> float:
     """attempts: rows with is_correct / attempted_at / difficulty_band / optional
     hint_count (see db/learner.py) — hint_count defaults to 0 if a row omits it."""
+    attempts = [a for a in attempts if a["is_correct"] is not None]
     if not attempts:
         return 0.0
     numerator = 0.0

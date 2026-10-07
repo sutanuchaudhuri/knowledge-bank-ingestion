@@ -1,24 +1,37 @@
 # MathBank implementation reference
 
-This folder is the canonical source-derived architecture reference for the checked-in MathBank implementation.
-It was refreshed from repository sources only; no migrations, ingestion, graph publication, service start, live schema probes, or paid model/API calls were run.
+This folder is the canonical architecture reference for the checked-in MathBank implementation. Schema, DML, graph and API descriptions are source-derived; separately dated operator-reported deployment observations are labelled as such and are not independent schema or acceptance verification. This documentation refresh did not execute migrations, ingestion, graph publication, service starts, live schema probes, or paid model/API calls.
 
 ## Evidence and revision
 
-- Evidence mode: **source-derived only**.
-- Source revision: `43c3316d5b6f8a838874de4aa384cb28ef00aa1a` (refreshed 2026-10-06 for migration 020 and the fluid/live/widget surfaces).
+- Evidence mode: **source-derived** for implementation/schema descriptions, plus separately labelled operator-reported deployment observations (not independently verified).
+- Source revision: `3e915d015aa34268996724a3014c850f5892596e` (refreshed 2026-10-06 for migrations 021/022 and multimodal attempt/artifact runtime surfaces).
+- Worktree state included: yes. This refresh includes all inspected uncommitted changes at this revision, including `mathbank-db/sql/021_attempt_media.sql` and `022_artifact_runtime.sql`, their REST/runtime modules and routers, the `mathbank-live` private attempt-event relay, and the `mathbank-web` attempt/artifact proxies and pages. The same evidence also includes the uncommitted AMC/AIME source-text repair and preceding implementation additions through migration 020.
 - Worktree state included: yes. The 2026-10-06 refresh added the uncommitted files `mathbank-db/sql/020_live_fluid_platform.sql`, `mathbank-rest/src/mathbank_rest/{widgets,math_format,authoring,live_runtime}.py`, `routers/fluid.py`, `routers/live.py`, `mathbank-agent/agents/mathbank_tutor/tools/widget_tools.py`, `mathbank-widgets/src/*`, `mathbank-live/` (custom server, `lib/*`, `app/api/*`), `mathbank-web/app/api/{voice,format-math}`, `mathbank-web/app/admin/(protected)/widgets`. Earlier refreshes covered `mathbank-db/sql/010_textbook_import.sql`, `011_step_vector_metadata.sql`, `012_step_runtime.sql`, `013_step_hints.sql`, `014_gap_diagnosis.sql`, `015_recovery_runtime.sql`, `016_agent_session_link.sql`, `017_step_techniques.sql`, `018_outbox_consumers.sql`, `019_admin_import_review.sql`, `mathbank-db/etl/derive_step_techniques.py`, `run_projection_requests.py`, `mathbank-rest/src/mathbank_rest/outbox_worker.py`, `db/import_admin.py`, `routers/admin_imports.py`, `mathbank-agent/agents/mathbank_tutor/tools/step_runtime_tools.py`, `mathbank-web/app/api/rest/admin/imports/[[...path]]/route.js`, `lib/adminImportsProxy.mjs`, `app/admin/(protected)/imports`, `mathbank-db/etl/import_textbook_package.py`, `embed_textbook_steps.py`, `mathbank-graph/etl/project_textbook_steps.py`, `mathbank-rest/src/mathbank_rest/db/step_search.py`, `mathbank-rest/src/mathbank_rest/step_runtime.py`, `mathbank-rest/src/mathbank_rest/step_tutor.py`, `mathbank-rest/src/mathbank_rest/step_diagnosis.py`, `mathbank-rest/src/mathbank_rest/routers/step_runtime.py`, `agent_transcripts.py`, `routers/agent_sessions.py`, `mathbank-web/app/api/rest/solve/[...path]/route.js`, `mathbank-web/lib/solveProxy.mjs`, `mathbank-web/app/learn/solve/[code]`, and edits to `mathbank-rest/src/mathbank_rest/main.py`, graph, database and requirements files.
-- OpenAPI snapshot: generated in-process from `mathbank_rest.main:app.openapi()` with `mathbank-rest/.venv/bin/python`; no server was started. Module-level import side effects were checked first: imports instantiate settings, SQLAlchemy and Neo4j client objects, but do not call endpoint handlers or connect until used. The 2026-10-06 snapshot (137 paths, 63 schemas; adds 47 fluid/live/widget/authoring paths to the previous 90) was scanned for obvious credential/connection-string patterns before writing.
+- OpenAPI snapshot: generated in-process from `mathbank_rest.main:app.openapi()` with `mathbank-rest/.venv/bin/python`; no server was started. Module imports instantiate settings, a SQLAlchemy engine and a Neo4j driver but do not call endpoint handlers or connect to either database. The 2026-10-06 snapshot is OpenAPI `3.1.0`, 174 paths and 89 component schemas; credential-like patterns were screened before writing. Final frozen-worktree verification regenerated the document in memory and matched the committed snapshot byte-for-byte; source counts are 18 attempt-media, 16 artifacts and 140 other paths.
+- Incremental geometry/chat contract refresh (2026-10-07 UTC): inspected `routers/artifacts.py`, `artifact_runtime.py`, tutor `artifact_tools.py`/registry, web private proxy, `TutorAnswer`, `GeometryArtifact` and parser/tests. Source OpenAPI now has 176 paths / 90 schemas (18 attempt-media, 18 artifacts, 140 other). Two authenticated ephemeral preview routes reuse the geometry validator/renderer with exact triangle-incircle construction and no storage/publication/provider calls. `draw_geometry_diagram` is an immediate tutor capability; the previous staff-only artifact publication boundary remains unchanged. The prior full-system observation below remains historical.
+- Subsequent incremental subject-specialist refresh: all ten artifact agents are actual ADK agents using AgentTool delegation (`artifact_agents.py` plus tutor registry/tools). Two generic private subject preview routes extend the same deterministic renderer. Current source OpenAPI: 178 paths / 90 schemas (18 attempt-media, 20 artifacts, 140 other). Tested network is acyclic, owner-authorized through invocation-only state, and does not expose remote A2A HTTP endpoints. No database/graph schema change accompanies this topology.
 - No live database/Neo4j/API parity is claimed.
+- Separate post-deployment observation: running REST also reports 178 paths / 90 schemas, with both generic preview routes; anonymous generic preview POST returns 401. Tutor app discovery and real module import confirm the app and all ten specialists. This does not verify live model quality or database schema parity.
+
+## Reported deployment observations
+
+The deployment operator reported the following on 2026-10-06 (UTC); this documentation refresh did not independently probe the target:
+
+- Migrations 021 and 022 were applied successfully to the explicitly selected Neon production target. This is operator-reported application status, not an independent schema-catalog comparison.
+- Rollback-only synthetic workflow tests passed for approval idempotence; pending NULL correctness not treated as wrong; version changes invalidating prior assessment; instructor override preserving AI assessment and stopping retry; ownership-mismatch 404; low-confidence transcription remaining uncertain; and media purge preserving an approved attempt. The reported tests used synthetic data and rolled back.
+- The private S3 bucket `mathbank-runtime` was created. After an earlier smoke failure (`ObjectStoreError`), the deployment operator reports successful interface-level put/read/delete checks, unauthorized GET returning 403, and synthetic cleanup. Bucket resolution accepts `AWS_BUCKET_NAME` only when `MATHBANK_OBJECT_BUCKET` is absent; conflicting values fail with a sanitized error, and both absent defaults to `mathbank-runtime`. A separate artifact rollback test used a mocked object store, not live S3. No new production storage calls were made by the latest integration runs; the checks are scoped and do not establish complete storage acceptance.
+- Final provider direction is to use official direct OpenAI endpoints and the shared project credential loader used by `mathbank-agent` for new agentic runtime stages; `MATHBANK_RUNTIME_AI_PROVIDER` defaults to `openai`, and Gateway inference is avoided unless explicitly selected. Gateway vision failed with HTTP 403 over a billing-credit blocker; direct OpenAI runtime failed with HTTP 429 `insufficient_quota`. No successful model response/token use or inference is reported; the user chose available tests rather than adding credits. Runtime follows service `MATHBANK_AGENT_MODEL` (default `openai/gpt-4o-mini`); a root model value applies to a service only when synchronized. An explicit `MATHBANK_RUNTIME_AI_MODEL` override is supported and takes precedence over the agent model setting. Current source also reads runtime-specific root/service settings, so the deployed effective override value is not independently verified by this docs refresh. Runtime uses the shared project OpenAI credential loader and honors `OPENAI_API_BASE` / `OPENAI_BASE_URL`; Gateway configuration/credentials remain unchanged. Timestamped speech and artifact-agent embeddings use direct OpenAI (`whisper-1` and `text-embedding-3-small`, 1,536 dimensions by default); configuration does not prove inference success.
+- Parent reports that the final REST and agent processes were responsive after restart and exposed 34 new REST paths (18 attempt-media, 16 artifacts), matching the checked-in OpenAPI source snapshot; three anonymous private REST/proxy GETs returned 401. These are operator-reported live observations, not probes performed by this documentation refresh. Five new agent tools are registered and offline-tested: two attempt-media context readers and three artifact search/read/request tools. They do not approve student work, generate/publish artifacts, or call models. Final selected checks reported by the parent: 184 focused REST offline passes (including voiced/silent-video normalization), six media and one artifact rollback-only Neon tests passed, 15 agent-tool tests passed, 25 UI unit tests and 17 mocked E2E cases passed, and the web production build passed. The artifact test used mocked object storage and no AI/provider call or real object bytes. A sanitized constructed client confirmed provider `openai`, the official `api.openai.com` endpoint, and model `gpt-4o-mini`; this configuration observation does not imply inference success. Earlier test selections are omitted from this final result summary. These scoped checks do not mean either implementation pack is complete.
 
 ## Files
 
 | File | Purpose |
 |---|---|
 | [GRAPH_SCHEMA.md](GRAPH_SCHEMA.md) | Neo4j labels, node properties, relationship endpoint pairs, projection/reconciliation rules, constraints, and UI exposure. |
-| [POSTGRES_SCHEMA.md](POSTGRES_SCHEMA.md) | Composite PostgreSQL DDL after migrations `001` through `020`, including schemas, tables, columns, constraints, indexes, triggers/functions, and framework-owned agent sessions. |
-| [POSTGRES_DML.md](POSTGRES_DML.md) | Implemented read/write paths, upsert keys, idempotency, approval/audit effects, deletion/cascade behavior, and cross-store publication boundaries. |
-| [REST_API.md](REST_API.md) | FastAPI endpoint inventory, auth, request/response model references, OpenAPI generation, exposed step runtime, Phase 9 diagnoses, Phase 10 recovery routes, admin gap/recovery views, step-practice search, web proxy routes, and ADK agent surface, fluid/live/authoring/widget routes (doc 27/28), and the `mathbank-live` Next.js + Socket.IO surface. |
+| [POSTGRES_SCHEMA.md](POSTGRES_SCHEMA.md) | Composite PostgreSQL DDL after migrations `001` through `022`, including schemas, tables, columns, constraints, indexes, triggers/functions, and framework-owned agent sessions. |
+| [POSTGRES_DML.md](POSTGRES_DML.md) | Implemented read/write paths, upsert keys, idempotency, approval/audit effects, deletion/cascade behavior, and cross-store publication boundaries, including private attempts and reusable artifacts. |
+| [REST_API.md](REST_API.md) | FastAPI route inventory, auth, OpenAPI generation, web proxy/agent surfaces, and separate `mathbank-live` Socket.IO behavior, including attempt-media and artifact endpoints. |
 | [openapi.json](openapi.json) | Deterministic source-generated FastAPI OpenAPI snapshot. |
 
 ## Source files examined
@@ -26,10 +39,12 @@ It was refreshed from repository sources only; no migrations, ingestion, graph p
 Primary evidence came from:
 
 - PostgreSQL DDL: `mathbank-db/sql/001_schema.sql` through `020_live_fluid_platform.sql`, plus `mathbank-db/Makefile` migration targets and the operator DML script `mathbank-db/sql/ops/approve_learning_items_auto.sql`.
+- New PostgreSQL DDL: `mathbank-db/sql/021_attempt_media.sql`, `022_artifact_runtime.sql`; migration target definitions in `mathbank-db/Makefile`.
 - ETL/write paths: `mathbank-db/etl/load_corpus.py`, `pdf_pipeline.py`, `import_pedagogy.py`, `embed_corpus.py`, `import_textbook_package.py`, `embed_textbook_steps.py`, `derive_step_techniques.py`, `run_projection_requests.py`, `mathbank-rest/src/mathbank_rest/outbox_worker.py`, `db/import_admin.py`, plus batch/archive helpers by reference.
 - Graph projection: `mathbank-graph/etl/project_from_postgres.py`, `project_textbook_steps.py`, `mathbank-web/lib/graphConfig.js`, `mathbank-web/lib/graphMetadata.mjs`, REST graph/pedagogy readers.
 - REST: `mathbank-rest/src/mathbank_rest/main.py`, routers under `mathbank-rest/src/mathbank_rest/routers/`, DB modules under `mathbank-rest/src/mathbank_rest/db/`, `security.py`, `mastery.py`, `enrichment.py`, `relationship_enrichment.py`, `step_runtime.py`, `step_tutor.py`, `step_diagnosis.py`, `step_recovery.py`, `db/step_search.py`, `widgets.py`, `math_format.py`, `authoring.py`, `live_runtime.py`, `routers/fluid.py` and `routers/live.py`.
-- Agent/web: `mathbank-agent/session_config.py`, `mathbank-agent/server.py`, `mathbank-web/app/api/**`, including `app/api/rest/solve/[...path]/route.js`, `app/api/rest/admin/knowledge-gaps/route.js`, `mathbank-web/app/admin/(protected)/knowledge-gaps/page.jsx`, `mathbank-web/app/learn/solve/[code]`, `mathbank-web/lib/*.js`, and `mathbank-web/lib/*.mjs`, including `lib/solveProxy.mjs` and `lib/adminGapsProxy.mjs` with Phase 10 recovery/admin proxy allow-list entries; `mathbank-web/app/api/{voice,format-math}`, `mathbank-widgets/src/server.mjs`, and `mathbank-live/{server.mjs,lib/*.mjs,app/api/**}`.
+- Multimodal/artifact REST and storage: `attempt_media.py`, `attempt_media_models.py`, `media_processing.py`, `artifact_runtime.py`, `object_store.py`, `runtime_ai.py`, `routers/attempt_media.py`, `routers/artifacts.py`; learner mastery filtering in `db/learner.py` and `mastery.py`.
+- Agent/web: `mathbank-agent/session_config.py`, `mathbank-agent/server.py`, `mathbank-agent/agents/mathbank_tutor/tools/{attempt_media_tools,artifact_tools}.py` and their `agent.py` registry wiring, `mathbank-web/app/api/**`, including the allow-listed `app/api/rest/{attempt-media,artifacts}/[[...path]]/route.js` proxies, attempt/artifact pages and components, `lib/privateRuntimeProxy.mjs`, `mathbank-live/server.mjs`, and `mathbank-live/lib/attemptEvents.mjs`.
 
 ## Regeneration procedure
 
@@ -39,13 +54,24 @@ Primary evidence came from:
 
    ```sh
    mathbank-rest/.venv/bin/python - <<'PY'
-   import json, re
+   import json
+   import re
    from pathlib import Path
    from mathbank_rest.main import app
+
    schema = app.openapi()
+   if not schema.get("openapi") or not schema.get("paths") or not schema.get("components", {}).get("schemas"):
+       raise SystemExit("OpenAPI validation failed")
    text = json.dumps(schema, sort_keys=True, indent=2)
-   # Scan text for connection strings, API-key/password/secret-looking values, and provider keys before writing.
-   Path('requirements/reference/openapi.json').write_text(text + '\n')
+   patterns = [
+       r"(?i)\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}\b",
+       r"\bAKIA[0-9A-Z]{16}\b",
+       r"(?i)://[^/@\s:]+:[^/@\s]+@",
+       r"(?i)\b(?:password|secret|token|api[_-]?key)\s*[:=]\s*[\"']?[A-Za-z0-9_./+=-]{12,}",
+   ]
+   if any(re.search(pattern, text) for pattern in patterns):
+       raise SystemExit("OpenAPI snapshot scan blocked")
+   Path("requirements/reference/openapi.json").write_text(text + "\n")
    PY
    ```
 
@@ -59,3 +85,7 @@ Primary evidence came from:
 - `mathbank-rest/src/mathbank_rest/db/step_search.py` implements step-level retrieval; `GET /v1/solution-steps/{step_id:path}/practice` exposes the no-step-text practice lookup. Broader step/item search helpers remain internal. Step and recovery APIs use slash-bearing step IDs via `{step_id:path}` where needed, even though OpenAPI displays the parameter as `{step_id}`.
 - `visual.asset` (migration 020) has DDL but no reader/writer in code; live event delivery is REST polling by the `mathbank-live` gateway, not an event bus.
 - Automatic enrichment and relationship enrichment code can call paid models when endpoints/workers invoke it; this documentation task inspected source only and did not execute those paths.
+- Multimodal `/process` and `/analyse` are explicit model-backed stages. Final direction is direct OpenAI using the shared endpoint/credential loader as `mathbank-agent`; Gateway is an explicitly selected alternative, never a silent fallback. Gateway returned 403 and direct OpenAI returned 429 `insufficient_quota`; no successful inference is claimed. Runtime uses service `MATHBANK_AGENT_MODEL` (`openai/gpt-4o-mini` default); a root value is used by services when synchronized, and explicit `MATHBANK_RUNTIME_AI_MODEL` override is supported. The checked worktree resolver also reads runtime-specific root/REST settings before agent model files, so the effective deployed override value is not independently verified. Speech uses direct OpenAI `whisper-1`; artifact embedding uses the shared direct OpenAI client and defaults to `text-embedding-3-small` at 1,536 dimensions.
+- Migrations 021 and 022 application to the explicitly selected Neon production target is operator-reported, not independently checked against live schema metadata. The initial object-store smoke failed; subsequent operator-reported interface checks passed put/read/delete, unauthenticated GET 403 and synthetic cleanup after bucket-alias configuration handling. The artifact rollback test used mocked object storage and does not add live S3 evidence. `AWS_ENDPOINT_URL_S3` is the object-store endpoint, not a Neon Auth or AI Gateway URL.
+- Multimodal outbox payloads contain identifiers and sequence/version metadata, not media bytes, transcript text or assessment prose. The checked-in graph projectors do not project attempts, learner media, transcripts or artifact content into Neo4j.
+- Worktree implementation evidence does not establish deployed parity or end-to-end acceptance.

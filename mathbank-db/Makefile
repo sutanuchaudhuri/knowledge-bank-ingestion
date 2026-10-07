@@ -24,6 +24,19 @@ PG_LOG    := $(EXTERNAL_DB_ROOT)/postgres$(PG_VERSION)/postgres.log
 
 .DEFAULT_GOAL := help
 
+.PHONY: migrate-attempt-media-remote migrate-artifacts-remote migrate-multimodal-remote
+migrate-attempt-media-remote:     ## Apply private multimodal evidence/approval migration 021 to configured Neon
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -1 -f sql/021_attempt_media.sql
+
+migrate-artifacts-remote:         ## Apply structured instructional artifact migration 022 to configured Neon
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -1 -f sql/022_artifact_runtime.sql
+
+migrate-multimodal-remote: migrate-attempt-media-remote migrate-artifacts-remote ## Apply multimodal + artifact runtime schemas to Neon (no model calls)
+
 .PHONY: access
 access:                         ## Show local Postgres connection details (without passwords)
 	@printf '  %-20s %s\n' 'Postgres (local)' 'localhost:$(PG_PORT) / database: $(APP_DB) / user: $(APP_USER)' \
@@ -367,7 +380,17 @@ vector-status:                  ## Show representation/chunk/embedding counts
 
 .PHONY: vector-backfill-remote
 vector-backfill-remote:         ## Build representations/chunks + embed via OpenAI, against remote Neon (set LIMIT=; needs OPENAI_API_KEY)
-	PG_ENV_FILE=$(CURDIR)/../mathbank-graph/remote.env .venv/bin/python etl/embed_corpus.py backfill $(if $(LIMIT),--limit $(LIMIT),)
+	PG_ENV_FILE=$(CURDIR)/../mathbank-graph/remote.env .venv/bin/python etl/embed_corpus.py backfill $(if $(LIMIT),--limit $(LIMIT),) $(if $(PAPER),--paper $(PAPER),) $(if $(MAX_COST_USD),--max-cost-usd $(MAX_COST_USD),)
+
+.PHONY: vector-build-remote repair-question-text-remote repair-question-text-apply-remote
+vector-build-remote:            ## Build representations/chunks without paid calls (optional PAPER=)
+	PG_ENV_FILE=$(CURDIR)/../mathbank-graph/remote.env .venv/bin/python etl/embed_corpus.py build $(if $(PAPER),--paper $(PAPER),)
+
+repair-question-text-remote:    ## Audit AMC/AIME statement/solution/current-vector gaps (no paid calls)
+	PG_ENV_FILE=$(CURDIR)/../mathbank-graph/remote.env .venv/bin/python etl/repair_question_text.py $(if $(COMPETITION),--competition $(COMPETITION),) $(if $(REPORT),--report $(REPORT),)
+
+repair-question-text-apply-remote: ## Import existing AMC/AIME source text only; preserves concept mappings
+	PG_ENV_FILE=$(CURDIR)/../mathbank-graph/remote.env .venv/bin/python etl/repair_question_text.py --apply $(if $(COMPETITION),--competition $(COMPETITION),) $(if $(SOURCE_BUNDLE),--source-bundle $(SOURCE_BUNDLE),)
 
 .PHONY: vector-index-remote
 vector-index-remote:            ## Create the HNSW index for the active embedding model, on remote Neon

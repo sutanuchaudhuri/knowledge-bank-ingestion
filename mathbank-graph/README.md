@@ -3,6 +3,10 @@
 Local Neo4j Community server (data stored on the external APFS drive) holding the
 graph projection of the mathbank corpus. See the `Makefile` for lifecycle targets
 (`install`, `configure`, `set-password`, `start`, `stop`, `status`, `project`).
+The canonical source-derived inventory is the
+[graph schema reference](../requirements/reference/GRAPH_SCHEMA.md), linked
+from the [implementation-reference index](../requirements/reference/README.md).
+It describes projector support, not the contents of a live graph.
 
 ## Connecting / viewing the graph
 
@@ -122,7 +126,10 @@ for five minutes. Repeated projection retained 6 Skill nodes and 83 owned edges.
 The integration suite also verified that a deliberate failure after deleting
 owned edges rolled back completely. Review/publication is an admin-authorized
 operation, not inferred from confidence or successful projection.
-P1/P2 semantic steps, hint ladders, courses, and adaptive inference are deferred.
+Student attempts, multimodal evidence and generated artifact content are not
+projected into Neo4j. The textbook solution-step metadata layer is implemented
+as described below; learner evidence projection, calibrated adaptive
+inference and a complete course model remain outside this graph contract.
 
 # Textbook solution-step layer (Graph Projection v2)
 
