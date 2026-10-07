@@ -47,9 +47,9 @@ export function runtimeErrorMessage(code) {
   };
   return messages[code];
 }
-export async function runtimeJson(url, method = "GET", payload) {
+export async function runtimeJson(url, method = "GET", payload, signal) {
   const response = await fetch(url, {
-    method, cache: "no-store",
+    method, cache: "no-store", signal,
     ...(payload !== undefined ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) } : {}),
   });
   const body = await response.json().catch(() => null);

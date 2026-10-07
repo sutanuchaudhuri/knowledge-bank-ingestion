@@ -4,6 +4,78 @@ This folder is the canonical architecture reference for the checked-in MathBank 
 
 ## Evidence and revision
 
+### Solution-grounded planning and compact practice incremental reference
+
+Source revision `1582f808a731e571e79b588d4c73e717eefc7956` plus relevant worktree
+changes. Newly examined `solution_guidance.py`, coaching/router callers,
+`problem_guidance.py`, agent routing/output guards, stream mapper and
+`problemPresentation.mjs`; migration 001's solution columns and inventory
+001–024 were checked. DDL and projector files are unchanged. This is an
+incremental refresh across REST, PostgreSQL and graph boundaries, not a new
+full-system catalog audit.
+
+The latest screened source snapshot is **189 paths / 95 schemas**. It adds
+explicit `POST /v1/tutor/guidance-plan`; `/coach` privately reads stored
+references. Only safe plans/hints return, with source-status/count metadata.
+There is no new solution/planning table, projection, artifact or mastery write.
+Safe conversation plans use existing ADK session JSON; browser drafts remain
+temporary. Display normalization preserves canonical source statements and
+does not invoke a paid formatter.
+
+Separate implementation verification, 2026-10-07 UTC: the authorized service
+reload activated the new tool; actual AIME planning/ADK routing consulted two
+unverified records and returned a roadmap/checkpoint without raw solution or
+answer fields. The temporary synthetic session was removed. Source and running
+OpenAPI matched 189/95 exactly. Focused REST/agent/browser tests, build and lint
+passed; see [34](../34_GUIDED_PROBLEM_WORKSPACE.md). No general provider-quality
+or live database/graph schema-parity claim accompanies these observations.
+The earlier OpenAPI counts and verifications below are historical.
+
+### Guided-workspace incremental reference
+
+Source revision `1582f808a731e571e79b588d4c73e717eefc7956`, including related
+worktree changes. Freshly examined `guided_orientation.py`, `guided_visuals.py`, pedagogy
+routes/statement/graph-read helpers, browser workspace/upload/proxy, existing
+attempt-media reads and both graph projector ownership paths; migration
+inventory remains 001–024. This is an incremental contract refresh, not a
+new full-system catalog audit or live-schema verification.
+
+Screened source OpenAPI now has **188 paths / 94 schemas**, adding public
+`GET /v1/tutor/workspace/{problem_code}` and `POST /v1/tutor/micro-check`; learning context adds a stateless
+`pedagogy_session` envelope. Source generation invokes no endpoint, model or
+database query. PostgreSQL DDL and graph projections gain no session object;
+temporary workspace state is not the existing persisted ADK topic lesson.
+Graph reads use managed read transactions for driver retry. See
+[requirement 34](../34_GUIDED_PROBLEM_WORKSPACE.md) for delivery boundaries.
+The earlier 186/93 and 187/94 counts below are historical.
+
+Current-object visual update: graph-independent workspace bootstrap returns
+authored orientation and source-verified ordered Q31 circumcenter definitions.
+Each visual intent names required objects and a level bound; browser geometry
+computes/checks both iterations and suppresses mismatched frames. No raw model
+SVG/image or generic geometry fallback is introduced. Browser drafts and
+stateless intents are not persisted artifacts, learner evidence or mastery.
+Context loads independently with a 15-second browser deadline, bootstrap
+12 seconds and tutor GET proxy 20 seconds. No schema/projector change or paid
+provider call accompanies this visual contract.
+
+Separate implementation verification, 2026-10-07 UTC: workspace bootstrap
+returned the canonical visual intent and eight definitions in 0.29 seconds.
+The live UI showed A₁/BCD immediately on opening the visual and changed focus
+through actual micro-check responses; both construction levels rendered with
+no desktop/mobile overflow. Running OpenAPI matched the 188/94 source snapshot.
+The focused 38 REST / 18 JavaScript / 19 browser tests and production build
+passed. These observations do not establish live schema parity or a generalized
+model-driven geometry engine.
+
+Separate implementation observation, 2026-10-07 UTC: after the explicitly
+approved REST reload, running OpenAPI matched the source snapshot exactly
+(187/94), and both requested learning contexts returned authored checks.
+Q31's impossible deeper-prerequisite probe is skipped when the approved
+bounded traversal is empty. A read-only timing probe returned context in
+2.6 seconds instead of the previously observed over-60-second stall.
+This does not establish live database/graph schema parity.
+
 ### Latest incremental reference: topic-first lessons and practice
 
 Source revision `c79060ac0771175baa6e04b37bede840f8c30ee1`, including relevant

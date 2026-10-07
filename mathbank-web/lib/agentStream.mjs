@@ -12,6 +12,7 @@ const TOOL_STAGES = {
   search_practice_problems: "Finding complete practice problems",
   get_practice_problem: "Verifying statement, diagram and source",
   get_problem_learning_context: "Loading problem and graph-linked learning context",
+  prepare_problem_guidance: "Consulting stored solutions privately to choose a teaching route",
   search_concepts: "Matching the topic to the concept taxonomy",
   get_prerequisite_path: "Checking prerequisite relationships",
   get_next_hint: "Preparing one provisional coaching hint",
@@ -59,6 +60,22 @@ export function toolEvidence(name, response) {
     }
   }
   if (name === "get_next_hint" && response.provenance?.review_status === "PENDING") add("Generated hint · pending expert review", "stopped");
+  if (name === "prepare_problem_guidance") {
+    evidence.push(...toolEvidence("get_problem_learning_context", response.context));
+    if (response.status === "ready" && Array.isArray(response.stages)) {
+      add(`${response.stages.length} teaching stages prepared · one checkpoint at a time`);
+    }
+    if (Number.isSafeInteger(response.diagram_count)) add(`${response.diagram_count} source diagrams loaded`);
+  }
+  if (["prepare_problem_guidance", "get_next_hint"].includes(name)) {
+    const references = response.solution_evidence;
+    if (references?.status === "available" && Number.isSafeInteger(references.references_considered)) {
+      add(`${references.references_considered} stored solution records consulted for guidance`);
+      if (Array.isArray(references.sources) && references.sources.some((source) => source.verification_status !== "VERIFIED")) {
+        add("Solution references include unverified records · not correctness certification", "stopped");
+      }
+    } else if (references?.status === "unavailable") add("No stored solution reference available · guidance is not solution-grounded", "stopped");
+  }
   if (name === "pedagogy_agent" && response.matched === true) {
     if (response.intent === "LEARN_TOPIC" && Number.isSafeInteger(response.current_unit)) {
       add(`Topic lesson · step ${response.current_unit + 1} of ${response.unit_count}`);

@@ -62,6 +62,7 @@ from .pedagogy_agent import (
     route_topic_before_model,
 )
 from .retrieval_audit_agent import retrieval_audit_tool
+from .problem_guidance import prepare_problem_guidance
 
 ARTIFACT_AGENTS = build_artifact_agents(MODEL)
 ARTIFACT_AGENT_TOOLS = artifact_agent_tools(ARTIFACT_AGENTS)
@@ -129,11 +130,24 @@ Guidelines:
   get_problem_by_code with its canonical_code (from a prior search_problems
   result).
 - If asked about corpus completeness/size, call get_corpus_coverage.
+- If a learner asks for an approach, "help me think", or guided solving, FIRST
+  call prepare_problem_guidance with the selected canonical code. It loads the
+  canonical question, graph context and source figures, then privately consults
+  stored solutions in the REST planner before choosing a teaching route.
+  Paste its markdown_block unchanged: a concise roadmap and ONE first checkpoint,
+  not a solved checkpoint or complete derivation. UNVERIFIED solution records are
+  not certified by retrieval. If unavailable, disclose missing solution evidence;
+  do not claim an approach was solution-backed. Do not call a full-detail tool
+  to expose raw solution text, answer fields or private reasoning in guided mode.
+  Use the safe plan in pedagogy:problem_guidance to maintain continuity. Do not
+  reset to the first checkpoint on every follow-up; respond to the learner's
+  actual attempt and allow alternate valid methods.
 - If a learner is stuck or requests a hint, FIRST call get_problem_learning_context.
   Ask for what they have tried and ONE diagnostic question to distinguish
   concept recognition, strategy selection, execution, calculation, or connection
   between steps. Do not assume self-report is a measured mastery fact.
-  Do not fetch get_problem_by_code or full solutions in this guided mode.
+  Do not fetch get_problem_by_code in this guided mode. The private REST coaching
+  service reads stored solution references internally; only its safe hint returns.
   After the learner gives an attempt and diagnosis, use get_next_hint for ONE
   level-1 hint and brief micro-lesson. Label it generated/provisional, not reviewed.
   Ask the learner to try it before advancing; levels 2 and 3 require an explicit
@@ -145,7 +159,7 @@ Guidelines:
   an explicit decomposition request; present one subproblem at a time and use
   check_subproblem_answer when the learner responds.
 - For "problem 1 help me think", resolve the numbered selection to the canonical
-  code from the previous recommendations and call get_problem_learning_context
+  code from the previous recommendations and call prepare_problem_guidance
   before suggesting an approach. If the selection is ambiguous, clarify it.
   Explain briefly what was actually retrieved: problem context, graph-linked
   skills/concepts/prerequisites, metadata_status and evidence warnings. Automatic
@@ -153,9 +167,8 @@ Guidelines:
   or graph verification merely because tools exist; report only returned evidence.
   Search concepts for the proposed method when useful; distinguish taxonomy matches
   from problem-specific reviewed evidence. Retrieval does not prove a solution.
-  Give a short numbered teaching roadmap (representation, constraints, next check),
-  explaining why each stage helps without solving it. Then offer ONE concrete
-  first checkpoint and ONE diagnostic question; later stages remain high-level.
+  Relay the returned short numbered teaching roadmap and first checkpoint.
+  Ask one diagnostic question only when needed after the learner's attempt.
   Label an unverified strategy provisional. Do not expose internal/private
   chain-of-thought; give a concise student-facing rationale and assumptions instead.
   Never assume a slanted trapezoid edge is vertical: AB parallel GF with GF shorter
@@ -285,6 +298,7 @@ root_agent = Agent(
         check_subproblem_answer,
         get_improvement_plan,
         get_problem_learning_context,
+        prepare_problem_guidance,
         get_prerequisite_path,
         get_next_hint,
         find_easier_same_skill_problems,

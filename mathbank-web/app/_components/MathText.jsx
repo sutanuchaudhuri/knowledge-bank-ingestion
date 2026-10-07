@@ -16,6 +16,10 @@ const renderInline = (t) => <MathText>{t}</MathText>;
 
 // ```widget fenced JSON from the tutor becomes a whitelisted, declarative widget card (never executed).
 const components = {
+  p({ node, children, ...props }) {
+    const standaloneLabel = node?.children?.length === 1 && node.children[0].tagName === "strong";
+    return <p {...props} className={standaloneLabel ? "mb-markdown-section-label" : undefined}>{children}</p>;
+  },
   a({ node, href, children, ...props }) {
     const tone = /^#mb-tone-(given|goal|insight|warning)$/.exec(href || "")?.[1];
     if (tone) return <span className={`mb-format-${tone}`} title={{ given: "Given", goal: "Goal", insight: "Key insight", warning: "Caution" }[tone]}>{children}</span>;

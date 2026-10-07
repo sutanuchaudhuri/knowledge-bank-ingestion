@@ -8,6 +8,7 @@ export const DIAGNOSES = [
 
 export function hintRequestState(attempt, previousAttempt, hintLevel) {
   if (!attempt.trim()) return { allowed: false, reason: "Describe what you have tried before requesting a hint." };
+  if (attempt.trim().length > 4000) return { allowed: false, reason: "Keep each step under 4,000 characters before requesting coaching." };
   if (hintLevel >= 3) return { allowed: false, reason: "You have reached the final guided hint. Return to the problem and try the approach." };
   if (hintLevel > 0 && attempt.trim() === previousAttempt.trim()) {
     return { allowed: false, reason: "Update your attempt after trying the last hint before requesting more help." };

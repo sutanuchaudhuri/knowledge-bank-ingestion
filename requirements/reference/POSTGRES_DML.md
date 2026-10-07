@@ -9,6 +9,48 @@
 
 ## High-level write boundaries
 
+### Private solution-reference planning
+
+Incremental source revision `1582f808a731e571e79b588d4c73e717eefc7956` plus related
+worktree changes; inspected `solution_guidance.py`, `pedagogy.coach`, router and
+agent callers. The parameterized read joins `core.problem` to nonempty
+`core.solution`, preferring Markdown with LaTeX as an alternative. It retains
+all-record count but returns at most six records, VERIFIED first, then kind,
+descending revision and ID. Each private body is capped at 12,000 characters;
+bounded/excerpted evidence is reported, not asserted complete.
+
+`official_answer` is read only for a limited output-withholding check. Private
+bodies go to the REST planner/coach, never the ADK/browser tool result. Public
+metadata includes IDs, kind/revision and verification status; the output plan
+is PENDING. No ingestion, annotation, publication, audit/outbox, attempt or
+mastery write occurs. The safe selected conversation plan is retained through
+existing ADK session JSON, distinct from temporary workspace state and from a
+reviewed solution-DAG. No DML was executed during this documentation phase.
+
+### Guided-workspace reads and private-work handoff
+
+Incremental source revision `1582f808a731e571e79b588d4c73e717eefc7956`, plus
+related worktree changes; examined `guided_orientation.py`, `guided_visuals.py`, pedagogy
+statement/routes, workspace/upload, existing attempt-media snapshot and
+same-origin proxy. `POST /v1/tutor/micro-check` runs the parameterized canonical
+statement SELECT and safe diagram listing. It reads no official answer/solution
+body, writes nothing, calls no model/enrichment and returns stateless authored
+orientation. Client indices/self-reported stages are not learner evidence.
+
+`GET /v1/tutor/workspace/{code}` uses the same canonical statement/safe-image
+read, without graph/enrichment/publication dependencies. Source-verified visual
+definitions and typed intents are in-memory calculations. They create no
+submission, artifact, assessment, outbox event or mastery write. The UI loads
+the full context independently, while authored checks/writing remain usable.
+
+Existing learning-context GET still calls `ensure_learning_metadata`, so
+missing teaching metadata may invoke the prior enrichment/publication path;
+it must not be described as universally read-only. Private upload creates an
+existing authenticated submission and original asset, then requires explicit
+transcription, review/approval and analysis. Temporary typed drafts are not
+silently persisted or promoted into mastery. No DML was executed during this
+documentation refresh. See [34](../34_GUIDED_PROBLEM_WORKSPACE.md).
+
 ### Topic lessons, practice ranking and correction evidence
 
 Incremental source evidence at `c79060ac0771175baa6e04b37bede840f8c30ee1`

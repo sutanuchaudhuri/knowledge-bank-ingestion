@@ -12,7 +12,7 @@ from neo4j.exceptions import Neo4jError, ServiceUnavailable, SessionExpired
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import SQLAlchemyError
 
-from mathbank_rest import pedagogy
+from mathbank_rest import guided_orientation, pedagogy, solution_guidance
 from mathbank_rest.db import topic_pedagogy
 from mathbank_rest.enrichment import EnrichmentUnavailable, ensure_learning_metadata
 from mathbank_rest.practice_selection import load_profile
@@ -104,7 +104,43 @@ def _call(operation: Callable[..., dict], *args: Any) -> dict:
 @router.get("/learning-context/{problem_code}")
 def learning_context(problem_code: str) -> dict:
     _call(ensure_learning_metadata, problem_code)
-    return _call(pedagogy.learning_context, problem_code)
+    result = _call(pedagogy.learning_context, problem_code)
+    result["pedagogy_session"] = guided_orientation.orientation(result["problem"])
+    return result
+
+
+@router.get("/workspace/{problem_code}")
+def workspace(problem_code: str) -> dict:
+    """Canonical question and authored orientation without graph/enrichment."""
+    problem = _call(pedagogy.problem_statement, problem_code)
+    return {"problem": problem, "pedagogy_session": guided_orientation.orientation(problem)}
+
+
+class MicroCheckRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    problem_code: str = Field(min_length=1, max_length=200)
+    index: int = Field(ge=0, le=20, strict=True)
+    response: str = Field(min_length=1, max_length=200)
+
+
+class GuidancePlanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    problem_code: str = Field(min_length=1, max_length=200, pattern=r"^\S+$")
+
+
+@router.post("/guidance-plan")
+def guidance_plan(body: GuidancePlanRequest) -> dict:
+    """Explicit planning action; raw solutions remain inside the REST service."""
+    return _call(solution_guidance.guidance_plan, body.problem_code)
+
+
+@router.post("/micro-check")
+def micro_check(body: MicroCheckRequest) -> dict:
+    problem = _call(pedagogy.problem_statement, body.problem_code)
+    try:
+        return guided_orientation.check_orientation(problem, body.index, body.response)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.get("/prerequisites/{skill_slug}")

@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { hasStepSolution } from "../../lib/solveFlow.mjs";
-import MathText from "../_components/MathText.jsx";
 import { panel } from "./dbStyles.js";
-import ProblemDiagrams from "../_components/ProblemDiagrams.jsx";
+import { ProblemPreview, ProblemSolutions, RelatedProblems } from "../_components/ProblemPreview.jsx";
+import { Callout } from "../_components/ui.jsx";
 
 /** Fetches and renders the full HAS_SOLUTION/TESTS/USES_TECHNIQUE detail for one problem. */
 export default function ProblemDetail({ code }) {
@@ -16,76 +14,27 @@ export default function ProblemDetail({ code }) {
     if (!code) return;
     setProblem(null);
     setError(null);
-    fetch(`/api/rest/problems/${encodeURIComponent(code)}`)
+    const controller = new AbortController();
+    fetch(`/api/rest/problems/${encodeURIComponent(code)}`, { signal: controller.signal })
       .then((res) =>
         res.ok ? res.json() : res.json().then((body) => Promise.reject(new Error(body.error || `status ${res.status}`)))
       )
-      .then(setProblem)
-      .catch((err) => setError(err.message));
+      .then((data) => { if (!controller.signal.aborted) setProblem(data); })
+      .catch((err) => { if (!controller.signal.aborted) setError(err.message); });
+    return () => controller.abort();
   }, [code]);
 
   if (!code) return <div className={panel}><p className="text-secondary mb-0">Select a row to see details.</p></div>;
-  if (error) return <div className="alert alert-danger" role="alert">Could not load {code}: {error}</div>;
+  if (error) return <Callout tone="danger" role="alert">Could not load {code}: {error}</Callout>;
   if (!problem) return <div className={panel}><p className="mb-0" role="status">Loading…</p></div>;
 
   return (
     <div className={panel}>
       <h3 className="h5 fw-bold">{problem.canonical_code}</h3>
-      <Link className="btn btn-sm btn-outline-primary mb-3" href={`/learn?problem=${encodeURIComponent(problem.canonical_code)}`}>
-        Learn with diagnosis and hints
-      </Link>
-      {hasStepSolution(problem.canonical_code) && (
-        <Link className="btn btn-sm btn-primary mb-3 ms-2" href={`/learn/solve/${encodeURIComponent(problem.canonical_code)}`}>
-          Solve step by step
-        </Link>
-      )}
-      <p style={{ color: "#666", fontSize: 13 }}>
-        {problem.competition} {problem.year} · {problem.paper_code} · Problem {problem.problem_number}
-      </p>
+      <ProblemPreview problem={problem} />
+      <RelatedProblems key={code} problem={problem} />
 
-      {problem.statement_text && (
-        <div className="markdown-body" style={{ fontSize: 14, marginBottom: 12 }}>
-          <MathText>{problem.statement_text}</MathText>
-        </div>
-      )}
-
-      <ProblemDiagrams code={problem.canonical_code} images={problem.diagrams} />
-
-      {problem.official_answer && (
-        <p style={{ fontSize: 13 }}>
-          <strong>Answer:</strong> {problem.official_answer}
-        </p>
-      )}
-
-      {problem.concepts?.length > 0 && (
-        <p style={{ fontSize: 13 }}>
-          <strong>Concepts (TESTS):</strong>{" "}
-          {problem.concepts.map((c) => c.name).join(", ")}
-        </p>
-      )}
-
-      {problem.techniques?.length > 0 && (
-        <p style={{ fontSize: 13 }}>
-          <strong>Techniques (USES_TECHNIQUE):</strong>{" "}
-          {problem.techniques.map((t) => t.name).join(", ")}
-        </p>
-      )}
-
-      {problem.solutions?.length > 0 && (
-        <div>
-          <strong style={{ fontSize: 13 }}>Solutions (HAS_SOLUTION):</strong>
-          {problem.solutions.map((sol, i) => (
-            <details key={i} open={i === 0} className="border rounded-3 p-3 my-3">
-              <summary className="fw-semibold">
-                {sol.solution_kind} rev {sol.revision} · {sol.verification_status}
-              </summary>
-              <div className="markdown-body" style={{ fontSize: 13, marginTop: 6 }}>
-                <MathText>{sol.body_markdown || ""}</MathText>
-              </div>
-            </details>
-          ))}
-        </div>
-      )}
+      <ProblemSolutions key={`solutions-${code}`} problem={problem} />
     </div>
   );
 }

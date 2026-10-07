@@ -27,8 +27,21 @@ test("coach payload is sent to the tutor, never learner attempt endpoints", asyn
     assert.equal(options.headers.Authorization, undefined);
     return Response.json({ hint_level: 1, hint: "A small step" });
   });
+
   const response = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify(payload) }), context(["coach"]));
   assert.equal(response.status, 200);
+});
+
+test("workspace proxy checks presentation without modifying the canonical statement", async (t) => {
+  const statement = "A quad- rilateral.";
+  t.mock.method(globalThis, "fetch", async () => Response.json({
+    problem: { canonical_code: "TEST", statement_text: statement }, pedagogy_session: null,
+  }));
+  const response = await GET(new Request("http://localhost"), context(["workspace", "TEST"]));
+  const body = await response.json();
+  assert.equal(body.problem.statement_text, statement);
+  assert.equal(body.problem.display_statement, "A quadrilateral.");
+  assert.deepEqual(body.format_warnings, []);
 });
 
 test("preserves upstream failures and rejects malformed JSON/unknown endpoints", async (t) => {

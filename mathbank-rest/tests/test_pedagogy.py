@@ -7,8 +7,15 @@ import pytest
 from fastapi.testclient import TestClient
 from neo4j.exceptions import ServiceUnavailable
 
-from mathbank_rest import pedagogy, tutor
+from mathbank_rest import pedagogy, solution_guidance, tutor
 from mathbank_rest.main import app
+
+
+@pytest.fixture(autouse=True)
+def empty_solution_references(monkeypatch):
+    monkeypatch.setattr(solution_guidance, "load_references", lambda code: solution_guidance.SolutionEvidence(
+        PROBLEM, [], None, 0,
+    ))
 
 client = TestClient(app)
 PROBLEM = {"canonical_code": "FIXTURE", "statement_text": "Count a fixed-size subset."}
@@ -157,18 +164,21 @@ def test_practice_evidence_is_not_overall_difficulty(monkeypatch):
 
 
 def test_statement_sql_does_not_select_solutions_or_answer(monkeypatch):
+    from mathbank_rest.db import problem_images
+
+    monkeypatch.setattr(problem_images, "list_images", lambda connection, code: [])
     connection = MagicMock()
     connection.execute.return_value.mappings.return_value.first.return_value = PROBLEM
     fake_engine = MagicMock()
     fake_engine.connect.return_value.__enter__.return_value = connection
     monkeypatch.setattr(pedagogy, "engine", fake_engine)
-    assert pedagogy.problem_statement("FIXTURE") == PROBLEM
+    assert pedagogy.problem_statement("FIXTURE") == {**PROBLEM, "diagrams": []}
     query = str(connection.execute.call_args.args[0])
     assert "solution" not in query and "official_answer" not in query
     assert connection.execute.call_args.args[1] == {"code": "FIXTURE"}
 
 
-def test_generated_coaching_is_pending_and_prompt_has_no_solution(monkeypatch):
+def test_generated_coaching_is_pending_and_reports_missing_solution_references(monkeypatch):
     monkeypatch.setattr(
         pedagogy,
         "learning_context",
@@ -203,8 +213,29 @@ def test_generated_coaching_is_pending_and_prompt_has_no_solution(monkeypatch):
     assert result["provenance"]["review_status"] == "PENDING"
     assert result["hint_level"] == 1 and result["diagnostic_question"]
     assert "official_answer" not in str(create.call_args)
-    assert "solution" not in create.call_args.kwargs["messages"][1]["content"]
+    assert '"solution_references": []' in create.call_args.kwargs["messages"][1]["content"]
+    assert result["solution_evidence"]["status"] == "unavailable"
     assert "Unenriched" in result["warnings"]
+
+
+def test_coaching_reads_private_references_without_returning_them(monkeypatch):
+    from test_solution_guidance import evidence
+
+    monkeypatch.setattr(solution_guidance, "load_references", lambda code: evidence())
+    monkeypatch.setattr(pedagogy, "learning_context", lambda code: {
+        "problem": PROBLEM, "skills": [], "prerequisites": [], "warnings": [],
+    })
+    create = MagicMock(return_value=SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+        content='{"micro_lesson":"Use the recurrence.","hint":"Consider neighboring terms.","return_prompt":"Write a product."}',
+    ))]))
+    monkeypatch.setattr(tutor._client.chat.completions, "create", create)
+    monkeypatch.setattr(tutor._client, "with_options", lambda **kwargs: tutor._client)
+    result = pedagogy.coach(pedagogy.CoachRequest(
+        problem_code="AIME_1985_Q01", diagnosis="strategy", student_attempt="I computed two terms.",
+    ))
+    assert "PRIVATE_SECOND_SOLUTION" in create.call_args.kwargs["messages"][1]["content"]
+    assert result["solution_evidence"]["references_considered"] == 2
+    assert "PRIVATE" not in str(result) and "384" not in str(result)
 
 
 @pytest.mark.parametrize(

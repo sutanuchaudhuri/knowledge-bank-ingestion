@@ -135,7 +135,11 @@ def problem_statement(code: str) -> dict:
 
 def graph_rows(query: str, **params: object) -> list[dict]:
     with driver.session() as session:
-        return [record.data() for record in session.run(query, parameters=params)]
+        return session.execute_read(
+            lambda transaction: [
+                record.data() for record in transaction.run(query, parameters=params)
+            ]
+        )
 
 
 def _skill(properties: dict) -> dict:
@@ -168,6 +172,9 @@ def _prerequisites(slugs: list[str], max_depth: int) -> tuple[list[dict], list[s
         slugs=slugs,
         limit=CONTEXT_LIMIT + 1,
     )
+    # An approved deeper path would contain an approved shorter suffix.
+    if not rows:
+        return [], []
     warnings = []
     if len(rows) > CONTEXT_LIMIT:
         warnings.append("Prerequisite results exceed the 100-skill limit.")
@@ -341,9 +348,11 @@ def easier_practice(code: str, limit: int = 5) -> dict:
 
 
 def coach(body: CoachRequest) -> dict:
+    from mathbank_rest.solution_guidance import load_references, validate_public_text
     from mathbank_rest.tutor import MODEL_NAME, _client
 
     context = learning_context(body.problem_code)
+    references = load_references(body.problem_code)
     prompt_context = {
         "problem": context["problem"],
         "reviewed_skills": context["skills"],
@@ -351,6 +360,7 @@ def coach(body: CoachRequest) -> dict:
         "diagnosis": body.diagnosis,
         "student_attempt": body.student_attempt,
         "hint_level": body.hint_level,
+        "solution_references": references.references,
     }
     try:
         response = _client.with_options(timeout=45.0, max_retries=0).chat.completions.create(
@@ -385,7 +395,11 @@ def coach(body: CoachRequest) -> dict:
                         "Automatic approval is not human verification. Treat automatic skills "
                         "and prerequisites as provisional estimates; do not overstate confidence. "
                         "Do not invent approved skills or prerequisites; if the supplied lists "
-                        "are empty, use only the statement and acknowledge limited coverage. "
+                        "are empty, acknowledge limited graph coverage. Read the private stored "
+                        "solution references before choosing an applicable next step; compare "
+                        "alternative methods and respect a valid student's approach. "
+                        "Never quote reference bodies, reference step answers or a completed proof. "
+                        "If no stored references exist, explicitly label guidance as statement-only. "
                         "Never assert the student has mastered a skill. Avoid repeating "
                         "potential answer values in the attempt. Keep explanations concise."
                     ),
@@ -399,6 +413,7 @@ def coach(body: CoachRequest) -> dict:
         if content is None:
             raise CoachingUnavailable("The model refused or returned no coaching content.")
         coaching = CoachingContent.model_validate_json(content)
+        validate_public_text(coaching.model_dump(), references)
     except (OpenAIError, ValidationError) as exc:
         raise CoachingUnavailable("Coaching generation failed; please try again.") from exc
     question = next(option["question"] for option in DIAGNOSTICS if option["id"] == body.diagnosis)
@@ -408,12 +423,13 @@ def coach(body: CoachRequest) -> dict:
         "hint_level": body.hint_level,
         "diagnostic_question": question,
         **coaching.model_dump(),
+        "solution_evidence": references.summary(),
         "provenance": {
             "source": f"generated:{MODEL_NAME}:pedagogy-v1",
             "review_status": "PENDING",
             "model": MODEL_NAME,
         },
-        "warnings": context["warnings"]
+        "warnings": context["warnings"] + references.warnings()
         + [
             (
                 "Generated guidance is provisional, not a verified stored hint ladder. "

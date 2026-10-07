@@ -13,6 +13,13 @@ for (const width of [1440, 390]) {
         skills: [{}, {}], prerequisites: [], concepts: [{}], techniques: [],
         warnings: ["PRIVATE_RAW_WARNING"],
       } } }] } },
+      { content: { parts: [{ functionCall: { name: "prepare_problem_guidance", args: { problem_code: "AIME_1985_Q01" } } }] } },
+      { content: { parts: [{ functionResponse: { name: "prepare_problem_guidance", response: {
+        status: "ready", stages: ["Read", "Explore", "Group", "Check"], diagram_count: 0,
+        solution_evidence: { status: "available", references_considered: 2, sources: [
+          { verification_status: "UNVERIFIED", body_markdown: "PRIVATE_SOLUTION", official_answer: "PRIVATE_ANSWER" },
+        ] },
+      } } }] } },
       { content: { parts: [{ thought: true, text: "PRIVATE_THOUGHT" }, { text:
         "### Provisional approach\n1. Represent the square in coordinates.\n2. Translate the parallelism and lengths into constraints.\n3. Check consistency before finding the target distance.\n\nFirst checkpoint: which constraints must the trapezoid satisfy?" }] } },
     ];
@@ -28,6 +35,8 @@ for (const width of [1440, 390]) {
     await expect(activity).toContainText("Canonical problem loaded · answer-free");
     await expect(activity).toContainText("2 graph-linked skills · machine-approved, not human verified");
     await expect(activity).toContainText("1 evidence limitations reported");
+    await expect(activity).toContainText("2 stored solution records consulted for guidance");
+    await expect(activity).toContainText("Solution references include unverified records");
     await expect(activity).toContainText("not private reasoning");
     await expect(page.getByRole("heading", { name: "Provisional approach" })).toBeVisible();
     await expect(page.locator("body")).not.toContainText("PRIVATE_");

@@ -21,8 +21,8 @@ async function parseJsonSafely(res) {
   }
 }
 
-export async function restGet(path, searchParams) {
-  const res = await fetch(buildUrl(path, searchParams), { cache: "no-store" });
+export async function restGet(path, searchParams, options = {}) {
+  const res = await fetch(buildUrl(path, searchParams), { cache: "no-store", ...options });
   const body = await parseJsonSafely(res);
   if (!res.ok) {
     const err = new Error(body?.detail || `mathbank-rest GET ${path} failed: ${res.status}`);

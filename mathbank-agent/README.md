@@ -147,14 +147,24 @@ See [topic-first delivery and remaining limits](../requirements/33_TOPIC_FIRST_T
 
 ### Complete practice recommendations
 
-Selected-problem coaching is instructed to resolve numbered recommendations,
-fetch answer-free learning context first, disclose graph metadata provenance/
-limitations, and provide a short provisional teaching roadmap plus one diagnostic
-checkpoint. A taxonomy match is not proof of a strategy. Automatically approved
-metadata is distinguished from human review. No private chain-of-thought is shown.
+Selected-problem coaching resolves numbered recommendations and calls
+`prepare_problem_guidance`: canonical graph context and source figures are
+loaded, then REST privately consults up to six stored solutions before selecting
+a short route rationale, 3–5 stages and one first checkpoint. AIME Q1 has an
+authored source-gated route; other plans can use the existing REST model.
+Raw reference bodies and official-answer fields never enter this tool result.
+Safe selected plans remain in ADK session JSON for follow-up context.
+Unverified records remain unverified; a taxonomy match is not proof of a strategy.
+No private chain-of-thought is shown.
 The web activity mapper exposes only allowlisted retrieval statuses and counts,
-not raw tool contexts, solutions or warning strings. This prompt contract is not
-a deterministic guarantee that a live model will call every requested tool.
+not raw tool contexts, solutions or warning strings. The exact problem-bound
+browser discussion prompt routes deterministically before the root model and
+pins the safe plan reply. Broader intent/numbered-selection resolution still
+uses the orchestrator; formal Prasolov step-runtime requests remain separate.
+`get_next_hint` also uses private REST references before generating one cue.
+Missing references/provider errors are explicit; no solution-backed evidence
+is invented. Generated plans/hints are not certified correctness. See
+[guided workspace contract](../requirements/34_GUIDED_PROBLEM_WORKSPACE.md).
 
 For practice suggestions the tutor uses `search_practice_problems`, which checks
 up to five retrieved candidates and returns at most two eligible problems.

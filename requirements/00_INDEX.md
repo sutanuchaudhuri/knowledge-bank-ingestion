@@ -37,6 +37,7 @@ This folder defines the implementation plan and requirements for building the Ma
 31. [31_QUESTION_SPECIFIC_DIAGRAMS.md](31_QUESTION_SPECIFIC_DIAGRAMS.md) — question-specific PDF figure extraction, safe student visibility, tutor rendering, corrective backfill and regression coverage; no full-page fallback.
 32. [32_MULTIMODAL_ATTEMPTS_AND_ARTIFACTS.md](32_MULTIMODAL_ATTEMPTS_AND_ARTIFACTS.md) — private multimodal student attempts with versioned evidence, explicit approval and step assessment, plus deterministic declarative artifact generation, validation, publication, private storage and explicit indexing.
 33. [33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md](33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md) — durable expanded requirements for intent routing, persisted interactive lesson progress, evidence-gated/versioned practice selection, structural audits, reviewed negatives, source provenance and context-bound printed-work review.
+34. [34_GUIDED_PROBLEM_WORKSPACE.md](34_GUIDED_PROBLEM_WORKSPACE.md) — Tutor + My work, authored orientation checks, progressive Q31 construction, step-bound provisional coaching, private upload/paste and explicit learning-data recovery; delivered/partial/planned mapping of the student workspace brief.
 
 ## Scope Summary
 

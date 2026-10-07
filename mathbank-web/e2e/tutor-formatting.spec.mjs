@@ -1,6 +1,61 @@
 import { expect, test } from "@playwright/test";
 
 for (const width of [1440, 390]) {
+  test(`tutor step headings stay compact with distinct section and step dividers at ${width}px`, async ({ page }) => {
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.setViewportSize({ width, height: 900 });
+    await page.route("**/api/agent/session", (route) => route.fulfill({ json: { linked: false } }));
+    const text = String.raw`Here's the problem from AIME 1985:
+
+**Problem:**
+Let $x_1=97$, and for $n>1$, let $x_n=\frac{n}{x_{n-1}}$. Calculate the product $x_1x_2x_3x_4x_5x_6x_7x_8$.
+
+**Concepts involved:**
+- Sequences and series
+- Product of functions
+
+**Diagrams:**
+No diagrams are provided for this problem.
+
+### Step 1: Understanding the Sequence
+Read the recurrence before choosing an approach.
+
+1. Identify the previous term.
+2. Explore neighboring terms.
+
+### Diagnostic Question
+What expression do you get by multiplying $x_n$ by $x_{n-1}$?`;
+    await page.route("**/api/agent/run", (route) => route.fulfill({
+      contentType: "text/event-stream",
+      body: `data: ${JSON.stringify({ type: "answer", text })}\n\ndata: {"type":"done"}\n\n`,
+    }));
+    await page.goto("/");
+    await page.getByRole("textbox", { name: "Your question" }).fill("Help me understand the recurrence");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const heading = page.getByRole("heading", { name: "Diagnostic Question" });
+    await expect(heading).toBeVisible();
+    for (const name of ["Step 1: Understanding the Sequence", "Diagnostic Question"]) {
+      const style = await page.getByRole("heading", { name }).evaluate((element) => {
+        const css = getComputedStyle(element);
+        return { size: parseFloat(css.fontSize), border: css.borderTopWidth,
+          padding: parseFloat(css.paddingTop), margin: parseFloat(css.marginBottom) };
+      });
+      expect(style.size).toBeLessThanOrEqual(17);
+      expect(style.border).toBe("1px");
+      expect(style.padding).toBeGreaterThanOrEqual(8);
+      expect(style.margin).toBeGreaterThanOrEqual(8);
+    }
+    const answer = page.locator(".mb-tutor-answer").last();
+    const listDivider = await answer.locator("ol > li").nth(1).evaluate((element) => getComputedStyle(element).borderTopWidth);
+    expect(listDivider).toBe("1px");
+    const labelDivider = await answer.locator("p").filter({ hasText: /^Concepts involved:$/ }).evaluate((element) => getComputedStyle(element).borderTopWidth);
+    expect(labelDivider).toBe("1px");
+    await expect(answer.locator(".katex-error")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
   test(`stored and streaming math plus constrained semantic styles at ${width}px`, async ({ page }) => {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));

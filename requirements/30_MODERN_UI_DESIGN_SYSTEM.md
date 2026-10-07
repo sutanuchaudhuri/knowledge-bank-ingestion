@@ -25,6 +25,10 @@ requirements and records progress.
 | UI-13 | **Natural-language input:** in `MathComposer` the mic and Send/Stop sit **inside** the input field (right); the Σ / $ / ✨ format tools are ghost icons inside it (left). Stop replaces Send while streaming. Starter suggestions are pills that appear only at the greeting. | ✅ web chat, solve workspace, live console |
 | UI-14 | **No repetition:** each page has one `h1` via `PageHeader`; section titles are not echoed by their items; no duplicate "back" links (breadcrumbs replace them); no implementation detail in student UI. | ✅ student and admin; ⏳ see §3 |
 | UI-15 | **Accessibility and stability:** visible focus states, usable at 390 px, no hydration mismatches (client-only data such as `/learner/me`, `localStorage` and dates is read after mount). | ✅ |
+| UI-16 | **Interactive corpus exploration:** competition coverage cards, lazy collapsed question previews with source figures and concept/technique pills, collapsed related candidates and a problem-bound tutor link. Answers and solutions remain explicitly opt-in. | ✅ |
+| UI-17 | **Guided problem workspace:** Tutor + My work, short journey controls, collapsed source, orientation radio checks, step-bound feedback, optional construction frames and upload/paste entry. | Delivered for the bounded behavior in [34](34_GUIDED_PROBLEM_WORKSPACE.md); durable/adaptive workspace sessions remain planned. |
+| UI-18 | **Step-aligned geometry:** visual intents require the current prompt's objects/relations; progressive frames never default to a generic sketch. Every element has a definition, and small second-level constructions have an explicitly independently magnified panel. | Delivered for Q31; unsupported semantics fail visibly. See [34](34_GUIDED_PROBLEM_WORKSPACE.md). |
+| UI-19 | **Compact practice and trustworthy math:** collapsed routine diagnostics/settings, visible functional errors, matching KaTeX renderer/CSS, conservative PDF prose repair and measured subscript layout. | Delivered and checked at 1440/390 px; mathematical extraction/correctness certification remains out of scope. |
 
 ## 2. Building blocks
 
@@ -54,8 +58,8 @@ hints/correctness explanations use shared Callouts. Printed-work attachment is
 available inside the chat composer only while the latest tutor reply identifies
 a canonical problem; the private attempt workspace still requires explicit
 transcription, student review and analysis actions. Unrelated or unverified work
-context is refused before AI critique. Browser/mobile verification for these
-new interactions remains pending.
+context is refused before AI critique. Focused lesson and problem-bound upload
+browser cases now pass at desktop/mobile sizes.
 
 ## 3. Page coverage
 
@@ -63,10 +67,39 @@ new interactions remains pending.
 |---|---|---|
 | Student | `/` (tutor chat + agent activity timeline), `/learn`, `/learn/solve/[code]`, `/learn/conversations`, `/profile`, `/login` | ✅ revamped |
 | Admin | `/admin` (analytics dashboard), `/admin/textbooks`, `/admin/textbooks/problems/[code]`, `/admin/imports`, `/admin/knowledge-gaps`, `/admin/conversations`, `/admin/pedagogy`, `/admin/widgets`, `/admin/login` | ✅ headers, tabs, pagination, menu; inner tables keep Bootstrap styling |
-| Explore | `/db/*`, `/graph/*` | ✅ section headers and route tabs; ⏳ inner page bodies still use the older `dbStyles.js` classes and some inline styles |
+| Explore | `/db/*`, `/graph/*` | ✅ section headers, route tabs, competition coverage and collapsed problem cards; shared problem detail uses preview/tag components. ⏳ concept/technique/search tables and graph inner bodies retain some older styles |
 | Live | `mathbank-live` console and classroom | ✅ shares the new composer; ⏳ its page chrome is not yet on the kit |
 
 ## 4. Verification
+
+### Interactive corpus previews and tutor handoff
+
+Selecting a competition shows themed coverage stats and a collapsed paginated
+question panel (six per page). `/db/problems` keeps its filters/pagination and
+uses collapsed question cards (20 per page). Details, tags and question-specific
+source figures load only when a card opens. Missing/placeholder statements are
+explicitly marked incomplete; no page-image replacement or fabricated tags are
+introduced. Source viewing reuses the existing PDF split pane.
+
+The related panel calls the existing same-origin search proxy with graph and
+lexical retrieval enabled, semantic embeddings disabled. It uses published tag
+names, or real statement text when untagged, excludes the current problem and
+duplicates, and shows up to six cross-competition candidates. Candidates are
+not certified practice recommendations; fit limitations and retrieval warnings
+remain visible. Empty/error results are explicit, with retry controls.
+
+`/?problem=CANONICAL_CODE` opens chat with a canonical question/figure preview,
+a ready-to-send coaching prompt and `problem_code` in session-link context.
+It creates the usual chat session but makes no paid tutor request until the
+student sends the prompt. Answers/solutions do not enter the prompt.
+Existing diagnosis and step-solving links remain available. Answer/solution
+panels are collapsed by default rather than exposing the first solution.
+
+Focused unit/browser coverage verifies lazy fetching, tags/math/figures,
+deduplication, retry, filter-preserving pagination, spoiler reveal and canonical
+chat handoff at 1440/390 px. A live read-only related query returned seven
+candidates with graph queried and semantic retrieval disabled; no AI inference,
+embeddings, migrations or graph publication ran for this change.
 
 ### Browser-extension hydration compatibility
 
@@ -90,10 +123,35 @@ Activity includes deterministic allowlisted retrieval/context summaries, with
 graph degradation and machine approval qualified rather than implied verified.
 Private thoughts and raw tool payloads remain excluded. The tutor prompt requests
 an answer-free context lookup, a concise teaching roadmap and one first checkpoint
-for selected-problem coaching; this is not a full solution or internal reasoning.
+for selected-problem coaching. The new planning tool consults stored solutions
+privately before selecting a route; activity shows actual reference counts,
+UNVERIFIED status and teaching stages. The public response contains one
+checkpoint, not a full solution or internal reasoning. The exact problem-bound
+discussion prompt routes deterministically; broader conversational intent
+selection still relies on the orchestrator.
 Unit and desktop/mobile mocked browser cases cover evidence visibility and redaction.
 
 ### Server and UI formatting controls
+
+Tutor replies keep semantic Markdown headings but render them at body-scale
+size (1rem), with a token-colored divider and consistent spacing before each
+new section. Standalone bold labels (Problem, Concepts, Diagrams) and adjacent
+numbered steps also receive separators. This is scoped to tutor replies:
+page headings, student text, formulas, code and source widgets are unchanged.
+Desktop/mobile regression checks measure heading size, section padding and
+divider borders using the AIME recurrence reply shape.
+Verification: six focused formatting/activity browser tests passed at 1440/390
+px, with rendered math and no horizontal overflow or page errors. The production
+build, editor diagnostics and whitespace checks passed. No tutoring/model call
+was used by these fixture-based presentation tests.
+
+Practice now loads KaTeX 0.16.47 CSS matching the Markdown renderer, correcting
+the real subscript-size/placement mismatch. Display-only statement preparation
+runs on the tutor proxy and in the workspace: recognized PDF split words and
+prose ligatures are repaired, Q31 indexed points/given coefficient are formatted,
+and delimited math is parse-checked. Original statements, math, code and links
+remain protected; failures are inspectable in collapsed diagnostics. No paid
+formatter is triggered by question loading.
 
 Shared math preparation handles single/double-escaped delimiters and trims inner
 delimiter whitespace without changing code or link destinations. A real ADK

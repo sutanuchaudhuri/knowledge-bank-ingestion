@@ -49,6 +49,67 @@ See [requirements/24](../requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md).
 
 ## Math and embedded source diagrams
 
+### Guided problem workspace
+
+`/learn?problem=CANONICAL_CODE` pairs Tutor with My work rather than requiring
+an opening self-diagnosis. A temporary Understand/Plan/Work/Check/Reflect journey
+supports jump/skip/self-reported completion; editable step tabs keep provisional
+coaching and hint counts attached to each draft. Retry of unavailable teaching
+context preserves typed work and the canonical question when possible, and
+disables coaching until recovery.
+
+The compact view collapses change-problem controls, source metadata, working
+preferences and routine warnings. Real service/upload errors remain visible;
+workspace details explain temporary drafts and provisional coaching. KaTeX
+renderer/CSS versions match, with measured smaller/lowered subscripts. Shared
+server/UI statement presentation repairs recognized PDF word breaks and
+source-specific Q31 notation without modifying canonical text or invoking a
+paid formatter.
+
+Question/orientation bootstrap is independent of the graph. Background context
+has a 15-second browser deadline, bootstrap has 12 seconds and tutor GET proxies
+have 20 seconds; errors offer recovery without discarding drafts/progression.
+
+Q31 and AIME 1985 Q1 have statement-gated authored orientation MCQs. Q31 also
+offers prompt-specific validated circumcenter constructions: exact defining
+triangles, centers, circumcircles and radii, followed after orientation by all
+first-level centers and the second iteration. Missing required elements or
+invalid definitions suppress the diagram; no generic quadrilateral replaces
+it. Coordinates are illustrative, with equal-radii checks and an independently
+magnified second-level panel, not a recovered source or similarity proof.
+Source details and
+lower-level practice are collapsed. MathComposer retains math/voice support;
+upload/paste opens the existing private, editable-transcription workflow with
+explicit approval/analysis. These browser drafts and journey choices are **not**
+a durable PedagogySession or a correctness/mastery assessment.
+See [requirement 34](../requirements/34_GUIDED_PROBLEM_WORKSPACE.md).
+
+Problem-linked chat now consults stored solutions privately before selecting
+a roadmap. Activity shows actual reference counts and verification status;
+only high-level stages and one checkpoint appear in the reply. Step coaching
+also receives private stored references through REST, not browser payloads.
+No problem-opening request automatically generates a solution plan.
+
+### Corpus previews and problem-linked chat
+
+At `/db`, selecting a competition shows coverage stats and a collapsed
+question-preview panel. `/db/problems` offers filtered, paginated collapsed
+cards with formatted statements, published concept/technique pills and
+question-specific source figures. Missing text is labelled incomplete, and the
+original source opens through the existing split-pane viewer.
+
+Each question has a collapsed **Explore related problems** panel. It uses the
+existing graph/text search with semantic embeddings disabled, excludes the
+current question/duplicate matches, and shows bounded cross-competition
+candidates. These are discovery candidates, not verified practice assignments.
+Retrieval limitations and errors are visible.
+
+**Discuss with tutor** opens `/?problem=CANONICAL_CODE`, previews that question
+in chat and prepares a coaching prompt. The learner still clicks Send to invoke
+the tutor; opening the link does not make a paid inference call. Signed-in
+session links include `problem_code` context. Existing diagnosis/step-solving
+links are preserved; answers and solutions require an explicit reveal.
+
 The tutor activity timeline shows actual tool progress and allowlisted evidence:
 graph queried/unavailable/disabled, vector/text search configuration, candidate
 counts and learning-context metadata provenance. Machine-approved skill metadata

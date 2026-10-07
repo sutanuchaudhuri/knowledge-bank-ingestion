@@ -9,6 +9,33 @@
 
 ## Migration order and ownership
 
+### Solution-grounded planning boundary
+
+Incremental source revision `1582f808a731e571e79b588d4c73e717eefc7956` plus related
+worktree changes; `solution_guidance.py` uses existing migration-001
+`core.solution` IDs, kind/revision, body fields and verification status. There
+is no new planning table, DDL or migration above 024. Safe selected conversation
+plans use existing ADK state JSON; raw solution bodies are not put into that
+state. This is not durable browser PedagogySession storage or mastery evidence.
+No live schema parity was checked for this incremental refresh.
+
+### Guided-workspace boundary
+
+Incremental source revision `1582f808a731e571e79b588d4c73e717eefc7956`,
+including related worktree changes. Inspected orientation/visual-definition/pedagogy routes,
+statement read, workspace upload, existing attempt-media ownership and the
+SQL migration inventory (still through 024). No new DDL or durable
+`PedagogySession` table accompanies [requirement 34](../34_GUIDED_PROBLEM_WORKSPACE.md).
+The `pedagogy_session` response is a stateless authored envelope; step drafts,
+stage choices and quiz progression stay in browser memory. Existing private
+uploads use migration-021 submission/media/evidence tables and their ownership
+constraints. Existing ADK topic-plan JSON is separate and remains unchanged.
+Graph-independent workspace bootstrap and typed visual intents add no tables,
+columns or artifact-storage requirements. Illustrative circumcenter coordinates
+are computed in browser memory, not a persisted source diagram or assessment.
+No migrations or live catalog probes were run for this documentation update;
+the wider schema inventory retains its earlier source evidence.
+
 ### Incremental migration 024 and topic-session state
 
 Source revision `c79060ac0771175baa6e04b37bede840f8c30ee1` plus related worktree

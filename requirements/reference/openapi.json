@@ -1799,6 +1799,23 @@
         "title": "GeometryPreview",
         "type": "object"
       },
+      "GuidancePlanRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "problem_code": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^\\S+$",
+            "title": "Problem Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "problem_code"
+        ],
+        "title": "GuidancePlanRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1979,6 +1996,36 @@
           "content"
         ],
         "title": "MessageIn",
+        "type": "object"
+      },
+      "MicroCheckRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "index": {
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "problem_code": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Problem Code",
+            "type": "string"
+          },
+          "response": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Response",
+            "type": "string"
+          }
+        },
+        "required": [
+          "problem_code",
+          "index",
+          "response"
+        ],
+        "title": "MicroCheckRequest",
         "type": "object"
       },
       "NLIn": {
@@ -17831,6 +17878,50 @@
         ]
       }
     },
+    "/v1/tutor/guidance-plan": {
+      "post": {
+        "description": "Explicit planning action; raw solutions remain inside the REST service.",
+        "operationId": "guidance_plan_v1_tutor_guidance_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuidancePlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Guidance Plan V1 Tutor Guidance Plan Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Guidance Plan",
+        "tags": [
+          "pedagogy"
+        ]
+      }
+    },
     "/v1/tutor/learning-context/{problem_code}": {
       "get": {
         "operationId": "learning_context_v1_tutor_learning_context__problem_code__get",
@@ -17870,6 +17961,49 @@
           }
         },
         "summary": "Learning Context",
+        "tags": [
+          "pedagogy"
+        ]
+      }
+    },
+    "/v1/tutor/micro-check": {
+      "post": {
+        "operationId": "micro_check_v1_tutor_micro_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MicroCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Micro Check V1 Tutor Micro Check Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Micro Check",
         "tags": [
           "pedagogy"
         ]
@@ -18293,6 +18427,51 @@
           }
         ],
         "summary": "Topic Practice",
+        "tags": [
+          "pedagogy"
+        ]
+      }
+    },
+    "/v1/tutor/workspace/{problem_code}": {
+      "get": {
+        "description": "Canonical question and authored orientation without graph/enrichment.",
+        "operationId": "workspace_v1_tutor_workspace__problem_code__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "problem_code",
+            "required": true,
+            "schema": {
+              "title": "Problem Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Workspace V1 Tutor Workspace  Problem Code  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Workspace",
         "tags": [
           "pedagogy"
         ]

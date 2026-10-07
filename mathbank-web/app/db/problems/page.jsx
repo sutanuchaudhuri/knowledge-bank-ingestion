@@ -2,9 +2,10 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { table, th, td, rowStyle, masterDetail, panel, input, button } from "../dbStyles.js";
+import { input, button } from "../dbStyles.js";
 import Pager from "../Pager.jsx";
-import ProblemDetail from "../ProblemDetail.jsx";
+import { ProblemPreviewCard } from "../../_components/ProblemPreview.jsx";
+import { Callout, EmptyState, Pill } from "../../_components/ui.jsx";
 
 const LIMIT = 20;
 
@@ -21,36 +22,36 @@ function ProblemsPageInner() {
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState(null);
   const [error, setError] = useState(null);
-  const [selectedCode, setSelectedCode] = useState(null);
+  const [competitionError, setCompetitionError] = useState("");
 
   useEffect(() => {
     fetch("/api/rest/competitions")
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`Could not load competition filters (${res.status}).`))))
       .then((data) => setCompetitions(data.items))
-      .catch(() => {});
+      .catch((err) => setCompetitionError(err.message));
   }, []);
 
   useEffect(() => {
     setPage(null);
     setError(null);
+    const controller = new AbortController();
     const params = new URLSearchParams({ ...filters, limit: String(LIMIT), offset: String(offset) });
-    fetch(`/api/rest/problems?${params}`)
+    fetch(`/api/rest/problems?${params}`, { signal: controller.signal })
       .then((res) =>
         res.ok ? res.json() : res.json().then((body) => Promise.reject(new Error(body.error || `status ${res.status}`)))
       )
-      .then(setPage)
-      .catch((err) => setError(err.message));
+      .then((data) => { if (!controller.signal.aborted) setPage(data); })
+      .catch((err) => { if (!controller.signal.aborted) setError(err.message); });
+    return () => controller.abort();
   }, [filters, offset]);
 
   function updateFilter(key, value) {
     setOffset(0);
-    setSelectedCode(null);
     setFilters((f) => ({ ...f, [key]: value }));
   }
 
   function clearFilters() {
     setOffset(0);
-    setSelectedCode(null);
     setFilters({ competition: "", year_min: "", year_max: "", concept: "", technique: "" });
   }
 
@@ -98,48 +99,30 @@ function ProblemsPageInner() {
         </button>
       </div>
 
-      {error && <p style={{ color: "#b91c1c" }}>Could not load problems: {error}</p>}
+      {competitionError && <Callout tone="warning" role="alert">{competitionError}</Callout>}
+      {error && <Callout tone="danger" role="alert">Could not load problems: {error}</Callout>}
 
-      <div className={masterDetail}>
-        <div className={panel}>
-          {!page ? (
-            <p>Loading…</p>
-          ) : (
+      <div className="card p-3">
+          {filters.competition && <div className="mb-3"><Pill tone="primary" icon="trophy">{filters.competition}</Pill></div>}
+          {!page && !error ? (
+            <p role="status">Loading…</p>
+          ) : page ? (
             <>
-              <div className="table-responsive"><table className={table}>
-                <thead>
-                  <tr>
-                    <th style={th}>Code</th>
-                    <th style={th}>Competition</th>
-                    <th style={th}>Year</th>
-                    <th style={th}>Paper</th>
-                    <th style={{ ...th, textAlign: "right" }}>#</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {page.items.map((p) => (
-                    <tr key={p.canonical_code} style={rowStyle(selectedCode === p.canonical_code)} onClick={() => setSelectedCode(p.canonical_code)}>
-                      <td style={td}>{p.canonical_code}</td>
-                      <td style={td}>{p.competition}</td>
-                      <td style={td}>{p.year}</td>
-                      <td style={td}>{p.paper_code}</td>
-                      <td style={{ ...td, textAlign: "right" }}>{p.problem_number}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table></div>
+              {page.items.length ? <div className="d-grid gap-3">
+                {page.items.map((problem) => <ProblemPreviewCard key={problem.canonical_code} item={problem} related />)}
+              </div> : <EmptyState icon="search">No problems match these filters.</EmptyState>}
               <Pager
                 offset={offset}
                 limit={LIMIT}
                 hasMore={page.hasMore}
+                count={page.items.length}
                 onPrev={() => setOffset((o) => Math.max(o - LIMIT, 0))}
                 onNext={() => setOffset((o) => o + LIMIT)}
               />
             </>
+          ) : (
+            null
           )}
-        </div>
-
-        {selectedCode ? <ProblemDetail code={selectedCode} /> : <div className={panel}><p className="text-secondary mb-0">Select a row to see details.</p></div>}
       </div>
     </div>
   );

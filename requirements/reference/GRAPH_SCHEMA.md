@@ -33,6 +33,42 @@ claim live graph parity or automatic graph/vector/cache reconciliation.
 
 ## Projection ownership
 
+### Solution-grounded planning boundary
+
+Incremental source revision `1582f808a731e571e79b588d4c73e717eefc7956` plus related
+worktree changes. `solution_guidance.py` obtains private canonical references
+from PostgreSQL, not from graph tags. Its explicit REST plan read itself does
+not query/enrich the graph; the agent separately loads existing graph teaching
+context. Neither a route rationale nor a retrieved UNVERIFIED solution record
+is mathematical proof, a new annotation or a mastery edge. No projector file,
+label, relationship, property or constraint changes in this update.
+
+### Guided-workspace read reliability
+
+Incremental source revision `1582f808a731e571e79b588d4c73e717eefc7956` plus
+related worktree changes; examined both projector ownership paths,
+`pedagogy.graph_rows`, orientation routes and workspace contracts.
+Teaching graph reads now materialize record dictionaries within
+`session.execute_read`; transient read retry is driver-managed instead of
+auto-commit `session.run`. Persistent failures remain explicit 503 responses,
+not fabricated metadata. Query directions, review filters and projection
+ownership are unchanged.
+When the bounded approved-ancestor read is empty, the deeper-path existence
+probe is skipped: any approved longer path must have an approved shorter
+suffix. This preserves results and avoids the observed Q31 depth-check stall.
+
+Authored orientation, browser draft/stage state and optional Q31 construction
+create no graph label, property, relationship or constraint.
+`GET /v1/tutor/workspace/{code}` and visual definitions intentionally bypass
+Neo4j, so a slow teaching graph cannot block the canonical question or authored
+orientation. Current-object frame IDs are renderer element identities, not
+graph node keys. Source-verified circumcenter definitions are not projected.
+No new learner
+projection or graph-backed PedagogySession is implied. No live Neo4j schema
+probe or publication occurred in this documentation phase; the wider graph
+inventory keeps its prior source evidence. See
+[34](../34_GUIDED_PROBLEM_WORKSPACE.md).
+
 Postgres is canonical. Neo4j is a rebuildable projection.
 
 | Projector | Graph layer | Write behavior |

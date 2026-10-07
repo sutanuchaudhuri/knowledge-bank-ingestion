@@ -15,6 +15,8 @@ test("requires an attempt and stops after three requested hints", () => {
   assert.deepEqual(hintRequestState("I tried the complement", "I tried counting", 1), { allowed: true, nextLevel: 2 });
   assert.deepEqual(hintRequestState("A new attempt", "An earlier attempt", 2), { allowed: true, nextLevel: 3 });
   assert.equal(hintRequestState("Another attempt", "An earlier attempt", 3).allowed, false);
+  assert.equal(hintRequestState("x".repeat(4000), "", 0).allowed, true);
+  assert.equal(hintRequestState("x".repeat(4001), "", 0).allowed, false);
 });
 
 test("graph metadata exposes provenance and dimensions, never answers or solution bodies", () => {

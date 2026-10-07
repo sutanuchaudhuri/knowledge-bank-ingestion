@@ -8,6 +8,8 @@ import MathText from "./_components/MathText.jsx";
 import TutorAnswer from "./_components/TutorAnswer.jsx";
 import { Avatar, Callout, EmptyState, Icon, Pill, SectionTitle } from "./_components/ui.jsx";
 import { MAX_MEDIA_BYTES } from "../lib/privateRuntimeProxy.mjs";
+import { corpusJson, problemDiscussionPrompt } from "../lib/corpusProblems.mjs";
+import { ProblemPreview } from "./_components/ProblemPreview.jsx";
 
 const ATTEMPT_MEDIA_ROOT = "/api/rest/attempt-media/submissions";
 const PRINTED_WORK_TYPES = ["image/jpeg", "image/png", "application/pdf"];
@@ -29,7 +31,7 @@ const ACTIVITY_LOOK = {
   running: { tone: "primary", icon: "gear" },
 };
 
-export default function Chat() {
+export default function Chat({ initialProblemCode = "", invalidProblem = false }) {
   const sessionRef = useRef(null);
   const streamRef = useRef(null);
   const bottomRef = useRef(null);
@@ -38,7 +40,7 @@ export default function Chat() {
   const [messages, setMessages] = useState([
     { role: "assistant", text: "Hi! Ask me about any competition math topic, or pick a starter below." },
   ]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialProblemCode ? problemDiscussionPrompt(initialProblemCode) : "");
   const [sending, setSending] = useState(false);
   const [activity, setActivity] = useState([]);
   const [error, setError] = useState(null);
@@ -48,19 +50,32 @@ export default function Chat() {
   const [uploadError, setUploadError] = useState("");
   const [uploadResumeUrl, setUploadResumeUrl] = useState("");
   const [problemSelection, setProblemSelection] = useState(null);
+  const [linkedProblem, setLinkedProblem] = useState(null);
+  const [linkedProblemError, setLinkedProblemError] = useState("");
   const uploadRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
     if (!sessionRef.current) {
       const id = newSessionId();
-      sessionRef.current = { id, request: createSession(id) };
+      sessionRef.current = { id, request: createSession(id, {
+        context: initialProblemCode ? { problem_code: initialProblemCode } : {},
+      }) };
     }
     sessionRef.current.request
       .then((session) => { if (!cancelled) { setReady(true); setSaved(session); } })
       .catch((err) => { if (!cancelled) setError(`Could not reach the agent: ${err.message}`); });
     return () => { cancelled = true; streamRef.current?.abort(); };
   }, []);
+
+  useEffect(() => {
+    if (!initialProblemCode) return;
+    const controller = new AbortController();
+    corpusJson(`/api/rest/problems/${encodeURIComponent(initialProblemCode)}`, { signal: controller.signal })
+      .then((data) => { if (!controller.signal.aborted) setLinkedProblem(data); })
+      .catch((err) => { if (!controller.signal.aborted) setLinkedProblemError(err.message); });
+    return () => controller.abort();
+  }, [initialProblemCode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -173,6 +188,14 @@ export default function Chat() {
   return (
     <div className="row g-4">
       <div className="col-12 col-xl-9">
+        {invalidProblem && <Callout tone="danger" role="alert" className="mb-3">The problem link contains an invalid canonical code.</Callout>}
+        {initialProblemCode && <section className="card p-3 mb-3" aria-label="Selected corpus problem">
+          <SectionTitle icon="file-earmark-text">{initialProblemCode}</SectionTitle>
+          {linkedProblemError ? <Callout tone="danger" role="alert">{linkedProblemError}</Callout>
+            : linkedProblem ? <ProblemPreview problem={linkedProblem} discuss={false} />
+              : <p role="status">Loading selected problem…</p>}
+          <p className="small text-secondary mt-3 mb-0">Your question is ready below. Send it to start tutoring; no AI call runs automatically.</p>
+        </section>}
         <section className="card mb-chat" aria-label="Tutor conversation">
           <div className="d-flex justify-content-end gap-2 px-3 pt-2">
             <Link className="btn btn-ghost btn-sm" href="/learn/attempt-media"><Icon name="file-earmark-richtext" />Upload my written attempt</Link>

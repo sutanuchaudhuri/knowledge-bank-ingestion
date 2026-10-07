@@ -4,9 +4,9 @@ import { Icon } from "./ui.jsx";
 
 export default function TutorAnswer({ children }) {
   const problem = splitTutorProblem(children);
-  if (!problem) return <MathText>{children}</MathText>;
+  if (!problem) return <div className="mb-tutor-answer"><MathText>{children}</MathText></div>;
   return (
-    <div>
+    <div className="mb-tutor-answer">
       {problem.intro && <MathText>{problem.intro}</MathText>}
       <section className="mb-tutor-problem" aria-label="Practice problem">
         <div className="mb-tutor-problem-title"><Icon name="file-earmark-text" />{problem.title}</div>

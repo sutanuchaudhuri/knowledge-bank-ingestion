@@ -206,7 +206,18 @@ def report_pedagogy_feedback(
 
 
 def after_pedagogy_tool(tool, args, tool_context, tool_response):
-    if tool.name == "report_pedagogy_feedback":
+    if tool.name == "prepare_problem_guidance":
+        tool_context.state["temp:pedagogy_reply"] = tool_response.get("markdown_block") or (
+            "Solution-grounded planning could not be delivered; please retry. No solution-backed approach was verified."
+        )
+        tool_context.state["temp:problem_guidance_ready"] = True
+        if tool_response.get("status") == "ready":
+            tool_context.state["pedagogy:problem_guidance"] = {
+                key: tool_response[key] for key in (
+                    "problem_code", "stages", "first_checkpoint", "selected_solution_id", "solution_evidence",
+                )
+            }
+    elif tool.name == "report_pedagogy_feedback":
         tool_context.state["temp:pedagogy_replan"] = args.get("topic")
         tool_context.state["temp:feedback_notice"] = (
             (
@@ -381,10 +392,15 @@ def route_topic_before_model(callback_context, llm_request):
             )
         )
     if state.get("temp:pedagogy_routed_invocation") == callback_context.invocation_id:
+        if state.get("temp:problem_guidance_ready"):
+            return LlmResponse(content=types.Content(role="model", parts=[
+                types.Part(text=state["temp:pedagogy_reply"]),
+            ]))
         return None
     state["temp:pedagogy_routed_invocation"] = callback_context.invocation_id
     state["temp:pedagogy_reply"] = None
     state["temp:formatted_reply"] = None
+    state["temp:problem_guidance_ready"] = False
     content = callback_context.user_content
     query = (
         "".join(p.text or "" for p in content.parts or [] if not p.thought).strip()
@@ -393,6 +409,19 @@ def route_topic_before_model(callback_context, llm_request):
     )
     if not query or len(query) > 300 or "\n" in query:
         return None
+    codes = re.findall(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b", query)
+    runtime_request = "solve_attempt_id" in query or (
+        codes and codes[0].startswith("PRASOLOV_")
+        and re.search(r"\bstep[- ]by[- ]step\b", query, re.IGNORECASE)
+    )
+    if not runtime_request and len(set(codes)) == 1 and re.search(
+        r"\b(help me think|guide me|walk me through|help me solve)\b", query, re.IGNORECASE
+    ):
+        return LlmResponse(content=types.Content(role="model", parts=[
+            types.Part(function_call=types.FunctionCall(
+                name="prepare_problem_guidance", args={"problem_code": codes[0]},
+            )),
+        ]))
     last_codes = state.get("pedagogy:last_codes", [])
     last_topic = state.get("pedagogy:last_topic")
     if (

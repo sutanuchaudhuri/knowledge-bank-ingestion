@@ -70,11 +70,34 @@
     <a href="../requirements/33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md">Delivery and remaining work</a></p>
   </section>
 
-  <h2 id="pedagogical-turn"><span class="section-no">P0</span>The earlier P0 teaching interaction</h2>
+  <section class="card reveal" id="solution-grounded-plan">
+    <span class="tag">Current selected-problem path</span>
+    <h2>Consult solutions privately; teach one checkpoint publicly</h2>
+    <ol>
+      <li><strong>Load evidence:</strong> canonical question, source figures and
+      graph context; graph tags alone do not establish a solving approach.</li>
+      <li><strong>Choose a route:</strong> REST compares bounded stored-solution
+      references privately. Unverified sources are labelled, not certified.</li>
+      <li><strong>Teach:</strong> show a brief rationale, high-level roadmap and
+      one unanswered checkpoint. AIME Q1 starts with neighboring-term structure,
+      rather than calculating every nested fraction.</li>
+      <li><strong>Follow the learner:</strong> subsequent hints consult the
+      references but respond to the actual attempt, including alternate methods.</li>
+    </ol>
+    <p>Activity shows record counts, source status and teaching stages, never raw
+    solutions or private reasoning. Opening a question does not invoke a paid
+    planner. AIME has a source-gated authored route; general generated plans
+    remain provisional. Missing references and model failures are explicit.</p>
+    <p><a href="../requirements/34_GUIDED_PROBLEM_WORKSPACE.md">Implementation,
+    limits and verification</a></p>
+  </section>
+
+  <h2 id="pedagogical-turn"><span class="section-no">P0</span>One hint after an attempt</h2>
   <p>Choose the obstacle (concept, strategy, execution, calculation, connection), request an attempt,
   and offer one hint at a time (1–3). When a detour helps, retrieve reviewed prerequisites or easier
   same-skill evidence; otherwise disclose the gap. An on-demand generated micro-lesson or hint is
-  <code>PENDING</code>, does not receive official answer / solution context, and ends with a
+  <code>PENDING</code>; stored solution context stays inside REST and only a
+  learner-safe cue returns. It ends with a
   <code>return_prompt</code> to the original problem. This is not a persisted P1 hint library or a P2 learner model.</p>
   <p><a href="pedagogy.html#walkthrough">Interactive P0 walkthrough</a> ·
   <a href="http://localhost:5173/learn">Open the running local /learn app ↗</a>.</p>

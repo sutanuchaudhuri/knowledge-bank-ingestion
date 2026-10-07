@@ -2,6 +2,60 @@
 
 ## Evidence
 
+- Latest guided-workspace incremental source revision:
+  `1582f808a731e571e79b588d4c73e717eefc7956` plus related worktree changes.
+  Inspected `guided_orientation.py`, `guided_visuals.py`, `pedagogy.py`, `routers/pedagogy.py`,
+  web tutor proxy and orientation tests. Source-generated, screened OpenAPI
+  is now **189 paths / 95 schemas**, including `solution_guidance.py` and
+  its coaching/agent callers; earlier counts below are historical.
+  No endpoint call, live schema check or paid inference accompanied generation.
+
+### Guided-workspace orientation contract
+
+| Route | Input/auth | Behavior/errors |
+|---|---|---|
+| `GET /v1/tutor/workspace/{problem_code}` | Public canonical code | Canonical statement/safe-figure read plus authored orientation and optional visual intent. No graph, enrichment/publication, provider, session or mastery write. Unknown 404; storage 503. Initial workspace is independent of full teaching-context latency. |
+| `GET /v1/tutor/learning-context/{problem_code}` | Public canonical code | Existing teaching context plus `pedagogy_session` with journey, current action, response type, goal, choices, orientation counts, temporary status and provenance. Existing missing-metadata enrichment/publication remains possible. Unknown 404; enrichment 502; data unavailable 503. No newly added orientation model call. |
+| `POST /v1/tutor/micro-check` | Public `MicroCheckRequest`; extras forbidden; code/response 1–200 chars; strict integer index 0–20 | Canonical statement/safe-diagram read, stateless authored checks for Q31 and AIME 1985 Q1. Correct response returns explanation and next prompt; wrong response stays at current index without key; `"hint"` gives a nudge without advancing. Invalid authored index/choice 422, unknown problem 404, storage 503. No solution read, enrichment, model, mastery or session write. |
+| `POST /v1/tutor/guidance-plan` | Public explicit `GuidancePlanRequest`; code 1–200 characters with no whitespace; extras forbidden | Read up to six nonempty stored solutions, at most 12,000 characters each. Return safe rationale, 3–5 stages, one checkpoint, selected reference ID and source-status/counts. AIME authored source-gated route has no model call; other plans may use the existing model with a 45-second timeout/no retries. No references returns explicit `status=unavailable`; no raw solution/answer fields. Unknown 404, validation 422, provider/refusal/invalid plan/withheld answer 502, storage 503. No corpus/mastery write. |
+
+Next.js `POST /api/tutor/micro-check` validates JSON and proxies only the
+allowlisted endpoint; malformed JSON 400, unknown proxy path 404, upstream
+errors preserve their status. The returned generic dictionary is not a typed
+OpenAPI response schema; runtime behavior is covered by source/tests.
+`pedagogy_session` is an orientation envelope, **not a durable server session**:
+indices supplied by clients are not completion evidence. Browser work, journey
+and coaching remain temporary; upload/approval uses the existing authenticated
+attempt-media API. See [34](../34_GUIDED_PROBLEM_WORKSPACE.md).
+
+Orientation responses now include `visual_intent` (or null): canonical code,
+current visual goal, required element IDs, level bound, forbidden proof/scale
+claims and ordered two-level circumcenter definitions. Q31 setup is gated by
+the actual statement; unsupported/reordered definitions return no intent.
+No model-generated coordinate or SVG blob is accepted by this contract.
+The browser computes verified illustrative coordinates and validates every
+frame before rendering; this is not a durable artifact or graded assessment.
+Generic-dictionary response schemas still do not describe these fields in
+OpenAPI; the runtime tests and requirement 34 define the detailed contract.
+Tutor GET proxies combine caller cancellation with a 20-second upstream
+deadline, returning explicit 504 timeout errors. Workspace uses a 12-second
+browser deadline; background context uses 15 seconds and never blocks writing
+or authored checks. Late context does not reset orientation progression.
+
+Tutor GET proxies now add display-only `problem.display_statement` and
+`format_warnings` via the same deterministic presentation preparation used by
+the workspace. `statement_text` remains unchanged. These Next.js-only additions
+are not FastAPI response fields or paid formatter actions.
+
+`POST /v1/tutor/coach` privately loads the same stored-solution references before
+choosing a next hint. Its public result adds `solution_evidence` with counts and
+source kind/revision/verification status, never bodies. No-reference coaching is
+explicitly statement-only/provisional. Selected plan IDs must belong to the
+retrieved set. A literal numeric final-answer check is not general proof/spoiler
+validation. Generic dictionary response schemas remain an OpenAPI limitation.
+No new web POST allowlist for planning is needed: the ADK tool calls REST
+directly on the learner's explicit discussion request.
+
 - Incremental behavior refresh, source-derived 2026-10-07 UTC at HEAD `c79060ac0771175baa6e04b37bede840f8c30ee1` plus related worktree changes: the agent session contract now returns answer-key-free lesson progress for stage navigation/timing, and `POST /v1/attempt-media/submissions/{sid}/analyse` refuses unrelated or unverified problem context before critique. No FastAPI route or OpenAPI schema changed. The source-generated OpenAPI was compared in memory with [openapi.json](openapi.json): exact match, 3.1.0 / 186 paths / 93 schemas. No live database or graph was queried.
 - Evidence mode: source-derived for route/API descriptions, plus separately labelled operator-reported deployment observations (not independently verified).
 - Source revision: `3e915d015aa34268996724a3014c850f5892596e`, with uncommitted worktree changes included (refreshed 2026-10-06 for migrations 021/022).
@@ -153,7 +207,8 @@ OpenAPI operation IDs are in `openapi.json`. Status/error notes include implemen
 | GET | `/v1/tutor/learning-context/{problem_code}` | none | path code | teaching context | Calls `ensure_learning_metadata`; can trigger automatic enrichment and publish if metadata is missing/unpublished; 404/502/503 handled. |
 | GET | `/v1/tutor/prerequisites/{skill_slug}` | none | `max_depth 1..8` | prerequisite path | 404 unknown; 503 data unavailable. |
 | GET | `/v1/tutor/practice/{problem_code}` | none | `limit 1..20` | easier practice | 404/503 as above. |
-| POST | `/v1/tutor/coach` | none | `CoachRequest` in `mathbank_rest.pedagogy` | coaching response | Ensures learning metadata; can trigger enrichment/model path; 502 for coaching/enrichment failures. |
+| POST | `/v1/tutor/coach` | none | `CoachRequest` in `mathbank_rest.pedagogy` | coaching response + safe solution evidence | Ensures learning metadata; privately consults stored solution references; can trigger enrichment/model path; 502 for coaching/enrichment failures. |
+| POST | `/v1/tutor/guidance-plan` | none | `GuidancePlanRequest` | safe roadmap/checkpoint or unavailable status | Bounded private reference SELECT; explicit planning may invoke model; 404/422/502/503; no canonical or mastery write. |
 | GET | `/v1/admin/pedagogy/queue` | admin key | `kind`, `status`, `limit 1..100`, `offset>=0` | queue + counts/fingerprint | Read-only; status defaults PENDING. |
 | POST | `/v1/admin/pedagogy/review` | admin key | `ReviewRequest` | status/revision/message | 404 missing, 409 stale/conflict, 422 invalid; writes decision/audit. |
 | POST | `/v1/admin/pedagogy/history` | admin key | `EntityRequest` | review history | 404/422 via validation helpers. |
