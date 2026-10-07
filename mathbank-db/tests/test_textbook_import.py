@@ -1,11 +1,12 @@
 """Offline contract tests for etl/import_textbook_package.py (no database)."""
 
 import csv
-import sys
 import importlib.util
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("textbook_import", ROOT / "mathbank-db/etl/import_textbook_package.py")
@@ -38,6 +39,27 @@ HEADERS = {
                                                         "choices_json", "review_status", "no_proof",
                                                         "solution_step_anchor_id"],
 }
+
+
+def test_import_flags_unsupported_power_candidate_without_retagging_staged_input():
+    conflicts = []
+    proposal = {"technique_ids": [tb.POWER]}
+    plan = SimpleNamespace(
+        enrichment={"6.76": proposal},
+        problems={"6.76": {"statement_text": "If n is not a power of a prime, construct an equiangular n-gon."}},
+        steps={"step": {"problem": "6.76", "step_text": "Use vector projections."}},
+        conflict=lambda *args, **kwargs: conflicts.append((args, kwargs)),
+    )
+    tb.flag_power_candidates(plan)
+    assert proposal["technique_ids"] == [tb.POWER]
+    assert proposal["blocked_technique_ids"] == [tb.POWER]
+    assert conflicts[0][0][2] == "TECHNIQUE_EVIDENCE_MISSING"
+    good = {"technique_ids": [tb.POWER]}
+    plan.enrichment = {"1.1": good}
+    plan.problems = {"1.1": {"statement_text": "Two chords of a circle intersect at P."}}
+    plan.steps = {"step": {"problem": "1.1", "step_text": "PA*PB=PC*PD"}}
+    tb.flag_power_candidates(plan)
+    assert "blocked_technique_ids" not in good
 
 
 def step(sid, part, pid, gi, ii):

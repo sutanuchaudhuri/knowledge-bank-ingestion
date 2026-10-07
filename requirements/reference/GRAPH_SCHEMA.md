@@ -7,6 +7,30 @@
 - Sources: `mathbank-graph/etl/project_from_postgres.py`, `mathbank-graph/etl/project_textbook_steps.py`, graph-related migrations and readers, `mathbank-web/lib/graphConfig.js`, `mathbank-web/lib/graphMetadata.mjs`; migrations 021/022 and their REST writers were checked to confirm their learner-evidence/artifact data is not projected.
 - No live Neo4j target was queried; counts in older READMEs remain dated audits, not current proof.
 
+### Topic-first incremental boundary
+
+Source revision `c79060ac0771175baa6e04b37bede840f8c30ee1` plus relevant worktree
+changes. Freshly examined both projectors' ownership/review paths, migrations
+023/024, topic-practice SQL, structural audit, importer validation and ADK lesson
+state. **No new graph labels, edge types, properties or constraints** accompany
+these additions. TopicLearningPlan, quiz results, learner feedback/audit snapshots
+and reviewed retriever labels stay in PostgreSQL/ADK session state.
+
+Interactive lesson stage status/timing, hints and navigation remain ADK
+session-state fields; printed-work problem-context checks use the existing
+attempt-media workflow. Neither is a graph projection or learner mastery edge.
+The current update added no graph-writer or graph-reader contract.
+
+Exact-topic practice uses PostgreSQL published-step evidence before ranking;
+vector proximity and a graph edge alone do not establish applicability.
+`STEP_SUPPORTED` is computed REST membership, not a newly projected
+Problem-USES_TECHNIQUE assertion. Human-resolved retrieval negatives gate practice,
+not the general graph/corpus views. Future unsupported Power import proposals are
+held out of the canonical bridge, not automatically removed from Neo4j.
+Canonical correction still requires explicit publication and verification of
+each store. This source refresh made no graph queries/publications and does not
+claim live graph parity or automatic graph/vector/cache reconciliation.
+
 ## Projection ownership
 
 Postgres is canonical. Neo4j is a rebuildable projection.

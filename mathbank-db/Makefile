@@ -24,7 +24,18 @@ PG_LOG    := $(EXTERNAL_DB_ROOT)/postgres$(PG_VERSION)/postgres.log
 
 .DEFAULT_GOAL := help
 
-.PHONY: migrate-attempt-media-remote migrate-artifacts-remote migrate-multimodal-remote
+.PHONY: migrate-attempt-media-remote migrate-artifacts-remote migrate-multimodal-remote migrate-pedagogy-feedback-remote
+migrate-pedagogy-feedback-remote: ## Apply pending learner relevance-report migration 023 to configured Neon
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/023_pedagogy_feedback.sql
+
+.PHONY: migrate-feedback-evidence-remote
+migrate-feedback-evidence-remote: ## Apply feedback audit/reviewed-evaluation migration 024 to configured Neon
+	@. $(CURDIR)/../mathbank-graph/remote.env; \
+	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \
+	  -v ON_ERROR_STOP=1 -f sql/024_feedback_evidence.sql
+
 migrate-attempt-media-remote:     ## Apply private multimodal evidence/approval migration 021 to configured Neon
 	@. $(CURDIR)/../mathbank-graph/remote.env; \
 	  PGPASSWORD="$$NEON_PG_PASSWORD" "$(PG_BIN)/psql" "host=$$NEON_PG_HOST port=$$NEON_PG_PORT dbname=$$NEON_PG_DATABASE user=$$NEON_PG_USER sslmode=require" \

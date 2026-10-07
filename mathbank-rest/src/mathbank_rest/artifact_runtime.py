@@ -869,6 +869,17 @@ def frame_svg(conn, bundle_id: UUID, ordinal: int, actor: dict) -> bytes:
     _, data = asset_bytes(conn, bundle_id, UUID(manifest["base_asset_id"]), actor)
     if data != expected["assets"][0]["data"] or svg_errors(data):
         raise ArtifactError("FRAME_INTEGRITY_FAILED", "base SVG differs from validated source", 503)
+    return render_generated_frame(plan, expected, ordinal)
+
+
+def render_generated_frame(plan: ArtifactPlan, generated: dict, ordinal: int | None = None) -> bytes:
+    """Reuse the validated reset-to-base renderer for stored and ephemeral frames."""
+    data = next(asset["data"] for asset in generated["assets"] if asset["mime_type"] == "image/svg+xml")
+    if ordinal is None:
+        return data
+    manifest = generated["manifest"]
+    if not 0 <= ordinal < len(manifest["frames"]):
+        raise ArtifactError("FRAME_NOT_FOUND", "frame ordinal not found", 404)
     root = ET.fromstring(data)
     ns = "{http://www.w3.org/2000/svg}"
     # Strip the fixed namespace to retain simple, browser-safe SVG serialization.

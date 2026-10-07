@@ -1394,6 +1394,88 @@
         "title": "Equation",
         "type": "object"
       },
+      "FeedbackDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "error_kind": {
+            "default": "UNCLASSIFIED",
+            "enum": [
+              "UNCLASSIFIED",
+              "METADATA",
+              "RETRIEVAL",
+              "INSUFFICIENT_EVIDENCE"
+            ],
+            "title": "Error Kind",
+            "type": "string"
+          },
+          "feedback_id": {
+            "format": "uuid",
+            "title": "Feedback Id",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Note",
+            "type": "string"
+          },
+          "retrieval_verdict": {
+            "default": "UNCLASSIFIED",
+            "enum": [
+              "UNCLASSIFIED",
+              "IRRELEVANT",
+              "RELEVANT"
+            ],
+            "title": "Retrieval Verdict",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "RESOLVED",
+              "DISMISSED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feedback_id",
+          "status",
+          "note"
+        ],
+        "title": "FeedbackDecision",
+        "type": "object"
+      },
+      "FeedbackRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "problem_code": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Problem Code",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Reason",
+            "type": "string"
+          },
+          "topic": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "problem_code",
+          "topic",
+          "reason"
+        ],
+        "title": "FeedbackRequest",
+        "type": "object"
+      },
       "FormatBody": {
         "properties": {
           "mode": {
@@ -3711,6 +3793,78 @@
           "planned_seconds"
         ],
         "title": "TopicIn",
+        "type": "object"
+      },
+      "TopicPracticeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "exclude_codes": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Exclude Codes",
+            "type": "array"
+          },
+          "exposed_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposed Codes"
+          },
+          "known_skills": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Known Skills",
+            "type": "array"
+          },
+          "limit": {
+            "default": 10,
+            "maximum": 25.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "profile_version": {
+            "default": "topic-fit-v1",
+            "title": "Profile Version",
+            "type": "string"
+          },
+          "target_difficulty": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Difficulty"
+          },
+          "topic": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "title": "TopicPracticeRequest",
         "type": "object"
       },
       "TopicsIn": {
@@ -6325,6 +6479,141 @@
         ]
       }
     },
+    "/v1/admin/pedagogy/feedback": {
+      "get": {
+        "operationId": "feedback_queue_v1_admin_pedagogy_feedback_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Feedback Queue V1 Admin Pedagogy Feedback Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Feedback Queue",
+        "tags": [
+          "admin pedagogy"
+        ]
+      }
+    },
+    "/v1/admin/pedagogy/feedback-review": {
+      "post": {
+        "operationId": "feedback_review_v1_admin_pedagogy_feedback_review_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Feedback Review V1 Admin Pedagogy Feedback Review Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Feedback Review",
+        "tags": [
+          "admin pedagogy"
+        ]
+      }
+    },
     "/v1/admin/pedagogy/history": {
       "post": {
         "operationId": "history_v1_admin_pedagogy_history_post",
@@ -6613,6 +6902,69 @@
           }
         },
         "summary": "Reclassify",
+        "tags": [
+          "admin pedagogy"
+        ]
+      }
+    },
+    "/v1/admin/pedagogy/retrieval-examples": {
+      "get": {
+        "operationId": "retrieval_examples_v1_admin_pedagogy_retrieval_examples_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Examples V1 Admin Pedagogy Retrieval Examples Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Examples",
         "tags": [
           "admin pedagogy"
         ]
@@ -8730,6 +9082,24 @@
         "operationId": "geometry_preview_content_v1_artifacts_geometry_preview_content_post",
         "parameters": [
           {
+            "in": "query",
+            "name": "frame",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 127,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Frame"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -8879,6 +9249,24 @@
       "post": {
         "operationId": "preview_content_v1_artifacts_preview_content_post",
         "parameters": [
+          {
+            "in": "query",
+            "name": "frame",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 127,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Frame"
+            }
+          },
           {
             "in": "header",
             "name": "authorization",
@@ -17318,6 +17706,54 @@
         ]
       }
     },
+    "/v1/tutor/feedback": {
+      "post": {
+        "operationId": "feedback_v1_tutor_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Feedback V1 Tutor Feedback Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Feedback",
+        "tags": [
+          "pedagogy"
+        ]
+      }
+    },
     "/v1/tutor/format-math": {
       "post": {
         "operationId": "format_math_v1_tutor_format_math_post",
@@ -17765,6 +18201,100 @@
         "summary": "Tutor Message",
         "tags": [
           "live-sessions"
+        ]
+      }
+    },
+    "/v1/tutor/topic-plan": {
+      "get": {
+        "operationId": "topic_plan_v1_tutor_topic_plan_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Topic Plan V1 Tutor Topic Plan Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Topic Plan",
+        "tags": [
+          "pedagogy"
+        ]
+      }
+    },
+    "/v1/tutor/topic-practice": {
+      "post": {
+        "operationId": "topic_practice_v1_tutor_topic_practice_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopicPracticeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Topic Practice V1 Tutor Topic Practice Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Topic Practice",
+        "tags": [
+          "pedagogy"
         ]
       }
     },

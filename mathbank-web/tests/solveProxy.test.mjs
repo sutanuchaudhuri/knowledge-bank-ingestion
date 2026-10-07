@@ -92,3 +92,8 @@ test("recovery detour routes are allowlisted for the student; admin plan views a
   assert.equal(resolveSolveRoute("POST", ["recovery-plans", "p1", "delete"]), null);
   assert.equal(resolveSolveRoute("GET", ["admin", "recovery-plans"]), null);
 });
+test("feedback proxy is an authenticated allowlisted student mutation", () => {
+  assert.deepEqual(resolveSolveRoute("POST", ["pedagogy-feedback"]), { path: "/v1/tutor/feedback", auth: true, body: true });
+  assert.equal(resolveSolveRoute("GET", ["pedagogy-feedback"]), null);
+  assert.equal(resolveSolveRoute("POST", ["pedagogy-feedback", "other"]), null);
+});

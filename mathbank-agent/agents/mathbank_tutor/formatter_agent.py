@@ -57,6 +57,12 @@ class FormatterAgentTool(ArtifactAgentTool):
                 )
         except (ValueError, TypeError) as exc:
             return {"error": "FORMAT_INVALID", "message": str(exc)}
+        pedagogy_source = tool_context.state.get("temp:pedagogy_reply")
+        if pedagogy_source and request["text"] != pedagogy_source:
+            return {
+                "error": "FORMAT_TEXT_CHANGED",
+                "message": "Format the exact grounded teaching plan, not a replacement.",
+            }
         invocation = _FormatInvocation(request["text"])
         source_token = _FORMAT_SOURCE.set(invocation)
         tool_context.state["temp:formatted_reply"] = None
@@ -67,6 +73,7 @@ class FormatterAgentTool(ArtifactAgentTool):
                     invocation.result
                     or "Formatting failed: no validated formatting tool result."
                 )
+                tool_context.state["temp:formatted_pedagogy_source"] = pedagogy_source
             return result
         finally:
             _FORMAT_SOURCE.reset(source_token)
@@ -179,13 +186,26 @@ def format_tutor_text(text: str, annotations_json: str = "[]") -> dict:
 
 def guard_tutor_output(callback_context, llm_response):
     """Apply the offline guard before final model text is emitted and persisted."""
+    if (
+        llm_response.partial
+        and llm_response.content
+        and callback_context
+        and callback_context.state.get("temp:pedagogy_reply")
+    ):
+        for part in llm_response.content.parts or []:
+            if part.text and not part.thought:
+                part.text = ""
+        return
     if not llm_response.partial and llm_response.content:
         parts = llm_response.content.parts or []
-        formatted = (
-            callback_context.state.get("temp:formatted_reply")
-            if callback_context
-            else None
-        )
+        formatted = callback_context.state.get("temp:formatted_reply") if callback_context else None
+        pedagogy = callback_context.state.get("temp:pedagogy_reply") if callback_context else None
+        if pedagogy:
+            if formatted and callback_context.state.get("temp:formatted_pedagogy_source") == pedagogy:
+                if formatted.startswith("Formatting failed:"):
+                    formatted += "\n\n" + pedagogy
+            else:
+                formatted = pedagogy
         visible = [part for part in parts if part.text and not part.thought]
         if formatted and visible and not any(part.function_call for part in parts):
             visible[0].text = formatted

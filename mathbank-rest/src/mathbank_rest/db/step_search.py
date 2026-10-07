@@ -208,7 +208,12 @@ SELECT n.taxonomy_node_id, n.node_type, n.name, n.parent_node_id, parent.name AS
                    OR (n.node_type = 'TECHNIQUE' AND EXISTS (
                         SELECT 1 FROM pedagogy.solution_step_technique t
                          WHERE t.solution_step_id = s.solution_step_id
-                           AND t.technique_node_id = n.taxonomy_node_id AND t.review_status = 'APPROVED'))))
+                           AND t.technique_node_id = n.taxonomy_node_id AND t.review_status = 'APPROVED')
+                       AND NOT EXISTS (
+                         SELECT 1 FROM knowledge.problem_technique rejected
+                          WHERE rejected.problem_id=s.problem_id
+                            AND rejected.technique_id=n.technique_id
+                            AND rejected.review_status='REJECTED'))))
   ) ex ON true
  WHERE n.taxonomy_node_id = ANY(:ids)
 """

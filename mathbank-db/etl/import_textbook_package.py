@@ -24,9 +24,13 @@ import json
 import re
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from power_geometry_evidence import POWER, power_structure
 
 SOURCE = "prasolov-package-v3"
 PACKAGE_VERSION = "pedagogy_v3"
@@ -603,7 +607,22 @@ def build_plan(package: Package, chapters: Iterable[int] | None = None) -> Plan:
                 "extraction_method": row.get("extraction_method") or None,
                 "validation_status": row.get("validation_status") or None,
             }
+    flag_power_candidates(plan)
     return plan
+
+
+def flag_power_candidates(plan: Plan) -> None:
+    """Preserve staged proposals but withhold unsupported new canonical bridge tags."""
+    for pid, enrichment in plan.enrichment.items():
+        if POWER not in enrichment["technique_ids"]:
+            continue
+        steps = [{"solution_step_id": key, "step_text": step["step_text"]}
+                 for key, step in plan.steps.items() if step["problem"] == pid]
+        audit = power_structure(plan.problems[pid]["statement_text"], steps)
+        if audit["status"] == "REVIEW_REQUIRED":
+            enrichment["blocked_technique_ids"] = [POWER]
+            plan.conflict("problem_enrichment", pid, "TECHNIQUE_EVIDENCE_MISSING", "WARNING",
+                          technique_id=POWER, evidence=audit)
 
 
 def _reject_cycles(plan: Plan) -> None:
@@ -650,7 +669,7 @@ class Counts:
     updated: int = 0
     unchanged: int = 0
 
-    def __iadd__(self, other: "Counts") -> "Counts":
+    def __iadd__(self, other: Counts) -> Counts:
         self.created += other.created
         self.updated += other.updated
         self.unchanged += other.unchanged
@@ -766,7 +785,7 @@ def import_plan(conn, plan: Plan, package_id: str) -> dict[str, Counts]:
 
     counts: dict[str, Counts] = defaultdict(Counts)
     book_row, book = plan.package.book, plan.book_code
-    guard_human = "t.approval_method IS DISTINCT FROM 'human'"
+    guard_human = "t.approval_method IS DISTINCT FROM 'human' AND t.review_status <> 'REJECTED'"
 
     # ---- taxonomy bridge into knowledge.* ---------------------------------
     with conn.cursor() as cur:
@@ -927,7 +946,7 @@ def import_plan(conn, plan: Plan, package_id: str) -> dict[str, Counts]:
             [(book, s["source_solution_id"], sids[pid], pids[pid], s["row"].get("solution_first_step") or None,
               as_int(s["row"].get("source_page")), package_id) for pid, s in plan.solutions.items()],
             ["book_code", "source_solution_id"])
-        node_id = lambda key: ids[key][1] if key and key in ids else None  # noqa: E731
+        node_id = lambda key: ids[key][1] if key and key in ids else None
         counts["problem_enrichment"] += upsert(
             cur, "pedagogy.problem_enrichment",
             ["problem_id", "concept_node_id", "subconcept_node_id", "primary_skill_node_id", "solution_step_skill_ids",
@@ -950,6 +969,8 @@ def import_plan(conn, plan: Plan, package_id: str) -> dict[str, Counts]:
             if node_id(e["concept_node_id"]):
                 concepts.setdefault((problem, node_id(e["concept_node_id"]), "CHAPTER_CONCEPT"), confidence)
             for i, tech in enumerate(e["technique_ids"]):
+                if tech in e.get("blocked_technique_ids", []):
+                    continue
                 techs.setdefault((problem, node_id(tech)), ("PRIMARY" if i == 0 else "SECONDARY", confidence))
             primary = e["primary_skill_node_id"]
             if node_id(primary):

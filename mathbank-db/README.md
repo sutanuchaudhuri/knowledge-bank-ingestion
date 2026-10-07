@@ -1,5 +1,30 @@
 # mathbank-db
 
+## Learner relevance feedback (migration 023)
+
+[`sql/023_pedagogy_feedback.sql`](sql/023_pedagogy_feedback.sql) adds a pending
+learner report queue, separate from approved annotations. Reports never train
+models, update vectors, publish graph edges or change mastery automatically.
+Operators review the source/solution-step evidence, correct/reject the specific
+mapping with revision checks, publish explicitly, then resolve the report with
+an evidence note. Exact repeated reports return their existing status.
+See the [schema](../requirements/reference/POSTGRES_SCHEMA.md) and
+[DML boundaries](../requirements/reference/POSTGRES_DML.md).
+
+[`sql/024_feedback_evidence.sql`](sql/024_feedback_evidence.sql) adds server
+audit snapshots and explicit human relevance/error labels to the same report
+row. Only resolved IRRELEVANT labels exclude topic-practice candidates; pending
+complaints never change canonical annotations. Reviewed labels can be exported
+as evaluation evidence without training. Existing reports are not backfilled.
+Migration 024 was explicitly authorized and applied during the 2026-10-07
+implementation, not the architecture-documentation refresh.
+
+Future textbook package imports share the runtime Power-of-a-Point structural
+audit. Missing circle/product reasoning flags an import conflict and withholds
+the proposed new canonical technique bridge. Raw staged tags are preserved for
+review; missing heuristic structure is not automatic rejection. Existing human
+and rejected decisions are protected. No bulk reimport/reannotation was run.
+
 ### Retrying a repaired source during an active backlog
 
 Use the batch runner's `--resume RUN_UUID --paper PAPER_CODE --wait-for-lock`
@@ -47,8 +72,8 @@ See root [DATABASES.md](../DATABASES.md) for the full local-vs-remote
 (Neon/AuraDB) picture and [GOTCHAS.md](../GOTCHAS.md) for environment
 troubleshooting. The source-derived composite schema, SQL behavior, and API
 contracts are in the [canonical implementation references](../requirements/reference/README.md);
-the current schema includes migrations 021/022, but reference documentation
-does not verify that either migration is applied to a database target.
+the current schema includes migrations 021–024, but reference documentation
+does not verify that any migration is applied to a database target.
 
 ## Quick start (local cluster)
 
@@ -257,7 +282,7 @@ Migrations use idempotent DDL where appropriate; inspect each migration for
 its exact operations and prerequisites before applying it. The inventory above
 does not assert that any remote target has applied a migration.
 
-Migrations 021/022 are described in the source-derived schema reference; this
+Migrations 021–024 are described in the source-derived schema reference; this
 table is not evidence that they have run. Attempt media and generated artifact
 bytes use private object storage, independently configured from Neon Auth and
 the AI Gateway. See [schema](../requirements/reference/POSTGRES_SCHEMA.md),

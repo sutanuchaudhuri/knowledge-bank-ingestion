@@ -12,11 +12,14 @@ export function createAdminPedagogyHandlers({ hasSession, get, post, invalidate 
       const denied = await authorize(request, false);
       if (denied) return denied;
       const params = new URL(request.url).searchParams;
-      if ([...params.keys()].some(key => !["kind", "status", "limit", "offset"].includes(key))) {
+      if ([...params.keys()].some(key => !["kind", "status", "limit", "offset", "view"].includes(key))) {
         return Response.json({ error: "Unknown queue filter" }, { status: 400 });
       }
       try {
-        return Response.json(await get("/v1/admin/pedagogy/queue", Object.fromEntries(params)));
+        const view = params.get("view");
+        if (view && !["feedback", "retrieval-examples"].includes(view)) return Response.json({ error: "Unknown queue view" }, { status: 400 });
+        params.delete("view");
+        return Response.json(await get(`/v1/admin/pedagogy/${view || "queue"}`, Object.fromEntries(params)));
       } catch (err) {
         return Response.json({ error: err.message }, { status: err.status || 502 });
       }
@@ -31,7 +34,7 @@ export function createAdminPedagogyHandlers({ hasSession, get, post, invalidate 
         return Response.json({ error: "Expected a JSON object" }, { status: 400 });
       }
       const { action, ...payload } = body;
-      if (!["review", "history", "publish", "bulk-review", "approve-starter", "edit", "reclassify"].includes(action)) {
+      if (!["review", "history", "publish", "bulk-review", "approve-starter", "edit", "reclassify", "feedback-review"].includes(action)) {
         return Response.json({ error: "Unknown review action" }, { status: 400 });
       }
       try {

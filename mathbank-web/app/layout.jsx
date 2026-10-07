@@ -16,7 +16,8 @@ export const viewport = { themeColor: "#4f46e5" };
 export default function RootLayout({ children }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body><SourcePane><AppShell>{children}</AppShell></SourcePane></body>
+      {/* Grammar extensions inject body attributes before React hydrates. Keep this exception local. */}
+      <body suppressHydrationWarning><SourcePane><AppShell>{children}</AppShell></SourcePane></body>
     </html>
   );
 }

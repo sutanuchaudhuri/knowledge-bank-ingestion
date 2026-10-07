@@ -41,7 +41,7 @@ from .tools.widget_tools import WIDGET_TOOLS
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SERVICE_ROOT.parent / "scripts"))
-from project_env import load_project_openai  # noqa: E402
+from project_env import load_project_openai
 
 load_dotenv(SERVICE_ROOT / ".env")
 load_project_openai(SERVICE_ROOT / ".env")
@@ -50,8 +50,18 @@ MODEL = dotenv_values(SERVICE_ROOT / ".env", interpolate=False).get(
     "MATHBANK_AGENT_MODEL"
 ) or "openai/gpt-4o-mini"
 
-from .artifact_agents import artifact_agent_tools, build_artifact_agents  # noqa: E402
-from .formatter_agent import formatter_agent_tool, guard_tutor_output  # noqa: E402
+from .artifact_agents import artifact_agent_tools, build_artifact_agents
+from .formatter_agent import formatter_agent_tool, guard_tutor_output
+from .pedagogy_agent import (
+    advance_topic_lesson,
+    after_pedagogy_tool,
+    control_topic_lesson,
+    get_topic_lesson,
+    pedagogy_tool,
+    report_pedagogy_feedback,
+    route_topic_before_model,
+)
+from .retrieval_audit_agent import retrieval_audit_tool
 
 ARTIFACT_AGENTS = build_artifact_agents(MODEL)
 ARTIFACT_AGENT_TOOLS = artifact_agent_tools(ARTIFACT_AGENTS)
@@ -65,6 +75,27 @@ competition, or solution that
 your tools did not return.
 
 Guidelines:
+- Bare topics and "teach me" use LEARN_TOPIC through pedagogy_agent, not practice.
+  It persists the current topic plan and teaches theory before a recognition
+  checkpoint. Paste markdown_block unchanged. Never attach a contest problem to
+  an introductory lesson. For explicit practice use JSON request
+  {"topic":"canonical topic","intent":"FIND_PRACTICE","target_difficulty":3}.
+  A stated wish to skip theory is permission to practise, not measured mastery.
+  Authored A-D checkpoints advance only through advance_topic_lesson with the
+  current plan revision. Free-text interpretation may be discussed provisionally,
+  never claim checkpoint completion or change mastery without runtime evidence.
+  The exact requests "skip step", "jump to step N", "jump to problem", and
+  "show hint" are deterministic controls handled by control_topic_lesson. A jump
+  never means completion; skipped stages remain visibly skipped. Hints are shown
+  only after an explicit request. get_topic_lesson shows the current plan.
+  Reviewed and machine metadata are distinct; similarity alone cannot establish
+  topic membership. Unknown fit signals and missing authored lessons are explicit.
+  A learner complaint that a recommendation is unrelated should trigger
+  report_pedagogy_feedback with the selected canonical code, topic and learner's
+  actual complaint. A saved report is PENDING, not an approved correction.
+  Do not claim it was saved when sign-in/storage fails. Do not repeat that candidate.
+  Retry pedagogy_agent for the original topic; bounded failure is not proof that
+  no related problems exist in the corpus. Do not auto-approve or publish feedback.
 - For a practice recommendation ("a hard geometry problem to try", "give me a
   problem"), use search_practice_problems instead of the unfiltered search tool.
   It returns only verified complete candidates. Never recommend a rejected
@@ -74,7 +105,8 @@ Guidelines:
   search_problems. Set recent_first=true whenever the user says
   recent/latest/newest.
 - When the learner names a topic, theorem or method (e.g. "power of a point",
-  "radical axis", "inversion"), FIRST call search_concepts to ground it in the
+  "radical axis", "inversion"), prefer pedagogy_agent's exact grounded plan.
+  If exact grounding requires clarification, call search_concepts to ground it in the
   canonical taxonomy (vector + lexical search over the embedded concept,
   subconcept, skill and technique nodes). Name the node you matched, then
   follow its slug_kind: concept -> get_problems_for_concept(slug), technique
@@ -82,8 +114,8 @@ Guidelines:
   Prefer the node's example_problem_codes (problems whose published solution
   steps exercise it; problem_count is their total) for step-by-step practice
   via start_step_attempt; the slug routes list corpus tags and can be sparser.
-  Combine with search_problems for open-ended problem lists; if no node has
-  problem_count > 0, say there is no practice for it yet.
+  Combine with search_problems for open-ended problem lists. Missing examples
+  in a bounded check are not proof that the corpus has no related problems.
 - Search uses reviewed Neo4j graph evidence plus vector similarity and lexical
   reciprocal-rank fusion. Inspect graph_evidence and per-source ranks; graph
   relatedness is not proof of learner mastery. If retrieval warnings say graph
@@ -235,6 +267,8 @@ root_agent = Agent(
     description="MathBank tutor using hybrid RAG: Neo4j graph + pgvector similarity + lexical search.",
     instruction=INSTRUCTION,
     after_model_callback=guard_tutor_output,
+    before_model_callback=route_topic_before_model,
+    after_tool_callback=after_pedagogy_tool,
     tools=[
         search_problems,
         search_practice_problems,
@@ -259,6 +293,12 @@ root_agent = Agent(
         *[tool for tool in ARTIFACT_TOOLS if tool.__name__ != "draw_geometry_diagram"],
         *ARTIFACT_AGENT_TOOLS,
         formatter_agent_tool(MODEL),
+        pedagogy_tool(MODEL),
+        report_pedagogy_feedback,
+        advance_topic_lesson,
+        control_topic_lesson,
+        get_topic_lesson,
+        retrieval_audit_tool(MODEL),
         *WIDGET_TOOLS,
     ],
 )

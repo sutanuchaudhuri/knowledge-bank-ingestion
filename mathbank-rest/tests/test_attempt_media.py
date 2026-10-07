@@ -119,6 +119,43 @@ def test_faithful_image_transcription_does_not_repair_wrong_math(monkeypatch):
     assert lines[0]["evidence_ids"] == [regions[0]["region_id"]]
 
 
+def test_analysis_refuses_unrelated_or_unverified_problem_context(monkeypatch):
+    step_id = str(uuid4())
+    view = {"steps": [{"step_id": step_id}], "regions": []}
+    canonical = {"statement": "A distinct canonical problem", "steps": [], "dependencies": []}
+    calls = []
+
+    def unrelated(*_args, **_kwargs):
+        calls.append(True)
+        return {"context_match": False, "mismatch_reason": "different problem", "alignments": []}
+
+    monkeypatch.setattr(media_processing, "json_stage", unrelated)
+    with pytest.raises(runtime.MediaError, match="STUDENT_WORK_UNRELATED_TO_PROBLEM"):
+        media_processing.analyse(view, canonical)
+    assert len(calls) == 1
+
+    monkeypatch.setattr(media_processing, "json_stage", lambda *_args, **_kwargs: {"alignments": []})
+    with pytest.raises(runtime.MediaError, match="WORK_CONTEXT_UNVERIFIED"):
+        media_processing.analyse(view, canonical)
+
+
+def test_analysis_refuses_all_irrelevant_steps_before_critique(monkeypatch):
+    step_id = str(uuid4())
+    calls = []
+
+    def irrelevant(*_args, **_kwargs):
+        calls.append(True)
+        return {"context_match": True, "alignments": [{
+            "step_id": step_id, "alignment_type": "IRRELEVANT_STEP",
+            "canonical_solution_step_id": None,
+        }]}
+
+    monkeypatch.setattr(media_processing, "json_stage", irrelevant)
+    with pytest.raises(runtime.MediaError, match="STUDENT_WORK_UNRELATED_TO_PROBLEM"):
+        media_processing.analyse({"steps": [{"step_id": step_id}], "regions": []}, {"statement": "problem"})
+    assert len(calls) == 1
+
+
 def test_segmentation_preserves_wrong_latex_and_every_source_line(monkeypatch):
     eid = uuid4()
     lines = [

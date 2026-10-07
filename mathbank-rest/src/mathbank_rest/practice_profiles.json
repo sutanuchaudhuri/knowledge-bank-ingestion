@@ -1,0 +1,15 @@
+{
+  "topic-fit-v1": {
+    "minimum_confidence": 0.8,
+    "weights": {
+      "skill_match": 8,
+      "prerequisite_fit": 4,
+      "difficulty_fit": 3,
+      "technique_match": 6,
+      "misconception_relevance": 4,
+      "structural_diversity": 2,
+      "semantic_similarity": 1,
+      "previous_exposure": 3
+    }
+  }
+}

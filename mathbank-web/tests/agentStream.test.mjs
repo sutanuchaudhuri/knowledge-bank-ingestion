@@ -82,9 +82,43 @@ test("coaching activity distinguishes machine approval and pending hints from hu
     problem: { answer: "SECRET" }, metadata_status: "automatic", skills: [{}, {}],
     prerequisites: [], concepts: [{}], techniques: [], warnings: ["raw private details"],
   });
+
   assert.ok(rows.some((row) => row.label === "2 graph-linked skills · machine-approved, not human verified"));
   assert.doesNotMatch(JSON.stringify(rows), /SECRET|raw private/);
   assert.equal(toolEvidence("get_next_hint", { provenance: { review_status: "PENDING" } })[0].status, "stopped");
+});
+
+test("topic plans and pending feedback expose bounded provenance, never allegations or answers", () => {
+  const rows = toolEvidence("pedagogy_agent", { matched: true, plan_steps: ["secret"], practice: [{ answer: "SECRET" }] });
+  assert.ok(rows.some((r) => r.label === "1 teaching stages prepared"));
+  assert.ok(rows.some((r) => r.label === "1 complete step-supported candidates"));
+  assert.doesNotMatch(JSON.stringify(rows), /SECRET|secret/);
+  const report = toolEvidence("report_pedagogy_feedback", { feedback_id: "id", status: "PENDING", reason: "private allegation" });
+  assert.match(report[0].label, /queued for review.*annotations unchanged/);
+  assert.doesNotMatch(JSON.stringify(report), /private allegation/);
+});
+
+test("topic lessons and audits show only verified progress counters", () => {
+  const rows = toolEvidence("pedagogy_agent", { matched: true, intent: "LEARN_TOPIC",
+    current_unit: 0, unit_count: 7, artifact_status: "rendered", markdown_block: "private teaching payload" });
+  assert.ok(rows.some((row) => row.label === "Topic lesson · step 1 of 7"));
+  assert.ok(rows.some((row) => row.label === "Validated instructional diagram prepared"));
+  assert.doesNotMatch(JSON.stringify(rows), /private teaching payload/);
+  assert.match(toolEvidence("advance_topic_lesson", { completed_checkpoints: 2 })[0].label, /not a mastery certification/);
+  assert.match(toolEvidence("retrieval_audit_agent", { review_status: "PENDING", raw: "secret" })[0].label, /no canonical mutation/);
+});
+
+test("lesson progress events contain only learner-safe checkpoint and stage data", () => {
+  const progress = {
+    topic: "Power of a point",
+    stages: [{ index: 0, title: "Circle and chord", acronym: "TH", icon: "book-half", status: "active", seconds: 4 }],
+    current_unit: 0, completed: 0, skipped: 0,
+    checkpoint: { question: "Pick one", choices: ["A", "B"], input_type: "single-choice", hint_available: true, hint: null },
+    feedback: "", feedback_tone: null,
+  };
+  const rows = toolEvidence("get_topic_lesson", { progress });
+  assert.deepEqual(rows, [{ type: "progress", progress }]);
+  assert.doesNotMatch(JSON.stringify(rows), /answer|correct|secret/i);
 });
 
 test("reports agent and tool errors explicitly", () => {

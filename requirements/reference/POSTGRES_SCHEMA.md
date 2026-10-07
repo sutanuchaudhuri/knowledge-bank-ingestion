@@ -4,10 +4,66 @@
 
 - Evidence mode: source-derived composite DDL; separate operator-reported deployment observation below. No live catalog comparison was performed by this documentation refresh.
 - Source revision: `3e915d015aa34268996724a3014c850f5892596e`, with uncommitted worktree changes included (refreshed 2026-10-06 for migrations 021/022).
-- Sources: `mathbank-db/sql/001_schema.sql` through `022_artifact_runtime.sql`, `mathbank-db/sql/ops/approve_learning_items_auto.sql`, `mathbank-db/Makefile`; new runtime DML sources `mathbank-rest/src/mathbank_rest/{attempt_media,artifact_runtime}.py`.
+- Sources: `mathbank-db/sql/001_schema.sql` through `024_feedback_evidence.sql`, `mathbank-db/sql/ops/approve_learning_items_auto.sql`, `mathbank-db/Makefile`; new runtime DML sources `mathbank-rest/src/mathbank_rest/{attempt_media,artifact_runtime,media_processing}.py`.
 - The documentation refresh did not execute migrations; this is the composite schema implied by source order. The deployment operator separately reported migrations 021 and 022 applied to the explicitly selected Neon production target on 2026-10-06 (UTC). This is not an independently verified catalog observation.
 
 ## Migration order and ownership
+
+### Incremental migration 024 and topic-session state
+
+Source revision `c79060ac0771175baa6e04b37bede840f8c30ee1` plus related worktree
+changes; examined `024_feedback_evidence.sql`, `session_config.py`, ADK 2.11
+database-session implementation, `topic_lessons.py` and `pedagogy_agent.py`.
+Source-derived; the wider inventory below retains its original evidence scope.
+
+Migration 024 adds to `learner.pedagogy_feedback`:
+
+| Column | Type / nullability / default | Constraint |
+|---|---|---|
+| `feedback_type` | text NOT NULL, `RETRIEVAL_IRRELEVANT` | Only that value |
+| `audit_snapshot` | jsonb NOT NULL, `'{}'::jsonb` | JSON object |
+| `retrieval_verdict` | text NOT NULL, `UNCLASSIFIED` | UNCLASSIFIED / IRRELEVANT / RELEVANT |
+| `error_kind` | text NOT NULL, `UNCLASSIFIED` | UNCLASSIFIED / METADATA / RETRIEVAL / INSUFFICIENT_EVIDENCE |
+
+`feedback_negative_review_check` requires a nonpending report and review note
+for any classified verdict; migration 023 still requires its review timestamp.
+`pedagogy_feedback_reviewed_negative_idx(topic,problem_id)` is partial:
+`retrieval_verdict='IRRELEVANT' AND status='RESOLVED'`. Existing PK, FKs and
+unique-report key are unchanged. No trigger/outbox or graph publication is added.
+Existing reports are not retrospectively resnapshotted. Makefile ownership:
+`migrate-feedback-evidence-remote`; running it is an operator mutation.
+
+TopicLearningPlan is **ADK-owned session JSON**, not a new project SQL table:
+`pedagogy:topic_plan` holds version/node/current unit/revision, completed
+checkpoint indices, quiz results, misconceptions, exposure and known-skill IDs.
+Interactive lesson revisions also persist per-stage `completed`/`skipped`/
+`pending` status, accumulated elapsed seconds, stage-entry epoch and explicit
+hint-reveal state. Navigation and answer operations use the session revision;
+elapsed time is accumulated at stage transitions, not by periodic database
+writes. This task added no PostgreSQL column or table for lesson progress.
+`pedagogy:exposed_codes` preserves conversation-wide exposure across review/topic
+switches. Future authored units/answer keys remain in code, not persisted state.
+Invocation-only `temp:` authorization is not persisted. Existing
+`learner.agent_session_link` ownership and framework-managed `agent_sessions`
+tables are unchanged. Quiz progress does not write measured mastery.
+
+### Incremental migration 023 (source-derived, 2026-10-07 UTC)
+
+Revision `c79060ac0771175baa6e04b37bede840f8c30ee1`, related worktree changes included.
+Source: `mathbank-db/sql/023_pedagogy_feedback.sql`; no full schema re-audit.
+
+`learner.pedagogy_feedback` stores learner allegations separately from approved
+knowledge. Columns: `feedback_id uuid` PK default `gen_random_uuid()`;
+`student_id uuid` NOT NULL FK to `learner.student_profile` ON DELETE CASCADE;
+`problem_id uuid` NOT NULL FK to `core.problem` ON DELETE CASCADE;
+`topic text` NOT NULL trimmed length 1-200; `reason text` NOT NULL trimmed length
+10-2000; `status text` NOT NULL default PENDING, CHECK PENDING/RESOLVED/DISMISSED;
+nullable `review_note text` trimmed length 10-2000; `created_at timestamptz`
+NOT NULL default now(); nullable `reviewed_at timestamptz`.
+UNIQUE `(student_id,problem_id,topic,reason)` handles repeated submissions.
+CHECK: pending requires null review note/time; nonpending requires both present.
+Index `pedagogy_feedback_pending_idx(status,created_at)`.
+No graph projection, approval trigger, outbox or mastery derivation is attached.
 
 | Migration | Ownership / effect |
 |---|---|
@@ -33,6 +89,8 @@
 | `020_live_fluid_platform.sql` | New `authoring`, `live`, `activity`, `visual` schemas for presentation plans, admin authoring chat/patches, live sessions with an append-only event log, activities/responses and validated widget specs (docs [27](../27_FLUID_WIDGET_LAYER.md), [28](../28_DISTRIBUTED_LIVE_PLATFORM.md)). Idempotent `IF NOT EXISTS` DDL. |
 | `021_attempt_media.sql` | Makes `learner.attempt.is_correct` nullable so approved but unassessed submissions do not count as wrong; creates private, versioned `attempt_media` uploads, evidence regions, transcription candidates, approvals, step assessments, events and read views. |
 | `022_artifact_runtime.sql` | Creates `artifact_runtime` declarative artifact requests/bundles, private asset metadata, overlays/frames/annotations, validation/lineage/search tags and model/dimension-versioned pgvector embeddings. Object bytes are external to PostgreSQL. |
+| `023_pedagogy_feedback.sql` | Pending learner relevance reports, unique-report idempotency and human-review note/time checks; no canonical mutation. |
+| `024_feedback_evidence.sql` | Server audit snapshots and explicit human retrieval/error labels; reviewed-negative partial index. |
 | `sql/ops/approve_learning_items_auto.sql` | Operator DML, not a migration: idempotently approves validated `PENDING_REVIEW` learning items as `approval_method='automatic'`, sets `student_visible`, and reports status counts. Makefile target `textbook-approve-learning-items-remote` runs it against the selected remote when an operator chooses to run it. |
 
 Required extensions: `pg_trgm` and `vector`. The base schema uses `gen_random_uuid()`; the SQL assumes a Postgres installation where that function is available.

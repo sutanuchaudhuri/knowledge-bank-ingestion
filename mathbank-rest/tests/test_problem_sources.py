@@ -10,6 +10,13 @@ from mathbank_rest.db import problem_sources as sources
 from mathbank_rest.routers import step_runtime as routes
 
 
+def test_known_book_without_document_is_not_reported_as_unknown_source():
+    source = sources.source_metadata({"book_title": "Book", "chapter_number": 6, "source_problem_id": "6.76"}, "CODE")
+    assert source["kind"] == "identified" and source["label"] == "Book"
+    assert source["provenance_status"] == "LOCATION_INCOMPLETE"
+    assert source["embed_url"] is None and source["location"] is None
+    assert sources.source_metadata({}, "CODE") is None
+
 def test_cached_problem_pdf_is_embedded_without_exposing_local_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(sources, "PDF_ROOT", tmp_path)
     pdf = tmp_path / "smt/PAPER_SMT_2010_GEOM/problem.pdf"

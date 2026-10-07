@@ -38,6 +38,24 @@ requirements and records progress.
 | Composer | `mathbank-widgets/src/MathComposer.jsx`, `VoiceControls.jsx`, `icons.jsx` | Scoped `.mbw-*` styles that React 19 hoists (`<style href precedence>`), so `mathbank-live` gets the same look. Re-sync after edits: `make -C mathbank-web sync-widgets` and `make -C mathbank-live sync-widgets`. |
 | Source diagrams | `mathbank-web/app/_components/ProblemDiagrams.jsx` | Responsive question-specific figures with accessible labels and explicit loading failures; no whole-page fallback. See [31](31_QUESTION_SPECIFIC_DIAGRAMS.md). |
 | Original document viewer | `mathbank-web/app/_components/ProblemSource.jsx` | Compact Source toggle above figures; opens a full-width PDF iframe only on click, including when no crop exists. Labels the full document separately and provides a new-tab fallback. Shared by chat/history, corpus, guided practice and step solving. See [31](31_QUESTION_SPECIFIC_DIAGRAMS.md). |
+| Instructional frames | `mathbank-web/app/_components/GeometryArtifact.jsx` | Private validated reset-to-base frame previews; themed icon previous/next controls, current caption/count, explicit rendering failures and generated-not-source label. Topic learning shows theory/checkpoints before contest practice; see [33](33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md). |
+
+Topic-first update verified at 1440/390 px: theory/checkpoint math, progressive
+diagram frames and known-book/no-PDF provenance. Admin correction evidence stays
+collapsible, with explicit human relevance/error labels. These controls do not
+claim mastery or silently ingest feedback as graph truth.
+
+The tutor activity rail now places a learner progress tracker directly below
+tool activity. It shows the selected stage separately from completed, skipped
+and pending status; a completed-only bar; short icon labels; and stage elapsed
+time. Lesson-stage pills support jump/skip actions, authored MCQs use radio
+controls, the authored numeric checkpoint uses a number input, and optional
+hints/correctness explanations use shared Callouts. Printed-work attachment is
+available inside the chat composer only while the latest tutor reply identifies
+a canonical problem; the private attempt workspace still requires explicit
+transcription, student review and analysis actions. Unrelated or unverified work
+context is refused before AI critique. Browser/mobile verification for these
+new interactions remains pending.
 
 ## 3. Page coverage
 
@@ -50,7 +68,23 @@ requirements and records progress.
 
 ## 4. Verification
 
+### Browser-extension hydration compatibility
+
+The root `body` alone uses `suppressHydrationWarning` because grammar extensions
+such as Grammarly insert `data-new-gr-c-s-check-loaded` and `data-gr-ext-installed`
+before React hydrates. The exception is shallow: application descendants retain
+normal hydration diagnostics. No extension attributes are hard-coded or removed.
+The focused extension-hydration browser test injects these attributes before
+hydration and checks console warnings, composer interactivity and width at
+1440 px and 390 px.
+
 ### Evidence-backed coaching activity
+
+Named-topic pedagogy now has real ADK delegation plus exact-short-topic routing;
+activity includes teaching stage and step-supported candidate counts. Explicit
+relevance complaints can enter an authenticated pending queue; admin report
+decisions are separate from annotation correction/publication. The queue uses
+the shared Pager, Pills and Callout with evidence notes and explicit errors.
 
 Activity includes deterministic allowlisted retrieval/context summaries, with
 graph degradation and machine approval qualified rather than implied verified.

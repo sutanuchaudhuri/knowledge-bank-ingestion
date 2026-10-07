@@ -391,17 +391,28 @@ def segment(regions, lines, version):
 
 
 def analyse(view, canonical):
-    alignments = json_stage(
-        "Align APPROVED student steps to supplied canonical DAG steps. Allow valid alternate reasoning. "
-        "Similarity is not correctness. Return {alignments:[{step_id,alignment_type,canonical_solution_step_id}]}. "
+    alignment_result = json_stage(
+        "First verify that the APPROVED student's work addresses the supplied canonical problem statement. "
+        "If it clearly addresses a different problem, or context is uncertain, set context_match=false and do not "
+        "align the work. Otherwise set context_match=true and align APPROVED student steps to supplied canonical "
+        "DAG steps. Allow valid alternate reasoning. Similarity is not correctness. Return "
+        "{context_match:boolean,mismatch_reason:string,alignments:[{step_id,alignment_type,canonical_solution_step_id}]}. "
         "alignment_type is MATCHES_SOLUTION_STEP, VALID_ALTERNATE_STEP, PARTIAL_STEP, PREREQUISITE_STEP, "
         "IRRELEVANT_STEP, UNSUPPORTED_LEAP, UNMATCHED_BUT_PLAUSIBLE. Use null canonical ID when uncertain. "
         "Return exactly every approved step, preserve IDs; no assessments yet.",
         json.dumps({"steps": view["steps"], "canonical": canonical}, default=str),
     )
-    mapped = {a["step_id"]: a for a in alignments["alignments"]}
+    if alignment_result.get("context_match") is not True:
+        code = "STUDENT_WORK_UNRELATED_TO_PROBLEM" if alignment_result.get("context_match") is False else "WORK_CONTEXT_UNVERIFIED"
+        raise MediaError(422, code)
+    alignments = alignment_result.get("alignments")
+    if not isinstance(alignments, list) or not alignments:
+        raise MediaError(502, "ALIGNMENT_INVENTORY_INVALID")
+    mapped = {a["step_id"]: a for a in alignments}
     if set(mapped) != {str(s["step_id"]) for s in view["steps"]}:
         raise MediaError(502, "ALIGNMENT_INVENTORY_INVALID")
+    if all(a.get("alignment_type") == "IRRELEVANT_STEP" for a in mapped.values()):
+        raise MediaError(422, "STUDENT_WORK_UNRELATED_TO_PROBLEM")
     output = json_stage(
         "Critique APPROVED mathematics against its preceding flow, not merely the canonical answer. "
         "Treat valid alternate methods fairly. A true unsupported assertion is UNJUSTIFIED. "

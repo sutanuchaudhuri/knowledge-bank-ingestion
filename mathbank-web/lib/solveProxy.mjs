@@ -32,6 +32,8 @@ export function resolveSolveRoute(method, segments, searchParams = new URLSearch
     return null;
   }
   if (method === "POST") {
+    if (head === "pedagogy-feedback" && rest.length === 0)
+      return { path: "/v1/tutor/feedback", auth: true, body: true };
     if (head === "start" && rest.length === 1)
       return { path: `/v1/students/{student}/problems/${enc(rest[0])}/attempts`, auth: true, needsStudent: true, body: false };
     if (head === "attempts" && rest.length === 3 && ["responses", "hint"].includes(rest[1]))

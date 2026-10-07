@@ -14,8 +14,8 @@ const attemptRules = [
   rule("PATCH", `submissions/${ID}/transcription/steps/${ID}`),
 ];
 const artifactRules = [
-  rule("POST", "preview"), rule("POST", "preview/content"),
-  rule("POST", "geometry-preview"), rule("POST", "geometry-preview/content"),
+  rule("POST", "preview"), rule("POST", "preview/content", ["frame"]),
+  rule("POST", "geometry-preview"), rule("POST", "geometry-preview/content", ["frame"]),
   rule("GET", "embedding-profile"),
   rule("POST", "requests"), rule("GET", `requests/${ID}`),
   rule("POST", `requests/${ID}/generate`),

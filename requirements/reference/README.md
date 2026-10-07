@@ -4,6 +4,53 @@ This folder is the canonical architecture reference for the checked-in MathBank 
 
 ## Evidence and revision
 
+### Latest incremental reference: topic-first lessons and practice
+
+Source revision `c79060ac0771175baa6e04b37bede840f8c30ee1`, including relevant
+worktree changes. This is a source-grounded refresh of all three references,
+**not a new full-system catalog/projection audit**. Newly examined: migrations
+023/024, `db/topic_pedagogy.py`, `db/retrieval_audit.py`, shared
+`scripts/power_geometry_evidence.py`, textbook import validation,
+`practice_selection.py` / `practice_profiles.json`, pedagogy routers/security,
+`session_config.py`, installed ADK 2.11 session DML, tutor lesson/audit/formatter
+tools and browser proxies/components/tests. The two graph projectors were
+checked for unchanged ownership; feedback and topic plans are not projected.
+
+The current screened, source-generated OpenAPI is **186 paths / 93 schemas**.
+Source generation observed 2026-10-07 UTC, without endpoint calls, database
+connections, models or service starts. Earlier counts below are historical.
+[Requirement 33](../33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md) records delivered
+behavior, test evidence and remaining limitations. The application work
+separately verified actual ADK PostgreSQL lesson persistence with an exact
+synthetic-session cleanup; this is not full live schema parity. Migration 024
+was explicitly authorized/applied during implementation, not by this docs skill.
+
+### Interactive lesson and private-work update (source-derived, 2026-10-07 UTC)
+
+At HEAD `c79060ac0771175baa6e04b37bede840f8c30ee1` with this task's relevant
+worktree changes included, the ADK tutor now persists stage status/timing and
+revision-checked navigation in its existing session JSON. The chat maps a
+learner-safe progress payload to the right rail and attaches printed work only
+to a canonical code explicitly present in the latest tutor reply. The existing
+attempt-media API remains unchanged; explicit student transcription approval
+and analysis are still required. Analysis checks problem context and refuses
+unrelated or unverified work before critique. No PostgreSQL/Neo4j DDL, graph
+projection or REST route changed. Source OpenAPI was regenerated in memory and
+matched the committed snapshot exactly (3.1.0, 186 paths, 93 schemas). No live
+schema or graph was queried; this is an incremental behavior refresh, not a new
+full-catalog audit.
+
+Separate implementation verification (2026-10-07 UTC): reloaded REST and agent
+responded on their existing local ports; running REST OpenAPI exactly matched
+186 paths / 93 schemas. Six threshold-qualified Power practice candidates
+excluded the corrected polygon; invalid supplied bearer/admin/report requests
+failed 401. All four private diagram frames rendered safely and a nonexistent
+ordinal failed 404. Known-book provenance used `provenance_status=LOCATION_INCOMPLETE`.
+A rollback-only synthetic feedback integration test verified pending-only
+constraints, duplicate audit retention, positive/negative review labels and
+negative practice gating, then verified exact cleanup. These checks did not
+publish graph data, train/invoke models or prove full live schema parity.
+
 - Evidence mode: **source-derived** for implementation/schema descriptions, plus separately labelled operator-reported deployment observations (not independently verified).
 - Source revision: `3e915d015aa34268996724a3014c850f5892596e` (refreshed 2026-10-06 for migrations 021/022 and multimodal attempt/artifact runtime surfaces).
 - Worktree state included: yes. This refresh includes all inspected uncommitted changes at this revision, including `mathbank-db/sql/021_attempt_media.sql` and `022_artifact_runtime.sql`, their REST/runtime modules and routers, the `mathbank-live` private attempt-event relay, and the `mathbank-web` attempt/artifact proxies and pages. The same evidence also includes the uncommitted AMC/AIME source-text repair and preceding implementation additions through migration 020.
@@ -12,6 +59,8 @@ This folder is the canonical architecture reference for the checked-in MathBank 
 - Incremental geometry/chat contract refresh (2026-10-07 UTC): inspected `routers/artifacts.py`, `artifact_runtime.py`, tutor `artifact_tools.py`/registry, web private proxy, `TutorAnswer`, `GeometryArtifact` and parser/tests. Source OpenAPI now has 176 paths / 90 schemas (18 attempt-media, 18 artifacts, 140 other). Two authenticated ephemeral preview routes reuse the geometry validator/renderer with exact triangle-incircle construction and no storage/publication/provider calls. `draw_geometry_diagram` is an immediate tutor capability; the previous staff-only artifact publication boundary remains unchanged. The prior full-system observation below remains historical.
 - Subsequent incremental subject-specialist refresh: all ten artifact agents are actual ADK agents using AgentTool delegation (`artifact_agents.py` plus tutor registry/tools). Two generic private subject preview routes extend the same deterministic renderer. Current source OpenAPI: 178 paths / 90 schemas (18 attempt-media, 20 artifacts, 140 other). Tested network is acyclic, owner-authorized through invocation-only state, and does not expose remote A2A HTTP endpoints. No database/graph schema change accompanies this topology.
 - No live database/Neo4j/API parity is claimed.
+- Incremental topic/feedback source refresh (2026-10-07 UTC): revision `c79060ac0771175baa6e04b37bede840f8c30ee1` plus related worktree changes. Inspected migration 023, topic/feedback DB/router contracts, textbook rejection preservation, real ADK pedagogy routing and proxy/activity surfaces. Source OpenAPI now has 184 paths / 92 schemas. No full-system or live schema-parity audit is implied; the feedback table is not projected into Neo4j.
+- Separate runtime verification (2026-10-07 UTC): the reloaded REST service's `/openapi.json` matches the source snapshot (184 paths / 92 schemas). Anonymous learner-feedback/admin-queue requests return 401. This verifies deployment contracts, not full database catalog parity or paid-model response quality.
 - Incremental source-pane/practice refresh: inspected `db/problem_sources.py`, source routes/proxies, shared source controls/pane, and tutor recommendation tools/tests. Current source snapshot: 180 paths / 90 schemas (18 attempt-media, 20 artifacts, 142 other). Two public read-only routes generate highlighted page/annotated PDF copies from verified locations without modifying original documents. New practice tools exclude unavailable required diagrams and return learner-safe ready-to-display Markdown with known source links. This does not establish paid-model tool selection or PDFs for web-only corpus entries.
 - Separate post-deployment observation: running REST also reports 178 paths / 90 schemas, with both generic preview routes; anonymous generic preview POST returns 401. Tutor app discovery and real module import confirm the app and all ten specialists. This does not verify live model quality or database schema parity.
 
@@ -54,7 +103,7 @@ Primary evidence came from:
 3. Generate the OpenAPI snapshot from source only:
 
    ```sh
-   mathbank-rest/.venv/bin/python - <<'PY'
+   PYTHONPATH=mathbank-rest/src mathbank-rest/.venv/bin/python - <<'PY'
    import json
    import re
    from pathlib import Path

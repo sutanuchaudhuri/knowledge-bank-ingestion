@@ -199,10 +199,12 @@ def _candidates(conn: Connection, student_id: str, origin_problem_id: str, skill
     rows = conn.execute(text(
         "SELECT li.learning_item_id::text, li.transformation_type, li.transformed_form, li.source_problem_id::text, "
         "       (li.target_skill_node_id IS NOT DISTINCT FROM :sk AND :sk IS NOT NULL) AS skill_match, "
+        "       li.question_text,li.answer_or_solution_seed,li.correct_answer,p.statement_text, "
         "       CASE WHEN ce.subconcept_node_id IS NOT NULL AND ce.subconcept_node_id = oe.subconcept_node_id THEN 2 "
         "            WHEN ce.concept_node_id IS NOT NULL AND ce.concept_node_id = oe.concept_node_id THEN 1 "
         "            ELSE 0 END AS topic_closeness "
         "  FROM pedagogy.learning_item li "
+        "  LEFT JOIN core.problem p ON p.problem_id=li.source_problem_id "
         "  LEFT JOIN pedagogy.problem_enrichment ce ON ce.problem_id = li.source_problem_id "
         "  LEFT JOIN pedagogy.problem_enrichment oe ON oe.problem_id = CAST(:p AS uuid) "
         " WHERE li.review_status = 'APPROVED' AND li.student_visible AND li.no_proof "
@@ -217,10 +219,17 @@ def _candidates(conn: Connection, student_id: str, origin_problem_id: str, skill
         "                      AND ri.status IN ('PASSED', 'PRESENTED', 'PENDING', 'FAILED'))"),
         {"sk": skill_id, "sc": subconcept_id, "p": origin_problem_id, "stu": student_id,
          "stub": CROSS_REFERENCE_STUB_RE}).mappings()
-    out = [dict(r) for r in rows]
+    out = [dict(r) for r in rows if safe_recovery_question(dict(r))]
     out.sort(key=lambda c: (not c["skill_match"], -(c.get("topic_closeness") or 0),
                             _variety(student_id, c["learning_item_id"])))
     return out[:CANDIDATE_LIMIT]
+
+
+def safe_recovery_question(candidate: dict) -> bool:
+    """A practice question must not copy unpublished solution reasoning into its prompt."""
+    question = candidate.get("question_text") or ""
+    seed = candidate.get("answer_or_solution_seed") or candidate.get("correct_answer") or ""
+    return not step_tutor.leaks_solution(question, seed, known=(candidate.get("statement_text") or "",))
 
 
 def _worked_example(conn: Connection, student_id: str, origin_problem_id: str, skill_id: str | None) -> str | None:
@@ -838,5 +847,4 @@ def recovery_summary(conn: Connection, attempt_id: str) -> dict | None:
     if not row or not row["plan_id"]:
         return None
     return {"recovery_plan_id": row["plan_id"], "target_label": row["target_label"], "status": row["status"]}
-
 

@@ -18,8 +18,12 @@ def source_record(conn, code: str) -> dict | None:
         conn.execute(
             text("""
         SELECT p.source_url, p.statement_text, p.problem_number,
-               s.problem_url, s.crawl_dir, s.paper_external_code, s.link_scope
+               s.problem_url, s.crawl_dir, s.paper_external_code, s.link_scope,
+               b.title AS book_title,b.author AS book_author,
+               r.chapter_number,r.source_printed_problem_id,r.source_problem_id
         FROM core.problem p
+        LEFT JOIN pedagogy.problem_source_ref r ON r.problem_id=p.problem_id
+        LEFT JOIN pedagogy.source_book b USING(book_code)
         LEFT JOIN pipeline.pdf_source s
           ON s.paper_external_code = regexp_replace(p.canonical_code, '_Q[0-9]+$', '')
         WHERE p.canonical_code = :code
@@ -58,8 +62,15 @@ def source_metadata(record: dict, code: str) -> dict | None:
         if not valid:
             log.warning("%s: invalid original source URL", code)
             url = None
+    book = record.get("book_title")
     if not url and local is None:
-        return None
+        if not book:
+            return None
+        return {"kind": "identified", "url": None, "embed_url": None,
+                "label": book, "book_title": book, "author": record.get("book_author"),
+                "chapter": record.get("chapter_number"),
+                "source_problem_id": record.get("source_printed_problem_id") or record.get("source_problem_id"),
+                "provenance_status": "LOCATION_INCOMPLETE", "location": None}
     registered_pdf = bool(record.get("problem_url")) and record.get("link_scope") in {
         "DIRECT_PROBLEM_AND_SOLUTION",
         "DIRECT_PROBLEM_ONLY",
@@ -81,6 +92,10 @@ def source_metadata(record: dict, code: str) -> dict | None:
         if is_pdf
         else None,
         "label": "Original full document" if is_pdf else "Original source page",
+        "book_title": book,
+        "chapter": record.get("chapter_number"),
+        "source_problem_id": record.get("source_printed_problem_id") or record.get("source_problem_id"),
+        "provenance_status": "DOCUMENT_AVAILABLE",
         "problem_number": record.get("problem_number"),
         "location": location,
         "highlight_url": f"/api/rest/solve/source-highlight/{quote(code, safe='')}"

@@ -58,13 +58,13 @@ Merged from [21](21_V2_PACK_IMPLEMENTATION_AUDIT.md) so they survive deletion of
 | NYI-AUD-4 | Validation before auto-approval | ⏳ | 09, 10, 23 D/E, 24 #7 | Auto-approval is a policy applied only after required validators pass; failing candidates keep their raw generation and are never published. (Imported items are auto-approved today by product-owner decision.) |
 | NYI-AUD-5 | Item publication and version pointer | ⏳ | 10, 11, 23 C/F/G | Admin edits create a new version; final classification and embeddings use the final text; superseded versions are hidden by default. |
 | NYI-AUD-6 | Canonical correction audit | ⏳ | 04, 23 A | Raw source fragments never change; corrected canonical text is versioned with provenance to source and page. |
-| NYI-AUD-7 | Practice diversity and transfer non-paraphrase | ⏳ | 15, 23 I, 24 #9 | Recovery practice varies structure; the transfer item must not be an exact paraphrase; avoid endless near-duplicates (duplicate/diversity validator). |
+| NYI-AUD-7 | Practice diversity and transfer non-paraphrase | 🟡 | 15, 23 I, 24 #9 | Topic practice now has versioned multi-factor/exposure scoring and a taxonomy/form/skill diversity proxy; recovery excludes hidden solution-seed copies. Mathematical non-paraphrase validation, broader recovery diversity and generated-item lifecycle remain incomplete. See [33](33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md). |
 
 ## 5. Walkthrough, transcript and test findings (2026-10-05)
 
 | ID | Gap | Status | Detail / next step |
 |---|---|---|---|
-| NYI-WALK-1 | Technique tagging gap for Power of a Point | 🟡 | 1 of 1,697 Prasolov problems has `TECH.GEO.POWER_OF_A_POINT` (GOT-WALK-2). Re-classify `GEO.C03.S10` problems for technique tags or map subconcept → technique. |
+| NYI-WALK-1 | Technique tagging gap for Power of a Point | 🟡 | Historical 2026-10-05 observation: one imported problem-level tag. 2026-10-07 correction rejected the unrelated polygon Q76 and removed its matching graph edge; six published-step-supported alternatives were identified. Listings/filters share step evidence, and explicit practice ranks inside it. Future unsupported Power import proposals are flagged/withheld, not blindly inferred from a chapter or keyword. Broader corpus reannotation remains undone. |
 | NYI-WALK-2 | MCQ distractor quality | ⏳ | "Pick the first move" distractors are templates (GOT-WALK-6). Generate topic-specific distractors and validate them (ties to NYI-AUD-4). |
 | NYI-WALK-3 | Presentation normalisation of Prasolov text | ⏳ | Book references ("Problem 17.30") and PDF glyphs (`◦`, `∗`) shown to students (GOT-WALK-7). |
 | NYI-WALK-4 | Learning-context tool latency | ⏳ | `get_problem_learning_context` ~28 s vs 30 s agent timeout (GOT-WALK-8). |
@@ -75,7 +75,7 @@ Merged from [21](21_V2_PACK_IMPLEMENTATION_AUDIT.md) so they survive deletion of
 | NYI-ATB-2 | Diagrams in graph / vectors | ⏳ | 250 diagrams exist only in Postgres. Project `Problem-[:HAS_DIAGRAM]->Diagram` (visibility-aware) and optionally embed captions or images. |
 | NYI-ATB-3 | Durable diagram asset location | ⏳ | **Blocks deleting the pack.** All 250 `pedagogy.diagram.local_path` values point inside the requirements pack. Copy the assets and update the paths **before** deleting the pack (GOT-ATB-5). |
 | NYI-ATB-4 | Chapter sections in the graph | ⏳ | 214 sections are PG-only; the graph has chapter `Paper` nodes only. |
-| NYI-ATB-5 | Technique re-tagging | ⏳ | 280 problems have no `technique_ids` in the source; Power of a Point appears on 1 problem (with NYI-WALK-1). |
+| NYI-ATB-5 | Technique re-tagging | 🟡 | The 280 missing source arrays and one Power problem-level tag are historical observations. Read-time step-supported membership, targeted Q76 correction and conservative future-import structural warnings are delivered; no broad retagging/backfill or paid reclassification ran. |
 | NYI-ATB-7 | Learning-item → concept edges in the graph | ✅ | **Delivered 2026-10-05** ([25](25_LEARNING_ITEM_CONCEPT_EDGES.md)). `TARGETS_CONCEPT` and `TARGETS_SUBCONCEPT` 11,186 / 11,186 each, consistent via `PART_OF`; the dashboard row `learning_item_concept` is OK. **Remainder:** no REST, agent or graph-explorer consumer yet (with NYI-P11). |
 | NYI-ATB-8 | Usage-weighted taxonomy texts | ⏳ | Imported `SUPPORTS` edges are sparse (for example, the *Power of a point* technique supports only 1 subconcept), so its vector text is thin. Enrich technique/skill texts with the subconcepts ranked by problem usage from `pedagogy.problem_enrichment`. |
 | NYI-ATB-9 | Remaining v2 graph vocabulary | ⏳ | runtime_extension/06 lists `TheoryUnit`, `Misconception`, `VARIANT_OF`, `DERIVES_FROM`, `USES_RESULT_FROM`, `ALTERNATIVE_TO`, `JOINS_AT` and `Step-[:USES_TECHNIQUE]`. None exist in Aura because there is no source data (NYI-P13, NYI-3, NYI-AUD-2). |

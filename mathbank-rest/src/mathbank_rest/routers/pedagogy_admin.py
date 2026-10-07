@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from typing import Any, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from neo4j.exceptions import Neo4jError, ServiceUnavailable, SessionExpired
@@ -13,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import SQLAlchemyError
 
 from mathbank_rest.db import pedagogy_admin as db
+from mathbank_rest.db import topic_pedagogy
 from mathbank_rest.security import require_admin_api_key
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,38 @@ class EntityRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kind: Kind
     key: dict[str, str]
+
+
+class FeedbackDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    feedback_id: UUID
+    status: Literal["RESOLVED", "DISMISSED"]
+    note: str = Field(min_length=10, max_length=2000)
+    retrieval_verdict: Literal["UNCLASSIFIED", "IRRELEVANT", "RELEVANT"] = "UNCLASSIFIED"
+    error_kind: Literal["UNCLASSIFIED", "METADATA", "RETRIEVAL", "INSUFFICIENT_EVIDENCE"] = "UNCLASSIFIED"
+    _trimmed_note = field_validator("note")(validate_note)
+
+
+@router.get("/feedback")
+def feedback_queue(limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0)) -> dict:
+    return call(topic_pedagogy.feedback_queue, limit, offset)
+
+
+@router.post("/feedback-review")
+def feedback_review(body: FeedbackDecision) -> dict:
+    result = call(topic_pedagogy.resolve_feedback, body.feedback_id, body.status, body.note,
+                  body.retrieval_verdict, body.error_kind)
+    if result is None:
+        raise HTTPException(409, "Feedback is missing or already reviewed.")
+    return {
+        **result,
+        "message": "Feedback reviewed only. Correct annotations through the revision-checked review workflow and publish explicitly.",
+    }
+
+
+@router.get("/retrieval-examples")
+def retrieval_examples(limit: int = Query(100, ge=1, le=500)) -> dict:
+    return call(topic_pedagogy.reviewed_retrieval_examples, limit)
 
 
 class ReviewRequest(EntityRequest):

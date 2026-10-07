@@ -16,6 +16,12 @@ const TOOL_STAGES = {
   get_prerequisite_path: "Checking prerequisite relationships",
   get_next_hint: "Preparing one provisional coaching hint",
   formatter_agent: "Formatting the explanation",
+  pedagogy_agent: "Building a grounded teaching plan",
+  report_pedagogy_feedback: "Recording the relevance report for review",
+  advance_topic_lesson: "Checking the current lesson checkpoint",
+  control_topic_lesson: "Updating the lesson path",
+  get_topic_lesson: "Restoring the current learning stage",
+  retrieval_audit_agent: "Auditing the retrieved topic evidence",
 };
 
 export function toolEvidence(name, response) {
@@ -23,6 +29,10 @@ export function toolEvidence(name, response) {
   const evidence = [];
   const add = (label, status = "complete") => evidence.push({ type: "activity", label, status });
   const count = (value) => Array.isArray(value) ? value.length : null;
+  if (["pedagogy_agent", "advance_topic_lesson", "control_topic_lesson", "get_topic_lesson"].includes(name)
+      && response.progress && Array.isArray(response.progress.stages)) {
+    evidence.push({ type: "progress", progress: response.progress });
+  }
   if (["search_problems", "search_practice_problems"].includes(name)) {
     const retrieval = response.retrieval;
     if (retrieval?.graph === "queried") {
@@ -49,6 +59,23 @@ export function toolEvidence(name, response) {
     }
   }
   if (name === "get_next_hint" && response.provenance?.review_status === "PENDING") add("Generated hint · pending expert review", "stopped");
+  if (name === "pedagogy_agent" && response.matched === true) {
+    if (response.intent === "LEARN_TOPIC" && Number.isSafeInteger(response.current_unit)) {
+      add(`Topic lesson · step ${response.current_unit + 1} of ${response.unit_count}`);
+      if (response.artifact_status === "rendered") add("Validated instructional diagram prepared");
+      if (response.artifact_status === "unavailable") add("Instructional diagram unavailable", "stopped");
+    }
+    if (Array.isArray(response.plan_steps)) add(`${response.plan_steps.length} teaching stages prepared`);
+    if (Array.isArray(response.practice)) add(`${response.practice.length} complete step-supported candidates`);
+    add("Published annotations · applicability still needs checking", "stopped");
+  }
+  if (name === "advance_topic_lesson" && Number.isSafeInteger(response.completed_checkpoints)) {
+    add(`${response.completed_checkpoints} lesson checkpoints completed · not a mastery certification`);
+  }
+  if (name === "retrieval_audit_agent" && response.review_status === "PENDING") {
+    add("Evidence audit pending human review · no canonical mutation", "stopped");
+  }
+  if (name === "report_pedagogy_feedback" && response.feedback_id) add(`Relevance report ${response.status === "PENDING" ? "queued for review" : "already recorded"} · annotations unchanged`, "stopped");
   if (Array.isArray(response.warnings) && response.warnings.length) add(`${response.warnings.length} evidence limitations reported · see tutor explanation`, "stopped");
   return evidence;
 }

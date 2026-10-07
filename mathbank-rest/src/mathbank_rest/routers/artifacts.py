@@ -15,7 +15,7 @@ import math
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from pydantic import Field
 
 from mathbank_rest import artifact_runtime as runtime
@@ -51,16 +51,15 @@ def preview(body: runtime.ArtifactPlan, actor: Actor) -> dict:
 
 
 @router.post("/preview/content")
-def preview_content(body: runtime.ArtifactPlan, actor: Actor) -> Response:
+def preview_content(body: runtime.ArtifactPlan, actor: Actor,
+                    frame: Annotated[int | None, Query(ge=0, le=127)] = None) -> Response:
     try:
         generated = runtime.generate(body)
+        svg = runtime.render_generated_frame(body, generated, frame)
     except runtime.ArtifactError as exc:
         raise HTTPException(
             exc.status_code, detail={"code": exc.code, "message": str(exc)}
         ) from None
-    svg = next(
-        asset["data"] for asset in generated["assets"] if asset["mime_type"] == "image/svg+xml"
-    )
     return Response(
         svg,
         media_type="image/svg+xml",
@@ -72,7 +71,7 @@ def preview_content(body: runtime.ArtifactPlan, actor: Actor) -> Response:
     )
 
 
-def _geometry_preview(body: GeometryPreview) -> dict:
+def _geometry_preview(body: GeometryPreview, frame: int | None = None) -> dict:
     if body.subject != "GEOMETRY":
         raise HTTPException(422, detail={"code": "GEOMETRY_REQUIRED"})
     points = {p.id: p for p in body.elements if isinstance(p, runtime.Point)}
@@ -102,7 +101,10 @@ def _geometry_preview(body: GeometryPreview) -> dict:
     payload = body.model_dump(exclude={"incircle_triangles"})
     payload["elements"] = [element.model_dump() for element in elements]
     try:
-        return runtime.generate(runtime.ArtifactPlan.model_validate(payload))
+        plan = runtime.ArtifactPlan.model_validate(payload)
+        generated = runtime.generate(plan)
+        generated["preview_svg"] = runtime.render_generated_frame(plan, generated, frame)
+        return generated
     except runtime.ArtifactError as exc:
         raise HTTPException(
             exc.status_code, detail={"code": exc.code, "message": str(exc)}
@@ -123,11 +125,10 @@ def geometry_preview(body: GeometryPreview, actor: Actor) -> dict:
 
 
 @router.post("/geometry-preview/content")
-def geometry_preview_content(body: GeometryPreview, actor: Actor) -> Response:
-    generated = _geometry_preview(body)
-    svg = next(
-        asset["data"] for asset in generated["assets"] if asset["mime_type"] == "image/svg+xml"
-    )
+def geometry_preview_content(body: GeometryPreview, actor: Actor,
+                             frame: Annotated[int | None, Query(ge=0, le=127)] = None) -> Response:
+    generated = _geometry_preview(body, frame)
+    svg = generated["preview_svg"]
     return Response(
         svg,
         media_type="image/svg+xml",

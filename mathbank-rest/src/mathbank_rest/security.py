@@ -5,8 +5,9 @@ only pure crypto/token logic, so it can be unit-tested without a database.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
+from typing import Annotated
 
 import bcrypt
 import jwt
@@ -32,7 +33,7 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
 
 
 def create_access_token(student_id: UUID) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": str(student_id),
         "iat": now,
@@ -65,6 +66,13 @@ def get_current_student_id(
             detail="invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
+
+
+def get_optional_student_id(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
+) -> UUID | None:
+    """Anonymous grounding is allowed; a supplied invalid bearer must fail."""
+    return get_current_student_id(credentials) if credentials is not None else None
 
 
 def require_admin_api_key(x_admin_api_key: str | None = Header(default=None)) -> None:

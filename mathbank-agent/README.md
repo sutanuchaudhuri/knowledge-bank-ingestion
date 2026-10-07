@@ -89,6 +89,62 @@ Manual smoke test (no terminal chat loop, good for CI/quick checks):
 
 ## Tools (`agents/mathbank_tutor/tools/rest_tools.py`)
 
+### Topic pedagogy and relevance corrections
+
+`pedagogy_agent` is an additional real ADK AgentTool, separate from the ten
+artifact specialists and presentation formatter. Exact short topic prompts
+(up to 80 characters, e.g. “Power of point”) are deterministically routed before
+root-model inference. A public read-only exact-taxonomy plan supplies three
+teaching stages, one checkpoint and published-step-supported example codes.
+Bare topics now create an ADK-persisted **lesson**, not a contest recommendation.
+Power of a Point has seven authored units: theory, recognition, isolated skill,
+guided application, mixed application, transfer and original-problem readiness.
+Current A-D checkpoints are revision-checked; wrong answers stay, misconceptions
+are recorded, and a quiz does not certify mastery. `get_topic_lesson` restores
+the current learner-safe view. Other exact topics explicitly disclose missing
+authored content instead of inventing validated lessons.
+
+The introductory chord diagram has four validated reset-to-base frames, with
+circle/intersection recognition and same-chord pair highlighting. It is private,
+ephemeral, requires authorization, and is not a source figure or proof.
+Explicit practice uses `/v1/tutor/topic-practice` and its `topic-fit-v1` profile;
+up to ten ranked candidates are checked for completeness and one is shown.
+Conversation exposure survives topic changes and review resets. Unknown ranking
+signals stay unknown; source-order difficulty is not measured contest difficulty.
+An unmatched explicit practice request asks for canonical-topic clarification;
+it cannot fall through to a loosely related vector recommendation.
+The root final reply is pinned to the grounded lesson/candidate rather than an unrelated
+model rewrite. Unverified root drafts are not streamed over a pinned plan;
+formatter styling must bind to that exact plan and cannot swap its contents.
+Long/ambiguous requests still depend on model tool selection.
+
+Clear short relevance complaints after a single known topic recommendation
+trigger `report_pedagogy_feedback`, an actual bounded retrieval-audit AgentTool,
+then a lesson replan. Reports require runtime-derived
+student authorization, stay PENDING with server audit evidence in migrations 023/024, and do not approve tags,
+update vectors/graph, change mastery or fine-tune models. The complained-about
+candidate is excluded in that conversation even if report storage/sign-in fails;
+failure to persist is explicitly disclosed. Older conversations without the
+new topic state require the root to resolve the code/topic from context.
+Admin `/admin/pedagogy` has a paginated report queue with evidence notes and
+RESOLVED/DISMISSED decisions plus explicit relevance/error labels. Resolved
+reviewed negatives gate topic practice; reviewed labels are retriever evaluation
+data, not automatic training. Actual corrections use revision-checked annotation
+review and explicit graph publication, separately.
+
+Applicability requires evidence from the solution reasoning: do not equate
+“power of a prime” with “power of a point,” or copy a problem-level technique
+onto every step. Approved/published step tags may still be machine-derived and
+are not mathematical proof. The existing deterministic step derivation already
+has a regression against this false keyword match. Package problem-level tags
+remain allegations until checked; rejected/human corrections survive reimports.
+Future textbook imports flag structurally unsupported Power proposals as import
+conflicts and withhold new canonical bridge tags; no bulk reimport/retagging was
+run. Missing signatures require human source review, not automatic rejection.
+The configured-model specialist adds normal inference cost; endpoint grounding,
+feedback and regression checks require no paid models.
+See [topic-first delivery and remaining limits](../requirements/33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md).
+
 ### Complete practice recommendations
 
 Selected-problem coaching is instructed to resolve numbered recommendations,

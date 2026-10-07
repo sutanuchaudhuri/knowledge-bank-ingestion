@@ -5,6 +5,7 @@ import { Callout, PageHeader, Pill } from "../../../_components/ui.jsx";
 import { useEffect, useRef, useState } from "react";
 import MathText from "../../../_components/MathText.jsx";
 import ProblemDetail from "../../../db/ProblemDetail.jsx";
+import PedagogyFeedbackQueue from "../../../_components/PedagogyFeedbackQueue.jsx";
 
 const KINDS = [
   ["skill", "Skills"],
@@ -201,6 +202,7 @@ export default function PedagogyReviewPage() {
       <PageHeader icon="patch-check" title="Pedagogical metadata approval"
         subtitle="Inspect evidence, record a decision in Postgres, then explicitly publish to the teaching graph."
         pills={<Pill tone="primary" icon="person-check">Human review</Pill>} />
+      <PedagogyFeedbackQueue />
       <Callout tone="insight" title="Review order">
         Approve skills first, then their mappings and relations. Approval records your review of the displayed assertion, not automatic approval of related rows.
         Generated content and confidence are not expert validation. Publishing preserves each row&apos;s status; it never approves pending rows.

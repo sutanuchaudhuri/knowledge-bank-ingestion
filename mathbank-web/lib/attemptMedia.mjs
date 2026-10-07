@@ -35,6 +35,8 @@ export function runtimeErrorMessage(code) {
   const messages = {
     TRANSCRIPTION_UNAVAILABLE: "Transcription is unavailable right now. Your original is saved; add evidence regions and enter the transcription manually, or retry later.",
     ANALYSIS_UNAVAILABLE: "Analysis is unavailable right now. Your approved attempt is still saved; you can continue reviewing it and retry analysis later.",
+    STUDENT_WORK_UNRELATED_TO_PROBLEM: "This work appears to address a different problem. MathBank will not critique it under the current problem; choose the matching problem and upload it there.",
+    WORK_CONTEXT_UNVERIFIED: "MathBank could not verify that this work matches the current problem, so it did not critique it. Verify the problem and start a new submission.",
     MEDIA_SIZE_LIMIT: "Choose a file under 20 MB.",
     ASSET_COUNT_LIMIT: "A submission can hold up to 10 original assets.",
     UNSUPPORTED_MEDIA_TYPE: "Choose a PNG, JPEG, PDF, or supported short audio/video file.",

@@ -4,10 +4,95 @@
 
 - Evidence mode: source-derived for implementation behavior, plus separately labelled operator-reported deployment observations (not independently verified).
 - Source revision: `3e915d015aa34268996724a3014c850f5892596e`, with uncommitted worktree changes included (refreshed 2026-10-06 for migrations 021/022).
-- Sources: `mathbank-db/sql/001_schema.sql` through `022_artifact_runtime.sql`; corpus/import/embed ETL under `mathbank-db/etl/`; REST DB and runtime write paths under `mathbank-rest/src/mathbank_rest/`; and new `attempt_media.py`, `attempt_media_models.py`, `media_processing.py`, `artifact_runtime.py`, `object_store.py`, `runtime_ai.py`, `routers/attempt_media.py`, `routers/artifacts.py`, `db/learner.py`, and `mastery.py`.
+- Sources: `mathbank-db/sql/001_schema.sql` through `024_feedback_evidence.sql`; corpus/import/embed ETL under `mathbank-db/etl/`; REST DB and runtime write paths under `mathbank-rest/src/mathbank_rest/`; and `attempt_media.py`, `attempt_media_models.py`, `media_processing.py`, `artifact_runtime.py`, `object_store.py`, `runtime_ai.py`, `routers/attempt_media.py`, `routers/artifacts.py`, `db/learner.py`, and `mastery.py`.
 - No DML was executed for this documentation task.
 
 ## High-level write boundaries
+
+### Topic lessons, practice ranking and correction evidence
+
+Incremental source evidence at `c79060ac0771175baa6e04b37bede840f8c30ee1`
+including related worktree changes. Sources: migration 024, `db/topic_pedagogy.py`,
+`db/retrieval_audit.py`, `practice_selection.py` / profiles, textbook importer,
+shared structural audit, `step_recovery.py`, tutor session/lesson/audit tools.
+No DML was executed for this documentation phase.
+
+- Exact-topic practice reads at most 100 canonical published-step candidates,
+  excludes pending/rejected assertions and matching **human-resolved IRRELEVANT**
+  reports, then ranks within that set using the versioned `topic-fit-v1` profile.
+  Minimum confidence is 0.8; confidence is the maximum qualifying step confidence,
+  unlike the listing union's minimum. Signed-in exposure uses actual solve/legacy
+  attempts; unresolved/confirmed gap skill IDs supply misconception relevance.
+  Source-order difficulty and taxonomy/form/skill diversity are proxies, not
+  measured contest difficulty or mathematical equivalence. Missing semantic,
+  prerequisite or exposure evidence remains unknown. No embedding/model call.
+- Feedback INSERT computes a bounded server-side source/step/annotation audit.
+  Snapshot contains canonical node, challenged mappings, supporting step IDs,
+  structural signatures, version and provisional error kind; no solution bodies,
+  identity/token or fabricated retrieval scores. An exact duplicate retains its
+  original audit/status instead of reopening or overwriting reviewed evidence.
+  The row is a PENDING correction candidate, not a canonical annotation.
+- Human report resolution updates note/time/verdict/error kind in one pending-row
+  transaction. RESOLVED classified rows are available as retriever evaluation
+  evidence. Only IRRELEVANT rows exclude a problem for the audited canonical
+  node. UNCLASSIFIED/DISMISSED complaints are not negatives. No training occurs.
+  Labels do not automatically invalidate when source taxonomy changes; review
+  and vector/graph/cache follow-up remain separate operator work.
+- Future textbook imports preserve the staged Power tag but flag missing
+  structural support as `TECHNIQUE_EVIDENCE_MISSING` in import conflicts; the
+  canonical problem-technique bridge **withholds new unsupported tags**.
+  The shared detector checks circle context plus product/power reasoning.
+  Absence is a heuristic review flag, not a proof of irrelevance or an automatic
+  rejection. Existing human/rejected rows remain protected. No bulk reimport,
+  retrospective retagging or paid automatic-enrichment revalidation was run.
+- Existing remediation still selects approved imported learning items,
+  excludes origin/hidden content, and now excludes questions copying hidden
+  solution seeds via the existing solution-leakage heuristic. A given copied
+  from the source statement is not treated as a leaked solution. This does not
+  implement a new validated generated-item factory.
+- ADK appends lesson/checkpoint state through DatabaseSessionService events.
+  Revision checks reject stale checkpoint submissions; wrong authored choices
+  or numeric answers stay at the same stage. Skip/jump/hint actions retain
+  distinct stage status and accumulated interaction time without marking
+  mastery. Review restarts instruction without clearing conversation exposure.
+  This state neither mutates corpus annotations nor certifies mastery.
+  Four-frame geometry previews reuse reset-to-base rendering, privately and
+  ephemerally, without object-store, graph or artifact-publication writes.
+- Private written work remains linked to a canonical `problem_id` in
+  `attempt_media.submission`. Image/PDF upload creates the existing submission
+  and media asset; paid transcription and analysis are separate explicit
+  actions. The analysis classifier must verify problem context before critique;
+  false or unverified context, or all-irrelevant step alignment, fails closed.
+  No lesson/upload control writes to PostgreSQL other than the existing
+  attempt-media lifecycle.
+
+General technique listings remain canonical membership views; they share the
+published-step union but do **not** apply feedback-specific practice exclusions.
+The ranking endpoint and final complete-problem display perform distinct gates.
+
+### Incremental topic/feedback behavior (source-derived, 2026-10-07 UTC)
+
+Revision `c79060ac0771175baa6e04b37bede840f8c30ee1` plus related worktree changes.
+Sources: migration 023, `db/topic_pedagogy.py`, `db/queries.py`, and textbook importer.
+Student reports INSERT SELECT the canonical problem with JWT-derived student ID;
+duplicate keys do a no-op topic update and return the original status/ID.
+Admin review UPDATE is restricted to PENDING, sets note/time, and conflicts if no
+row changes. These separate transactions never change graph, approved tags or
+mastery. Resolving feedback is not proof that a graph correction was published.
+
+Topic examples come from `_TAXONOMY_DETAILS`: published solution-step ownership
+or APPROVED technique links. No solution text is returned. Textbook automatic
+problem-technique listings require this step support; human mappings are retained.
+Technique listings and corpus technique filters share `technique_evidence`.
+Published/approved step-only matches appear as computed `role=STEP_SUPPORTED`,
+with the minimum supporting confidence, not a newly written canonical assertion.
+Existing pending/rejected mappings are never resurrected by this fallback.
+Exact taxonomy technique examples also exclude explicitly rejected mappings.
+Canonical detail excludes rejected technique rows. Textbook import now preserves
+both human decisions and rejected records instead of overwriting their confidence.
+Correction remains revision-checked `problem_technique` review plus explicit graph
+publication. PostgreSQL and Neo4j corrections are non-atomic and must be checked
+separately; an annotation status alone does not prove a stale graph edge is gone.
 
 | Boundary | Canonical store | Derived/follow-up store |
 |---|---|---|

@@ -55,9 +55,23 @@ counts and learning-context metadata provenance. Machine-approved skill metadata
 and pending generated hints are visibly qualified. Raw tool payloads, private
 thoughts and provider/database warning strings are never copied to the timeline.
 Missing retrieval telemetry is not presented as successful graph/vector evidence.
+Topic pedagogy activity also shows roadmap stages and complete step-supported
+candidate counts. Bare topics open a theory/checkpoint lesson before contest
+practice; Power of a Point has persisted seven-stage progress and an interactive
+four-frame chord illustration. Private preview frame controls reuse theme/icon
+components and announce their current frame; generated figures remain explicitly
+distinct from original sources. Unsupported topics disclose missing authored
+checkpoints. A checkpoint is not a mastery certification.
+Relevance reports are pending review, not silently ingested as
+graph truth. Admin `/admin/pedagogy` includes the paginated learner-report queue;
+correction snapshots expose actual step counts/support and structural review
+flags. Human relevance/error decisions require an evidence note and do not
+themselves publish corrections or train models.
 
-Every canonical problem's Source controls include a direct registered original
-link. Clicking Source or Original PDF opens a shared right-hand split pane;
+When a document/web URL is registered, Source controls include its direct original
+link. Book identity without a document is separately shown as “Source book
+identified; original page/location provenance incomplete,” with chapter/problem
+identity and no guessed PDF/highlight controls. Clicking Source or Original PDF opens a shared right-hand split pane;
 modifier-click/new-tab links still open the untouched original. On mobile this
 becomes a bottom pane with its own Close control. Cached PDFs with an unambiguous
 text match or current-hash extraction coordinates open at the verified physical

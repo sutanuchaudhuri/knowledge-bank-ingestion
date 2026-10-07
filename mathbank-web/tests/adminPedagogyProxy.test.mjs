@@ -11,6 +11,19 @@ const request = (body, origin = "http://localhost") => new Request(URL, {
 const defaults = { hasSession: async () => true, get: async () => ({}),
   post: async () => ({}), invalidate: () => {} };
 
+test("feedback review is separately allowlisted and never publishes annotations", async () => {
+  const calls = [];
+  const handlers = createAdminPedagogyHandlers({ ...defaults,
+    get: async (...args) => { calls.push(args); return { items: [], total: 0 }; },
+    post: async (...args) => { calls.push(args); return { status: "RESOLVED" }; },
+    invalidate: () => assert.fail("Feedback resolution must not publish/invalidate graph"),
+  });
+  assert.equal((await handlers.GET(new Request(`${URL}?view=feedback&limit=10&offset=0`))).status, 200);
+  assert.deepEqual(calls[0], ["/v1/admin/pedagogy/feedback", { limit: "10", offset: "0" }]);
+  assert.equal((await handlers.GET(new Request(`${URL}?view=arbitrary`))).status, 400);
+  assert.equal((await handlers.POST(request({ action: "feedback-review", feedback_id: "id", status: "RESOLVED", note: "Checked source" }))).status, 200);
+  assert.equal(calls[1][0], "/v1/admin/pedagogy/feedback-review");
+});
 test("unauthenticated admin proxies never call REST", async () => {
   let calls = 0;
   const handlers = createAdminPedagogyHandlers({ ...defaults, hasSession: async () => false,

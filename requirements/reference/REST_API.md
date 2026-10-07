@@ -2,13 +2,61 @@
 
 ## Evidence
 
+- Incremental behavior refresh, source-derived 2026-10-07 UTC at HEAD `c79060ac0771175baa6e04b37bede840f8c30ee1` plus related worktree changes: the agent session contract now returns answer-key-free lesson progress for stage navigation/timing, and `POST /v1/attempt-media/submissions/{sid}/analyse` refuses unrelated or unverified problem context before critique. No FastAPI route or OpenAPI schema changed. The source-generated OpenAPI was compared in memory with [openapi.json](openapi.json): exact match, 3.1.0 / 186 paths / 93 schemas. No live database or graph was queried.
 - Evidence mode: source-derived for route/API descriptions, plus separately labelled operator-reported deployment observations (not independently verified).
 - Source revision: `3e915d015aa34268996724a3014c850f5892596e`, with uncommitted worktree changes included (refreshed 2026-10-06 for migrations 021/022).
 - Files examined: `mathbank-rest/src/mathbank_rest/main.py`, every router registered there and its referenced DB/runtime/model modules, including `routers/attempt_media.py`, `routers/artifacts.py`, `attempt_media.py`, `attempt_media_models.py`, `media_processing.py`, `artifact_runtime.py`, `object_store.py`, `runtime_ai.py`, `security.py`, and `config.py`; `mathbank-agent/agents/mathbank_tutor/tools/attempt_media_tools.py`, `artifact_tools.py`, and registry wiring; plus `mathbank-web/lib/privateRuntimeProxy.mjs`, the catch-all proxies under `app/api/rest/{attempt-media,artifacts}`, attempt/artifact pages/components, `mathbank-live/server.mjs` and `mathbank-live/lib/attemptEvents.mjs`.
-- OpenAPI snapshot: [openapi.json](openapi.json), generated from `app.openapi()` without starting a server. Snapshot validation observed OpenAPI `3.1.0`, 180 paths and 90 component schemas. Source-pane/practice contract refresh: 2026-10-07 (UTC), including current worktree router/model/tool/proxy changes; credential-like content was screened before saving. This incremental refresh covers the source/preview/chat/agent contract, not a new full-system schema audit.
+- OpenAPI snapshot: [openapi.json](openapi.json), generated from `app.openapi()` without starting a server. Snapshot validation observed OpenAPI `3.1.0`, **186 paths and 93 component schemas** on 2026-10-07 (UTC), at `c79060ac0771175baa6e04b37bede840f8c30ee1` including related worktree changes; credential-like content was screened before saving. Newly examined topic-practice/admin-evaluation routers, optional bearer authentication, private preview frame parameters and source-book provenance. This incremental refresh is not a new full-system schema audit.
 - No endpoint handlers were invoked during source OpenAPI generation. Separately, the parent reports a restarted REST process exposing the attempt-media and artifact path sets; see the dated runtime observation below. This documentation did not independently query that service.
 
 ## Auth mechanisms
+
+### Topic planning and relevance feedback (incremental source-derived contract)
+
+Sources: `db/topic_pedagogy.py`, `db/queries.py`, `routers/pedagogy.py`,
+`routers/pedagogy_admin.py`, agent `pedagogy_agent.py`, and web proxy allowlists.
+
+| Route | Auth / input | Behavior / errors |
+|---|---|---|
+| `GET /v1/tutor/topic-plan?q=...` | Public; query 1-200 characters | Exact normalized canonical taxonomy match (articles and "of" ignored), unique match required. Returns teaching stages, first checkpoint and up to five example codes backed by published step annotations. No vector embedding/model call or solution text. Ambiguous/absent match returns `matched=false`, not arbitrary similarity. Data unavailable: 503. |
+| `POST /v1/tutor/topic-practice` | Optional student bearer; supplied invalid bearer fails. `TopicPracticeRequest`: topic 1-200 chars, named profile (`topic-fit-v1`), limit 1-25 (10), target difficulty 1-5 or null, known skills <=50, exposed/excluded codes <=100; extra identity fields forbidden. | Exact canonical node, published/reviewed evidence, confidence >=0.8, pending/rejected exclusion and resolved negative gate precede multi-factor ranking. At most 100 candidates considered. Returns bounded ranked candidates/profile/factor scores/unknown signals, not full solutions. Signed-in attempt exposure/gap evidence is server-derived. Missing/ambiguous topic returns `matched=false`; validation 422, database 503. No embeddings/models/writes. |
+| `POST /v1/tutor/feedback` | Student bearer; `FeedbackRequest {problem_code,topic,reason}`; identity only from JWT | 201 report with bounded server audit snapshot; duplicate `(student,problem,topic,reason)` returns existing report/status/audit without reopening or resnapshotting review. Unknown problem 404, invalid/blank/extra input 422, no bearer 401, storage unavailable 503. No canonical/graph/mastery mutation. |
+| `GET /v1/admin/pedagogy/feedback` | Admin key; limit 1-100 (25), offset >=0 | Paginated reports, pending first; no learner identity in queue payload. Database unavailable 503. |
+| `POST /v1/admin/pedagogy/feedback-review` | Admin key; `FeedbackDecision {feedback_id,status,note,retrieval_verdict,error_kind}` | Status RESOLVED or DISMISSED only; note 10-2000 characters. Verdict UNCLASSIFIED/IRRELEVANT/RELEVANT; issue UNCLASSIFIED/METADATA/RETRIEVAL/INSUFFICIENT_EVIDENCE. One pending-row update, otherwise 409; never approves/reclassifies/publishes annotations. |
+| `GET /v1/admin/pedagogy/retrieval-examples` | Admin key; limit 1-500 (100) | Only RESOLVED classified labels: query/topic, canonical code, verdict, error kind, evidence note, review time/reference. Evaluation data, no automatic training; 401/422/503. |
+
+Next.js adds authenticated same-origin `POST /api/rest/solve/pedagogy-feedback`.
+Admin proxy supports `view=feedback`, `view=retrieval-examples` and `action=feedback-review`.
+The root intent router distinguishes bare-topic learning, explicit practice,
+review/quiz and lesson continuation. A real pedagogy AgentTool presents theory
+before contest practice; Power of a Point has seven authored units with
+revision-checked authored radio/numeric checkpoints, skip/jump/hint controls,
+elapsed-time and stage status in restorable ADK session state.
+Other exact topics disclose unavailable authored content. Unmatched explicit
+practice requests return canonical-topic clarification, never vector fall-through.
+Explicit practice
+checks at most ten ranked candidates for full statement/required source diagrams,
+then displays one. Relevance complaints after a known single recommendation
+route report -> real retrieval-audit AgentTool -> lesson replan; canonical data
+is never changed by the complaint. The activity feed exposes only intent/stage,
+checkpoint counts, artifact availability, bounded audit status and report state,
+not private reasoning, solutions, identity or complaint contents.
+Student chat attachments reuse the existing authenticated submission/media
+routes and require the latest tutor response to name a canonical problem.
+Transcription/analysis remain explicit actions; analysis fails closed when
+problem context is false, unverified, or every step is irrelevant. These are
+behavior changes, not new HTTP routes.
+Specialist delegation uses the configured paid model in real conversations;
+these deterministic endpoint/unit/browser checks do not establish live AI quality.
+Ambiguous/long requests and non-topic solve/explore intents may still rely on
+existing root-model tools; the router is not a universal natural-language classifier.
+For textbook automatic technique listings, published step support is required;
+human-reviewed mappings and non-step corpora retain their intended access. Canonical
+problem details exclude rejected technique assertions.
+Both `/v1/techniques/{slug}/problems` and `/v1/problems?technique=...` include
+published/approved step-only evidence when no problem-level assertion exists,
+labelled with computed role `STEP_SUPPORTED`. Explicit pending/rejected mappings
+are not resurrected. No annotation is written by this read-time union.
 
 | Surface | Auth mechanism | Source |
 |---|---|---|
@@ -35,8 +83,10 @@ OpenAPI operation IDs are in `openapi.json`. Status/error notes include implemen
 | GET | `/v1/competitions` | none | none | list of competition dicts | Read-only. |
 | GET | `/v1/problems` | none | query: `competition`, `year_min`, `year_max`, `concept`, `technique`, `limit<=200`, `offset>=0` | list of problem summaries | Read-only. |
 | GET | `/v1/problems/by-code/{canonical_code}` | none | path code | problem detail | 404 if not found. |
-| GET | `/v1/problems/by-code/{code}/source` | none | path canonical code | Original source metadata `{url, kind, embed_url, label}` or null when no source exists | Read-only Postgres lookup; invalid/missing problem 404. URLs with credentials/invalid schemes are omitted. |
+| GET | `/v1/problems/by-code/{code}/source` | none | path canonical code | Original source metadata, or `kind=identified` with book/chapter/problem identity and `provenance_status=LOCATION_INCOMPLETE`; null only when neither identity nor document is known | Read-only Postgres lookup; invalid/missing problem 404. URLs with credentials/invalid schemes are omitted. Identified books do not receive guessed PDF paths/pages/highlights. |
 | GET | `/v1/problems/by-code/{code}/source-pdf` | none | path canonical code | Cached original problem PDF (`application/pdf`, inline, `no-cache`) | Read-only; 404 if problem/source PDF is not cached. Resolved path is constrained under the ingestion PDF root. |
+| GET | `/v1/problems/by-code/{code}/source-highlight` | none | canonical code; optional verified physical `page>=1` | Highlighted page image (`image/png`, no-store/nosniff) | 404 if no verified problem location/page, 422 invalid page. Derived copy, never replaces the source/question figure. |
+| GET | `/v1/problems/by-code/{code}/source-marked-pdf` | none | canonical code | Annotated original full document (`application/pdf`, inline, no-store/nosniff) | 404 if no verified problem location. Highlights all verified regions in a copy; original document remains unchanged. |
 | GET | `/v1/concepts` | none | `domain`, `limit<=200`, `offset>=0` | list | Read-only. |
 | GET | `/v1/concepts/{slug}/problems` | none | `limit<=200`, `offset>=0` | list of problems | Read-only. |
 | GET | `/v1/concepts/{slug}/neighbors` | none | slug | graph-like concept neighbors | Read-only Postgres query. |
@@ -229,9 +279,9 @@ All paths are under `/v1/artifacts`; bearer/admin-key access follows the artifac
 | `POST /validate` | S/A | `ArtifactPlan`; deterministic `{valid, errors}` validation, no write or model call. |
 | `POST /requests` | S/A | `ArtifactPlan`; 201 request row after validation and optional linked-problem check. |
 | `POST /geometry-preview` | S/A | `GeometryPreview`: geometry-only `ArtifactPlan` plus optional ≤8 triples of named vertices in `incircle_triangles`. Computes exact Euclidean triangle incircles, applies shared geometry validation/rendering, returns validation/rule profile and a declarative `geometry-artifact` markdown block. Ephemeral: no database/object-store writes, publication, embeddings or paid provider calls. Invalid/missing/degenerate triangle references and invalid geometry return 422. |
-| `POST /geometry-preview/content` | S/A | Same private validated preview input; returns generated `image/svg+xml` bytes with no-store/nosniff/sandbox headers. Browser uses an image blob URL, never injects SVG markup. Generated construction sketches are not original source figures and do not prove equal-radius hypotheses. |
+| `POST /geometry-preview/content` | S/A | Same private validated preview input; optional `frame` ordinal 0-127 selects a validated reset-to-base overlay, absent returns base SVG. Out-of-range authored frame 404, invalid query 422. Returns `image/svg+xml` bytes with no-store/nosniff/sandbox headers. Browser uses an image blob URL, never injects SVG markup. Generated sketches are not source figures or proof. |
 | `POST /preview` | S/A | Strict `ArtifactPlan`, all four subjects; shared deterministic validation/generation. Returns validation/rule profile and a declarative `artifact-preview` markdown block. Ephemeral: no storage, publication, indexing or provider calls. Invalid plan returns 422. |
-| `POST /preview/content` | S/A | Same plan; returns private validated SVG bytes with no-store/nosniff/sandbox headers. Chat renders SVG only as an image, with separate KaTeX equation lines for algebra. |
+| `POST /preview/content` | S/A | Same plan; optional `frame` ordinal 0-127 selects a reset-to-base overlay; absent returns base SVG. Missing authored ordinal 404, invalid query 422. Private validated SVG bytes with no-store/nosniff/sandbox headers; image-only rendering with separate KaTeX equation lines. No storage, publication or provider call. |
 | `GET /requests/{request_id}` | S/A | Owner/admin request detail; missing or other-student request 404. |
 | `POST /requests/{request_id}/generate` | A | `GenerateBody {publish=false}`; deterministic generation and private asset storage; admin-only. Optional publication is explicit. |
 | `GET /bundles/{bundle_id}` | S/A | Bundle metadata; students see published bundles only, admins can see drafts. |

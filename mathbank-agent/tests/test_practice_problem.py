@@ -73,6 +73,9 @@ def test_working_diagram_and_direct_source_are_present_without_answers(monkeypat
     )
     result = rest_tools.get_practice_problem("PAPER_SMT_2010_GEOM_Q06")
     assert result["eligible"] is True
+    assert result["markdown_block"].startswith(
+        "**Canonical Code**: `PAPER_SMT_2010_GEOM_Q06`"
+    )
     assert "![source]" in result["markdown_block"]
     assert "https://example.test/exam.pdf" in result["markdown_block"]
     assert "hidden" not in str(result)

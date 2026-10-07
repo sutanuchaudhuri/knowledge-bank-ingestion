@@ -27,6 +27,13 @@ export default function ProblemSource({ code }) {
   }, [code]);
   if (error) return <Callout tone="warning" role="alert">{error}</Callout>;
   if (!source) return loaded ? <Callout tone="warning">No original source is registered for this problem.</Callout> : null;
+  if (source.kind === "identified") return <section className="mb-original-source" data-testid="problem-source">
+    <Callout tone="hint"><strong>Source book identified: {source.book_title}</strong>
+      {source.chapter != null && <span> · Chapter {source.chapter}</span>}
+      {source.source_problem_id && <span> · Problem {source.source_problem_id}</span>}
+      <p className="mb-0">Original page/location provenance incomplete. No document link or highlight is guessed.</p>
+    </Callout>
+  </section>;
   return <section className="mb-original-source" data-testid="problem-source">
     <button type="button" className="btn btn-sm btn-outline-secondary"
       aria-expanded={open} onClick={() => open ? pane.close() : pane.open({ code, source })}>

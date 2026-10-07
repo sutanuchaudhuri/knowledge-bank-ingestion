@@ -150,7 +150,14 @@ def get_practice_problem(canonical_code: str) -> dict:
         label = f"{problem.get('competition', '')} {problem.get('year', '')} {canonical_code}".strip()
         link = (source or {}).get("url") or (source or {}).get("embed_url")
         attribution = f"{label}\n\n[Original source]({link})" if link else label
-        markdown = f"**Problem:**\n{statement}\n\n"
+        if source and source.get("kind") == "identified":
+            attribution = f"{source['book_title']}"
+            if source.get("chapter") is not None:
+                attribution += f" · Chapter {source['chapter']}"
+            if source.get("source_problem_id"):
+                attribution += f" · Problem {source['source_problem_id']}"
+            attribution += f"\n\nCanonical ID: {canonical_code}\n\nSource book identified; original page/location provenance incomplete."
+        markdown = f"**Canonical Code**: `{canonical_code}`\n\n**Problem:**\n{statement}\n\n"
         markdown += "\n\n".join(image["markdown"] for image in working)
         markdown += f"\n\n**Source:** {attribution}"
         return {"eligible": True, "canonical_code": canonical_code,

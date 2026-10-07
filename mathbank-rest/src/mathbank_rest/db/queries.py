@@ -11,6 +11,33 @@ from mathbank_rest.db.postgres import engine
 from mathbank_rest.db.problem_images import list_images
 
 
+_TECHNIQUE_PROBLEM_EVIDENCE = """
+WITH step_support AS (
+    SELECT s.problem_id,n.technique_id,min(st.confidence) AS confidence
+    FROM pedagogy.solution_step_technique st
+    JOIN pedagogy.solution_step s USING(solution_step_id)
+    JOIN pedagogy.taxonomy_node n ON n.taxonomy_node_id=st.technique_node_id
+    JOIN knowledge.technique t ON t.technique_id=n.technique_id
+    WHERE t.slug=:technique AND s.publication_status='PUBLISHED'
+      AND st.review_status='APPROVED'
+    GROUP BY s.problem_id,n.technique_id
+), technique_evidence AS (
+    SELECT pt.problem_id,pt.technique_id,pt.role,pt.confidence
+    FROM knowledge.problem_technique pt
+    JOIN knowledge.technique t USING(technique_id)
+    LEFT JOIN step_support ss USING(problem_id,technique_id)
+    WHERE t.slug=:technique AND pt.review_status='REVIEWED'
+      AND (pt.approval_method='human' OR ss.problem_id IS NOT NULL
+        OR NOT EXISTS (SELECT 1 FROM pedagogy.solution_step s WHERE s.problem_id=pt.problem_id))
+    UNION ALL
+    SELECT ss.problem_id,ss.technique_id,'STEP_SUPPORTED',ss.confidence
+    FROM step_support ss
+    WHERE NOT EXISTS (SELECT 1 FROM knowledge.problem_technique pt
+        WHERE pt.problem_id=ss.problem_id AND pt.technique_id=ss.technique_id)
+)
+"""
+
+
 def list_competitions() -> list[dict]:
     with engine.connect() as conn:
         rows = conn.execute(
@@ -53,9 +80,7 @@ def list_problems(
         params["concept"] = concept
     if technique:
         clauses.append(
-            "EXISTS (SELECT 1 FROM knowledge.problem_technique pt "
-            "JOIN knowledge.technique t ON t.technique_id = pt.technique_id "
-            "WHERE pt.problem_id = p.problem_id AND t.slug = :technique)"
+            "EXISTS (SELECT 1 FROM technique_evidence te WHERE te.problem_id=p.problem_id)"
         )
         params["technique"] = technique
 
@@ -63,6 +88,7 @@ def list_problems(
 
     query = text(
         f"""
+        {_TECHNIQUE_PROBLEM_EVIDENCE if technique else ""}
         SELECT p.canonical_code, p.problem_number, p.official_answer, p.source_url,
                pa.paper_code, ed.year, comp.name AS competition
         FROM core.problem p
@@ -117,7 +143,7 @@ def get_problem_by_code(canonical_code: str) -> dict | None:
                 SELECT t.slug, t.name, pt.role, pt.confidence
                 FROM knowledge.problem_technique pt
                 JOIN knowledge.technique t ON t.technique_id = pt.technique_id
-                WHERE pt.problem_id = :pid
+                WHERE pt.problem_id = :pid AND pt.review_status = 'REVIEWED'
                 """
             ),
             {"pid": result["problem_id"]},
@@ -241,22 +267,20 @@ def list_techniques(*, limit: int = 50, offset: int = 0) -> list[dict]:
 
 def get_technique_problems(slug: str, *, limit: int = 25, offset: int = 0) -> list[dict]:
     query = text(
-        """
+        _TECHNIQUE_PROBLEM_EVIDENCE + """
         SELECT p.canonical_code, p.problem_number, comp.name AS competition, ed.year,
                pt.role, pt.confidence
-        FROM knowledge.problem_technique pt
-        JOIN knowledge.technique t ON t.technique_id = pt.technique_id
+        FROM technique_evidence pt
         JOIN core.problem p ON p.problem_id = pt.problem_id
         JOIN core.paper pa ON pa.paper_id = p.paper_id
         JOIN core.competition_edition ed ON ed.edition_id = pa.edition_id
         JOIN core.competition comp ON comp.competition_id = ed.competition_id
-        WHERE t.slug = :slug
         ORDER BY ed.year, p.problem_number
         LIMIT :limit OFFSET :offset
         """
     )
     with engine.connect() as conn:
-        rows = conn.execute(query, {"slug": slug, "limit": limit, "offset": offset}).mappings()
+        rows = conn.execute(query, {"technique": slug, "limit": limit, "offset": offset}).mappings()
         return [dict(r) for r in rows]
 
 
