@@ -2,10 +2,80 @@
 
 ## Evidence
 
-- Evidence mode: source-derived for implementation behavior, plus separately labelled operator-reported deployment observations (not independently verified).
-- Source revision: `3e915d015aa34268996724a3014c850f5892596e`, with uncommitted worktree changes included (refreshed 2026-10-06 for migrations 021/022).
+- Evidence mode: source-derived access/transaction behavior; complete selected
+  live metadata is separately recorded in the [catalog](postgres/README.md).
+- Current source revision: `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`, clean source
+  tree before documentation changes. Older incremental revision records below
+  are retained as history.
 - Sources: `mathbank-db/sql/001_schema.sql` through `024_feedback_evidence.sql`; corpus/import/embed ETL under `mathbank-db/etl/`; REST DB and runtime write paths under `mathbank-rest/src/mathbank_rest/`; and `attempt_media.py`, `attempt_media_models.py`, `media_processing.py`, `artifact_runtime.py`, `object_store.py`, `runtime_ai.py`, `routers/attempt_media.py`, `routers/artifacts.py`, `db/learner.py`, and `mastery.py`.
 - No DML was executed for this documentation task.
+
+## Relation-level access and use cases
+
+Every observed table/view has its purpose, migration/framework/provider owner,
+source-access links and exact relationships in the
+[20-schema catalog](postgres/README.md). The
+[209-operation REST inventory](REST_ENDPOINTS.md) links the actual mounted
+handlers, dependencies, parameters and request/response schemas. Schema route
+families are not one-to-one table CRUD claims: join tables, worker queues and
+private evidence often have only internal callers.
+
+### Atomic reference steps, guidance and caches
+
+| Operation family | Persisted records / transaction | Important boundary |
+|---|---|---|
+| Package import | Staging/conflicts/reconciliation; core problem/solution; pedagogy source refs/parts/steps/dependencies/items/diagrams | Authored source steps are imported, not universally generated; several phase commits |
+| Admin step metadata | Locked step update + ingest.admin_review_action + pipeline.outbox_event in one transaction | Only skill/checkpoint/note; no prose/split/merge/reorder or revision guard |
+| Dependency change/reject | Scoped endpoints, cycle check, human provenance/audit/outbox | Runtime uses prerequisite from -> dependent to; only hard DEPENDS_ON cycles checked |
+| DAG approval | solution_dag_review + audit | Not a runtime publication gate; no immutable release pinning |
+| Start/resume | Advisory lock; owned solve_attempt, attempt_step_state, runtime_state, events/outbox/idempotency | PUBLISHED steps by problem; absent steps cause 409, not generation |
+| Learner response | Attempt/runtime row locks, response event/idempotency and version bump commit first | Evaluator runs outside that transaction; verdict/version checks commit separately |
+| Help escalation | Attempt state/help/version/event transaction, then separate cache lookup/generation | Provider failure does not undo help use or fabricate text |
+| Hint content | step_hint INSERT ON CONFLICT DO NOTHING | Shared step/level/prompt key; no content-hash invalidation; level 5 reads reference directly |
+| Guidance roadmap | Private reference SELECT; safe stages/checkpoint response | No canonical-step INSERT; may call paid model; source verification unchanged |
+| Widget compose/store | Deterministic transient composition or admin visual.widget_spec INSERT | No automatic canonical step attachment |
+| Artifact preview | Typed deterministic plan/render in memory | No request/bundle/index persistence or paid generation |
+| Artifact request/generate | artifact_runtime metadata + private object assets | Staff generate/publish/index; logical step links, no complete step FK/resolver contract |
+| Projection consumption | outbox_consumer receipt + projection_request in same SQL transaction | Graph/vector execution is separate, explicit and not globally atomic |
+
+Full UI/REST examples, persistence matrix, source-diagram/video boundaries and
+the proposed complete generator/editor are in
+[requirement 36](../36_STEP_GENERATOR_AND_AUTHORING.md). It must not be confused
+with the existing original-practice drafts in
+[requirement 35](../35_CORPUS_REPAIR_AND_AUTHORING.md).
+
+### Safe read examples (illustrative only; not executed)
+
+Bind `:problem_code` and `:student_id` using the existing SQLAlchemy caller.
+Staff-only queries may read reference text; do not relay it as a student
+“next hint” without the runtime reveal checks.
+
+```sql
+-- Staff reference preview: canonical problem -> selected solution -> parts/steps.
+SELECT p.canonical_code, s.solution_id, s.revision, s.verification_status,
+       sp.solution_part_id, sp.part_ordinal, st.solution_step_id,
+       st.global_step_index, st.step_text, st.publication_status
+FROM core.problem p
+JOIN core.solution s USING (problem_id)
+LEFT JOIN pedagogy.solution_part sp USING (solution_id)
+LEFT JOIN pedagogy.solution_step st USING (solution_part_id)
+WHERE p.canonical_code = :problem_code
+ORDER BY s.revision DESC, sp.part_ordinal, st.global_step_index;
+
+-- Ownership-scoped learner attempt metadata; not a source-step disclosure.
+SELECT a.solve_attempt_id, a.status, a.current_solution_step_id,
+       r.state_version, r.current_mode
+FROM learner.solve_attempt a
+JOIN tutor.runtime_state r USING (solve_attempt_id)
+WHERE a.student_id = CAST(:student_id AS uuid)
+  AND a.problem_id = CAST(:problem_id AS uuid);
+```
+
+ADK-owned tables are accessed by framework ORM/session services and read-only
+transcript reconstruction; Neon Auth tables have no checked-in MathBank REST
+consumer identified. Do not manufacture application write examples for those
+provider tables. Empty audit/auth namespaces do not imply missing audit rows:
+actual audit evidence belongs to knowledge/ingest/learner/live tables.
 
 ## High-level write boundaries
 

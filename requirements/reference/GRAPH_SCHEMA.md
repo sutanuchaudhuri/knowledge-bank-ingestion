@@ -2,10 +2,21 @@
 
 ## Evidence
 
-- Evidence mode: source-derived only.
-- Source revision: `3e915d015aa34268996724a3014c850f5892596e`, with uncommitted worktree changes included.
+- Evidence mode: current source-derived projection contract plus separately
+  observed user-selected REST-configured Neo4j catalog.
+- Source revision: `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`; clean source tree
+  before documentation changes. Both projectors and current graph readers were
+  examined; the older incremental boundary records below are historical.
 - Sources: `mathbank-graph/etl/project_from_postgres.py`, `mathbank-graph/etl/project_textbook_steps.py`, graph-related migrations and readers, `mathbank-web/lib/graphConfig.js`, `mathbank-web/lib/graphMetadata.mjs`; migrations 021/022 and their REST writers were checked to confirm their learner-evidence/artifact data is not projected.
-- No live Neo4j target was queried; counts in older READMEs remain dated audits, not current proof.
+- Live metadata observed 2026-10-07 13:41:24 UTC: 11 labels, 23 relationship
+  types, 36 directed endpoint label-set combinations, 10 uniqueness constraints
+  and 12 ONLINE indexes. [Complete observed graph catalog](GRAPH_LIVE_CATALOG.md)
+  lists every node/edge property/type, empirical mandatory flag, constraint,
+  index and direction. No property values, private data or graph writes were
+  read/performed. Counts in older READMEs remain dated audits.
+- PostgreSQL origins/types/nullability are in the [complete SQL catalog](postgres/README.md);
+  [step import/runtime/admin/attachment semantics](../36_STEP_GENERATOR_AND_AUTHORING.md)
+  distinguish implemented and proposed behavior.
 
 ### Corpus authoring boundary
 
@@ -158,7 +169,7 @@ Required means required by the source table/query for the projector path, not en
 | `SolutionStep -[:USES_SUBCONCEPT]-> Subconcept` | step id + bridged subconcept concept id | `projection_kind`, `projection_key` | step subconcept taxonomy bridge; target also has `Concept` |
 | `SolutionStep -[:USES_TECHNIQUE]-> Technique` | step id + bridged technique id (`pedagogy.taxonomy_node.technique_id` → `knowledge.technique`) | `confidence`, `source_type`, `review_status`, `approval_method`, `derivation_version`, `projection_kind`, `projection_key` | Migration 017 `pedagogy.solution_step_technique` rows with `review_status='APPROVED'` and a TECHNIQUE taxonomy node bridged to `knowledge.technique`; rejected/removed tags are pruned as stale `solution_steps` edges on the next projection. Distinct from the corpus `Problem -[:USES_TECHNIQUE {role}]-> Technique` pair (no `role`). Prasolov-only today. |
 | `SolutionStep -[:NEXT]-> SolutionStep` | dependency endpoints + type | `logical_dependency`, `confidence`, `source_type`, `review_status`, `approval_method`, `projection_kind`, `projection_key` | accepted step dependency type |
-| `SolutionStep -[:DEPENDS_ON]-> SolutionStep` | same | same | dependency direction from dependent/source row to target row as in package table |
+| `SolutionStep -[:DEPENDS_ON]-> SolutionStep` | same | same | SQL from_step_id -> to_step_id; runtime treats from as prerequisite, to as dependent (not dependent -> prerequisite) |
 | `SolutionStep -[:DERIVES_FROM]-> SolutionStep` | same | same | accepted dependency type |
 | `SolutionStep -[:USES_RESULT_FROM]-> SolutionStep` | same | same | source `USES_RESULT` is normalized to `USES_RESULT_FROM`; source `USES_RESULT_FROM` already accepted |
 | `SolutionStep -[:ALTERNATIVE_TO]-> SolutionStep` | same | same | accepted dependency type |
@@ -177,5 +188,35 @@ Required means required by the source table/query for the projector path, not en
 - `mathbank-web/lib/graphMetadata.mjs` exposes safe node/edge metadata fields only. It includes page-image counts and review/provenance fields; it does not expose solution bodies.
 - `project_textbook_steps.py` deliberately omits `SolutionStep.step_text`, `LearningItem.question_text`, correct answers, and solution seeds from Neo4j.
 - Learning items become graph-eligible only after `pedagogy.learning_item.review_status = 'APPROVED'` and `student_visible = true`; Phase 10 automatic approval records `approval_method`/`approved_at` in Postgres but the current graph projector uses those columns as eligibility provenance only and does not project them as `LearningItem` properties.
-- Step-level retrieval in Postgres (`step_search.py`) can include solution step text only when callers explicitly request it; no current REST route exposes it.
-- Migrations 021/022 add private PostgreSQL attempt/evidence and artifact-runtime tables, but neither graph projector reads them. The graph has no learner-attempt, media, transcript, assessment, artifact-asset or artifact-bundle label/edge. Private evidence, learner utterances, approved step text and artifact content are therefore not graph properties; no graph inventory or live server was queried in this refresh.
+- Step search hides answer-bearing text unless an authorized caller requests it.
+  The step runtime intentionally reveals completed/skipped reference text and
+  explicit level-5 help; that does not put step text in Neo4j.
+- Migrations 021/022 add private PostgreSQL attempt/evidence and artifact-runtime tables, but neither graph projector reads them. No source projector or observed graph inventory has learner-attempt, media, transcript, assessment, artifact-asset or artifact-bundle labels/edges. Private evidence, learner utterances, approved step text and artifact content remain outside this graph.
+
+## Current projection/access caveats
+
+- Step API dependency types are broader than graph types: BRANCHES_TO and
+  JUSTIFIES can be edited/stored in PostgreSQL but are not in the current
+  projector's `STEP_EDGE_TYPES`. Do not infer graph visibility from a saved edge.
+- Textbook nodes share required string metadata `projection_kind`,
+  `projection_version`, `postgres_id`, `external_id`, `book_code`,
+  `source_package_id`, `content_version`; indexes/occurrence/count fields are
+  integers, `is_checkpoint` is boolean, confidence is numeric, remaining
+  descriptive/provenance/review properties are strings. Optional SQL values
+  can disappear as Neo4j properties when SET to null. Empirical property types
+  and mandatory flags for each populated label-set are listed individually in
+  the [live catalog](GRAPH_LIVE_CATALOG.md), not enforced type constraints.
+- `canonical_id` is always a string graph identity: UUID string for canonical
+  corpus/knowledge nodes, text source identity for parts/steps/items.
+- Node display labels or safe browser metadata do not expose all stored graph
+  fields. `graphMetadata.mjs` has a node/edge allowlist; it omits answer/body
+  content and many step-layer fields. Graph REST/UI views can filter relationship
+  types/review state and are not a full dump of every possible path.
+- Corpus projection uses batched MERGE and does not globally prune every stale
+  corpus assertion. Pedagogy replacement is a scoped Neo4j transaction;
+  textbook projection batches jobs then prunes its owned kind in a separate
+  transaction. Neither is an atomic PostgreSQL+Neo4j publication.
+- Source image counts are specifically PDF_PROBLEM_PAGE/PDF_SOLUTION_PAGE
+  counts, not a guarantee of safe extracted-figure availability. Newly approved
+  admin diagrams are SQL/storage data until a deliberate relevant projection;
+  no diagram/widget/artifact node is automatically created.

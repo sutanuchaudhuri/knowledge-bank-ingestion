@@ -2,10 +2,46 @@
 
 ## Evidence
 
-- Evidence mode: source-derived composite DDL; separate operator-reported deployment observation below. No live catalog comparison was performed by this documentation refresh.
-- Source revision: `3e915d015aa34268996724a3014c850f5892596e`, with uncommitted worktree changes included (refreshed 2026-10-06 for migrations 021/022).
-- Sources: `mathbank-db/sql/001_schema.sql` through `024_feedback_evidence.sql`, `mathbank-db/sql/ops/approve_learning_items_auto.sql`, `mathbank-db/Makefile`; new runtime DML sources `mathbank-rest/src/mathbank_rest/{attempt_media,artifact_runtime,media_processing}.py`.
-- The documentation refresh did not execute migrations; this is the composite schema implied by source order. The deployment operator separately reported migrations 021 and 022 applied to the explicitly selected Neon production target on 2026-10-06 (UTC). This is not an independently verified catalog observation.
+- Current source: `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`, clean source tree
+  before documentation edits; numbered migrations 001-025, ETL/REST callers,
+  framework session configuration and source graph projectors.
+- **Selected live evidence:** REST-configured PostgreSQL, inspected metadata-only
+  at 2026-10-07 13:40:57 UTC; PostgreSQL 18.6.
+- **Authoritative complete column/constraint inventory for this deployment:**
+  [per-schema catalog](postgres/README.md). It covers 20 non-system schemas,
+  129 tables, 4 views, 5 sequences and 1,304 columns; all visible keys/FKs/checks,
+  indexes, noninternal triggers, RLS/policies, role-redacted grants, view
+  definitions and 166 routine signatures including extensions.
+- All 115 project-declared tables and their column-name sets were found;
+  14 additional ADK/Neon Auth tables are separately owned. This is not full
+  source/deployment DDL parity or an authorization/data-quality certification.
+- No migrations, DML writes, private row samples, paid calls or service changes
+  were performed. The condensed source summaries below are retained for
+  orientation/history; the dated catalog supersedes them for actual metadata.
+
+## Complete schema navigation
+
+| Domain | Detailed schema references / use cases |
+|---|---|
+| Corpus | [core](postgres/core.md), [knowledge](postgres/knowledge.md) |
+| Textbook/teaching/runtime | [pedagogy](postgres/pedagogy.md), [learner](postgres/learner.md), [tutor](postgres/tutor.md) |
+| Search and operations | [search](postgres/search.md), [pipeline](postgres/pipeline.md), [ingest](postgres/ingest.md), [analytics](postgres/analytics.md) |
+| Private learner media and visuals | [attempt_media](postgres/attempt_media.md), [artifact_runtime](postgres/artifact_runtime.md) |
+| Classroom authoring/live | [authoring](postgres/authoring.md), [live](postgres/live.md), [activity](postgres/activity.md), [visual](postgres/visual.md) |
+| Framework/provider | [agent_sessions](postgres/agent_sessions.md), [neon_auth](postgres/neon_auth.md) |
+| Reserved/empty/default namespaces | [audit](postgres/audit.md), [auth](postgres/auth.md), [public/extensions](postgres/public.md) |
+
+Each relation has an exact use case and source-access evidence. Schema access
+families are navigation, not a claim of a direct REST endpoint for every table.
+Framework/provider tables are not exposed by corpus CRUD simply because they
+exist. PostgreSQL 18 reports NOT NULL constraints as kind `n` in addition to
+column nullability; PK=`p`, unique=`u`, FK=`f`, check=`c`. Missing FK actions in
+catalog definitions mean default NO ACTION; nullable FK columns permit an
+absent relation rather than requiring a joined row.
+
+See the [step-generator lifecycle](../36_STEP_GENERATOR_AND_AUTHORING.md) for
+`core.solution_step` versus `pedagogy.solution_step`, current admin edit limits,
+hint-cache keys, source/artifact attachment gaps and proposed versioned authoring.
 
 ## Migration order and ownership
 

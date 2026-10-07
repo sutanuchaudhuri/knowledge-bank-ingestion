@@ -2,6 +2,42 @@
 
 ## Evidence
 
+### Current complete operation inventory
+
+Source `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`, clean source tree before docs
+changes. [Complete registered endpoint inventory](REST_ENDPOINTS.md) covers
+**198 paths / 209 HTTP operations / 102 schemas**, with actual handler links,
+authentication dependencies, exact parameters/defaults/validation and documented
+request/response/status schemas. [Screened OpenAPI](openapi.json) was regenerated
+without starting a service or invoking endpoint handlers.
+
+Separate read-only observation, **2026-10-07 14:50:10 UTC**: running
+`http://127.0.0.1:8000/openapi.json` exactly matched source. This is API deployment
+parity, not corpus/graph/vector correctness or a paid-provider acceptance test.
+No restart or mutation was performed.
+
+Swagger: `http://127.0.0.1:8000/docs`; ReDoc:
+`http://127.0.0.1:8000/redoc`; machine contract:
+`http://127.0.0.1:8000/openapi.json`. Swagger follows the running service
+automatically; the committed source snapshot needs an explicit screened refresh.
+Replace the localhost base with the actual configured deployment, not credentials.
+
+Step generation/admin preview/editing/hints/widgets/artifacts request examples
+and UI/persistence boundaries:
+[complete step-generator workflow/specification](../36_STEP_GENERATOR_AND_AUTHORING.md).
+**No universal atomic-step-generation, canonical prose/split/merge/reorder,
+video-widget or canonical step-attachment endpoints are implemented.**
+The proposed resources in that document are intentionally absent from OpenAPI.
+
+OpenAPI response lists omit many handler-level ownership, provider/storage and
+state-conflict errors; untyped dict responses are not contractual Pydantic
+response guarantees. Shared-key and staff-or-student dependencies also are not
+fully represented as OpenAPI security schemes. Use the mounted-handler inventory
+and implementation notes together.
+
+The following incremental evidence sections are historical unless explicitly
+reaffirmed by the current complete inventory.
+
 ### Admin corpus authoring
 
 Incremental source revision `77eb6784a000a9cc6077526fa4accc7c4111afac` with

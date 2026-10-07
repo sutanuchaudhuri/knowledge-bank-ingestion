@@ -444,7 +444,11 @@ scoring while maintaining this glossary.
 | Explicit artifact embedding | A vector indexed for one bundle using a supplied vector or an explicit provider request; its source-text hash, model and dimensions must match. | `artifact_runtime.artifact_embedding`; semantic retrieval reports UNAVAILABLE rather than falling back to lexical search. |
 | Private object store | S3-compatible storage for attempt media and generated artifact bytes. REST serves bytes only through owner/publication checks, never public or presigned URLs. | `AWS_ENDPOINT_URL_S3` and storage credentials; separate from Neon Auth and AI Gateway configuration. |
 
-`attempt_media` and `artifact_runtime` are source-implemented schema/runtime surfaces; their migration application and object-store deployment acceptance are not verified by these documentation references. They are not projected into Neo4j.
+`attempt_media` and `artifact_runtime` are source-implemented schema/runtime
+surfaces. Their relations/columns were observed in the user-selected
+REST-configured PostgreSQL catalog on 2026-10-07 UTC; object-store deployment
+acceptance and private row correctness were not tested. They are not projected
+into Neo4j. See the [complete catalog](reference/postgres/README.md).
 
 ## 9. Planned terms that must not be confused with live functionality
 
@@ -470,12 +474,23 @@ scoring while maintaining this glossary.
   recorded results, not just a working hybrid query.
 - **Production OAuth / federated login:** broader identity integration; the
   current signed admin-session/shared-key bridge is not full enterprise IAM.
+- **Universal atomic-step generator/editor:** source-bound manual/explicitly
+  paid generation, full text/split/merge/reorder drafts and immutable reviewed
+  releases with attempt pinning are proposed, not supplied by guidance stages
+  or the limited checkpoint/skill PATCH API.
+- **Step attachments:** source diagrams, declarative widgets/artifact frames
+  and video links need a versioned review/reveal resolver. Existing logical
+  artifact step links and WidgetSpecs are not that complete contract; no VIDEO
+  WidgetSpec type is implemented. See [requirement 36](36_STEP_GENERATOR_AND_AUTHORING.md).
 
 ## 10. Authoritative implementation references
 
 - [Canonical schema](../mathbank-db/sql/001_schema.sql), [vector schema](../mathbank-db/sql/002_vector_schema.sql), [learner schema](../mathbank-db/sql/003_learner_schema.sql).
 - [Pedagogy schema](../mathbank-db/sql/006_pedagogy.sql), [automatic approval](../mathbank-db/sql/008_automatic_metadata.sql), [relationship jobs](../mathbank-db/sql/009_relationship_enrichment.sql).
-- [Canonical implementation reference](reference/README.md): source-derived PostgreSQL schema through migrations 001–022, DML, graph schema, REST/OpenAPI snapshot, web proxies, multimodal attempts and artifact runtime.
+- [Canonical implementation reference](reference/README.md): migrations 001-025,
+  complete selected-target 20-schema SQL catalog, source/observed graph metadata,
+  DML/access/use cases, 209 REST operations/OpenAPI, web proxies and
+  [complete step-generator lifecycle/specification](36_STEP_GENERATOR_AND_AUTHORING.md).
 - [Mastery formula](../mathbank-rest/src/mathbank_rest/mastery.py), [learner attribution and queries](../mathbank-rest/src/mathbank_rest/db/learner.py).
 - [Hybrid ranking](../mathbank-rest/src/mathbank_rest/db/hybrid_search.py), [vector/lexical retrieval](../mathbank-rest/src/mathbank_rest/db/vector_search.py).
 - [Pipeline metrics](../mathbank-rest/src/mathbank_rest/db/pipeline_jobs.py), [nine-layer completion requirements](16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md).

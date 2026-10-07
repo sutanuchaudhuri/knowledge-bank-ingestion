@@ -39,6 +39,7 @@ This folder defines the implementation plan and requirements for building the Ma
 33. [33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md](33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md) — durable expanded requirements for intent routing, persisted interactive lesson progress, evidence-gated/versioned practice selection, structural audits, reviewed negatives, source provenance and context-bound printed-work review.
 34. [34_GUIDED_PROBLEM_WORKSPACE.md](34_GUIDED_PROBLEM_WORKSPACE.md) — Tutor + My work, authored orientation checks, progressive Q31 construction, step-bound provisional coaching, private upload/paste and explicit learning-data recovery; delivered/partial/planned mapping of the student workspace brief.
 35. [35_CORPUS_REPAIR_AND_AUTHORING.md](35_CORPUS_REPAIR_AND_AUTHORING.md) — admin missing-figure triage, reviewed question/image repairs, manual and explicit paid AI original practice drafts, nonofficial publication, and the indexed 210-query developer library.
+36. [36_STEP_GENERATOR_AND_AUTHORING.md](36_STEP_GENERATOR_AND_AUTHORING.md) — complete implemented step import/runtime/admin/visual lifecycle with diagrams and REST examples; persistence/cache/reveal boundaries; explicitly proposed universal atomic generator, versioned text/split/merge editor and source/widget/artifact/video attachments.
 
 ## Scope Summary
 

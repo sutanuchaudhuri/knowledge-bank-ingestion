@@ -1,5 +1,17 @@
 # mathbank-db
 
+## Complete schema and step-lifecycle reference
+
+The [live catalog and access index](../requirements/reference/postgres/README.md)
+documents every observed non-system schema/table/view on the user-selected
+REST-configured PostgreSQL target: 20 schemas, 129 tables, 4 views.
+All 115 migration-declared project tables/column names were present on
+2026-10-07 UTC; ADK and Neon Auth ownership is documented separately.
+This metadata-only observation does not certify row quality or object-store
+acceptance. See the [complete step lifecycle/specification](../requirements/36_STEP_GENERATOR_AND_AUTHORING.md)
+for imported atomic moves, admin preview/edit limits, durable hints/attempts,
+source/widget/video boundaries and the proposed full generator/editor.
+
 ## Reviewed corpus authoring (migration 025)
 
 [`sql/025_corpus_authoring.sql`](sql/025_corpus_authoring.sql) adds private
@@ -83,8 +95,9 @@ See root [DATABASES.md](../DATABASES.md) for the full local-vs-remote
 (Neon/AuraDB) picture and [GOTCHAS.md](../GOTCHAS.md) for environment
 troubleshooting. The source-derived composite schema, SQL behavior, and API
 contracts are in the [canonical implementation references](../requirements/reference/README.md);
-the current schema includes migrations 021–024, but reference documentation
-does not verify that any migration is applied to a database target.
+the source inventory includes migrations 001-025. Selected-target live metadata
+is separately dated in the complete catalog; it is not an assertion about every
+database branch or a proof of full source/deployment DDL parity.
 
 ## Quick start (local cluster)
 
@@ -293,8 +306,9 @@ Migrations use idempotent DDL where appropriate; inspect each migration for
 its exact operations and prerequisites before applying it. The inventory above
 does not assert that any remote target has applied a migration.
 
-Migrations 021–024 are described in the source-derived schema reference; this
-table is not evidence that they have run. Attempt media and generated artifact
+Migrations 021-025 are described in the schema reference; this command
+table is not evidence that they have run. The separately dated selected-target
+catalog records their observed relations/columns. Attempt media and generated artifact
 bytes use private object storage, independently configured from Neon Auth and
 the AI Gateway. See [schema](../requirements/reference/POSTGRES_SCHEMA.md),
 [DML behavior](../requirements/reference/POSTGRES_DML.md), and

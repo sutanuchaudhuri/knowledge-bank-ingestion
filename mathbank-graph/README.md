@@ -6,7 +6,14 @@ graph projection of the mathbank corpus. See the `Makefile` for lifecycle target
 The canonical source-derived inventory is the
 [graph schema reference](../requirements/reference/GRAPH_SCHEMA.md), linked
 from the [implementation-reference index](../requirements/reference/README.md).
-It describes projector support, not the contents of a live graph.
+It describes projector support. The separately dated
+[live graph metadata appendix](../requirements/reference/GRAPH_LIVE_CATALOG.md)
+records 11 labels, 23 relationship types and 36 directed endpoint label-set
+combinations on the user's selected REST-configured target (2026-10-07 UTC),
+with every observed property/type, constraint and index. It is not a row-content
+or graph-publication acceptance check, nor necessarily this local server.
+See [step generation/authoring and attachments](../requirements/36_STEP_GENERATOR_AND_AUTHORING.md)
+for the SQL-to-graph lifecycle and implemented-versus-proposed boundaries.
 
 ## Connecting / viewing the graph
 

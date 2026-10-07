@@ -1,8 +1,69 @@
 # MathBank implementation reference
 
-This folder is the canonical architecture reference for the checked-in MathBank implementation. Schema, DML, graph and API descriptions are source-derived; separately dated operator-reported deployment observations are labelled as such and are not independent schema or acceptance verification. This documentation refresh did not execute migrations, ingestion, graph publication, service starts, live schema probes, or paid model/API calls.
+This folder is the canonical architecture reference for the checked-in MathBank
+implementation and explicitly selected deployment metadata. Current evidence
+is below; older incremental observations are retained as dated history.
+
+## Current complete catalog refresh
+
+Source revision `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`; the source tree was
+clean before documentation changes. The user explicitly selected the PostgreSQL
+and Neo4j targets currently configured for REST for **read-only metadata**
+inspection. No private row samples, credentials, session messages or property
+values were exported. No migrations, generation, paid calls, admin mutations,
+ingestion, projections or service starts/reloads occurred.
+
+| Reference | Current coverage / evidence |
+|---|---|
+| [Complete PostgreSQL catalog](postgres/README.md) | 20 non-system schemas, 129 tables, 4 views, 5 sequences, 1,304 columns and 166 routine signatures including extension routines; observed 2026-10-07 13:40:57 UTC on REST's selected target |
+| [PostgreSQL schema guide](POSTGRES_SCHEMA.md) | Migration ownership/relationships and navigation to every schema page, including empty namespaces and ADK/Neon Auth ownership |
+| [PostgreSQL DML](POSTGRES_DML.md) | Source-derived access, review/audit, cache/transaction and projection boundaries |
+| [Graph source contract](GRAPH_SCHEMA.md) | Both checked-in projectors, ownership, directed endpoint pairs, provenance/review filtering and reader boundaries |
+| [Live graph catalog](GRAPH_LIVE_CATALOG.md) | 11 labels, 23 relationship types, 36 directed endpoint label-set combinations, every observed property/type, 10 uniqueness constraints and 12 indexes; observed 2026-10-07 13:41:24 UTC |
+| [REST guide](REST_API.md) and [complete endpoint inventory](REST_ENDPOINTS.md) | 198 paths, 209 operations, 102 schemas; source OpenAPI plus registered handler/dependency metadata |
+| [Source OpenAPI snapshot](openapi.json) | Screened `app.openapi()` output; exact running/source match observed 2026-10-07 14:50:10 UTC through read-only GET |
+| [Complete step workflow/specification](../36_STEP_GENERATOR_AND_AUTHORING.md) | Current import/runtime/admin/visual workflows, persistence vs cache, request examples and explicitly proposed generator/editor/attachment completion contract |
+
+All **115 source-declared project tables** and their column-name sets are
+present on the selected PostgreSQL target. The 14 additional tables are
+ADK-managed (5) and Neon Auth provider-managed (9). This is not a claim of
+full type/default/constraint parity with a freshly executed migration chain:
+the catalog independently records the actual deployment details.
+Graph mandatory/type observations are empirical, not formal type/existence
+constraints. Unpopulated supported schema is distinguished from observed graph
+inventory. Existing source-only/historical paragraphs do not supersede these
+dated observations.
+
+### Refresh procedure and limits
+
+1. Inspect numbered migrations 001-025, importer/runtime/DB callers, registered
+   routers and both graph projectors; preserve existing source/worktree edits.
+2. Use existing REST connection helpers with PostgreSQL READ ONLY transactions
+   and Neo4j read sessions for catalog metadata only. Select the target explicitly;
+   never infer target ownership or copy connection configuration into docs.
+3. Render one page per observed schema with exact columns/defaults/keys/FKs,
+   checks/indexes/triggers/RLS/grants, view definitions, function signatures,
+   ownership, use cases and literal source-access links. Reconcile source
+   table/column names including migration 008's dynamic approval columns.
+4. Generate screened sorted OpenAPI via `app.openapi()` without starting the
+   service or executing endpoint handlers; resolve authentication from registered
+   dependencies and link actual handlers. Compare running OpenAPI separately.
+5. Verify metadata coverage, local links, examples and documentation-only diff.
+   Reuse unchanged snapshots without timestamp-only churn.
+
+Generation helpers and raw metadata snapshots are session-local working
+evidence, not application tooling or a deployable migration. Persistent
+deliverables are the Markdown catalog, workflow and screened OpenAPI.
+The dedicated Mermaid validator requires sign-in and did not provide a result.
+As an independent offline check, the already-installed VS Code Mermaid renderer
+successfully parsed/rendered **all four diagrams with zero syntax errors**;
+the document preview also opened. No credentials were supplied, third-party
+service used for the fallback, or packages installed.
 
 ## Evidence and revision
+
+The following incremental records are **historical**, not the current complete
+catalog coverage statement.
 
 ### Corpus authoring incremental reference
 
