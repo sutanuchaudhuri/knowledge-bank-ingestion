@@ -58,6 +58,12 @@ coaching and hint counts attached to each draft. Retry of unavailable teaching
 context preserves typed work and the canonical question when possible, and
 disables coaching until recovery.
 
+The practice search accepts topics, descriptions, pasted question text and
+codes. Free text uses existing graph/text search without paid embeddings;
+up to ten collapsed canonical question/diagram previews require an explicit
+practice selection. Exact AMC/AIME references are optional shortcuts; ambiguous
+papers require a choice. Search does not discard the current question or work.
+
 The compact view collapses change-problem controls, source metadata, working
 preferences and routine warnings. Real service/upload errors remain visible;
 workspace details explain temporary drafts and provisional coaching. KaTeX

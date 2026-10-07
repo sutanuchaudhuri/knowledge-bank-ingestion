@@ -1,6 +1,58 @@
 import { expect, test } from "@playwright/test";
 
 for (const width of [1440, 390]) {
+  test(`learning-plan route, checkpoint and evidence have distinct readable panels at ${width}px`, async ({ page }) => {
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error" && /hydrat|same key/i.test(message.text())) errors.push(message.text());
+    });
+    await page.setViewportSize({ width, height: 900 });
+    await page.route("**/api/agent/session", (route) => route.fulfill({ json: { linked: false } }));
+    const text = String.raw`### Learning plan
+
+**Why this route:** Explore neighboring terms instead of computing nested fractions.
+
+1. Read the recurrence.
+2. Explore neighboring products.
+
+**Your first checkpoint:** What expression do you get by multiplying $x_n$ by $x_{n-1}$?
+
+**Evidence:** 2 stored solution records were supplied to the planner. Their source status is not a correctness certification.
+
+An ordinary paragraph remains unstyled.`;
+    await page.route("**/api/agent/run", (route) => route.fulfill({
+      contentType: "text/event-stream",
+      body: `data: ${JSON.stringify({ type: "answer", text })}\n\ndata: {"type":"done"}\n\n`,
+    }));
+    await page.goto("/");
+    await page.getByRole("textbox", { name: "Your question" }).fill("Give me a learning plan");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const answer = page.locator(".mb-tutor-answer").last();
+    await expect(answer.locator(".mb-learning-plan-panel")).toHaveCount(3);
+    const backgrounds = [];
+    for (const [section, label] of [["route", "Why this route:"], ["checkpoint", "Your first checkpoint:"], ["evidence", "Evidence:"]]) {
+      const panel = answer.locator(`.mb-learning-plan-${section}`);
+      await expect(panel).toBeVisible();
+      await expect(panel.locator("strong")).toHaveText(label);
+      const style = await panel.evaluate((element) => {
+        const css = getComputedStyle(element);
+        return { background: css.backgroundColor, border: css.borderLeftWidth, padding: parseFloat(css.paddingTop) };
+      });
+      expect(style.background).not.toBe("rgba(0, 0, 0, 0)");
+      expect(style.border).toBe("4px");
+      expect(style.padding).toBeGreaterThanOrEqual(8);
+      backgrounds.push(style.background);
+    }
+    expect(new Set(backgrounds).size).toBe(3);
+    await expect(answer.locator(".mb-learning-plan-checkpoint .katex")).toHaveCount(2);
+    await expect(answer.locator(".katex-error")).toHaveCount(0);
+    await expect(answer.locator(".mb-learning-plan-evidence")).toContainText("not a correctness certification");
+    await expect(answer.locator("p").filter({ hasText: "An ordinary paragraph" })).not.toHaveClass(/mb-learning-plan-panel/);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
   test(`tutor step headings stay compact with distinct section and step dividers at ${width}px`, async ({ page }) => {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));

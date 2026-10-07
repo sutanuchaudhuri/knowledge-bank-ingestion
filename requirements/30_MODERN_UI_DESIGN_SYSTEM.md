@@ -133,6 +133,22 @@ Unit and desktop/mobile mocked browser cases cover evidence visibility and redac
 
 ### Server and UI formatting controls
 
+The guided-practice picker is a free-text search field: topics, question text,
+contest descriptions and canonical codes are accepted. Results have collapsed
+question/figure previews and an explicit practice action without solution
+spoilers; search failures/empty results retain current work. Exact readable
+AMC/AIME references are optional shortcuts, with ambiguous papers offered as
+compact choices. No paper/version or incomplete year is guessed.
+
+Problem previews display each concept/technique slug once (name fallback for
+unkeyed tags), retaining the underlying source records. Repeated evidence
+annotations must not create repeated pills or duplicate React keys.
+
+Tutor learning plans separate “Why this route”, “Your first checkpoint” and
+“Evidence” into compact tinted panels: indigo, sky and amber respectively,
+using shared theme tokens and left accents. Labels remain visible so meaning
+does not depend on colour; math, evidence caveats and plan text are unchanged.
+
 Tutor replies keep semantic Markdown headings but render them at body-scale
 size (1rem), with a token-colored divider and consistent spacing before each
 new section. Standalone bold labels (Problem, Concepts, Diagrams) and adjacent

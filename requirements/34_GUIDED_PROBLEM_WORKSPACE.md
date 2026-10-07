@@ -138,6 +138,20 @@ evidence, transcription and assessment semantics remain those in
 
 ### Compact presentation and source math
 
+The problem picker accepts **free text**, including topics, descriptions and
+pasted question text (up to 2,000 characters), as well as canonical codes.
+Free text uses the existing graph + lexical corpus search, returning up to ten
+collapsed question previews; it makes no paid embedding or enrichment call.
+Relevance is qualified, warnings are inspectable, and even a single search
+match requires student selection. Previews show canonical text/figures, never
+answers or solutions. Failed/empty search retains the current work.
+
+Exact readable AMC/AIME references are an optional shortcut through the
+paginated corpus list. Ambiguous A/B or I/II papers require student selection;
+neither workspace nor teaching-context requests run before choosing a code.
+Incomplete references (including a three-digit year) remain free search text,
+not guessed canonical codes or misleading connectivity failures.
+
 The workspace prioritizes the question, current checkpoint, student composer
 and optional construction. Change-problem controls, source metadata, working
 preferences, routine enrichment/prerequisite warnings and workspace persistence

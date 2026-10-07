@@ -11,6 +11,16 @@ export function hasQuestionText(problem) {
     && !problem.statement_text.trim().startsWith("[Placeholder]");
 }
 
+export function uniqueProblemTags(tags = []) {
+  const seen = new Set();
+  return (tags ?? []).filter((tag) => {
+    const key = tag.slug || tag.name;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function relatedProblemRequest(problem) {
   const tags = [...(problem.concepts || []), ...(problem.techniques || [])]
     .map((tag) => tag.name).filter(Boolean);

@@ -1,6 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasQuestionText, relatedCandidates, relatedProblemRequest, problemDiscussionPrompt, tutorProblemHref } from "../lib/corpusProblems.mjs";
+import { hasQuestionText, relatedCandidates, relatedProblemRequest, problemDiscussionPrompt, tutorProblemHref, uniqueProblemTags } from "../lib/corpusProblems.mjs";
+
+test("display tags deduplicate taxonomy identities while preserving distinct tags and source records", () => {
+  const tags = [
+    { slug: "alg-eq", name: "Equations", source: "problem" },
+    { slug: "alg-eq", name: "Equations", source: "step" },
+    { name: "Sequences" }, { name: "Sequences" },
+    { slug: "geo-eq", name: "Equations" },
+  ];
+  assert.deepEqual(uniqueProblemTags(tags), [tags[0], tags[2], tags[4]]);
+  assert.equal(tags.length, 5);
+  assert.deepEqual(uniqueProblemTags(), []);
+  assert.deepEqual(uniqueProblemTags(null), []);
+});
 
 test("related search uses published tags without solutions or paid embedding requests", () => {
   const body = relatedProblemRequest({

@@ -162,11 +162,80 @@ test("routine diagnostics and recovered orientation failure do not distract from
   await expect(page.getByRole("region", { name: "Orientation checkpoint" })).toBeVisible();
   await expect(page.locator(".mb-learning-workspace").getByRole("alert")).toHaveCount(0);
   for (const warning of warnings) await expect(page.getByText(warning, { exact: true })).toBeHidden();
-  await expect(page.getByLabel("Problem code", { exact: true })).toBeHidden();
+  await expect(page.getByLabel("Search for a problem", { exact: true })).toBeHidden();
   await page.getByText("Workspace details", { exact: true }).click();
   for (const warning of warnings) await expect(page.getByText(warning, { exact: true })).toBeVisible();
   await expect(page.getByText("Problem orientation could not be loaded: Not Found", { exact: true })).toBeVisible();
 });
+
+for (const width of [1440, 390]) {
+  test(`readable contest references ask for the paper version before loading at ${width}px`, async ({ page }) => {
+    await mock(page);
+    await page.setViewportSize({ width, height: 900 });
+    const workspaceCalls = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/tutor/workspace/")) workspaceCalls.push(request.url());
+    });
+    await page.route("**/api/rest/problems?*", (route) => route.fulfill({ json: {
+      items: ["A", "B"].map((paper) => ({ canonical_code: `AMC10_2011${paper}_Q01`,
+        competition: "AMC 10", year: 2011, paper_code: paper, problem_number: 1, official_answer: "SECRET_ANSWER" })),
+      hasMore: false,
+    } }));
+    await page.goto("/learn");
+    await page.getByLabel("Search for a problem", { exact: true }).fill("amc 10 2011 problem1");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    const choices = page.getByRole("region", { name: "Choose a matching problem" });
+    await expect(choices).toBeVisible();
+    expect(workspaceCalls).toEqual([]);
+    await expect(page.locator("body")).not.toContainText("SECRET_ANSWER");
+    await choices.getByRole("button", { name: "AMC 10 2011 · B · Problem 1" }).click();
+    await expect(page.getByRole("region", { name: "Current problem" })).toContainText("AMC10_2011B_Q01");
+    await expect(choices).toHaveCount(0);
+    await expect(page.locator(".mb-learning-workspace").getByRole("alert")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+
+  test(`free-text practice search previews questions before loading and recovers from failure at ${width}px`, async ({ page }) => {
+    await mock(page);
+    await page.setViewportSize({ width, height: 900 });
+    let fail = true;
+    const searches = [], workspaceCalls = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/tutor/workspace/")) workspaceCalls.push(request.url());
+    });
+    await page.route("**/api/rest/search", (route) => {
+      searches.push(route.request().postDataJSON());
+      return fail ? route.fulfill({ status: 503, json: { error: "Search is temporarily unavailable" } })
+        : route.fulfill({ json: { results: [{ canonical_code: AIME, competition: "AIME", year: 1985,
+          official_answer: "SECRET_ANSWER" }], warnings: ["Graph unavailable; text search returned candidates."] } });
+    });
+    await page.goto("/learn");
+    const input = page.getByLabel("Search for a problem");
+    await input.fill("a sequence with a product of neighboring terms");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "Search is temporarily unavailable" })).toBeVisible();
+    expect(workspaceCalls).toEqual([]);
+    fail = false;
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    const results = page.getByRole("region", { name: "Choose a matching problem" });
+    await expect(results).toBeVisible();
+    expect(searches.at(-1).query).toBe("a sequence with a product of neighboring terms");
+    expect(workspaceCalls).toEqual([]);
+    await results.getByText(AIME, { exact: true }).click();
+    await expect(results.locator(".katex").first()).toBeVisible();
+    await expect(results).not.toContainText("SECRET_ANSWER");
+    await expect(results.getByText("Reveal answer and solutions")).toHaveCount(0);
+    await results.getByRole("button", { name: "Practise this problem" }).click();
+    await expect(page.getByRole("region", { name: "Current problem" })).toContainText(AIME);
+    await page.getByText("Change problem", { exact: true }).click();
+    await input.fill("a description with no matches");
+    await page.route("**/api/rest/search", (route) => route.fulfill({ json: { results: [], warnings: [] } }));
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(page.getByText("No matching problems.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Current problem" })).toContainText(AIME);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
 
 test("AIME data failure keeps the canonical question visible and offers recovery without fake hints", async ({ page }) => {
   const calls = await mock(page, true);
@@ -206,10 +275,10 @@ test("completed orientation asks for student work, and easier practice remains o
 
 test("unknown question and failed canonical fallback remain explicit", async ({ page }) => {
   await mock(page);
-  await page.route("**/api/tutor/learning-context/UNKNOWN", (route) => route.fulfill({ status: 404, json: { error: "Unknown problem code." } }));
-  await page.route("**/api/tutor/workspace/UNKNOWN", (route) => route.fulfill({ status: 404, json: { error: "Unknown problem code." } }));
-  await page.route("**/api/rest/problems/UNKNOWN", (route) => route.fulfill({ status: 404, json: { error: "Unknown problem code." } }));
-  await page.goto("/learn?problem=UNKNOWN");
+  await page.route("**/api/tutor/learning-context/UNKNOWN_Q01", (route) => route.fulfill({ status: 404, json: { error: "Unknown problem code." } }));
+  await page.route("**/api/tutor/workspace/UNKNOWN_Q01", (route) => route.fulfill({ status: 404, json: { error: "Unknown problem code." } }));
+  await page.route("**/api/rest/problems/UNKNOWN_Q01", (route) => route.fulfill({ status: 404, json: { error: "Unknown problem code." } }));
+  await page.goto("/learn?problem=UNKNOWN_Q01");
   await expect(page.getByRole("alert").filter({ hasText: "The canonical question could not be loaded either" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Current problem" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Retry learning data" })).toBeVisible();

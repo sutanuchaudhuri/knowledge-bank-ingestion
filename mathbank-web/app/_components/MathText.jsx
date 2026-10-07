@@ -13,12 +13,26 @@ import GeometryArtifact from "./GeometryArtifact.jsx";
 import AsymptoteDiagram from "./AsymptoteDiagram.jsx";
 
 const renderInline = (t) => <MathText>{t}</MathText>;
+const learningPlanSections = new Map([
+  ["why this route", "route"],
+  ["your first checkpoint", "checkpoint"],
+  ["evidence", "evidence"],
+]);
 
 // ```widget fenced JSON from the tutor becomes a whitelisted, declarative widget card (never executed).
 const components = {
   p({ node, children, ...props }) {
     const standaloneLabel = node?.children?.length === 1 && node.children[0].tagName === "strong";
-    return <p {...props} className={standaloneLabel ? "mb-markdown-section-label" : undefined}>{children}</p>;
+    const first = node?.children?.[0];
+    const label = first?.tagName === "strong"
+      ? first.children?.map((child) => child.value || "").join("").trim().replace(/:$/, "").toLowerCase()
+      : "";
+    const planSection = learningPlanSections.get(label);
+    const classes = [
+      standaloneLabel && "mb-markdown-section-label",
+      planSection && `mb-learning-plan-panel mb-learning-plan-${planSection}`,
+    ].filter(Boolean).join(" ");
+    return <p {...props} className={classes || undefined}>{children}</p>;
   },
   a({ node, href, children, ...props }) {
     const tone = /^#mb-tone-(given|goal|insight|warning)$/.exec(href || "")?.[1];

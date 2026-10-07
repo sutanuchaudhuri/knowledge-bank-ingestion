@@ -9,11 +9,13 @@ import ProblemDiagrams from "../_components/ProblemDiagrams.jsx";
 import ProblemSource from "../_components/ProblemSource.jsx";
 import ConstructionPreview from "../_components/ConstructionPreview.jsx";
 import WrittenWorkUpload from "../_components/WrittenWorkUpload.jsx";
+import { ProblemPreviewCard } from "../_components/ProblemPreview.jsx";
 import { Callout, EmptyState, Icon, IconButton, PageHeader, Pill, SectionTitle } from "../_components/ui.jsx";
 import { hintRequestState } from "../../lib/learningFlow.mjs";
 import { hasStepSolution } from "../../lib/solveFlow.mjs";
 import { corpusJson, hasQuestionText, tutorProblemHref } from "../../lib/corpusProblems.mjs";
 import { prepareProblemPresentation } from "../../lib/problemPresentation.mjs";
+import { resolveProblemReference } from "../../lib/problemReference.mjs";
 
 async function tutorRequest(path, options = {}) {
   const { timeoutMs, ...fetchOptions } = options;
@@ -68,7 +70,12 @@ export default function LearningWorkspace() {
   const params = useSearchParams();
   const queryCode = params.get("problem") || "";
   const [codeInput, setCodeInput] = useState(queryCode);
-  const [code, setCode] = useState(queryCode);
+  const [code, setCode] = useState("");
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [lookupError, setLookupError] = useState("");
+  const [matches, setMatches] = useState([]);
+  const [lookupResult, setLookupResult] = useState(null);
+  const lookupRef = useRef(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [context, setContext] = useState(null);
   const [problem, setProblem] = useState(null);
@@ -94,7 +101,34 @@ export default function LearningWorkspace() {
   const requestState = hintRequestState(current.text, current.previousAttempt || "", current.hintsUsed || 0);
   const presentation = useMemo(() => problem ? prepareProblemPresentation(problem.statement_text, code) : null, [problem, code]);
 
-  useEffect(() => { setCode(queryCode); setCodeInput(queryCode); }, [queryCode]);
+  function chooseProblem(candidate) {
+    setCodeInput(candidate.canonical_code); setCode(candidate.canonical_code);
+    setMatches([]); setLookupResult(null); setLookupError(""); setReloadKey((value) => value + 1);
+  }
+  async function lookupProblem(input) {
+    lookupRef.current?.abort();
+    const controller = new AbortController();
+    lookupRef.current = controller;
+    setLookupBusy(true); setLookupError(""); setMatches([]); setLookupResult(null);
+    try {
+      const result = await resolveProblemReference(input, {
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]), fetchPage: corpusJson,
+      });
+      if (controller.signal.aborted) return;
+      if (result.kind !== "search" && result.candidates.length === 1) chooseProblem(result.candidates[0]);
+      else { setMatches(result.candidates); setLookupResult(result); }
+    } catch (err) {
+      if (!controller.signal.aborted) setLookupError(err.name === "TimeoutError" ? "Problem lookup timed out. Please retry." : err.message);
+    } finally {
+      if (lookupRef.current === controller) { lookupRef.current = null; setLookupBusy(false); }
+    }
+  }
+  useEffect(() => {
+    setCodeInput(queryCode);
+    if (queryCode) void lookupProblem(queryCode);
+    else { setCode(""); setMatches([]); setLookupResult(null); setLookupError(""); }
+    return () => lookupRef.current?.abort();
+  }, [queryCode]);
   useEffect(() => {
     setSteps([{ text: "", feedback: null }]); setSelected(0); setStage(0); setStageStates({});
     setMicroFeedback(null); setChoice(""); setShowVisual(false);
@@ -198,15 +232,27 @@ export default function LearningWorkspace() {
   return <div className="mb-learning-workspace">
     <PageHeader icon="signpost-split" title="Guided math practice"
       subtitle="One small step at a time." />
-    <details className="mb-workspace-options mb-2" open={!code || undefined}>
-      <summary><Icon name="search" />{code ? "Change problem" : "Choose a problem"}</summary>
-    <form className="mb-search mt-2" onSubmit={(event) => { event.preventDefault(); setCode(codeInput.trim()); setReloadKey((value) => value + 1); }}>
-      <label htmlFor="learning-code" className="visually-hidden">Problem code</label><Icon name="search" className="mb-search-icon" />
-      <input id="learning-code" className="form-control" value={codeInput} onChange={(event) => setCodeInput(event.target.value)} required maxLength={200} placeholder="Problem code" />
-      <button className="btn btn-primary" disabled={loading || busy}>Load problem</button>
+    <details className="mb-workspace-options mb-2" open={!code || Boolean(lookupError) || Boolean(lookupResult) || undefined}>
+      <summary><Icon name="search" />{code ? "Change problem" : "Find a problem"}</summary>
+    <form className="mb-search mt-2" onSubmit={(event) => { event.preventDefault(); void lookupProblem(codeInput); }}>
+      <label htmlFor="learning-code" className="visually-hidden">Search for a problem</label><Icon name="search" className="mb-search-icon" />
+      <input id="learning-code" className="form-control" value={codeInput} onChange={(event) => setCodeInput(event.target.value)} required maxLength={2000} placeholder="Describe a problem, paste question text, or enter a contest or code…" />
+      <button className="btn btn-primary" disabled={loading || busy || lookupBusy}>{lookupBusy ? "Searching…" : "Search"}</button>
       <IconButton icon="grid-3x3-gap" label="Find a problem" variant="outline-secondary" href="/db/problems" />
     </form>
     </details>
+    {lookupError && <Callout tone="warning" role="alert" className="mb-2">{lookupError}</Callout>}
+    {lookupResult && <section className="card p-3 mb-3" aria-label="Choose a matching problem">
+      <p className="small mb-2">{lookupResult.kind === "search" ? "Choose a question to practise. Search relevance is not a verified topic annotation." : "More than one paper matches. Choose the version you mean."}</p>
+      {lookupResult.kind === "search" ? <div className="d-grid gap-2">
+        {matches.map((candidate) => <ProblemPreviewCard key={candidate.canonical_code} item={candidate} onChoose={chooseProblem} revealSolutions={false} />)}
+        {!matches.length && <EmptyState icon="search">No matching problems. Try a different description or choose from the corpus.</EmptyState>}
+      </div> : <div className="d-flex flex-wrap gap-2">{matches.map((candidate) => <button key={candidate.canonical_code}
+        className="btn btn-outline-primary btn-sm" onClick={() => chooseProblem(candidate)}>
+        {candidate.competition} {candidate.year} · {candidate.paper_code} · Problem {candidate.problem_number}
+      </button>)}</div>}
+      {lookupResult.warnings.length > 0 && <details className="small text-secondary mt-2"><summary>Search details</summary>{lookupResult.warnings.map((warning, index) => <p key={index} className="mb-1">{warning}</p>)}</details>}
+    </section>}
     {loading && !problem && <p role="status">Loading the canonical question…</p>}
     {contextLoading && <p role="status" className="small text-secondary mb-2"><Icon name="hourglass-split" />Hints loading…</p>}
     {loadError && <Callout tone="warning" role="alert" className="mb-2">
@@ -215,7 +261,7 @@ export default function LearningWorkspace() {
     </Callout>}
     {error && <Callout tone="danger" role="alert" className="mb-3">{error}</Callout>}
     {loadError && !problem && <details className="mb-workspace-options mb-2"><summary>Loading details</summary>{loadError}</details>}
-    {!code && <EmptyState icon="journal-text">Choose a problem to open your workspace.</EmptyState>}
+    {!code && !lookupResult && !lookupBusy && <EmptyState icon="journal-text">Search for a topic or question to open your workspace.</EmptyState>}
     {problem && <>
       <section className="card p-2 mb-3" aria-label="Your solving journey">
         <div className="d-flex flex-wrap align-items-center gap-1">

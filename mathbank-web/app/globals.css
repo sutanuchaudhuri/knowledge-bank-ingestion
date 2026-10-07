@@ -334,6 +334,25 @@ a.mb-stat:hover { border-color: #c7d2fe; transform: translateY(-1px); color: inh
 .mb-tutor-answer .markdown-body > ol > li { padding: .4rem 0; }
 .mb-tutor-answer .markdown-body > ol > li + li { border-top: 1px solid var(--mb-border); }
 .mb-tutor-answer .markdown-body > ul { margin-bottom: .75rem; }
+.mb-tutor-answer .mb-learning-plan-panel {
+  padding: .75rem 1rem;
+  margin-block: .75rem;
+  border-left: 4px solid;
+  border-radius: var(--mb-radius-sm);
+  color: var(--mb-text);
+}
+.mb-tutor-answer .mb-learning-plan-route {
+  background: var(--mb-primary-soft);
+  border-color: var(--mb-primary);
+}
+.mb-tutor-answer .mb-learning-plan-checkpoint {
+  background: var(--mb-info-soft);
+  border-color: var(--mb-info);
+}
+.mb-tutor-answer .mb-learning-plan-evidence {
+  background: var(--mb-warning-soft);
+  border-color: var(--mb-warning);
+}
 .mb-chat-foot { border-top: 1px solid var(--mb-border); padding: .85rem 1.1rem 1rem; background: var(--mb-surface); border-radius: 0 0 var(--mb-radius) var(--mb-radius); }
 .mb-suggestions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .mb-typing span { display: inline-block; width: 6px; height: 6px; margin-right: 3px; border-radius: 50%; background: #a5b4fc; animation: mbTyping 1.2s infinite ease-in-out; }

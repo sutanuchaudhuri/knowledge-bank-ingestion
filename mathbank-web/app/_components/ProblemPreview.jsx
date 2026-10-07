@@ -5,7 +5,7 @@ import Link from "next/link";
 import MathText from "./MathText.jsx";
 import ProblemDiagrams from "./ProblemDiagrams.jsx";
 import { Callout, EmptyState, Icon, Pager, Pill } from "./ui.jsx";
-import { corpusJson, hasQuestionText, relatedCandidates, relatedProblemRequest, tutorProblemHref } from "../../lib/corpusProblems.mjs";
+import { corpusJson, hasQuestionText, relatedCandidates, relatedProblemRequest, tutorProblemHref, uniqueProblemTags } from "../../lib/corpusProblems.mjs";
 import { hasStepSolution } from "../../lib/solveFlow.mjs";
 
 export function ProblemPreview({ problem, discuss = true }) {
@@ -18,8 +18,8 @@ export function ProblemPreview({ problem, discuss = true }) {
       {problem.paper_code && <Pill title="Paper">{problem.paper_code}</Pill>}
       {problem.diagrams?.length > 0 && <Pill tone="info" icon="image">{problem.diagrams.length} source figures</Pill>}
       {!hasQuestionText(problem) && <Pill tone="warning" icon="exclamation-diamond">Text incomplete</Pill>}
-      {problem.concepts?.map((tag) => <Pill key={tag.slug || tag.name} tone="info" icon="diagram-3" title="Published concept tag">{tag.name}</Pill>)}
-      {problem.techniques?.map((tag) => <Pill key={tag.slug || tag.name} tone="success" icon="tools" title="Published technique tag">{tag.name}</Pill>)}
+      {uniqueProblemTags(problem.concepts).map((tag) => <Pill key={`concept:${tag.slug || tag.name}`} tone="info" icon="diagram-3" title="Published concept tag">{tag.name}</Pill>)}
+      {uniqueProblemTags(problem.techniques).map((tag) => <Pill key={`technique:${tag.slug || tag.name}`} tone="success" icon="tools" title="Published technique tag">{tag.name}</Pill>)}
     </div>
     {hasQuestionText(problem)
       ? <div className="mb-tutor-problem"><MathText>{problem.statement_text}</MathText></div>
@@ -37,7 +37,7 @@ export function ProblemPreview({ problem, discuss = true }) {
   </div>;
 }
 
-export function ProblemPreviewCard({ item, related = false }) {
+export function ProblemPreviewCard({ item, related = false, onChoose, revealSolutions = true }) {
   const [open, setOpen] = useState(false);
   const [problem, setProblem] = useState(null);
   const [error, setError] = useState("");
@@ -65,7 +65,10 @@ export function ProblemPreviewCard({ item, related = false }) {
     {open && <div className="pt-3">
       {error ? <Callout tone="danger" role="alert">{error} <button className="btn btn-sm btn-outline-secondary" onClick={() => setRetry((value) => value + 1)}>Retry preview</button></Callout>
         : !problem ? <p role="status">Loading question…</p>
-          : <><ProblemPreview problem={problem} />{related && <RelatedProblems problem={problem} />}<ProblemSolutions problem={problem} /></>}
+          : <><ProblemPreview problem={problem} discuss={!onChoose} />
+            {onChoose && <button className="btn btn-primary btn-sm mt-2" onClick={() => onChoose(item)}><Icon name="signpost-split" />Practise this problem</button>}
+            {related && <RelatedProblems problem={problem} />}
+            {revealSolutions && <ProblemSolutions problem={problem} />}</>}
     </div>}
   </details>;
 }

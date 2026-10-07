@@ -13,8 +13,8 @@ const problem = (code) => ({
   canonical_code: code, competition: code === CODE ? competition.name : "AIME",
   year: 2008, paper_code: "Division A Number Theory-Annual", problem_number: 5,
   statement_text: "Find $x$ when $x^2 = 16$.",
-  concepts: [{ name: "Number theory", slug: "number-theory" }],
-  techniques: [{ name: "Modular arithmetic", slug: "modular-arithmetic" }],
+  concepts: [{ name: "Number theory", slug: "alg-eq" }, { name: "Number theory", slug: "alg-eq" }],
+  techniques: [{ name: "Modular arithmetic", slug: "modular-arithmetic" }, { name: "Modular arithmetic", slug: "modular-arithmetic" }],
   diagrams: [{ problem_image_id: "preview-image", ordinal: 1, alt: "Question-specific figure" }],
   official_answer: "SECRET ANSWER", solutions: [{ body_markdown: "SECRET SOLUTION" }],
 });
@@ -61,6 +61,8 @@ async function mockCorpus(page, { searchError = false } = {}) {
 for (const width of [1440, 390]) {
   test(`competition previews, related figures and tutor handoff at ${width}px`, async ({ page }) => {
     const watch = watchPageErrors(page);
+    const duplicateKeys = [];
+    page.on("console", (message) => { if (/same key/.test(message.text())) duplicateKeys.push(message.text()); });
     const calls = await mockCorpus(page);
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/db");
@@ -79,6 +81,8 @@ for (const width of [1440, 390]) {
     const preview = page.getByTestId(`problem-preview-${CODE}`);
     await expect(preview.getByText("Number theory", { exact: true })).toBeVisible();
     await expect(preview.getByText("Modular arithmetic", { exact: true })).toBeVisible();
+    await expect(preview.getByText("Number theory", { exact: true })).toHaveCount(1);
+    await expect(preview.getByText("Modular arithmetic", { exact: true })).toHaveCount(1);
     await expect(preview.locator(".katex")).toHaveCount(2);
     await expect(preview.getByRole("img", { name: "Question-specific figure" })).toBeVisible();
     await expect(page.getByText("SECRET ANSWER")).toHaveCount(0);
@@ -95,6 +99,7 @@ for (const width of [1440, 390]) {
     expect(calls.searches[0].retrieval.semantic).toBe(false);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     watch.assertClean();
+    expect(duplicateKeys).toEqual([]);
 
     await relatedPreview.getByRole("link", { name: "Discuss with tutor" }).click();
     const selected = page.getByRole("region", { name: "Selected corpus problem" });
@@ -109,6 +114,7 @@ for (const width of [1440, 390]) {
     expect(calls.runs[0].text).toContain(RELATED);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     watch.assertClean();
+    expect(duplicateKeys).toEqual([]);
   });
 }
 
