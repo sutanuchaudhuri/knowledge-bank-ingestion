@@ -9,6 +9,7 @@ Read-only over ``agent_sessions``; the only write is the idempotent link upsert.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -28,6 +29,7 @@ AGENT_SCHEMA = "agent_sessions"
 DEFAULT_APP_NAME = "mathbank_tutor"
 SURFACES = ("HOME_CHAT", "SOLVE_WORKSPACE", "OTHER")
 TOOL_PAYLOAD_LIMIT = 2000
+TUTOR_IDLE_EVENT = re.compile(r"\[Tutor idle:([0-9a-f-]{36}):(hint|explain)\]")
 
 
 class TranscriptError(Exception):
@@ -75,6 +77,15 @@ def build_transcript(events: list[dict], *, include_tools: bool) -> list[dict]:
                 if part.get("thought"):
                     if include_tools:
                         messages.append({"role": role, "kind": "thinking", "text": part["text"], "author": author, "timestamp": ts})
+                    continue
+                idle = TUTOR_IDLE_EVENT.fullmatch(part["text"].strip()) if author == "user" else None
+                if idle:
+                    if include_tools:
+                        messages.append({
+                            "role": "system", "kind": "text",
+                            "text": f"Active thinking window elapsed: {idle.group(2)}.",
+                            "author": "tutor_pacing", "timestamp": ts,
+                        })
                     continue
                 if part["text"].strip():
                     messages.append({"role": role, "kind": "text", "text": part["text"], "author": author, "timestamp": ts})

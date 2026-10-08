@@ -10,6 +10,8 @@ import { Avatar, Callout, EmptyState, Icon, Pill, SectionTitle } from "./_compon
 import { MAX_MEDIA_BYTES } from "../lib/privateRuntimeProxy.mjs";
 import { corpusJson, problemDiscussionPrompt } from "../lib/corpusProblems.mjs";
 import { ProblemPreview } from "./_components/ProblemPreview.jsx";
+import TutorResponseWindow from "./_components/TutorResponseWindow.jsx";
+import { idleQuestionMessage } from "../lib/tutorResponseWindow.mjs";
 
 const ATTEMPT_MEDIA_ROOT = "/api/rest/attempt-media/submissions";
 const PRINTED_WORK_TYPES = ["image/jpeg", "image/png", "application/pdf"];
@@ -42,6 +44,11 @@ export default function Chat({ initialProblemCode = "", invalidProblem = false }
   ]);
   const [input, setInput] = useState(initialProblemCode ? problemDiscussionPrompt(initialProblemCode) : "");
   const [sending, setSending] = useState(false);
+  const [responseWindow, setResponseWindow] = useState(null);
+  const [pacingPaused, setPacingPaused] = useState(false);
+  const [pacingRetry, setPacingRetry] = useState(null);
+  const [composerBusy, setComposerBusy] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
   const [activity, setActivity] = useState([]);
   const [error, setError] = useState(null);
   const [studentName, setStudentName] = useState("");
@@ -90,15 +97,18 @@ export default function Chat({ initialProblemCode = "", invalidProblem = false }
     bottomRef.current?.scrollIntoView({ behavior: sending ? "instant" : "smooth", block: "nearest" });
   }, [messages, sending]);
 
-  async function handleSend(event, requestedText) {
+  async function handleSend(event, requestedText, automaticWindow = null) {
     event?.preventDefault();
     const text = (requestedText ?? input).trim();
     if (!text || !ready || streamRef.current) return;
+    if (automaticWindow && (document.hidden || pacingPaused || input.trim() || checkpointAnswer || composerBusy || uploadBusy)) return;
     const controller = new AbortController();
     streamRef.current = controller;
-    const answerIndex = messages.length + 1;
-    setMessages((m) => [...m, { role: "user", text }, { role: "assistant", text: "" }]);
-    setInput("");
+    const answerIndex = messages.length + (automaticWindow ? 0 : 1);
+    setMessages((m) => [...m, ...(automaticWindow ? [] : [{ role: "user", text }]), { role: "assistant", text: "" }]);
+    if (!automaticWindow) setInput("");
+    setResponseWindow(null);
+    setPacingRetry(null);
     setError(null);
     setActivity([]);
     setSending(true);
@@ -111,14 +121,20 @@ export default function Chat({ initialProblemCode = "", invalidProblem = false }
         } else if (update.type === "progress") {
           setLessonProgress(update.progress);
           setCheckpointAnswer("");
+        } else if (update.type === "response-window") {
+          setResponseWindow(update.window);
         } else if (update.type === "done") {
           setActivity((items) => [...items, { label: "Response complete", status: "complete" }]);
         }
       }, controller.signal);
     } catch (err) {
       if (err.name === "AbortError") {
+        setResponseWindow(null);
+        if (automaticWindow) setPacingPaused(true);
         setActivity((items) => [...items, { label: "Response stopped", status: "stopped" }]);
       } else {
+        setResponseWindow(null);
+        if (automaticWindow) setPacingRetry(automaticWindow);
         setError(err.message);
         setActivity((items) => [...items, { label: "Response failed", status: "error" }]);
       }
@@ -135,22 +151,26 @@ export default function Chat({ initialProblemCode = "", invalidProblem = false }
     : problemSelection?.reply === latestTutorReply && problemCodes.includes(problemSelection.code) ? problemSelection.code : "";
 
   async function uploadWrittenWork(file) {
-    if (!file) return;
+    if (!file) { setUploadBusy(false); return; }
     setUploadError("");
     setUploadResumeUrl("");
     if (!activeProblemCode) {
+      setUploadBusy(false);
       setUploadError("Load or identify a canonical problem in this conversation before uploading work. The tutor will only review work for the active problem.");
       return;
     }
     if (!PRINTED_WORK_TYPES.includes(file.type)) {
+      setUploadBusy(false);
       setUploadError("Choose a JPEG, PNG, or PDF of your written solution.");
       return;
     }
     if (file.size > MAX_MEDIA_BYTES) {
+      setUploadBusy(false);
       setUploadError("Choose a file under 20 MB.");
       return;
     }
     let submissionId = "";
+    setUploadBusy(true);
     try {
       const createdResponse = await fetch(ATTEMPT_MEDIA_ROOT, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -177,6 +197,8 @@ export default function Chat({ initialProblemCode = "", invalidProblem = false }
       if (submissionId) {
         setUploadResumeUrl(`/learn/attempt-media?problem_ref=${encodeURIComponent(activeProblemCode)}&submission_id=${encodeURIComponent(submissionId)}`);
       }
+    } finally {
+      setUploadBusy(false);
     }
   }
 
@@ -242,17 +264,23 @@ export default function Chat({ initialProblemCode = "", invalidProblem = false }
           </div>
           <div className="mb-chat-foot">
             {error && <Callout tone="danger" role="alert" className="mb-2">{error}</Callout>}
+            {pacingRetry && <button type="button" className="btn btn-sm btn-outline-primary mb-2"
+              onClick={() => handleSend(null, idleQuestionMessage(pacingRetry), pacingRetry)}>
+              Retry timed help
+            </button>}
             {uploadError && <Callout tone="danger" role="alert" className="mb-2">
               {uploadError}{uploadResumeUrl && <> <Link href={uploadResumeUrl}>Resume this private upload</Link></>}
             </Callout>}
             <form onSubmit={handleSend}>
               <label htmlFor="chat-input" className="visually-hidden">Your question</label>
               <MathComposer id="chat-input" ariaLabel="Your question" testId="chat-composer" rows={1}
+                onBusyChange={setComposerBusy}
                 value={input} onChange={setInput} onSubmit={() => handleSend()} showSubmit={false}
                 renderMath={(t) => <MathText>{t}</MathText>}
                 placeholder={ready ? "Ask anything about competition math…" : "Connecting to the agent…"}
                 disabled={!ready || sending}>
                 <input ref={uploadRef} type="file" className="visually-hidden" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                  onCancel={() => setUploadBusy(false)}
                   aria-label="Choose a photo or PDF of written work" onChange={(event) => {
                     const file = event.currentTarget.files?.[0];
                     event.currentTarget.value = "";
@@ -260,7 +288,7 @@ export default function Chat({ initialProblemCode = "", invalidProblem = false }
                   }} />
                 <button type="button" className="mbw-ghost" title={activeProblemCode ? `Upload work for ${activeProblemCode}` : problemCodes.length > 1 ? "Choose the problem for your work" : "Load a canonical problem before uploading work"}
                   aria-label="Upload written work for the current problem" disabled={!ready || sending || !activeProblemCode}
-                  onClick={() => uploadRef.current?.click()}><Icon name="paperclip" /></button>
+                  onClick={() => { setUploadBusy(true); uploadRef.current?.click(); }}><Icon name="paperclip" /></button>
                 {sending ? (
                   <button type="button" className="mbw-send is-danger" onClick={() => streamRef.current?.abort()}><Icon name="stop-fill" />Stop</button>
                 ) : (
@@ -268,6 +296,10 @@ export default function Chat({ initialProblemCode = "", invalidProblem = false }
                 )}
               </MathComposer>
             </form>
+            {responseWindow && <TutorResponseWindow window={responseWindow}
+              blocked={!ready || sending || Boolean(input.trim() || checkpointAnswer) || composerBusy || uploadBusy}
+              paused={pacingPaused} onPause={() => setPacingPaused((value) => !value)}
+              onElapsed={(window) => handleSend(null, idleQuestionMessage(window), window)} />}
             {problemCodes.length > 1 && (
               <div className="d-flex align-items-center gap-2 mt-2">
                 <label htmlFor="work-problem" className="small text-secondary">Work for</label>

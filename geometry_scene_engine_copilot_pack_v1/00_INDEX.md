@@ -4,11 +4,22 @@
 
 Build a standalone, testable Geometry Scene Engine for the Mathematics Tutor platform.
 
-The engine converts a problem statement plus current mathematical context into a precise structured geometry scene, then applies additive instructions cumulatively as the student/tutor advances through the reasoning.
+The overall system is semi-deterministic: model-backed geometry reasoning and
+presentation roles interpret natural-language intent, create typed plans/deltas, invoke
+a deterministic geometry core, inspect validation and revise before acceptance.
+The core consumes structured state and applies cumulative deltas reproducibly.
+See [requirement 37](../requirements/37_GEOMETRY_SCENE_ENGINE.md) for the authoritative
+architecture and progress tracker.
 
 It is not an ordinary image generator.
 
 ```text
+Natural-language problem / tutor goal
+    ↓
+Geometry Reasoning Agent + Geometry Presentation Agent
+    ↓
+Typed GeometryPlan / StateDelta
+    ↓
 Mathematical State
     ↓
 Geometry Scene State
@@ -16,6 +27,13 @@ Geometry Scene State
 Visual State
     ↓
 SVG / Overlay Frames
+    ↓
+Validation + agent review → accept or bounded revision
+```
+
+```text
+DETERMINISTIC CORE + AGENTIC PLANNER / ORCHESTRATOR
+    = SEMI-DETERMINISTIC GEOMETRY SCENE SYSTEM
 ```
 
 ## Non-negotiable principles
@@ -30,6 +48,10 @@ SVG / Overlay Frames
 8. The engine must be callable/testable independently of the tutor.
 9. Every rendered element must have stable semantic identity.
 10. The tutor requests a state delta or visual focus, not “draw a picture.”
+11. Keep reasoning and presentation as separate logical roles; presentation cannot mutate truth.
+12. Run both model-free deterministic tests and configured-model semantic interpretation tests.
+    The production model layer is required, not deferred optional work.
+13. Publish only validated, goal-relevant accepted frames; preserve failures and bound retries.
 
 ## Documents
 

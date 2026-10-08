@@ -11,6 +11,8 @@ from mathbank_rest.routers.admin_imports import router as admin_imports_router
 from mathbank_rest.routers.admin_textbooks import router as admin_textbooks_router
 from mathbank_rest.routers.agent_sessions import router as agent_sessions_router
 from mathbank_rest.routers.fluid import router as fluid_router
+from mathbank_rest.routers.geometry_scenes import router as geometry_scenes_router
+from mathbank_rest.routers.geometry_interpretation import router as geometry_interpretation_router
 from mathbank_rest.routers.learner import router as learner_router
 from mathbank_rest.routers.live import router as live_router
 from mathbank_rest.routers.attempt_media import router as attempt_media_router
@@ -19,6 +21,7 @@ from mathbank_rest.routers.pedagogy import router as pedagogy_router
 from mathbank_rest.routers.pedagogy_admin import router as pedagogy_admin_router
 from mathbank_rest.routers.step_runtime import router as step_runtime_router
 from mathbank_rest.routers.tutor import router as tutor_router
+from mathbank_rest.routers.tutoring_routes import router as tutoring_routes_router
 from mathbank_rest.routers.v1 import router as v1_router
 
 app = FastAPI(title="mathbank-rest", version="0.1.0")
@@ -27,6 +30,7 @@ app.include_router(learner_router)
 app.include_router(admin_router)
 app.include_router(admin_corpus_router)
 app.include_router(tutor_router)
+app.include_router(tutoring_routes_router)
 app.include_router(pedagogy_router)
 app.include_router(pedagogy_admin_router)
 app.include_router(step_runtime_router)
@@ -37,6 +41,8 @@ app.include_router(fluid_router)
 app.include_router(live_router)
 app.include_router(attempt_media_router)
 app.include_router(artifacts_router)
+app.include_router(geometry_interpretation_router)
+app.include_router(geometry_scenes_router)
 
 
 @app.get("/health")

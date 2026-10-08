@@ -1,0 +1,17 @@
+{
+  "case_id":"06_large_circle_arc",
+  "initial":{
+    "problem_text":"A very large circle passes through A,B,C; only the local arc matters.",
+    "objects":{"A":{},"B":{},"C":{}},
+    "positions":{"A":[220,100],"B":[320,95],"C":[420,100]},
+    "relations":[{"id":"Gamma","type":"CONCYCLIC","args":["A","B","C"],"status":"GIVEN"}],
+    "visual":{"styles":{"circle_Gamma":{"emphasis":"BACKGROUND","opacity":0.35,"render_mode":"VISIBLE_ARC","arc_angles":[258,282]}}}
+  },
+  "expected":[
+    {"entities":["circle_Gamma"],"background":["circle_Gamma"],"arcs":["circle_Gamma"]},
+    {"entities":["circle_Gamma","segment_AB"],"highlight":["segment_AB"],"arcs":["circle_Gamma"]}
+  ],
+  "steps":[
+    {"expected_version":0,"add_entities":[{"id":"segment_AB","type":"SEGMENT","refs":["A","B"]}],"visual":{"highlight":["segment_AB"]}}
+  ]
+}

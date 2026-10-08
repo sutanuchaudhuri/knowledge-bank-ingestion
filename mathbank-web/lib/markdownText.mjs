@@ -33,6 +33,10 @@ export function prepareMathMarkdown(text) {
       const source = match[0].replace(/^\[asy\]/i, "").replace(/\[\/asy\]$/i, "").trim();
       const fence = "`".repeat(Math.max(3, ...(source.match(/`+/g) || []).map((s) => s.length + 1)));
       result += `\n\n${fence}${complete ? "asymptote" : "asymptote-pending"}\n${source}\n${fence}\n\n`;
+    } else if (/^[ \t]*(`{3,}|~{3,})geometry-scene[ \t]*\n/.test(match[0])) {
+      const fence = /^[ \t]*(`{3,}|~{3,})/.exec(match[0])[1];
+      const complete = new RegExp(`\\n[ \\t]*${fence}[ \\t]*$`).test(match[0]);
+      result += complete ? match[0] : match[0].replace("geometry-scene", "geometry-scene-pending");
     } else result += match[0];
     offset = match.index + match[0].length;
   }

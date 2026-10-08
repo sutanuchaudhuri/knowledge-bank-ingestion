@@ -60,6 +60,94 @@ contract and adds `pedagogy_session`. Loading context can still invoke existing
 automatic enrichment/publication if metadata is missing; it is **not universally
 read-only**. No new provider call was added for authored orientation.
 
+Tutor chat now requests `?enrich=false`: it reads existing teaching metadata without
+starting synchronous enrichment/publication. The default remains `true` for existing
+callers. Prerequisite queries bind the reviewed target skills before variable-length
+expansion, preserving reviewed-node/edge filters, depth warnings and evidence direction.
+For HMMT November 2018 Guts Q8, this reduced observed read-only context latency from
+51.5 seconds to 2.5 seconds (same four skills and six prerequisites); restarted HTTP
+verification returned 200 in 2.3 seconds.
+
+The canonical problem's source-diagram endpoint returns an empty list. Chat checks it
+before requesting a teaching plan and never substitutes a fabricated publisher figure.
+Learner replies omit routine verification/evidence notices, missing-source-figure
+notices and the problem/source-details footer. Available diagram images still render;
+warning/provenance metadata remains in structured tool results for internal checks.
+The guidance activity summary also omits stored-reference counts, source-verification
+notices, zero-diagram counts and routine warning counts; tool failures remain visible.
+Context,
+diagram or plan transport failures return a safe stage-specific retry notice and clear
+stale guidance state instead of aborting the turn with an empty reply.
+
+Q8 also has a statement- and stored-reference-gated authored opening, matching the
+existing AIME source-gated pattern. It asks the learner to write the polygon angle-sum
+equation, without identifying the bisecting diagonal or revealing angle values/side
+ratio. It avoids a model-generated rationale that incorrectly called the pentagon
+itself a rectangle. Changed statements or unrelated stored references do not activate it.
+Regression verification: 41 REST pedagogy/guidance tests and 20 agent guidance/pedagogy
+tests passed; the stored solution remains labelled unverified.
+Live HTTP and browser resubmission verified the corrected opening and a completed
+turn with the composer enabled; the initial zero-source-diagram notice was subsequently
+removed from learner replies at the user's request. No
+pentagon-as-rectangle claim or final ratio was displayed. This verifies the opening
+workflow, not subsequent multi-turn mathematical correctness.
+
+### Active-time Tutor pacing
+
+Each learner-facing Tutor checkpoint receives a response window. The root agent
+can choose 15–300 active seconds through `choose_response_window`; authored/pinned
+questions and model questions without an explicit choice use the agent's bounded
+30–180-second reading/math-complexity policy. Final-output guarding records one
+current checkpoint, including imperative checkpoint prompts without a question mark.
+The pinned authored path records it independently because ADK bypasses the normal
+model-output callback when returning a `before_model` response.
+
+The browser consumes the bounded `tutor:response_window` state delta through the
+existing SSE proxy. A compact thinking-time pill and Pause/Resume control appear
+beside the composer. The countdown starts only after the turn completes and counts
+visible-tab time; a hidden tab, composing text/checkpoint answers, recording,
+microphone permission/transcription, formatting, file selection/upload, streaming,
+or explicit pause suspends it. Submitting an answer cancels the old window. Component
+cleanup stops timers and visibility listeners.
+
+The first unanswered window submits a tagged pacing event, not a student answer:
+`[Tutor idle:<checkpoint UUID>:hint]`. The agent offers a simpler insight/question
+on the same step. A second window uses `:explain`: explain all requested parts of
+that step, then pose the next small checkpoint. The original step prompt is retained
+across simplification so a smaller hint question does not replace the step objective.
+Stale/duplicate/wrong-phase IDs cannot advance the window. On transport failure,
+automation stops and an explicit retry is offered rather than looping paid calls.
+No new question means no new timer.
+
+The current window/phase and teaching context persist in the existing ADK session;
+elapsed active time and the Pause control are browser-local. This is not a background
+job: closing the page ends its timer; the home Tutor currently creates a new session
+on reload, so it does not resume a previous countdown. Automated events are absent
+from the learner chat and saved student transcript, but visible as system pacing
+events in the admin transcript. Tutor explanations themselves remain saved.
+
+Authored topic idle hints use the authored hint; the second expiry reveals the
+authored explanation and marks that unit **skipped**, never completed. Generic idle
+coaching cannot call learner-answer/grading/mastery tools: `guard_idle_tool` blocks
+those calls at runtime, not just in a prompt. No fabricated work, quiz result or
+mastery credit is created. General/source-problem follow-up prose is model-generated,
+not mathematical certification. Existing authenticated step-runtime assessment is
+not auto-completed by pacing, and the separate REST-only `/learn` workspace is not
+converted into a background paced Tutor in this change.
+
+Checks: 66 focused agent tests, 6 REST transcript tests (1 opt-in database test
+skipped), 27 focused web/widget unit tests, and 14 related browser tests passed
+(7 specifically timed Tutor tests), including desktop/mobile progression and compose, hidden-tab,
+pause, recording/transcription, upload, student-answer cancellation and error-stop
+behavior. Production web build passed. The real HMMT trial used two active-time
+expiries to simplify the opening, then show the angle-sum equation and ask the next
+arithmetic checkpoint without displaying the final ratio.
+The final opt-in live browser test passed with real agent/REST services and virtual
+active-time acceleration. Its first version incorrectly expected the later angle
+value after an opening that requested only the angle-sum equation; the acceptance
+assertion was corrected to the requested step before rerunning. This single live
+case is not acceptance of all models/topics or downstream mathematical correctness.
+
 `POST /v1/tutor/micro-check` accepts `{problem_code,index,response}`. It reads
 the canonical statement and safe diagrams, never official answers or solution
 bodies. Extras are forbidden; problem code/response are 1–200 characters and
@@ -205,8 +293,8 @@ Existing authenticated Prasolov step-runtime actions remain separate.
 one hint, allowing alternate valid student methods. Graph/context GETs and
 authored micro-checks remain answer-free; page opening does not generate a plan.
 
-Activity shows actual solution-record counts, unverified-source status and
-teaching-stage count, not a claim that retrieval proved a solution. Literal
+Guidance activity shows teaching-stage progress, not routine solution-source
+diagnostics or a claim that retrieval proved a solution. Literal
 three-or-more-digit final answers are rejected; this is **not a general
 proof/spoiler-safety verifier**. All generated guidance remains provisional,
 and durable workspace sessions/general solution-DAG integration remain planned.

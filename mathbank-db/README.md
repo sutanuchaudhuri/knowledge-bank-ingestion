@@ -2,6 +2,13 @@
 
 ## Complete schema and step-lifecycle reference
 
+The newer generic tutoring-route layer is documented in
+[requirement 39](../requirements/39_PRECOMPILED_TUTORING_ROUTES.md) and
+[migration 026](sql/026_tutoring_routes.sql). The approved full-corpus compiler
+preserves imported steps, stores versioned route snapshots and validates before
+operator-authorized bulk review. Review, student publication and graph refresh
+remain separate. The counts below describe the older 2026-10-07 observation.
+
 The [live catalog and access index](../requirements/reference/postgres/README.md)
 documents every observed non-system schema/table/view on the user-selected
 REST-configured PostgreSQL target: 20 schemas, 129 tables, 4 views.

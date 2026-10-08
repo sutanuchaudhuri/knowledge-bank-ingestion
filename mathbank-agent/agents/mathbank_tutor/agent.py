@@ -16,6 +16,7 @@ from google.adk.models.lite_llm import LiteLlm
 
 from .tools.artifact_tools import ARTIFACT_TOOLS
 from .tools.attempt_media_tools import ATTEMPT_MEDIA_TOOLS
+from .tools.geometry_scene_tools import GEOMETRY_SCENE_TOOLS
 from .tools.rest_tools import (
     check_subproblem_answer,
     decompose_problem,
@@ -63,6 +64,9 @@ from .pedagogy_agent import (
 )
 from .retrieval_audit_agent import retrieval_audit_tool
 from .problem_guidance import prepare_problem_guidance
+from .timed_questions import (
+    choose_response_window, continue_idle_question, guard_idle_tool, request_compiled_route_help,
+)
 
 ARTIFACT_AGENTS = build_artifact_agents(MODEL)
 ARTIFACT_AGENT_TOOLS = artifact_agent_tools(ARTIFACT_AGENTS)
@@ -76,6 +80,28 @@ competition, or solution that
 your tools did not return.
 
 Guidelines:
+- A published route is pinned in tutor:compiled_route_attempt. For its hints,
+  explanation and next checkpoint use request_compiled_route_help, not decompose_problem,
+  get_next_hint or invented explanations. Paste its markdown_block unchanged. H5
+  advances as tutor-explained only; do not claim a correct student answer or mastery.
+- Pose one small learner question at a time. Before each question call
+  choose_response_window with that checkpoint and 15-300 active seconds, chosen
+  for the reading/calculation difficulty. Deterministic authored questions also
+  receive an agent-calculated window. This is pacing, not a test deadline.
+  A continue_idle_question result is a SYSTEM pacing event, NEVER a student answer.
+  Follow its instruction: first simplify the same step; after a second unanswered
+  window explain just that step and move forward. No full-problem dump, invented
+  student answer, grading call or mastery credit. Continue the existing route rather
+  than restarting it. For an authored topic lesson, use its real hint on the first
+  expiry; on the second explain the current unit then skip it (not complete it).
+  If no question remains, stop; no timed follow-up is needed.
+- For precise cumulative geometry use generate_geometry_scene. It invokes separate
+  geometry reasoning/presentation roles, deterministic tools and bounded validation/review.
+  Pass exact problem text and only current learner-safe context; never canonical later
+  solution text. Reuse scene_id/version for subsequent focus. For A1=circumcenter(BCD)
+  require BCD and A1, not generic ABCD. Paste its geometry-scene markdown_block unchanged.
+  Do not treat accepted drawings as learner proof or completed steps; failure is explicit,
+  not permission to replace the result with a guessed diagram.
 - Bare topics and "teach me" use LEARN_TOPIC through pedagogy_agent, not practice.
   It persists the current topic plan and teaches theory before a recognition
   checkpoint. Paste markdown_block unchanged. Never attach a contest problem to
@@ -87,8 +113,8 @@ Guidelines:
   never claim checkpoint completion or change mastery without runtime evidence.
   The exact requests "skip step", "jump to step N", "jump to problem", and
   "show hint" are deterministic controls handled by control_topic_lesson. A jump
-  never means completion; skipped stages remain visibly skipped. Hints are shown
-  only after an explicit request. get_topic_lesson shows the current plan.
+  never means completion; skipped stages remain visibly skipped.   Hints are shown after a request or an active response-window expiry.
+  get_topic_lesson shows the current plan.
   Reviewed and machine metadata are distinct; similarity alone cannot establish
   topic membership. Unknown fit signals and missing authored lessons are explicit.
   A learner complaint that a recommendation is unrelated should trigger
@@ -281,6 +307,7 @@ root_agent = Agent(
     instruction=INSTRUCTION,
     after_model_callback=guard_tutor_output,
     before_model_callback=route_topic_before_model,
+    before_tool_callback=guard_idle_tool,
     after_tool_callback=after_pedagogy_tool,
     tools=[
         search_problems,
@@ -299,11 +326,15 @@ root_agent = Agent(
         get_improvement_plan,
         get_problem_learning_context,
         prepare_problem_guidance,
+        choose_response_window,
+        continue_idle_question,
+        request_compiled_route_help,
         get_prerequisite_path,
         get_next_hint,
         find_easier_same_skill_problems,
         *STEP_RUNTIME_TOOLS,
         *ATTEMPT_MEDIA_TOOLS,
+        *GEOMETRY_SCENE_TOOLS,
         *[tool for tool in ARTIFACT_TOOLS if tool.__name__ != "draw_geometry_diagram"],
         *ARTIFACT_AGENT_TOOLS,
         formatter_agent_tool(MODEL),

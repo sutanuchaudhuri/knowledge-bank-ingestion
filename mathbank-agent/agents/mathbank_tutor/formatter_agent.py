@@ -214,6 +214,12 @@ def guard_tutor_output(callback_context, llm_response):
         for part in parts:
             if part.text and not part.thought:
                 part.text = normalize_math(part.text)
+        if callback_context and visible and not any(part.function_call for part in parts):
+            from .timed_questions import record_reply_window
+
+            record_reply_window(
+                "\n".join(part.text for part in visible), callback_context.state
+            )
 
 
 def _bind_format_input(tool, args, tool_context):

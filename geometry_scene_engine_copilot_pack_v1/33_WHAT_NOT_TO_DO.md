@@ -14,3 +14,16 @@
 - Do not make the tutor the only invocation path.
 - Do not hide failed solver/validation diagnostics.
 - Do not silently “beautify” a diagram by violating explicit constraints.
+- Do not call the entire natural-language Geometry Scene System deterministic;
+  deterministic core plus agentic planning/orchestration is semi-deterministic.
+- Do not defer the required configured production model layer as optional future work.
+- Do not substitute a restricted DSL/context parser for free-form geometry reasoning.
+- Do not let presentation decisions mutate mathematical truth.
+- Do not treat theorem lookup, schema validity or numeric agreement as proof.
+- Do not publish failed or pedagogically irrelevant candidates; a valid generic ABCD
+  frame is not an accepted response to an A1/BCD goal.
+- Do not silently weaken known relations or leakage rules in schematic mode.
+- Do not retry indefinitely, hide provider errors or mutate the previous accepted version.
+- Do not require byte-identical model plans or count mocks/skipped paid tests as configured
+  model interpretation acceptance.
+- Do not claim full production acceptance from offline fixture tests alone.

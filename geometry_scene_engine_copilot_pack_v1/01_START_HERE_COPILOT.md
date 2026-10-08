@@ -2,6 +2,9 @@
 
 ## Read order
 
+Read [requirement 37](../requirements/37_GEOMETRY_SCENE_ENGINE.md) for the governing
+deterministic-core/agentic-planner distinction and implementation status.
+
 Read:
 1. `02_ARCHITECTURE_AND_RATIONALE.md`
 2. `03_MATH_STATE_MODEL.md`
@@ -46,12 +49,23 @@ Do not code before this mapping.
 
 ## Fundamental contract
 
+Separate free-form agent interpretation from deterministic execution. The overall
+system is semi-deterministic, while structured library/CLI use must remain model-free.
+The conceptual text/context calls below require a reasoning adapter for free-form
+input; a restricted DSL parser is not a general natural-language agent.
+
 ```text
 create_scene(problem_text, context[])
 apply_delta(scene_state, instruction)
 render(scene_state, visual_state)
 validate(math_state, scene_state, visual_state, svg)
 ```
+
+Two logical agent roles produce a typed GeometryPlan/StateDelta: reasoning chooses
+constructions/theorems and grounded mathematical changes; presentation chooses focus,
+disclosure and styles without changing truth. The configured model is required for
+production interpretation. Run offline engine tests and paid semantic interpretation
+tests separately; accepted candidates must pass validation and goal-relevance review.
 
 ## Cumulative-state rule
 

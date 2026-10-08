@@ -35,8 +35,8 @@ for (const width of [1440, 390]) {
     await expect(activity).toContainText("Canonical problem loaded · answer-free");
     await expect(activity).toContainText("2 graph-linked skills · machine-approved, not human verified");
     await expect(activity).toContainText("1 evidence limitations reported");
-    await expect(activity).toContainText("2 stored solution records consulted for guidance");
-    await expect(activity).toContainText("Solution references include unverified records");
+    await expect(activity).not.toContainText("stored solution records consulted for guidance");
+    await expect(activity).not.toContainText("Solution references include unverified records");
     await expect(activity).toContainText("not private reasoning");
     await expect(page.getByRole("heading", { name: "Provisional approach" })).toBeVisible();
     await expect(page.locator("body")).not.toContainText("PRIVATE_");

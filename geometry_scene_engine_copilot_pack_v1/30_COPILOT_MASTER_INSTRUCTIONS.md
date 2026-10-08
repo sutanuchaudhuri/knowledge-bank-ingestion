@@ -2,7 +2,17 @@
 
 ## Mission
 
-Implement the Geometry Scene Engine as an independent, deterministic, testable subsystem.
+Implement an independent deterministic geometry core and a required model-backed
+agentic planner/orchestrator. Together they are the semi-deterministic Geometry Scene System.
+
+The low-level tools and rendering pipeline must be deterministic or reproducible given
+structured MathState/SceneState/VisualState and seed. The overall capability uses an agent
+to interpret natural-language intent, select constructions/theorems, create typed plans/deltas,
+inspect validation and revise before acceptance.
+
+Follow [requirement 37](../requirements/37_GEOMETRY_SCENE_ENGINE.md) completely.
+Do not describe the full natural-language-to-artifact system as deterministic or defer
+the configured production model layer as an optional future feature.
 
 ## Mandatory first action
 
@@ -50,6 +60,27 @@ Every generated frame has a validation record.
 
 ### Invariant 10 — Standalone use
 The engine works without tutor runtime or database.
+
+### Invariant 11 — Two logical agent roles
+Geometry Reasoning selects grounded mathematical constructions/state changes.
+Geometry Presentation selects focus/disclosure/styles without changing truth.
+One model may perform both initially, with separately inspectable typed outputs.
+
+### Invariant 12 — Review and bounded revision
+Return candidate validation/diagnostics to the agent. Publish only validated,
+goal-relevant accepted frames. Preserve rejected evidence and the prior accepted
+version; retries/remedies must be supported, compatible and bounded.
+Schematic mode must not weaken explicit constraints or proof-leakage protection.
+
+### Invariant 13 — Two mandatory test suites
+Run model-free deterministic fixtures and configured paid-model natural-language
+interpretation tests. Judge model output by semantic invariants, not byte identity.
+Mocks or skipped paid tests do not establish production interpretation acceptance.
+
+### Invariant 14 — Evidence is not numeric agreement
+Theorem lookup returns versioned statements/prerequisites. Selection and applicability
+belong to reasoning with grounded evidence. Schema validity, lookup or coordinates alone
+cannot promote a target to PROVEN.
 
 ## Suggested module structure
 

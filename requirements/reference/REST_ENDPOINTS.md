@@ -1,7 +1,7 @@
 # Complete REST operation inventory
 
-Source revision `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`; generated from `app.openapi()` and registered APIRoute metadata.
-**198 paths / 209 HTTP operations / 102 schemas.**
+Source revision `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7` with relevant geometry and tutoring-route worktree changes; generated from `app.openapi()` and registered APIRoute metadata.
+**218 paths / 229 HTTP operations / 126 schemas.**
 Endpoint handlers were not invoked. No model requests, service starts or database mutations were performed.
 
 [Readable contracts and security caveats](REST_API.md) | [OpenAPI snapshot](openapi.json) | [Schema/access catalog](postgres/README.md) | [Step workflow/examples](../36_STEP_GENERATOR_AND_AUTHORING.md)
@@ -14,13 +14,13 @@ Endpoint handlers were not invoked. No model requests, service starts or databas
 - Response status lists are **documented OpenAPI responses**, not an exhaustive guarantee of every implementation error.
 - Untyped dict responses, custom HTTPException details, shared-key security, provider/storage failure and many 409 errors are not completely described by OpenAPI.
 - Next.js proxy and ADK/live-socket endpoints are separate HTTP services; see the main reference.
-- Proposed generator/editor/step-attachment routes are absent deliberately: they are not implemented.
+- Frozen solution-route draft edit/review/publication and owned current-step assistance are mounted. Legacy universal attachment/editor proposals remain distinct.
 
 ### GET `/health`
 
 **Purpose:** Health.
 **Auth:** No auth dependency; see handler for additional gates.
-**Handler:** [main.py:health](../../mathbank-rest/src/mathbank_rest/main.py#L42).
+**Handler:** [main.py:health](../../mathbank-rest/src/mathbank_rest/main.py#L48).
 
 | Documented status | Description | Response schema |
 |---|---|---|
@@ -30,7 +30,7 @@ Endpoint handlers were not invoked. No model requests, service starts or databas
 
 **Purpose:** Health Neo4J.
 **Auth:** No auth dependency; see handler for additional gates.
-**Handler:** [main.py:health_neo4j](../../mathbank-rest/src/mathbank_rest/main.py#L59).
+**Handler:** [main.py:health_neo4j](../../mathbank-rest/src/mathbank_rest/main.py#L65).
 
 | Documented status | Description | Response schema |
 |---|---|---|
@@ -40,7 +40,7 @@ Endpoint handlers were not invoked. No model requests, service starts or databas
 
 **Purpose:** Health Postgres.
 **Auth:** No auth dependency; see handler for additional gates.
-**Handler:** [main.py:health_postgres](../../mathbank-rest/src/mathbank_rest/main.py#L51).
+**Handler:** [main.py:health_postgres](../../mathbank-rest/src/mathbank_rest/main.py#L57).
 
 | Documented status | Description | Response schema |
 |---|---|---|
@@ -717,7 +717,7 @@ targets, and recent hypotheses with their diagnosis and latest recovery plan.
 |---|---|---|---|
 | `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
 
-**Request body:** required=True; application/json: `EditRequest`.
+**Request body:** required=True; application/json: `mathbank_rest__routers__pedagogy_admin__EditRequest`.
 
 | Documented status | Description | Response schema |
 |---|---|---|
@@ -1098,6 +1098,106 @@ A taxonomy node with parent, children, edges and up to 50 problems tagged with i
 | Documented status | Description | Response schema |
 |---|---|---|
 | 200 | Successful Response | application/json: `{"additionalProperties":true,"title":"Response Taxonomy Node V1 Admin Textbooks Taxonomy  Node Id  Get","type":"object"}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### GET `/v1/admin/tutoring-routes`
+
+**Purpose:** Drafts.
+**Auth:** Shared X-Admin-Api-Key.
+**Handler:** [tutoring_routes.py:drafts](../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L63).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `limit` | query | False | `{"default":25,"maximum":100,"minimum":1,"title":"Limit","type":"integer"}` |
+| `offset` | query | False | `{"default":0,"minimum":0,"title":"Offset","type":"integer"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### POST `/v1/admin/tutoring-routes/refresh-graph`
+
+**Purpose:** Refresh Graph.
+**Auth:** Shared X-Admin-Api-Key.
+**Handler:** [tutoring_routes.py:refresh_graph](../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L147).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### GET `/v1/admin/tutoring-routes/{release_id}`
+
+**Purpose:** Preview.
+**Auth:** Shared X-Admin-Api-Key.
+**Handler:** [tutoring_routes.py:preview](../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L88).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `release_id` | path | True | `{"format":"uuid","title":"Release Id","type":"string"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### POST `/v1/admin/tutoring-routes/{release_id}/edit`
+
+**Purpose:** Edit.
+**Auth:** Shared X-Admin-Api-Key.
+**Handler:** [tutoring_routes.py:edit](../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L140).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `release_id` | path | True | `{"format":"uuid","title":"Release Id","type":"string"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+**Request body:** required=True; application/json: `mathbank_rest__routers__tutoring_routes__EditRequest`.
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### POST `/v1/admin/tutoring-routes/{release_id}/publish`
+
+**Purpose:** Publish.
+**Auth:** Shared X-Admin-Api-Key.
+**Handler:** [tutoring_routes.py:publish](../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L133).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `release_id` | path | True | `{"format":"uuid","title":"Release Id","type":"string"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### POST `/v1/admin/tutoring-routes/{release_id}/review`
+
+**Purpose:** Review.
+**Auth:** Shared X-Admin-Api-Key.
+**Handler:** [tutoring_routes.py:review](../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L126).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `release_id` | path | True | `{"format":"uuid","title":"Release Id","type":"string"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+**Request body:** required=True; application/json: `mathbank_rest__routers__tutoring_routes__ReviewRequest`.
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
 | 422 | Validation Error | application/json: `HTTPValidationError` |
 
 ### GET `/v1/analytics/weak-concepts`
@@ -2374,6 +2474,208 @@ UNAVAILABLE (model error; the response is kept and the student can resubmit).
 |---|---|---|
 | 200 | Successful Response | application/json: `{"items":{"additionalProperties":true,"type":"object"},"title":"Response Get Corpus Coverage V1 Corpus Coverage Get","type":"array"}` |
 
+### POST `/v1/geometry-scenes`
+
+**Purpose:** Create.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [api.py:create](../../geometry-scene-engine/src/geometry_scene/api.py#L75).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `Idempotency-Key` | header | False | `{"anyOf":[{"maxLength":200,"type":"string"},{"type":"null"}],"title":"Idempotency-Key"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+**Request body:** required=True; application/json: `SceneInput`.
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 201 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### GET `/v1/geometry-scenes/debug/runs`
+
+**Purpose:** List Runs.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [geometry_scenes.py:list_runs](../../mathbank-rest/src/mathbank_rest/routers/geometry_scenes.py#L87).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `owner` | query | True | `{"maxLength":200,"minLength":1,"title":"Owner","type":"string"}` |
+| `limit` | query | False | `{"default":50,"maximum":100,"minimum":1,"title":"Limit","type":"integer"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### GET `/v1/geometry-scenes/debug/runs/{run_id}`
+
+**Purpose:** Read Run.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [geometry_scenes.py:read_run](../../mathbank-rest/src/mathbank_rest/routers/geometry_scenes.py#L82).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `run_id` | path | True | `{"maxLength":200,"minLength":1,"title":"Run Id","type":"string"}` |
+| `owner` | query | True | `{"maxLength":200,"minLength":1,"title":"Owner","type":"string"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### POST `/v1/geometry-scenes/debug/runs/{run_id}/review`
+
+**Purpose:** Review Run.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [geometry_scenes.py:review_run](../../mathbank-rest/src/mathbank_rest/routers/geometry_scenes.py#L94).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `run_id` | path | True | `{"maxLength":200,"minLength":1,"title":"Run Id","type":"string"}` |
+| `owner` | query | True | `{"maxLength":200,"minLength":1,"title":"Owner","type":"string"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+**Request body:** required=True; application/json: `Review`.
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### POST `/v1/geometry-scenes/interpret`
+
+**Purpose:** Interpret Scene.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [geometry_interpretation.py:interpret_scene](../../mathbank-rest/src/mathbank_rest/routers/geometry_interpretation.py#L19).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `idempotency-key` | header | False | `{"anyOf":[{"maxLength":200,"type":"string"},{"type":"null"}],"title":"Idempotency-Key"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+**Request body:** required=True; application/json: `GeometryRequest`.
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### GET `/v1/geometry-scenes/{scene_id}`
+
+**Purpose:** Current.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [api.py:current](../../geometry-scene-engine/src/geometry_scene/api.py#L85).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `scene_id` | path | True | `{"pattern":"^[A-Za-z][A-Za-z0-9_]{0,63}$","title":"Scene Id","type":"string"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### POST `/v1/geometry-scenes/{scene_id}/deltas`
+
+**Purpose:** Delta.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [api.py:delta](../../geometry-scene-engine/src/geometry_scene/api.py#L80).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `scene_id` | path | True | `{"pattern":"^[A-Za-z][A-Za-z0-9_]{0,63}$","title":"Scene Id","type":"string"}` |
+| `Idempotency-Key` | header | False | `{"anyOf":[{"maxLength":200,"type":"string"},{"type":"null"}],"title":"Idempotency-Key"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+**Request body:** required=True; application/json: `StateDelta`.
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### GET `/v1/geometry-scenes/{scene_id}/frames`
+
+**Purpose:** Frames.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [api.py:frames](../../geometry-scene-engine/src/geometry_scene/api.py#L110).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `scene_id` | path | True | `{"pattern":"^[A-Za-z][A-Za-z0-9_]{0,63}$","title":"Scene Id","type":"string"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### GET `/v1/geometry-scenes/{scene_id}/versions/{version}`
+
+**Purpose:** Read.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [api.py:read](../../geometry-scene-engine/src/geometry_scene/api.py#L89).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `scene_id` | path | True | `{"pattern":"^[A-Za-z][A-Za-z0-9_]{0,63}$","title":"Scene Id","type":"string"}` |
+| `version` | path | True | `{"minimum":0,"title":"Version","type":"integer"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### GET `/v1/geometry-scenes/{scene_id}/versions/{version}/render`
+
+**Purpose:** Render Version.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [api.py:render_version](../../geometry-scene-engine/src/geometry_scene/api.py#L93).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `scene_id` | path | True | `{"pattern":"^[A-Za-z][A-Za-z0-9_]{0,63}$","title":"Scene Id","type":"string"}` |
+| `version` | path | True | `{"minimum":0,"title":"Version","type":"integer"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### POST `/v1/geometry-scenes/{scene_id}/versions/{version}/validate`
+
+**Purpose:** Validate.
+**Auth:** Admin key OR learner JWT; handler checks role/ownership.
+**Handler:** [api.py:validate](../../geometry-scene-engine/src/geometry_scene/api.py#L106).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `scene_id` | path | True | `{"pattern":"^[A-Za-z][A-Za-z0-9_]{0,63}$","title":"Scene Id","type":"string"}` |
+| `version` | path | True | `{"minimum":0,"title":"Version","type":"integer"}` |
+| `authorization` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Authorization"}` |
+| `x-admin-api-key` | header | False | `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Admin-Api-Key"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
 ### POST `/v1/instructor/live/{sid}/commands`
 
 **Purpose:** Instructor Nl.
@@ -3368,7 +3670,7 @@ Start the step-by-step session for a problem (uuid or canonical code), or resume
 
 **Purpose:** Coach.
 **Auth:** No auth dependency; see handler for additional gates.
-**Handler:** [pedagogy.py:coach](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L156).
+**Handler:** [pedagogy.py:coach](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L159).
 
 **Request body:** required=True; application/json: `CoachRequest`.
 
@@ -3425,7 +3727,7 @@ Start the step-by-step session for a problem (uuid or canonical code), or resume
 
 **Purpose:** Guidance Plan.
 **Auth:** No auth dependency; see handler for additional gates.
-**Handler:** [pedagogy.py:guidance_plan](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L131).
+**Handler:** [pedagogy.py:guidance_plan](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L134).
 
 Explicit planning action; raw solutions remain inside the REST service.
 
@@ -3442,9 +3744,12 @@ Explicit planning action; raw solutions remain inside the REST service.
 **Auth:** No auth dependency; see handler for additional gates.
 **Handler:** [pedagogy.py:learning_context](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L104).
 
+Use enrich=false for read-only tutoring; default retains existing enrichment behavior.
+
 | Parameter | Location | Required | Type/default/validation |
 |---|---|---|---|
 | `problem_code` | path | True | `{"title":"Problem Code","type":"string"}` |
+| `enrich` | query | False | `{"default":true,"title":"Enrich","type":"boolean"}` |
 
 | Documented status | Description | Response schema |
 |---|---|---|
@@ -3455,7 +3760,7 @@ Explicit planning action; raw solutions remain inside the REST service.
 
 **Purpose:** Micro Check.
 **Auth:** No auth dependency; see handler for additional gates.
-**Handler:** [pedagogy.py:micro_check](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L137).
+**Handler:** [pedagogy.py:micro_check](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L140).
 
 **Request body:** required=True; application/json: `MicroCheckRequest`.
 
@@ -3468,7 +3773,7 @@ Explicit planning action; raw solutions remain inside the REST service.
 
 **Purpose:** Practice.
 **Auth:** No auth dependency; see handler for additional gates.
-**Handler:** [pedagogy.py:practice](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L151).
+**Handler:** [pedagogy.py:practice](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L154).
 
 | Parameter | Location | Required | Type/default/validation |
 |---|---|---|---|
@@ -3484,7 +3789,7 @@ Explicit planning action; raw solutions remain inside the REST service.
 
 **Purpose:** Prerequisites.
 **Auth:** No auth dependency; see handler for additional gates.
-**Handler:** [pedagogy.py:prerequisites](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L146).
+**Handler:** [pedagogy.py:prerequisites](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L149).
 
 | Parameter | Location | Required | Type/default/validation |
 |---|---|---|---|
@@ -3494,6 +3799,51 @@ Explicit planning action; raw solutions remain inside the REST service.
 | Documented status | Description | Response schema |
 |---|---|---|
 | 200 | Successful Response | application/json: `{"additionalProperties":true,"title":"Response Prerequisites V1 Tutor Prerequisites  Skill Slug  Get","type":"object"}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### POST `/v1/tutor/route-attempts`
+
+**Purpose:** Start.
+**Auth:** Learner bearer JWT; handler checks ownership.
+**Handler:** [tutoring_routes.py:start](../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L162).
+
+**Request body:** required=True; application/json: `StartRequest`.
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 201 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### GET `/v1/tutor/route-attempts/{attempt_id}`
+
+**Purpose:** Current.
+**Auth:** Learner bearer JWT; handler checks ownership.
+**Handler:** [tutoring_routes.py:current](../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L167).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `attempt_id` | path | True | `{"format":"uuid","title":"Attempt Id","type":"string"}` |
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
+| 422 | Validation Error | application/json: `HTTPValidationError` |
+
+### POST `/v1/tutor/route-attempts/{attempt_id}/assist`
+
+**Purpose:** Assist.
+**Auth:** Learner bearer JWT; handler checks ownership.
+**Handler:** [tutoring_routes.py:assist](../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L177).
+
+| Parameter | Location | Required | Type/default/validation |
+|---|---|---|---|
+| `attempt_id` | path | True | `{"format":"uuid","title":"Attempt Id","type":"string"}` |
+
+**Request body:** required=True; application/json: `AssistRequest`.
+
+| Documented status | Description | Response schema |
+|---|---|---|
+| 200 | Successful Response | application/json: `{}` |
 | 422 | Validation Error | application/json: `HTTPValidationError` |
 
 ### POST `/v1/tutor/sessions/{sid}/actions`
@@ -3583,7 +3933,7 @@ Generate a live reply outside the transaction, then commit it only if the versio
 
 **Purpose:** Workspace.
 **Auth:** No auth dependency; see handler for additional gates.
-**Handler:** [pedagogy.py:workspace](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L112).
+**Handler:** [pedagogy.py:workspace](../../mathbank-rest/src/mathbank_rest/routers/pedagogy.py#L114).
 
 Canonical question and authored orientation without graph/enrichment.
 
@@ -3731,6 +4081,9 @@ Resolve definitions, required lists, enumerations, formats and nested references
 | `AgentSessionLinkRequest` | agent_session_id | agent_session_id, surface, context |
 | `Angle` | kind, id, vertex, start_degrees, end_degrees, label | kind, id, vertex, start_degrees, end_degrees, radius, label |
 | `ArtifactPlan` | subject, topic, title, elements | subject, topic, subtopic, title, summary, difficulty_band, grade_band, goal_type, request_source, linked_problem_id, linked_solution_step_id, parent_bundle_id, concept_ids, skill_ids, theorem_ids, width, height, elements, overlays, frames, modulus, number_theory_mode |
+| `Asset` | key, kind, title, description, canonical_expression, symptom, why_wrong, correct_model, recognition_cues, question, expected_answer, purpose, taxonomy_node_ids, diagnoses, remediates | key, kind, title, description, canonical_expression, symptom, why_wrong, correct_model, recognition_cues, question, expected_answer, purpose, taxonomy_node_ids, diagnoses, remediates |
+| `AssetLink` | asset_key, role | asset_key, role |
+| `AssistRequest` | expected_version, hint_level | expected_version, hint_level, advance |
 | `AttemptRequest` | problem_code, is_correct | problem_code, is_correct, submitted_answer, time_spent_seconds, hint_count, source |
 | `AuthResponse` | access_token, student_id | access_token, token_type, student_id, first_name, last_name, display_name |
 | `BulkItem` | kind, key, expected_revision | kind, key, expected_revision |
@@ -3753,7 +4106,7 @@ Resolve definitions, required lists, enumerations, formats and nested references
 | `DiagnoseRequest` | - | trigger |
 | `DraftRequest` | statement, kind, note | statement, solution, answer, diagram_required, kind, problem_code, expected_hash, note |
 | `DraftUpdate` | statement, note, expected_revision | statement, solution, answer, diagram_required, note, expected_revision |
-| `EditRequest` | kind, key, expected_revision, changes, note | kind, key, expected_revision, changes, note |
+| `Entity` | id, type | id, type, refs, role, relation_id, x, y, radius |
 | `EntityRequest` | kind, key | kind, key |
 | `Equation` | kind, id, latex, reason | kind, id, latex, reason, linked_step_id, terms |
 | `FeedbackDecision` | feedback_id, status, note | feedback_id, status, note, retrieval_verdict, error_kind |
@@ -3762,19 +4115,21 @@ Resolve definitions, required lists, enumerations, formats and nested references
 | `Frame` | overlay_id | overlay_id, duration_ms, transition |
 | `GenerateRequest` | theme, confirm_paid | theme, confirm_paid |
 | `GeometryPreview` | subject, topic, title, elements | subject, topic, subtopic, title, summary, difficulty_band, grade_band, goal_type, request_source, linked_problem_id, linked_solution_step_id, parent_bundle_id, concept_ids, skill_ids, theorem_ids, width, height, elements, overlays, frames, modulus, number_theory_mode, incircle_triangles |
-| `GuidancePlanRequest` | problem_code | problem_code |
+| `GeometryRequest` | problem_text, goal | problem_text, goal, context, scene_id, expected_version, required_entities, forbidden_entities, trusted_facts, current_math_step, seed, rendering_mode, problem_id, solution_step_id, solve_attempt_id |
+| `GuidancePlanRequest` | problem_code | problem_code, allow_dynamic_fallback |
 | `HTTPValidationError` | - | detail |
 | `ImageRequest` | problem_code, side, mime_type, data_base64, note, rights_confirmed, expected_hash | problem_code, side, mime_type, data_base64, note, rights_confirmed, expected_hash |
 | `IndexBody` | search_text_sha256 | embedding, generate_embedding, model, dimensions, search_text_sha256 |
+| `Instruction` | goal_text, recognition_cue, reasoning_explanation, why_this_works, prerequisite_recap, connection_to_previous_step, connection_to_next_step, common_error_summary, student_prompt, expected_response, short_explanation, full_explanation | goal_text, recognition_cue, reasoning_explanation, why_this_works, prerequisite_recap, connection_to_previous_step, connection_to_next_step, common_error_summary, student_prompt, expected_response, short_explanation, full_explanation |
 | `ItemReview` | decision | decision, note |
 | `JoinIn` | join_code | join_code, display_name |
 | `LoginRequest` | email, password | email, password |
+| `MathObject` | - | type, refs, radius |
 | `Merge` | expected_version, step_ids | expected_version, step_ids |
 | `MessageIn` | content | content |
 | `MicroCheckRequest` | problem_code, index, response | problem_code, index, response |
 | `NLIn` | message | message, auto_apply, expected_session_version |
 | `Node` | kind, id, x, y, label | kind, id, x, y, label, prime |
-| `Overlay` | id, caption, actions | id, caption, linked_step_id, explanation_text, concept_tag, hint_tag, actions |
 | `Override` | expected_version, step_id, correctness, why, next_action | expected_version, step_id, correctness, why, next_action, alignment_type |
 | `OverrideIn` | action | client_command_id, expected_session_version, action, scope, scope_id |
 | `PaperRequest` | paper_external_code, competition_external_code, year, problem_url | paper_external_code, competition_external_code, year, problem_url, solution_url, source_kind, link_scope |
@@ -3792,8 +4147,17 @@ Resolve definitions, required lists, enumerations, formats and nested references
 | `RecoveryItemResponse` | state_version | state_version, choice_index, response_text, acknowledged |
 | `Region` | media_asset_id | region_id, media_asset_id, page_number, x_norm, y_norm, width_norm, height_norm, start_ms, end_ms, region_type, reading_order, confidence |
 | `RegisterRequest` | email, password, first_name, last_name | email, password, first_name, last_name |
+| `Relation` | id, type, args, status | id, type, args, status, value, provenance |
+| `RelationStatus` | - | - |
+| `RelationType` | - | - |
+| `RenderingMode` | - | - |
+| `Requirement` | taxonomy_node_id, role, required_level, importance, blocking | taxonomy_node_id, role, required_level, importance, blocking |
 | `ResponseIn` | - | client_command_id, option, text, confidence |
+| `Review` | decision | decision, note |
 | `ReviewBody` | decision | decision, reviewer |
+| `RouteProgram` | approach_name, approach_summary, difficulty_level, conceptual_load, algebraic_load, insight_load, steps, assets | approach_name, approach_summary, difficulty_level, conceptual_load, algebraic_load, insight_load, steps, assets |
+| `RouteStep` | mathematical_result, source_quote, depends_on, produces, uses_claims, requirements, instruction, hints, asset_links | mathematical_result, source_quote, depends_on, produces, uses_claims, requirements, instruction, hints, asset_links |
+| `SceneInput` | - | scene_id, problem_text, context, objects, relations, positions, entities, deferred_relations, visual, rendering_mode, seed, view_box, minimum_angle_degrees |
 | `SearchBody` | - | query, subject, concept_id, skill_id, theorem_id, difficulty_band, asset_type, limit, offset, query_embedding, generate_embedding, model, dimensions |
 | `SearchFilters` | - | competition, year_min, year_max |
 | `SearchRetrieval` | - | semantic, lexical, graph |
@@ -3801,13 +4165,17 @@ Resolve definitions, required lists, enumerations, formats and nested references
 | `SessionIn` | - | title, plan_id, course_limit_seconds, interaction_buffer_seconds, hard_limit, control_mode, topics |
 | `SpecBody` | spec | spec, audience |
 | `Split` | expected_version, step_id, parts | expected_version, step_id, parts |
+| `StartRequest` | problem_code | problem_code, route_release_id |
 | `StarterReviewRequest` | expected_fingerprint, note | expected_fingerprint, note |
+| `StateDelta` | expected_version | expected_version, instruction_text, add_objects, add_relations, change_status, add_entities, ensure_entities, activate_relations, visual, relayout, linked_solution_step_id, realization_seed, rendering_mode, minimum_angle_degrees |
+| `StatusChange` | relation_id, status, provenance | relation_id, status, provenance |
 | `Step` | ordinal, evidence_ids | step_id, ordinal, plain_text, latex_text, step_type, confidence, evidence_ids |
 | `StepEdit` | - | skill_node_id, is_checkpoint, note |
 | `StepOutcomeRequest` | result, state_version | result, state_version, actor_type, evaluation |
 | `StepPatch` | expected_version | expected_version, plain_text, latex_text |
 | `StepResponseRequest` | response_text, state_version | response_text, state_version, evaluate |
 | `StoreBody` | spec | spec, source_type, live_session_id |
+| `Style` | - | visible, opacity, emphasis, line_style, render_mode, label, label_position, arc_angles |
 | `SubmissionIn` | problem_ref | problem_ref |
 | `Term` | id, latex | id, latex |
 | `TimingIn` | - | course_limit_seconds, interaction_buffer_seconds, hard_limit |
@@ -3822,9 +4190,15 @@ Resolve definitions, required lists, enumerations, formats and nested references
 | `Versioned` | expected_version | expected_version |
 | `VersionedIn` | - | client_command_id, expected_session_version |
 | `VersionedRequest` | state_version | state_version |
+| `VisualDelta` | - | show, hide, highlight, dim, focus, styles, caption, overlays |
 | `WidgetIn` | - | client_command_id, expected_session_version, widget_spec_id, spec, intent, context, widget_instance_id |
 | `WidgetStateIn` | - | client_command_id, expected_session_version, operations, state |
+| `geometry_scene__schemas__Overlay` | id, targets | id, targets, caption |
 | `mathbank_rest__artifact_runtime__GenerateBody` | - | publish |
+| `mathbank_rest__artifact_runtime__Overlay` | id, caption, actions | id, caption, linked_step_id, explanation_text, concept_tag, hint_tag, actions |
 | `mathbank_rest__routers__admin_corpus__ReviewRequest` | decision, note, expected_revision | decision, note, expected_revision |
 | `mathbank_rest__routers__fluid__GenerateBody` | intent | intent, context, store, source_type |
+| `mathbank_rest__routers__pedagogy_admin__EditRequest` | kind, key, expected_revision, changes, note | kind, key, expected_revision, changes, note |
 | `mathbank_rest__routers__pedagogy_admin__ReviewRequest` | kind, key, expected_revision, review_status, note | kind, key, expected_revision, review_status, note |
+| `mathbank_rest__routers__tutoring_routes__EditRequest` | expected_hash, program | expected_hash, program |
+| `mathbank_rest__routers__tutoring_routes__ReviewRequest` | reviewer, expected_hash, mathematical_review_confirmed | reviewer, expected_hash, mathematical_review_confirmed |

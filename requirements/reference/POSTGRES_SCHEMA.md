@@ -2,6 +2,19 @@
 
 ## Evidence
 
+### Incremental tutoring-route changes
+
+Current source/worktree migration
+[026](../../mathbank-db/sql/026_tutoring_routes.sql) adds ten route tables, with
+the full inventory in [pedagogy](postgres/pedagogy.md) and
+[learner](postgres/learner.md). Full-corpus extension removes the 10,000-source
+run limit (`requested_limit > 0`), adds nullable `auto_review_by text` to
+`route_compiler_run`, adds `error_details jsonb NOT NULL DEFAULT '[]'` to
+`route_compiler_job`, and supports QUEUED jobs. Approval is recorded separately
+from compilation and publication. The older evidence below is historical;
+see [requirement 39](../39_PRECOMPILED_TUTORING_ROUTES.md) for the explicit
+target, current migration/approval execution and active run.
+
 - Current source: `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`, clean source tree
   before documentation edits; numbered migrations 001-025, ETL/REST callers,
   framework session configuration and source graph projectors.
@@ -44,6 +57,18 @@ See the [step-generator lifecycle](../36_STEP_GENERATOR_AND_AUTHORING.md) for
 hint-cache keys, source/artifact attachment gaps and proposed versioned authoring.
 
 ## Migration order and ownership
+
+### Geometry scene system (migration 026)
+
+Source revision `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7` plus geometry
+worktree changes. Packaged REST migration 026 defines `geometry_scene.scenes`,
+`versions`, `receipts` and `runs`; see the
+[complete per-column schema/access page](postgres/geometry_scene.md).
+Immutable accepted versions/receipts and protected run evidence are enforced
+by triggers; only the scene head and staff review metadata are mutable.
+This source-derived incremental addition does not refresh the older complete
+live inventory or introduce the pack's conceptual `visual.*` state tables.
+No canonical-step, learner/mastery, Neo4j or vector tables are altered.
 
 ### Corpus authoring (migration 025)
 

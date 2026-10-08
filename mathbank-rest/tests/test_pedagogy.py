@@ -19,6 +19,31 @@ def empty_solution_references(monkeypatch):
 
 client = TestClient(app)
 PROBLEM = {"canonical_code": "FIXTURE", "statement_text": "Count a fixed-size subset."}
+
+
+def test_read_only_learning_context_never_enriches(monkeypatch):
+    from mathbank_rest.routers import pedagogy as routes
+
+    monkeypatch.setattr(routes, "ensure_learning_metadata",
+                        lambda code: pytest.fail("Read-only context must not generate or publish metadata"))
+    monkeypatch.setattr(pedagogy, "learning_context", lambda code: {
+        "problem": PROBLEM, "metadata_status": "unenriched", "warnings": ["No reviewed skills."],
+    })
+    response = client.get("/v1/tutor/learning-context/FIXTURE?enrich=false")
+    assert response.status_code == 200
+    assert response.json()["metadata_status"] == "unenriched"
+
+
+def test_default_learning_context_preserves_enrichment(monkeypatch):
+    from mathbank_rest.routers import pedagogy as routes
+
+    calls = []
+    monkeypatch.setattr(routes, "ensure_learning_metadata", lambda code: calls.append(code))
+    monkeypatch.setattr(pedagogy, "learning_context", lambda code: {"problem": PROBLEM})
+    assert client.get("/v1/tutor/learning-context/FIXTURE").status_code == 200
+    assert calls == ["FIXTURE"]
+
+
 SKILL = {
     "slug": "select",
     "name": "Select",
@@ -139,6 +164,10 @@ def test_reviewed_context_keeps_node_mapping_and_path_provenance(monkeypatch):
     assert "r.review_status = 'REVIEWED'" in calls[0]
     assert "all(n IN nodes(path)" in calls[3]
     assert "all(r IN relationships(path)" in calls[3]
+    assert "WITH DISTINCT target" in calls[3]
+    assert "MATCH path=(target)<-" in calls[3]
+    assert "WITH DISTINCT target" in calls[4]
+    assert "MATCH path=(target)<-" in calls[4]
     assert len(calls) == 5
 
 

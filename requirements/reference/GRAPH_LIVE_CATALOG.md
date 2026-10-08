@@ -1,6 +1,6 @@
 # Live Neo4j metadata appendix
 
-Observed **2026-10-07T13:41:24.961279+00:00**, user-selected **REST-configured Neo4j**, source `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`.
+Observed **2026-10-08T01:57:56.201870+00:00**, user-selected **REST-configured Neo4j**, source `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7`.
 Read-only schema procedures, SHOW metadata and DISTINCT endpoint-label sets. No node/relationship property values were returned.
 Types and mandatory flags are empirical property observations, **not property-type/existence constraints**.
 A missing observed property or endpoint is not proof that the checked-in projector does not support it.

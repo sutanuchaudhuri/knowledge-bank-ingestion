@@ -8,6 +8,12 @@ Related: tracker [18](18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md) · gotchas
 [19](19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md) §14 · register [20](20_NOT_YET_IMPLEMENTED.md) ·
 pack audit [21](21_V2_PACK_IMPLEMENTATION_AUDIT.md) · schema/API references in [reference/](reference/README.md).
 
+**Cross-impact:** [requirement 37](37_GEOMETRY_SCENE_ENGINE.md) adds an independent
+deterministic geometry core and required model-backed reasoning/presentation/review
+orchestration. Its applicability is not Prasolov-only. The original work-package results
+below remain historical; geometry visual acceptance does not close unrelated mastery,
+semantic DAG, erasure or non-Prasolov step-generation work. See §5.
+
 Policies (product owner, 2026-10-05): additive and idempotent migrations only; everything is
 **auto-approved** for now (`approval_method = 'automatic'`); human decisions (`approval_method = 'human'`,
 `source_type = 'HUMAN'`) are never overwritten by re-import or re-derivation; paid model calls are opt-in.
@@ -125,3 +131,57 @@ Until step 1 exists, non-textbook problems use the legacy whole-problem tutor fl
 | Reconciliation | `GET /v1/admin/imports/reconciliation?book=PRASOLOV_PGV1` | graph ok; 0 missing embeddings |
 | Outbox | `make -C mathbank-rest outbox-status` | 0 unconsumed |
 | Step techniques | `make -C mathbank-db textbook-step-techniques-remote` then `--status` | 3,397 / 7,814 steps tagged |
+
+## 5. Requirement 37 cross-impact and boundaries
+
+| Existing work package / runtime surface | Geometry Scene System impact | What must remain unchanged |
+|---|---|---|
+| WP1 step → technique | Geometry reasoning may consult versioned theorem statements/prerequisites and grounded technique metadata; selected evidence is retained in plans/run lineage | Rendering/numeric agreement must not insert technique tags or infer mastery; human tags remain untouched |
+| WP2 deterministic step-runtime tools | Tutor now calls `generate_geometry_scene` for model-backed interpretation and cumulative scene focus; attempt-bound calls verify owner/current step server-side | Only step-runtime tools evaluate responses/change attempt state; accepted SVG is not a completed learner proof |
+| WP3 admin review | Protected geometry run evidence and review are separate from imported content/DAG review; inspect plan, roles, rejected candidates, validation, accepted asset and source lineage | Reviewing an image never edits canonical step text, dependencies or package approval |
+| WP4 events/outbox | Accepted immutable geometry versions, receipt keys and private artifacts have their own lifecycle; invalid candidates stay in protected evidence | No learner-success/outbox/projection event is emitted merely because a frame validates; no automatic graph/vector publication |
+| WP5 diagnosis/recovery | Recovery coaching can request a scene focused on its current learner-safe goal using the same tools | Geometry failures are operational/presentation failures, not evidence of a learner knowledge gap or mastery loss |
+| WP6 solve-workspace tutor | Registered geometry tool uses invocation-temp learner JWT, current attempt/step binding and safe `geometry-scene` blocks; web loads accepted owner-authorized images and pinned cumulative frames | No raw credentials in saved tool results/image URLs; no current/later canonical solution reveal through geometry context |
+| WP7 rich semantic DAG | Agent theorem selection has explicit evidence/independent semantic review; scene overlays can explain an existing relation without creating new DAG edges | Geometry theorem registry/reviewer is not completion of paid solution-DAG derivation or independent verification for WP7 |
+| WP8 golden flows | Add scene A1/BCD regression, rejected-plan recovery, ownership/CAS/idempotency/replay, accepted image display and paid semantic interpretation alongside existing flows | Existing A–J step-runtime behavior and golden assertions continue; geometry suite success does not imply J is delivered |
+| Non-Prasolov NULL policy | Independent scenes can explain a problem before canonical atomic steps exist; problem/attempt/step lineage is preserved when available | Do not populate `pedagogy.solution_*`, canonical references or synthetic packages merely to render an image |
+| Source/private figures | Generated scenes are labeled illustrations and separate from source images; private ownership is enforced on assets/debug evidence | Never replace the publisher/source figure or fabricate recovered source provenance |
+
+### Integration contract
+
+The geometry core is independently installable and does not import tutor/database providers.
+Production interpretation is required and semi-deterministic:
+
+```text
+owned attempt + learner-visible current goal / known facts / targets
+  -> geometry reasoning -> geometry presentation -> typed plan/delta
+  -> deterministic construction / solve / SVG / overlays / validation
+  -> semantic review -> accept or bounded revision
+  -> private PostgreSQL/object-storage publication -> authenticated web image
+```
+
+- `POST /v1/geometry-scenes/interpret` optionally binds `solve_attempt_id` and
+  `solution_step_id`. It verifies the owning student and current step before model calls.
+  The caller cannot submit authoritative `trusted_facts` as a learner.
+- `scene_id`/`expected_version` bind cumulative updates; an idempotency key replays an
+  accepted interpretation without another paid call. Stale publication fails CAS.
+- Model reasoning must cite source/definition or verified theorem premises. Presentation
+  only changes styles/disclosure. A numerical PASS does not justify PROVEN.
+- A1 focus must preserve ABCD and show exactly A1's defining BCD triangle. A generic
+  ABCD-only frame, wrong circumcenter triangle or early later-point reveal is rejected.
+- Failed or off-topic candidates are never accepted versions. Protected staff evidence
+  records plan, preceding states, delta, solver/policy diagnostics, validation, model usage
+  and review/revision. The configured call/time/attempt budgets prevent endless retries.
+- Migration 026 adds a separate `geometry_scene` schema; it neither migrates nor
+  re-derives existing pedagogy/learner tables. Deployment is explicit, never startup DDL.
+
+### Cross-regression strategy
+
+Run the model-free scene suite, focused REST/private-storage tests, tutor tool tests and
+web parser/proxy/image-browser regressions. Run configured-model interpretation separately
+with explicit paid opt-in and saved per-invariant image/evidence results. Preserve the
+existing related step-runtime/tutor tool and markdown/diagram tests; report unrelated
+baseline failures separately rather than changing their behavior.
+
+Current geometry delivery/results and unfinished acceptance are tracked in
+[requirement 37](37_GEOMETRY_SCENE_ENGINE.md), not inferred from the historical counts in §4.

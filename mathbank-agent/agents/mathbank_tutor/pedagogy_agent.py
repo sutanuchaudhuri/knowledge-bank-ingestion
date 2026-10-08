@@ -16,6 +16,7 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 from . import topic_lessons
+from .timed_questions import IDLE_PATTERN, WINDOW_KEY, record_reply_window
 from .tools import rest_tools
 from .tools.artifact_tools import draw_geometry_diagram
 from .tools.step_runtime_tools import _error, _token
@@ -205,18 +206,52 @@ def report_pedagogy_feedback(
     return result
 
 
+def _clear_state(state, key):
+    if isinstance(state, dict):
+        state.pop(key, None)
+    else:
+        state[key] = None
+
+
 def after_pedagogy_tool(tool, args, tool_context, tool_response):
-    if tool.name == "prepare_problem_guidance":
+    if tool.name in {"continue_idle_question", "request_compiled_route_help"} and tool_response.get("error"):
+        tool_context.state["temp:pedagogy_reply"] = tool_response["message"]
+        tool_context.state["temp:problem_guidance_ready"] = True
+    elif tool.name == "prepare_problem_guidance":
         tool_context.state["temp:pedagogy_reply"] = tool_response.get("markdown_block") or (
-            "Solution-grounded planning could not be delivered; please retry. No solution-backed approach was verified."
+            (tool_response.get("message") or "Solution-grounded planning could not be delivered; please retry.")
+            + " No solution-backed approach was verified."
         )
         tool_context.state["temp:problem_guidance_ready"] = True
         if tool_response.get("status") == "ready":
+            _clear_state(tool_context.state, "pedagogy:topic_plan")
             tool_context.state["pedagogy:problem_guidance"] = {
                 key: tool_response[key] for key in (
                     "problem_code", "stages", "first_checkpoint", "selected_solution_id", "solution_evidence",
+                    "route_release_id",
                 )
+                if key in tool_response
             }
+            _clear_state(tool_context.state, "tutor:compiled_route_attempt")
+            if tool_response.get("route_release_id") and tool_context.state.get("temp:student_token"):
+                from .tools.step_runtime_tools import _call
+
+                try:
+                    attempt = _call(tool_context, "POST", "/v1/tutor/route-attempts",
+                                    json={"problem_code": tool_response["problem_code"],
+                                          "route_release_id": tool_response["route_release_id"]})
+                except httpx.HTTPError as exc:
+                    attempt = {"error": type(exc).__name__,
+                               "message": "Could not start the saved route; please retry."}
+                if attempt.get("error"):
+                    tool_context.state["temp:pedagogy_reply"] += (
+                        "\n\n" + (attempt.get("message") or "Could not start the saved route; please retry.")
+                    )
+                else:
+                    tool_context.state["tutor:compiled_route_attempt"] = attempt
+        else:
+            _clear_state(tool_context.state, "pedagogy:problem_guidance")
+            _clear_state(tool_context.state, "tutor:compiled_route_attempt")
     elif tool.name == "report_pedagogy_feedback":
         tool_context.state["temp:pedagogy_replan"] = args.get("topic")
         tool_context.state["temp:feedback_notice"] = (
@@ -393,6 +428,7 @@ def route_topic_before_model(callback_context, llm_request):
         )
     if state.get("temp:pedagogy_routed_invocation") == callback_context.invocation_id:
         if state.get("temp:problem_guidance_ready"):
+            record_reply_window(state["temp:pedagogy_reply"], state)
             return LlmResponse(content=types.Content(role="model", parts=[
                 types.Part(text=state["temp:pedagogy_reply"]),
             ]))
@@ -407,6 +443,18 @@ def route_topic_before_model(callback_context, llm_request):
         if content
         else ""
     )
+    idle = IDLE_PATTERN.fullmatch(query)
+    state["temp:idle_invocation"] = bool(idle)
+    if idle:
+        return LlmResponse(content=types.Content(role="model", parts=[
+            types.Part(function_call=types.FunctionCall(
+                name="continue_idle_question",
+                args={"checkpoint_id": idle.group(1), "action": idle.group(2)},
+            )),
+        ]))
+    state[WINDOW_KEY] = None
+    state["temp:chosen_response_window"] = None
+    state["temp:idle_question"] = None
     if not query or len(query) > 300 or "\n" in query:
         return None
     codes = re.findall(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b", query)
@@ -480,6 +528,7 @@ def route_topic_before_model(callback_context, llm_request):
                 name="advance_topic_lesson", args={"answer": query, "expected_revision": plan_state["revision"]}))]))
         view = _lesson_view(plan_state, callback_context)
         state["temp:pedagogy_reply"] = view["markdown_block"]
+        record_reply_window(view["markdown_block"], state)
         return LlmResponse(content=types.Content(role="model", parts=[types.Part(text=view["markdown_block"])]))
     if intent["intent"] not in {"LEARN_TOPIC", "FIND_PRACTICE", "QUIZ_ME", "REVIEW_TOPIC"} or not intent.get("topic"):
         state["pedagogy:intent"] = intent["intent"]

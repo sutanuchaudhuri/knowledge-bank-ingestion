@@ -48,6 +48,20 @@ def test_student_transcript_hides_thinking_tools_and_partials():
     ]
 
 
+def test_idle_controls_are_not_saved_as_student_answers():
+    events = [
+        _ev("user", {"text": "Help me with the angle equation."}),
+        _ev("user", {"text": "[Tutor idle:1bdcbb22-98cf-413e-8b59-870557292dee:hint]"}),
+        _ev("mathbank_tutor", {"text": "Start with the polygon angle sum."}),
+    ]
+    student = at.build_transcript(events, include_tools=False)
+    assert len(student) == 2 and student[1]["role"] == "tutor"
+    assert "[Tutor idle:" not in str(student)
+    admin = at.build_transcript(events, include_tools=True)
+    assert admin[1]["role"] == "system"
+    assert admin[1]["author"] == "tutor_pacing"
+
+
 def test_admin_transcript_includes_thinking_and_truncated_tools():
     msgs = at.build_transcript(EVENTS, include_tools=True)
     kinds = [m["kind"] for m in msgs]

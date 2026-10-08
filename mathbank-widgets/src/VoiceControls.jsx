@@ -50,17 +50,22 @@ export function SpeakButton({ text, endpoint = "/api/voice/tts", className = "",
 }
 
 /** 🎤 Record up to `maxSeconds`, POST multipart audio to {endpoint}, call onTranscript(text). */
-export function MicButton({ onTranscript, endpoint = "/api/voice/stt", maxSeconds = 60, className = "", disabled = false }) {
+export function MicButton({ onTranscript, endpoint = "/api/voice/stt", maxSeconds = 60, className = "", disabled = false, onBusyChange }) {
   const [state, setState] = useState("idle");
   const recRef = useRef(null);
   const timerRef = useRef(null);
   const [supported, setSupported] = useState(false);
+  useEffect(() => {
+    onBusyChange?.(["requesting", "recording", "transcribing"].includes(state));
+    return () => onBusyChange?.(false);
+  }, [state, onBusyChange]);
   // Detected after mount so server and client render the same markup (no hydration mismatch).
   useEffect(() => { setSupported(typeof window.MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia); }, []);
 
   useEffect(() => () => { clearTimeout(timerRef.current); recRef.current?.stream?.getTracks().forEach((t) => t.stop()); }, []);
 
   async function start() {
+    setState("requesting");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream);
@@ -105,7 +110,7 @@ export function MicButton({ onTranscript, endpoint = "/api/voice/stt", maxSecond
   const icon = state === "recording" ? "stop" : state === "transcribing" ? "spinner" : state === "error" ? "alert" : "mic";
   return (
     <button type="button" className={`mbw-ghost${state === "recording" ? " is-live" : ""} ${className}`}
-      onClick={toggle} disabled={disabled || state === "transcribing"} data-testid="mic-button"
+      onClick={toggle} disabled={disabled || state === "transcribing" || state === "requesting"} data-testid="mic-button"
       title={state === "recording" ? "Stop and transcribe" : "Dictate (speech to text)"} aria-label="Dictate">
       <WIcon name={icon} />
     </button>

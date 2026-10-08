@@ -1,5 +1,35 @@
 # Architecture and Rationale
 
+## Deterministic core, semi-deterministic capability
+
+The low-level geometry tools and rendering pipeline must be deterministic or reproducible
+given structured MathState/SceneState/VisualState and a seed. The overall capability is
+semi-deterministic: configured-model agents interpret intent, select constructions/theorems,
+produce typed GeometryPlan/StateDelta requests, inspect results and may revise them.
+
+```text
+Natural-language problem / tutor goal
+  → Geometry Reasoning Agent
+  → Geometry Presentation Agent
+  → typed plan/delta
+  → deterministic tools
+  → candidate + validation
+  → agent review
+      PASS and relevant → accept / persist / show
+      FAIL or wrong focus → bounded revision
+```
+
+One model may perform both logical roles, but reasoning owns mathematical decisions
+and presentation owns emphasis, disclosure, overlays and framing. Presentation cannot
+mutate truth. Deterministic tools include schema/parser validation, snapshot-bound theorem
+lookup, construction planning, constraint/coordinate solving, visual policy, SVG, cumulative
+overlays and geometry/visual/leakage validation.
+
+The model layer is required for production free-form interpretation, not optional future
+work. The core remains independently usable/testable with structured input and no model.
+See [requirement 37](../requirements/37_GEOMETRY_SCENE_ENGINE.md) for contracts,
+failure recovery, both test suites and delivered-versus-required progress.
+
 ## Why this must be a standalone tool
 
 The visual generator must be independently testable because a tutor can ask a correct question while the picture is wrong.
@@ -91,6 +121,12 @@ If collinearity is a target:
 
 `SCHEMATIC`
 - allow controlled distortion for clarity while preserving explicit constraints.
+- do not weaken known relations or proof-leakage protection; report impossibility explicitly.
+
+An agent may request a different seed, compatible minimum-angle constraint or schematic
+realization after a degenerate-triangle failure, if the tool supports it. Such retries require
+explicit relayout where applicable, preserved semantics and revalidation. Never silently
+move existing points or publish a failed candidate as a fallback.
 
 ## Clients
 

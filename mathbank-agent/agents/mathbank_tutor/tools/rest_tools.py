@@ -373,10 +373,13 @@ def get_problem_learning_context(problem_code: str) -> dict:
     """Get answer-free statement, reviewed skills/prerequisites and diagnostic choices.
 
     Call FIRST when a learner is stuck or wants hints. Unenriched means no reviewed
-    skill evidence: do not invent it. Never calls full-solution retrieval.
+    skill evidence: do not invent it. Read-only: never starts enrichment or retrieves solutions.
     """
     with _client() as client:
-        response = client.get(f"/v1/tutor/learning-context/{quote(problem_code, safe='')}")
+        response = client.get(
+            f"/v1/tutor/learning-context/{quote(problem_code, safe='')}",
+            params={"enrich": "false"},
+        )
         if response.status_code == 404:
             return {"error": f"No problem with code {problem_code!r}"}
         response.raise_for_status()

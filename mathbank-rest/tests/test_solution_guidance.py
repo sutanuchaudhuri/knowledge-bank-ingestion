@@ -16,6 +16,15 @@ AIME = {
         r"Calculate the product $x_1x_2x_3x_4x_5x_6x_7x_8$."
     ),
 }
+PENTAGON = {
+    "canonical_code": "PAPER_HMMT_2018_NOV_GUTS_Q08",
+    "statement_text": (
+        "Pentagon JAMES is such that AM = SJ and the internal angles satisfy "
+        "∠ J = ∠ A = ∠ E = 90 ◦ , and ∠ M = ∠ S . Given that there exists a "
+        "diagonal of JAMES that bisects its area, find the ratio of the shortest "
+        "side of JAMES to the longest side of JAMES."
+    ),
+}
 
 
 def evidence(problem=None, references=None):
@@ -59,6 +68,39 @@ def test_aime_plan_is_source_and_statement_gated_without_provider_calls(monkeypa
     assert "384" not in json.dumps(result) and "PRIVATE" not in json.dumps(result)
     assert result["solution_evidence"]["sources"][0]["verification_status"] == "UNVERIFIED"
     assert "certified" in result["warnings"][0]
+
+
+def test_pentagon_opening_is_source_gated_and_withholds_intermediate_and_final_answers(monkeypatch):
+    record = evidence(PENTAGON)
+    record.references[0]["body_markdown"] = (
+        "JAMS must be a rectangle. The only diagonal that can bisect the pentagon "
+        "is MS. PRIVATE_SOLUTION_TEXT"
+    )
+    monkeypatch.setattr(guidance, "load_references", lambda code: record)
+    monkeypatch.setattr(
+        tutor._client,
+        "with_options",
+        lambda **kwargs: pytest.fail("Source-gated opening must not call the model"),
+    )
+    result = guidance.guidance_plan(PENTAGON["canonical_code"])
+    assert result["provenance"]["source"] == "authored-source-gated"
+    assert "five-sided polygon" in result["first_checkpoint"]
+    text = json.dumps(result)
+    assert "PRIVATE" not in text and "rectangle" not in text and "135" not in text
+    assert "1/4" not in text and "is MS" not in text
+
+
+@pytest.mark.parametrize("changed", ["statement", "reference"])
+def test_pentagon_authored_opening_does_not_apply_to_mismatched_evidence(changed):
+    record = evidence(PENTAGON)
+    record.references[0]["body_markdown"] = (
+        "JAMS must be a rectangle. The only diagonal that can bisect the pentagon is MS."
+    )
+    if changed == "statement":
+        record.problem = {**PENTAGON, "statement_text": "A different pentagon problem."}
+    else:
+        record.references[0]["body_markdown"] = "Unrelated or incomplete solution."
+    assert guidance._authored_plan(record) is None
 
 
 def test_reference_query_is_bounded_and_does_not_emit_solution_text(monkeypatch):

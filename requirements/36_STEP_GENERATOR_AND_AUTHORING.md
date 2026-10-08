@@ -2,6 +2,24 @@
 
 ## 1. Status, evidence and scope
 
+### Incremental released-route implementation
+
+[Requirement 39](39_PRECOMPILED_TUTORING_ROUTES.md) adds an explicitly run offline
+compiler and a separate, immutable `pedagogy.route_step` release layer for generic
+stored solutions. Draft programs can be fully previewed and edited in
+`/admin/tutoring-routes`, then mathematically reviewed and separately published.
+Published guidance/coach readers use stored assets; signed-in Tutor sessions pin
+`learner.route_attempt` and consume current-step H1-H5 without decomposition.
+Automatic explanations advance as tutor-explained, never graded mastery.
+The legacy textbook runtime and its problem-ordinal uniqueness remain unchanged.
+
+The historical matrices below describe the older import layer. The new release
+compiler does **not** implement shared misconception/theory catalogs, legacy
+attempt migration, automatic mathematical certification, equivalent-claim route
+switching, embeddings or the source/widget/video attachment editor proposed here.
+See the current [schema/access reference](reference/POSTGRES_SCHEMA.md) and
+[REST contracts](reference/REST_API.md).
+
 This is the end-to-end implementation reference **and** completion specification
 for turning a stored problem/reference solution into a reviewed, teachable
 sequence of atomic moves. **A universal canonical step generator and full

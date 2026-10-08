@@ -152,15 +152,16 @@ def _prerequisites(slugs: list[str], max_depth: int) -> tuple[list[dict], list[s
     rows = graph_rows(
         f"""
         UNWIND $slugs AS slug
-        MATCH path=(prior:Skill)-[:PREREQUISITE_OF*1..{max_depth}]->
-                   (target:Skill {{slug:slug}})
+        MATCH (target:Skill {{slug:slug, review_status:'REVIEWED'}})
+        WITH DISTINCT target
+        MATCH path=(target)<-[:PREREQUISITE_OF*1..{max_depth}]-(prior:Skill)
         WHERE all(n IN nodes(path) WHERE n.review_status = 'REVIEWED')
           AND all(r IN relationships(path) WHERE r.review_status = 'REVIEWED')
         WITH prior, target, path ORDER BY length(path)
         WITH prior, target, min(length(path)) AS depth,
              head(collect(path)) AS evidence_path
         WITH prior, min(depth) AS depth, collect(target.slug) AS required_for,
-             collect([r IN relationships(evidence_path) |
+             collect([r IN reverse(relationships(evidence_path)) |
                 {{from_slug:startNode(r).slug, to_slug:endNode(r).slug,
                   source:r.source, confidence:r.confidence,
                   review_status:r.review_status, required_for:target.slug}}]) AS paths
@@ -182,8 +183,9 @@ def _prerequisites(slugs: list[str], max_depth: int) -> tuple[list[dict], list[s
     boundary = graph_rows(
         f"""
         UNWIND $slugs AS slug
-        MATCH path=(prior:Skill)-[:PREREQUISITE_OF*{max_depth + 1}]->
-                   (target:Skill {{slug:slug}})
+        MATCH (target:Skill {{slug:slug, review_status:'REVIEWED'}})
+        WITH DISTINCT target
+        MATCH path=(target)<-[:PREREQUISITE_OF*{max_depth + 1}]-(prior:Skill)
         WHERE all(n IN nodes(path) WHERE n.review_status = 'REVIEWED')
           AND all(r IN relationships(path) WHERE r.review_status = 'REVIEWED')
         RETURN 1 AS found LIMIT 1
@@ -348,9 +350,13 @@ def easier_practice(code: str, limit: int = 5) -> dict:
 
 
 def coach(body: CoachRequest) -> dict:
+    from mathbank_rest import route_runtime
     from mathbank_rest.solution_guidance import load_references, validate_public_text
     from mathbank_rest.tutor import MODEL_NAME, _client
 
+    stored = route_runtime.coaching(body.problem_code, body.hint_level)
+    if stored:
+        return stored
     context = learning_context(body.problem_code)
     references = load_references(body.problem_code)
     prompt_context = {

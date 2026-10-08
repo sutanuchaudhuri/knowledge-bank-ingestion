@@ -4,7 +4,7 @@
 
 **Access family:** `/v1/learner/*`, `/v1/students/{student_id}/problems/{problem_ref}/attempts`, `/v1/attempts/*`; JWT ownership checks.
 
-**Evidence:** live catalog metadata at 2026-10-07T13:40:57.292324+00:00; source `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`.
+**Evidence:** live catalog metadata at 2026-10-08T01:57:54.421824+00:00; source `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7`.
 Metadata is observational, not proof of data correctness, endpoint authorization, or publication readiness.
 Exact columns/constraints/indexes below are the observed selected-target catalog. No private row values are included.
 
@@ -411,6 +411,59 @@ No user-defined triggers observed.
 **Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
 Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
 
+### `learner.route_attempt`
+
+**Kind / use case:** table. JWT-owned route release pin, optimistic current checkpoint and tutor-explained positions; never a mastery record.
+
+**Migration owner:** [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql#L118); subsequent ALTERs may change the catalog below.
+
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L336).
+
+These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
+Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
+
+**Row-level security:** enabled `False`, forced `False`. Application ownership checks remain necessary regardless of this flag.
+
+| Column | PostgreSQL type | Nullable | Default | Identity / generated |
+|---|---|---|---|---|
+| `route_attempt_id` | `uuid` | no | `gen_random_uuid()` | `- / -` |
+| `student_id` | `uuid` | no | `-` | `- / -` |
+| `route_release_id` | `uuid` | no | `-` | `- / -` |
+| `current_step` | `integer` | no | `1` | `- / -` |
+| `version` | `integer` | no | `1` | `- / -` |
+| `tutor_explained_steps` | `integer[]` | no | `'{}'::integer[]` | `- / -` |
+| `created_at` | `timestamp with time zone` | no | `now()` | `- / -` |
+| `updated_at` | `timestamp with time zone` | no | `now()` | `- / -` |
+
+**Constraints** (PK, unique, check, FK; default FK action omitted by PostgreSQL means NO ACTION):
+
+| Name / kind | Definition | Deferred / validated |
+|---|---|---|
+| `route_attempt_created_at_not_null` / `n` | `NOT NULL created_at` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_current_step_check` / `c` | `CHECK (current_step > 0)` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_current_step_not_null` / `n` | `NOT NULL current_step` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_pkey` / `p` | `PRIMARY KEY (route_attempt_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_route_attempt_id_not_null` / `n` | `NOT NULL route_attempt_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_route_release_id_fkey` / `f` | `FOREIGN KEY (route_release_id) REFERENCES pedagogy.solution_route_release(route_release_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_route_release_id_not_null` / `n` | `NOT NULL route_release_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_student_id_fkey` / `f` | `FOREIGN KEY (student_id) REFERENCES learner.student_profile(student_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_student_id_not_null` / `n` | `NOT NULL student_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_tutor_explained_steps_not_null` / `n` | `NOT NULL tutor_explained_steps` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_updated_at_not_null` / `n` | `NOT NULL updated_at` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_version_check` / `c` | `CHECK (version > 0)` | deferrable=False, initially deferred=False, validated=True |
+| `route_attempt_version_not_null` / `n` | `NOT NULL version` | deferrable=False, initially deferred=False, validated=True |
+
+**Indexes** (including constraint-backed indexes and partial predicates):
+
+- `route_attempt_pkey`: `CREATE UNIQUE INDEX route_attempt_pkey ON learner.route_attempt USING btree (route_attempt_id)`; valid=True, ready=True.
+
+**Triggers:**
+
+No user-defined triggers observed.
+
+**Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
+Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
+
 ### `learner.solve_attempt`
 
 **Kind / use case:** table. Durable step-solving session and selected current reference step.
@@ -491,7 +544,7 @@ Role identities are intentionally not exported; this is not a full cluster-role/
 
 **Migration owner:** [003_learner_schema.sql](../../../mathbank-db/sql/003_learner_schema.sql#L15); subsequent ALTERs may change the catalog below.
 
-**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/live_runtime.py](../../../mathbank-rest/src/mathbank_rest/live_runtime.py#L211); [mathbank-rest/src/mathbank_rest/step_recovery.py](../../../mathbank-rest/src/mathbank_rest/step_recovery.py#L819); [mathbank-rest/src/mathbank_rest/step_diagnosis.py](../../../mathbank-rest/src/mathbank_rest/step_diagnosis.py#L579); [mathbank-rest/src/mathbank_rest/outbox_worker.py](../../../mathbank-rest/src/mathbank_rest/outbox_worker.py#L70); [mathbank-rest/src/mathbank_rest/agent_transcripts.py](../../../mathbank-rest/src/mathbank_rest/agent_transcripts.py#L136); [mathbank-rest/src/mathbank_rest/db/learner.py](../../../mathbank-rest/src/mathbank_rest/db/learner.py#L57).
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/live_runtime.py](../../../mathbank-rest/src/mathbank_rest/live_runtime.py#L211); [mathbank-rest/src/mathbank_rest/step_recovery.py](../../../mathbank-rest/src/mathbank_rest/step_recovery.py#L819); [mathbank-rest/src/mathbank_rest/step_diagnosis.py](../../../mathbank-rest/src/mathbank_rest/step_diagnosis.py#L579); [mathbank-rest/src/mathbank_rest/outbox_worker.py](../../../mathbank-rest/src/mathbank_rest/outbox_worker.py#L70); [mathbank-rest/src/mathbank_rest/agent_transcripts.py](../../../mathbank-rest/src/mathbank_rest/agent_transcripts.py#L147); [mathbank-rest/src/mathbank_rest/db/learner.py](../../../mathbank-rest/src/mathbank_rest/db/learner.py#L57).
 
 These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
 Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
@@ -533,6 +586,7 @@ Reads/writes and authorization are enforced in those callers, not inferred from 
 - `learner.event` / `event_student_id_fkey`: `FOREIGN KEY (student_id) REFERENCES learner.student_profile(student_id) ON DELETE CASCADE`.
 - `learner.idempotency_record` / `idempotency_record_student_id_fkey`: `FOREIGN KEY (student_id) REFERENCES learner.student_profile(student_id) ON DELETE CASCADE`.
 - `learner.pedagogy_feedback` / `pedagogy_feedback_student_id_fkey`: `FOREIGN KEY (student_id) REFERENCES learner.student_profile(student_id) ON DELETE CASCADE`.
+- `learner.route_attempt` / `route_attempt_student_id_fkey`: `FOREIGN KEY (student_id) REFERENCES learner.student_profile(student_id)`.
 - `learner.solve_attempt` / `solve_attempt_student_id_fkey`: `FOREIGN KEY (student_id) REFERENCES learner.student_profile(student_id) ON DELETE CASCADE`.
 - `learner.technique_mastery` / `technique_mastery_student_id_fkey`: `FOREIGN KEY (student_id) REFERENCES learner.student_profile(student_id) ON DELETE CASCADE`.
 - `live.participant` / `participant_student_id_fkey`: `FOREIGN KEY (student_id) REFERENCES learner.student_profile(student_id) ON DELETE SET NULL`.

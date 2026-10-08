@@ -1,5 +1,17 @@
 # REST API
 
+These are deterministic execution endpoints. Free-form interpretation is a separate
+configured-model reasoning/presentation adapter that emits typed requests, reviews
+validation, and revises within explicit budgets. The conceptual request envelopes below
+must be translated to the implementation's versioned schema; instruction prose alone
+does not authorize the engine to reason or infer a theorem.
+
+Return candidate validation and diagnostics for agent review, reject invalid frames,
+and preserve the preceding accepted version on failure. Only accepted, owner-authorized
+assets may reach the student. Distinguish standalone endpoints from MathBank-mounted
+integration in progress reports; see
+[requirement 37](../requirements/37_GEOMETRY_SCENE_ENGINE.md).
+
 ## Create scene
 
 ```text

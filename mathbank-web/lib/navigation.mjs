@@ -28,10 +28,12 @@ export const NAV_GROUPS = [
       { href: "/admin/attempt-media", label: "Attempt media review", icon: "clipboard-check" },
       { href: "/admin/textbooks", label: "Textbooks", icon: "book" },
       { href: "/admin/pedagogy", label: "Pedagogy review", icon: "patch-check" },
+      { href: "/admin/tutoring-routes", label: "Teaching routes", icon: "list-check" },
       { href: "/admin/knowledge-gaps", label: "Knowledge gaps", icon: "exclamation-diamond" },
       { href: "/admin/imports", label: "Imports", icon: "box-arrow-in-down" },
       { href: "/admin/conversations", label: "Conversations", icon: "people" },
       { href: "/admin/widgets", label: "Widgets", icon: "puzzle" },
+      { href: "/admin/geometry-scenes", label: "Geometry diagnostics", icon: "activity" },
     ],
   },
 ];
@@ -54,6 +56,8 @@ const SEGMENT_LABELS = {
   profile: "My progress", admin: "Admin", textbooks: "Textbooks", pedagogy: "Pedagogy review",
   "knowledge-gaps": "Knowledge gaps", imports: "Imports", widgets: "Widgets", login: "Sign in",
   "attempt-media": "My submitted work", artifacts: "Artifact library", corpus: "Corpus repair",
+  "geometry-scenes": "Geometry diagnostics",
+  "tutoring-routes": "Teaching routes",
 };
 
 const titleCase = (s) => s.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());

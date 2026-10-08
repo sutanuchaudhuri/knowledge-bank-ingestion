@@ -40,6 +40,9 @@ This folder defines the implementation plan and requirements for building the Ma
 34. [34_GUIDED_PROBLEM_WORKSPACE.md](34_GUIDED_PROBLEM_WORKSPACE.md) — Tutor + My work, authored orientation checks, progressive Q31 construction, step-bound provisional coaching, private upload/paste and explicit learning-data recovery; delivered/partial/planned mapping of the student workspace brief.
 35. [35_CORPUS_REPAIR_AND_AUTHORING.md](35_CORPUS_REPAIR_AND_AUTHORING.md) — admin missing-figure triage, reviewed question/image repairs, manual and explicit paid AI original practice drafts, nonofficial publication, and the indexed 210-query developer library.
 36. [36_STEP_GENERATOR_AND_AUTHORING.md](36_STEP_GENERATOR_AND_AUTHORING.md) — complete implemented step import/runtime/admin/visual lifecycle with diagrams and REST examples; persistence/cache/reveal boundaries; explicitly proposed universal atomic generator, versioned text/split/merge editor and source/widget/artifact/video attachments.
+37. [37_GEOMETRY_SCENE_ENGINE.md](37_GEOMETRY_SCENE_ENGINE.md) — independent deterministic geometry core plus required model-backed reasoning/presentation roles: semi-deterministic planning, bounded validation/revision/acceptance loop, ten offline image-producing fixtures, paid semantic interpretation tests, REST/tutor/UI/storage integration and honest progress tracking.
+38. [38_NEURAL_GEOMETRY_ENGINE.md](38_NEURAL_GEOMETRY_ENGINE.md) — independent Neural-Symbolic Geometry Compiler: executable cumulative construction-program foundation reusing geometry tools, layout/fact separation, provisional-curve to trusted-circle transitions, independent image tests, and phased planner/critic/training/Manim/integration roadmap.
+39. [39_PRECOMPILED_TUTORING_ROUTES.md](39_PRECOMPILED_TUTORING_ROUTES.md) — offline source-grounded solution compilation, immutable reviewed route snapshots, precomputed H1-H5, owned release-pinned checkpoints, graph metadata and the bounded 20-solution DRAFT pilot; full proposal inventory and remaining acceptance gates.
 
 ## Scope Summary
 
@@ -69,4 +72,7 @@ This folder defines the implementation plan and requirements for building the Ma
   - FW-* for fluid widget / presentation-plan requirements (doc 27)
   - LIVE-* for the distributed live platform and socket gateway (doc 28)
   - UXA-* for student input add-ons: composer, voice, formatting (doc 29)
+  - GSE-* for the deterministic geometry core and semi-deterministic agentic scene system (doc 37)
+  - NGE-* for the independent neural-symbolic geometry compiler and training roadmap (doc 38)
+  - PCR-* for precompiled instructional routes and reasoning graph (doc 39)
 - Version baseline: v1.0 for spreadsheet migration and first production RAG.

@@ -385,7 +385,7 @@
           },
           "overlays": {
             "items": {
-              "$ref": "#/components/schemas/Overlay"
+              "$ref": "#/components/schemas/mathbank_rest__artifact_runtime__Overlay"
             },
             "maxItems": 64,
             "title": "Overlays",
@@ -486,6 +486,176 @@
           "elements"
         ],
         "title": "ArtifactPlan",
+        "type": "object"
+      },
+      "Asset": {
+        "additionalProperties": false,
+        "properties": {
+          "canonical_expression": {
+            "title": "Canonical Expression",
+            "type": "string"
+          },
+          "correct_model": {
+            "title": "Correct Model",
+            "type": "string"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "diagnoses": {
+            "items": {
+              "pattern": "^MIS_[A-Z0-9_-]{1,60}$",
+              "type": "string"
+            },
+            "title": "Diagnoses",
+            "type": "array"
+          },
+          "expected_answer": {
+            "title": "Expected Answer",
+            "type": "string"
+          },
+          "key": {
+            "description": "Unique ID. Prefix CLAIM_ for claims, MIS_ for misconceptions, THEORY_ for theory, LI_ for quizzes.",
+            "pattern": "^(CLAIM|MIS|THEORY|LI)_[A-Z0-9_-]{1,60}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "CLAIM",
+              "MISCONCEPTION",
+              "THEORY",
+              "LEARNING_ITEM"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "PREREQUISITE_CHECK",
+              "MISCONCEPTION_DIAGNOSTIC",
+              "TECHNIQUE_RECOGNITION",
+              "ISOLATED_EXECUTION",
+              "GUIDED_PRACTICE",
+              "TRANSFER",
+              "MASTERY_CHECK",
+              "NONE"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "recognition_cues": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recognition Cues",
+            "type": "array"
+          },
+          "remediates": {
+            "items": {
+              "pattern": "^MIS_[A-Z0-9_-]{1,60}$",
+              "type": "string"
+            },
+            "title": "Remediates",
+            "type": "array"
+          },
+          "symptom": {
+            "title": "Symptom",
+            "type": "string"
+          },
+          "taxonomy_node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Taxonomy Node Ids",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "why_wrong": {
+            "title": "Why Wrong",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "title",
+          "description",
+          "canonical_expression",
+          "symptom",
+          "why_wrong",
+          "correct_model",
+          "recognition_cues",
+          "question",
+          "expected_answer",
+          "purpose",
+          "taxonomy_node_ids",
+          "diagnoses",
+          "remediates"
+        ],
+        "title": "Asset",
+        "type": "object"
+      },
+      "AssetLink": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_key": {
+            "title": "Asset Key",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "CAN_TRIGGER",
+              "CHECKED_BY",
+              "EXPLAINED_BY"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_key",
+          "role"
+        ],
+        "title": "AssetLink",
+        "type": "object"
+      },
+      "AssistRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "advance": {
+            "default": false,
+            "title": "Advance",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "hint_level": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Hint Level",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version",
+          "hint_level"
+        ],
+        "title": "AssistRequest",
         "type": "object"
       },
       "AttemptRequest": {
@@ -1374,55 +1544,109 @@
         "title": "DraftUpdate",
         "type": "object"
       },
-      "EditRequest": {
+      "Entity": {
         "additionalProperties": false,
         "properties": {
-          "changes": {
-            "additionalProperties": true,
-            "title": "Changes",
-            "type": "object"
-          },
-          "expected_revision": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Expected Revision",
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
             "type": "string"
           },
-          "key": {
-            "additionalProperties": {
+          "radius": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 10000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius"
+          },
+          "refs": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
               "type": "string"
             },
-            "title": "Key",
-            "type": "object"
+            "title": "Refs",
+            "type": "array"
           },
-          "kind": {
-            "enum": [
-              "skill",
-              "skill_concept",
-              "skill_relation",
-              "concept_relation",
-              "problem_skill",
-              "problem_pedagogy",
-              "problem_concept",
-              "problem_technique"
+          "relation_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Kind",
+            "title": "Relation Id"
+          },
+          "role": {
+            "default": "PRIMARY",
+            "enum": [
+              "PRIMARY",
+              "AUXILIARY",
+              "EXTENSION",
+              "CONTACT"
+            ],
+            "title": "Role",
             "type": "string"
           },
-          "note": {
-            "maxLength": 2000,
-            "minLength": 10,
-            "title": "Note",
+          "type": {
+            "enum": [
+              "POINT",
+              "SEGMENT",
+              "LINE",
+              "RAY",
+              "POLYGON",
+              "CIRCLE",
+              "ARC",
+              "ANGLE_MARK",
+              "RIGHT_ANGLE_MARK",
+              "EQUAL_LENGTH_MARK",
+              "PARALLEL_MARK",
+              "CORRESPONDENCE_MARK"
+            ],
+            "title": "Type",
             "type": "string"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": -10000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": -10000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
           }
         },
         "required": [
-          "kind",
-          "key",
-          "expected_revision",
-          "changes",
-          "note"
+          "id",
+          "type"
         ],
-        "title": "EditRequest",
+        "title": "Entity",
         "type": "object"
       },
       "EntityRequest": {
@@ -1837,7 +2061,7 @@
           },
           "overlays": {
             "items": {
-              "$ref": "#/components/schemas/Overlay"
+              "$ref": "#/components/schemas/mathbank_rest__artifact_runtime__Overlay"
             },
             "maxItems": 64,
             "title": "Overlays",
@@ -1940,9 +2164,155 @@
         "title": "GeometryPreview",
         "type": "object"
       },
+      "GeometryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 128,
+            "title": "Context",
+            "type": "array"
+          },
+          "current_math_step": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Current Math Step",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
+          },
+          "forbidden_entities": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Forbidden Entities",
+            "type": "array"
+          },
+          "goal": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Goal",
+            "type": "string"
+          },
+          "problem_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem Id"
+          },
+          "problem_text": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Problem Text",
+            "type": "string"
+          },
+          "rendering_mode": {
+            "default": "EXACT_OR_CONSTRAINED",
+            "enum": [
+              "EXACT_OR_CONSTRAINED",
+              "SCHEMATIC"
+            ],
+            "title": "Rendering Mode",
+            "type": "string"
+          },
+          "required_entities": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Required Entities",
+            "type": "array"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "seed": {
+            "default": 17,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "solution_step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solution Step Id"
+          },
+          "solve_attempt_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solve Attempt Id"
+          },
+          "trusted_facts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Relation"
+            },
+            "title": "Trusted Facts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "problem_text",
+          "goal"
+        ],
+        "title": "GeometryRequest",
+        "type": "object"
+      },
       "GuidancePlanRequest": {
         "additionalProperties": false,
         "properties": {
+          "allow_dynamic_fallback": {
+            "default": false,
+            "title": "Allow Dynamic Fallback",
+            "type": "boolean"
+          },
           "problem_code": {
             "maxLength": 200,
             "minLength": 1,
@@ -2082,6 +2452,81 @@
         "title": "IndexBody",
         "type": "object"
       },
+      "Instruction": {
+        "additionalProperties": false,
+        "properties": {
+          "common_error_summary": {
+            "title": "Common Error Summary",
+            "type": "string"
+          },
+          "connection_to_next_step": {
+            "title": "Connection To Next Step",
+            "type": "string"
+          },
+          "connection_to_previous_step": {
+            "title": "Connection To Previous Step",
+            "type": "string"
+          },
+          "expected_response": {
+            "minLength": 1,
+            "title": "Expected Response",
+            "type": "string"
+          },
+          "full_explanation": {
+            "minLength": 1,
+            "title": "Full Explanation",
+            "type": "string"
+          },
+          "goal_text": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Goal Text",
+            "type": "string"
+          },
+          "prerequisite_recap": {
+            "title": "Prerequisite Recap",
+            "type": "string"
+          },
+          "reasoning_explanation": {
+            "title": "Reasoning Explanation",
+            "type": "string"
+          },
+          "recognition_cue": {
+            "title": "Recognition Cue",
+            "type": "string"
+          },
+          "short_explanation": {
+            "title": "Short Explanation",
+            "type": "string"
+          },
+          "student_prompt": {
+            "maxLength": 1200,
+            "minLength": 1,
+            "title": "Student Prompt",
+            "type": "string"
+          },
+          "why_this_works": {
+            "title": "Why This Works",
+            "type": "string"
+          }
+        },
+        "required": [
+          "goal_text",
+          "recognition_cue",
+          "reasoning_explanation",
+          "why_this_works",
+          "prerequisite_recap",
+          "connection_to_previous_step",
+          "connection_to_next_step",
+          "common_error_summary",
+          "student_prompt",
+          "expected_response",
+          "short_explanation",
+          "full_explanation"
+        ],
+        "title": "Instruction",
+        "type": "object"
+      },
       "ItemReview": {
         "properties": {
           "decision": {
@@ -2156,6 +2601,44 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "MathObject": {
+        "additionalProperties": false,
+        "properties": {
+          "radius": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 10000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius"
+          },
+          "refs": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Refs",
+            "type": "array"
+          },
+          "type": {
+            "default": "POINT",
+            "enum": [
+              "POINT",
+              "CIRCLE"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "MathObject",
         "type": "object"
       },
       "Merge": {
@@ -2306,77 +2789,6 @@
           "label"
         ],
         "title": "Node",
-        "type": "object"
-      },
-      "Overlay": {
-        "additionalProperties": false,
-        "properties": {
-          "actions": {
-            "items": {
-              "$ref": "#/components/schemas/Action"
-            },
-            "maxItems": 16,
-            "minItems": 1,
-            "title": "Actions",
-            "type": "array"
-          },
-          "caption": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Caption",
-            "type": "string"
-          },
-          "concept_tag": {
-            "default": "instruction",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Concept Tag",
-            "type": "string"
-          },
-          "explanation_text": {
-            "default": "",
-            "maxLength": 2000,
-            "title": "Explanation Text",
-            "type": "string"
-          },
-          "hint_tag": {
-            "anyOf": [
-              {
-                "maxLength": 200,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hint Tag"
-          },
-          "id": {
-            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
-            "title": "Id",
-            "type": "string"
-          },
-          "linked_step_id": {
-            "anyOf": [
-              {
-                "maxLength": 200,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Linked Step Id"
-          }
-        },
-        "required": [
-          "id",
-          "caption",
-          "actions"
-        ],
-        "title": "Overlay",
         "type": "object"
       },
       "Override": {
@@ -3161,6 +3573,145 @@
         "title": "RegisterRequest",
         "type": "object"
       },
+      "Relation": {
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Args",
+            "type": "array"
+          },
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "provenance": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Provenance",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RelationStatus"
+          },
+          "type": {
+            "$ref": "#/components/schemas/RelationType"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "maximum": 180.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "args",
+          "status"
+        ],
+        "title": "Relation",
+        "type": "object"
+      },
+      "RelationStatus": {
+        "enum": [
+          "GIVEN",
+          "ASSUMED_FOR_CONSTRUCTION",
+          "PROVEN",
+          "UNKNOWN",
+          "TARGET_TO_PROVE",
+          "DISPROVEN"
+        ],
+        "title": "RelationStatus",
+        "type": "string"
+      },
+      "RelationType": {
+        "enum": [
+          "TRIANGLE",
+          "QUADRILATERAL",
+          "CONCYCLIC",
+          "COLLINEAR",
+          "MIDPOINT",
+          "CIRCUMCENTER",
+          "TANGENT",
+          "PARALLEL",
+          "PERPENDICULAR",
+          "EQUAL_LENGTH",
+          "EQUAL_ANGLE",
+          "SIMILAR",
+          "ANGLE_MEASURE",
+          "EXTENSION",
+          "ALTITUDE",
+          "INTERSECTION"
+        ],
+        "title": "RelationType",
+        "type": "string"
+      },
+      "RenderingMode": {
+        "enum": [
+          "EXACT_OR_CONSTRAINED",
+          "SCHEMATIC"
+        ],
+        "title": "RenderingMode",
+        "type": "string"
+      },
+      "Requirement": {
+        "additionalProperties": false,
+        "properties": {
+          "blocking": {
+            "title": "Blocking",
+            "type": "boolean"
+          },
+          "importance": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Importance",
+            "type": "number"
+          },
+          "required_level": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Required Level",
+            "type": "integer"
+          },
+          "role": {
+            "enum": [
+              "REQUIRED",
+              "HELPFUL",
+              "RECOGNITION",
+              "EXECUTION",
+              "JUSTIFICATION",
+              "USED"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "taxonomy_node_id": {
+            "title": "Taxonomy Node Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taxonomy_node_id",
+          "role",
+          "required_level",
+          "importance",
+          "blocking"
+        ],
+        "title": "Requirement",
+        "type": "object"
+      },
       "ResponseIn": {
         "properties": {
           "client_command_id": {
@@ -3215,6 +3766,30 @@
         "title": "ResponseIn",
         "type": "object"
       },
+      "Review": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "ACCEPTED",
+              "REJECTED",
+              "NEEDS_REVISION"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "Review",
+        "type": "object"
+      },
       "ReviewBody": {
         "properties": {
           "decision": {
@@ -3236,6 +3811,311 @@
           "decision"
         ],
         "title": "ReviewBody",
+        "type": "object"
+      },
+      "RouteProgram": {
+        "additionalProperties": false,
+        "properties": {
+          "algebraic_load": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Algebraic Load",
+            "type": "integer"
+          },
+          "approach_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Approach Name",
+            "type": "string"
+          },
+          "approach_summary": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Approach Summary",
+            "type": "string"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/Asset"
+            },
+            "maxItems": 100,
+            "title": "Assets",
+            "type": "array"
+          },
+          "conceptual_load": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Conceptual Load",
+            "type": "integer"
+          },
+          "difficulty_level": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Difficulty Level",
+            "type": "integer"
+          },
+          "insight_load": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Insight Load",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RouteStep"
+            },
+            "maxItems": 30,
+            "minItems": 2,
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "approach_name",
+          "approach_summary",
+          "difficulty_level",
+          "conceptual_load",
+          "algebraic_load",
+          "insight_load",
+          "steps",
+          "assets"
+        ],
+        "title": "RouteProgram",
+        "type": "object"
+      },
+      "RouteStep": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_links": {
+            "items": {
+              "$ref": "#/components/schemas/AssetLink"
+            },
+            "title": "Asset Links",
+            "type": "array"
+          },
+          "depends_on": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Depends On",
+            "type": "array"
+          },
+          "hints": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Hints",
+            "type": "array"
+          },
+          "instruction": {
+            "$ref": "#/components/schemas/Instruction"
+          },
+          "mathematical_result": {
+            "minLength": 1,
+            "title": "Mathematical Result",
+            "type": "string"
+          },
+          "produces": {
+            "description": "IDs of CLAIM assets declared in assets, NOT result text. Empty if none.",
+            "items": {
+              "pattern": "^CLAIM_[A-Z0-9_-]{1,60}$",
+              "type": "string"
+            },
+            "title": "Produces",
+            "type": "array"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/Requirement"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "source_quote": {
+            "minLength": 1,
+            "title": "Source Quote",
+            "type": "string"
+          },
+          "uses_claims": {
+            "description": "IDs of CLAIM assets produced by earlier steps, NOT text. Empty if none.",
+            "items": {
+              "pattern": "^CLAIM_[A-Z0-9_-]{1,60}$",
+              "type": "string"
+            },
+            "title": "Uses Claims",
+            "type": "array"
+          }
+        },
+        "required": [
+          "mathematical_result",
+          "source_quote",
+          "depends_on",
+          "produces",
+          "uses_claims",
+          "requirements",
+          "instruction",
+          "hints",
+          "asset_links"
+        ],
+        "title": "RouteStep",
+        "type": "object"
+      },
+      "SceneInput": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 128,
+            "title": "Context",
+            "type": "array"
+          },
+          "deferred_relations": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Deferred Relations",
+            "type": "array"
+          },
+          "entities": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Entity"
+            },
+            "maxItems": 256,
+            "title": "Entities",
+            "type": "array"
+          },
+          "minimum_angle_degrees": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Angle Degrees"
+          },
+          "objects": {
+            "maxProperties": 64,
+            "patternProperties": {
+              "^[A-Za-z][A-Za-z0-9_]{0,63}$": {
+                "$ref": "#/components/schemas/MathObject"
+              }
+            },
+            "title": "Objects",
+            "type": "object"
+          },
+          "positions": {
+            "patternProperties": {
+              "^[A-Za-z][A-Za-z0-9_]{0,63}$": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "maximum": 10000.0,
+                    "minimum": -10000.0,
+                    "type": "number"
+                  },
+                  {
+                    "maximum": 10000.0,
+                    "minimum": -10000.0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              }
+            },
+            "title": "Positions",
+            "type": "object"
+          },
+          "problem_text": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Problem Text",
+            "type": "string"
+          },
+          "relations": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Relation"
+            },
+            "maxItems": 128,
+            "title": "Relations",
+            "type": "array"
+          },
+          "rendering_mode": {
+            "$ref": "#/components/schemas/RenderingMode",
+            "default": "EXACT_OR_CONSTRAINED"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "seed": {
+            "default": 17,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "view_box": {
+            "default": [
+              0,
+              0,
+              640,
+              480
+            ],
+            "maxItems": 4,
+            "minItems": 4,
+            "prefixItems": [
+              {
+                "maximum": 10000.0,
+                "minimum": -10000.0,
+                "type": "number"
+              },
+              {
+                "maximum": 10000.0,
+                "minimum": -10000.0,
+                "type": "number"
+              },
+              {
+                "maximum": 10000.0,
+                "minimum": -10000.0,
+                "type": "number"
+              },
+              {
+                "maximum": 10000.0,
+                "minimum": -10000.0,
+                "type": "number"
+              }
+            ],
+            "title": "View Box",
+            "type": "array"
+          },
+          "visual": {
+            "$ref": "#/components/schemas/VisualDelta"
+          }
+        },
+        "title": "SceneInput",
         "type": "object"
       },
       "SearchBody": {
@@ -3612,6 +4492,33 @@
         "title": "Split",
         "type": "object"
       },
+      "StartRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "problem_code": {
+            "pattern": "^[A-Z][A-Z0-9_]{2,119}$",
+            "title": "Problem Code",
+            "type": "string"
+          },
+          "route_release_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Release Id"
+          }
+        },
+        "required": [
+          "problem_code"
+        ],
+        "title": "StartRequest",
+        "type": "object"
+      },
       "StarterReviewRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3632,6 +4539,163 @@
           "note"
         ],
         "title": "StarterReviewRequest",
+        "type": "object"
+      },
+      "StateDelta": {
+        "additionalProperties": false,
+        "properties": {
+          "activate_relations": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Activate Relations",
+            "type": "array"
+          },
+          "add_entities": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Entity"
+            },
+            "maxItems": 256,
+            "title": "Add Entities",
+            "type": "array"
+          },
+          "add_objects": {
+            "maxProperties": 64,
+            "patternProperties": {
+              "^[A-Za-z][A-Za-z0-9_]{0,63}$": {
+                "$ref": "#/components/schemas/MathObject"
+              }
+            },
+            "title": "Add Objects",
+            "type": "object"
+          },
+          "add_relations": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Relation"
+            },
+            "maxItems": 128,
+            "title": "Add Relations",
+            "type": "array"
+          },
+          "change_status": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/StatusChange"
+            },
+            "title": "Change Status",
+            "type": "array"
+          },
+          "ensure_entities": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Ensure Entities",
+            "type": "array"
+          },
+          "expected_version": {
+            "minimum": 0.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "instruction_text": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Instruction Text",
+            "type": "string"
+          },
+          "linked_solution_step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Solution Step Id"
+          },
+          "minimum_angle_degrees": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Angle Degrees"
+          },
+          "realization_seed": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realization Seed"
+          },
+          "relayout": {
+            "default": false,
+            "title": "Relayout",
+            "type": "boolean"
+          },
+          "rendering_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RenderingMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "visual": {
+            "$ref": "#/components/schemas/VisualDelta"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "StateDelta",
+        "type": "object"
+      },
+      "StatusChange": {
+        "additionalProperties": false,
+        "properties": {
+          "provenance": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Provenance",
+            "type": "string"
+          },
+          "relation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Relation Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RelationStatus"
+          }
+        },
+        "required": [
+          "relation_id",
+          "status",
+          "provenance"
+        ],
+        "title": "StatusChange",
         "type": "object"
       },
       "Step": {
@@ -3889,6 +4953,114 @@
           "spec"
         ],
         "title": "StoreBody",
+        "type": "object"
+      },
+      "Style": {
+        "additionalProperties": false,
+        "properties": {
+          "arc_angles": {
+            "default": [
+              0,
+              90
+            ],
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "maximum": 10000.0,
+                "minimum": -10000.0,
+                "type": "number"
+              },
+              {
+                "maximum": 10000.0,
+                "minimum": -10000.0,
+                "type": "number"
+              }
+            ],
+            "title": "Arc Angles",
+            "type": "array"
+          },
+          "emphasis": {
+            "default": "PRIMARY",
+            "enum": [
+              "PRIMARY",
+              "BACKGROUND",
+              "HIGHLIGHT",
+              "DIM"
+            ],
+            "title": "Emphasis",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "label_position": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "maximum": 10000.0,
+                    "minimum": -10000.0,
+                    "type": "number"
+                  },
+                  {
+                    "maximum": 10000.0,
+                    "minimum": -10000.0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Position"
+          },
+          "line_style": {
+            "default": "SOLID",
+            "enum": [
+              "SOLID",
+              "DASHED"
+            ],
+            "title": "Line Style",
+            "type": "string"
+          },
+          "opacity": {
+            "default": 1,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Opacity",
+            "type": "number"
+          },
+          "render_mode": {
+            "default": "FULL_CIRCLE",
+            "enum": [
+              "FULL_CIRCLE",
+              "VISIBLE_ARC",
+              "CLIPPED_CIRCLE"
+            ],
+            "title": "Render Mode",
+            "type": "string"
+          },
+          "visible": {
+            "default": true,
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "title": "Style",
         "type": "object"
       },
       "SubmissionIn": {
@@ -4401,6 +5573,88 @@
         "title": "VersionedRequest",
         "type": "object"
       },
+      "VisualDelta": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "dim": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Dim",
+            "type": "array"
+          },
+          "focus": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Focus",
+            "type": "array"
+          },
+          "hide": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Hide",
+            "type": "array"
+          },
+          "highlight": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Highlight",
+            "type": "array"
+          },
+          "overlays": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/geometry_scene__schemas__Overlay"
+            },
+            "maxItems": 32,
+            "title": "Overlays",
+            "type": "array"
+          },
+          "show": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "title": "Show",
+            "type": "array"
+          },
+          "styles": {
+            "patternProperties": {
+              "^[A-Za-z][A-Za-z0-9_]{0,63}$": {
+                "$ref": "#/components/schemas/Style"
+              }
+            },
+            "title": "Styles",
+            "type": "object"
+          }
+        },
+        "title": "VisualDelta",
+        "type": "object"
+      },
       "WidgetIn": {
         "properties": {
           "client_command_id": {
@@ -4514,6 +5768,38 @@
         "title": "WidgetStateIn",
         "type": "object"
       },
+      "geometry_scene__schemas__Overlay": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Caption",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "targets": {
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Targets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "targets"
+        ],
+        "title": "Overlay",
+        "type": "object"
+      },
       "mathbank_rest__artifact_runtime__GenerateBody": {
         "additionalProperties": false,
         "properties": {
@@ -4524,6 +5810,77 @@
           }
         },
         "title": "GenerateBody",
+        "type": "object"
+      },
+      "mathbank_rest__artifact_runtime__Overlay": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/Action"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Actions",
+            "type": "array"
+          },
+          "caption": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Caption",
+            "type": "string"
+          },
+          "concept_tag": {
+            "default": "instruction",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Concept Tag",
+            "type": "string"
+          },
+          "explanation_text": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Explanation Text",
+            "type": "string"
+          },
+          "hint_tag": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Tag"
+          },
+          "id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "linked_step_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Step Id"
+          }
+        },
+        "required": [
+          "id",
+          "caption",
+          "actions"
+        ],
+        "title": "Overlay",
         "type": "object"
       },
       "mathbank_rest__routers__admin_corpus__ReviewRequest": {
@@ -4593,6 +5950,57 @@
         "title": "GenerateBody",
         "type": "object"
       },
+      "mathbank_rest__routers__pedagogy_admin__EditRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "changes": {
+            "additionalProperties": true,
+            "title": "Changes",
+            "type": "object"
+          },
+          "expected_revision": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expected Revision",
+            "type": "string"
+          },
+          "key": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Key",
+            "type": "object"
+          },
+          "kind": {
+            "enum": [
+              "skill",
+              "skill_concept",
+              "skill_relation",
+              "concept_relation",
+              "problem_skill",
+              "problem_pedagogy",
+              "problem_concept",
+              "problem_technique"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "key",
+          "expected_revision",
+          "changes",
+          "note"
+        ],
+        "title": "EditRequest",
+        "type": "object"
+      },
       "mathbank_rest__routers__pedagogy_admin__ReviewRequest": {
         "additionalProperties": false,
         "properties": {
@@ -4644,6 +6052,54 @@
           "expected_revision",
           "review_status",
           "note"
+        ],
+        "title": "ReviewRequest",
+        "type": "object"
+      },
+      "mathbank_rest__routers__tutoring_routes__EditRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Hash",
+            "type": "string"
+          },
+          "program": {
+            "$ref": "#/components/schemas/RouteProgram"
+          }
+        },
+        "required": [
+          "expected_hash",
+          "program"
+        ],
+        "title": "EditRequest",
+        "type": "object"
+      },
+      "mathbank_rest__routers__tutoring_routes__ReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Hash",
+            "type": "string"
+          },
+          "mathematical_review_confirmed": {
+            "const": true,
+            "title": "Mathematical Review Confirmed",
+            "type": "boolean"
+          },
+          "reviewer": {
+            "maxLength": 200,
+            "minLength": 3,
+            "pattern": "^\\S.*\\S$",
+            "title": "Reviewer",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewer",
+          "expected_hash",
+          "mathematical_review_confirmed"
         ],
         "title": "ReviewRequest",
         "type": "object"
@@ -7438,7 +8894,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EditRequest"
+                "$ref": "#/components/schemas/mathbank_rest__routers__pedagogy_admin__EditRequest"
               }
             }
           },
@@ -9172,6 +10628,371 @@
         "summary": "Taxonomy Node",
         "tags": [
           "admin-textbooks"
+        ]
+      }
+    },
+    "/v1/admin/tutoring-routes": {
+      "get": {
+        "operationId": "drafts_v1_admin_tutoring_routes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Drafts",
+        "tags": [
+          "tutoring-routes"
+        ]
+      }
+    },
+    "/v1/admin/tutoring-routes/refresh-graph": {
+      "post": {
+        "operationId": "refresh_graph_v1_admin_tutoring_routes_refresh_graph_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refresh Graph",
+        "tags": [
+          "tutoring-routes"
+        ]
+      }
+    },
+    "/v1/admin/tutoring-routes/{release_id}": {
+      "get": {
+        "operationId": "preview_v1_admin_tutoring_routes__release_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Release Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview",
+        "tags": [
+          "tutoring-routes"
+        ]
+      }
+    },
+    "/v1/admin/tutoring-routes/{release_id}/edit": {
+      "post": {
+        "operationId": "edit_v1_admin_tutoring_routes__release_id__edit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Release Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/mathbank_rest__routers__tutoring_routes__EditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit",
+        "tags": [
+          "tutoring-routes"
+        ]
+      }
+    },
+    "/v1/admin/tutoring-routes/{release_id}/publish": {
+      "post": {
+        "operationId": "publish_v1_admin_tutoring_routes__release_id__publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Release Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish",
+        "tags": [
+          "tutoring-routes"
+        ]
+      }
+    },
+    "/v1/admin/tutoring-routes/{release_id}/review": {
+      "post": {
+        "operationId": "review_v1_admin_tutoring_routes__release_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Release Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/mathbank_rest__routers__tutoring_routes__ReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review",
+        "tags": [
+          "tutoring-routes"
         ]
       }
     },
@@ -14395,6 +16216,947 @@
         "summary": "Get Corpus Coverage"
       }
     },
+    "/v1/geometry-scenes": {
+      "post": {
+        "operationId": "create_v1_geometry_scenes_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create",
+        "tags": [
+          "geometry-scenes"
+        ]
+      }
+    },
+    "/v1/geometry-scenes/debug/runs": {
+      "get": {
+        "operationId": "list_runs_v1_geometry_scenes_debug_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "owner",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Owner",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Runs",
+        "tags": [
+          "geometry-scenes"
+        ]
+      }
+    },
+    "/v1/geometry-scenes/debug/runs/{run_id}": {
+      "get": {
+        "operationId": "read_run_v1_geometry_scenes_debug_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "owner",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Owner",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Run",
+        "tags": [
+          "geometry-scenes"
+        ]
+      }
+    },
+    "/v1/geometry-scenes/debug/runs/{run_id}/review": {
+      "post": {
+        "operationId": "review_run_v1_geometry_scenes_debug_runs__run_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "owner",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Owner",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Review"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Run",
+        "tags": [
+          "geometry-scenes"
+        ]
+      }
+    },
+    "/v1/geometry-scenes/interpret": {
+      "post": {
+        "operationId": "interpret_scene_v1_geometry_scenes_interpret_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeometryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Interpret Scene",
+        "tags": [
+          "geometry-agent"
+        ]
+      }
+    },
+    "/v1/geometry-scenes/{scene_id}": {
+      "get": {
+        "operationId": "current_v1_geometry_scenes__scene_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Current",
+        "tags": [
+          "geometry-scenes"
+        ]
+      }
+    },
+    "/v1/geometry-scenes/{scene_id}/deltas": {
+      "post": {
+        "operationId": "delta_v1_geometry_scenes__scene_id__deltas_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StateDelta"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delta",
+        "tags": [
+          "geometry-scenes"
+        ]
+      }
+    },
+    "/v1/geometry-scenes/{scene_id}/frames": {
+      "get": {
+        "operationId": "frames_v1_geometry_scenes__scene_id__frames_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Frames",
+        "tags": [
+          "geometry-scenes"
+        ]
+      }
+    },
+    "/v1/geometry-scenes/{scene_id}/versions/{version}": {
+      "get": {
+        "operationId": "read_v1_geometry_scenes__scene_id__versions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read",
+        "tags": [
+          "geometry-scenes"
+        ]
+      }
+    },
+    "/v1/geometry-scenes/{scene_id}/versions/{version}/render": {
+      "get": {
+        "operationId": "render_version_v1_geometry_scenes__scene_id__versions__version__render_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Render Version",
+        "tags": [
+          "geometry-scenes"
+        ]
+      }
+    },
+    "/v1/geometry-scenes/{scene_id}/versions/{version}/validate": {
+      "post": {
+        "operationId": "validate_v1_geometry_scenes__scene_id__versions__version__validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+              "title": "Scene Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate",
+        "tags": [
+          "geometry-scenes"
+        ]
+      }
+    },
     "/v1/instructor/live/{sid}/commands": {
       "post": {
         "operationId": "instructor_nl_v1_instructor_live__sid__commands_post",
@@ -18899,6 +21661,7 @@
     },
     "/v1/tutor/learning-context/{problem_code}": {
       "get": {
+        "description": "Use enrich=false for read-only tutoring; default retains existing enrichment behavior.",
         "operationId": "learning_context_v1_tutor_learning_context__problem_code__get",
         "parameters": [
           {
@@ -18908,6 +21671,16 @@
             "schema": {
               "title": "Problem Code",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "enrich",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Enrich",
+              "type": "boolean"
             }
           }
         ],
@@ -19093,6 +21866,152 @@
         "summary": "Prerequisites",
         "tags": [
           "pedagogy"
+        ]
+      }
+    },
+    "/v1/tutor/route-attempts": {
+      "post": {
+        "operationId": "start_v1_tutor_route_attempts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Start",
+        "tags": [
+          "tutoring-routes"
+        ]
+      }
+    },
+    "/v1/tutor/route-attempts/{attempt_id}": {
+      "get": {
+        "operationId": "current_v1_tutor_route_attempts__attempt_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attempt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attempt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Current",
+        "tags": [
+          "tutoring-routes"
+        ]
+      }
+    },
+    "/v1/tutor/route-attempts/{attempt_id}/assist": {
+      "post": {
+        "operationId": "assist_v1_tutor_route_attempts__attempt_id__assist_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attempt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attempt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Assist",
+        "tags": [
+          "tutoring-routes"
         ]
       }
     },

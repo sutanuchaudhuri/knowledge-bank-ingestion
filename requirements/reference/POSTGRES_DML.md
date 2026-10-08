@@ -12,6 +12,27 @@
 
 ## Relation-level access and use cases
 
+### Full-corpus tutoring routes and operator bulk approval
+
+Incremental source evidence: migration
+[026](../../mathbank-db/sql/026_tutoring_routes.sql),
+[compiler](../../mathbank-rest/src/mathbank_rest/route_compiler.py) and
+[shared review validator](../../mathbank-rest/src/mathbank_rest/route_runtime.py);
+includes current worktree changes. See
+[requirement 39](../39_PRECOMPILED_TUTORING_ROUTES.md) for authorization and
+dated live operational results, separately from this source-derived description.
+
+| Operation | Transaction / access | Boundary |
+|---|---|---|
+| `compile --all` | Freeze every remaining solution ID/source hash in QUEUED jobs; direct run lease; 1-8 workers | No short/long-source or 10,000-row exclusion; unchanged same-version releases reused, existing textbook steps preserved |
+| Per-source persistence | Source rows share-locked/rehashed; solution advisory lock; release/steps/assets/H1-H5/job update atomically committed | Stale source or invalid program fails explicitly; no partial approved snapshot |
+| `--approve-by` | Run stores `auto_review_by`; shared hash/source/taxonomy/DAG validator transitions DRAFT to REVIEWED in the persistence transaction | Explicit operator bulk approval, not independent mathematical certification; never PUBLISHED |
+| `approve-drafts` | Snapshot current draft IDs; validate and review each in its own transaction | Rejected/stale draft remains unapproved with an explicit failure; previously reviewed snapshots untouched |
+| Resume/status | Retry frozen unfinished jobs; inherit approval policy; whole-cohort job/release counts | Job DRAFT means generated snapshot exists; release status independently records REVIEWED/PUBLISHED |
+| Failure | Persist safe `error_code` and JSON `error_details`; no raw provider body | At most one repair per attempt; invalid sources never turn into empty successful steps |
+
+Publication, Neo4j projection and embeddings remain separate operations.
+
 Every observed table/view has its purpose, migration/framework/provider owner,
 source-access links and exact relationships in the
 [20-schema catalog](postgres/README.md). The
@@ -78,6 +99,19 @@ provider tables. Empty audit/auth namespaces do not imply missing audit rows:
 actual audit evidence belongs to knowledge/ingest/learner/live tables.
 
 ## High-level write boundaries
+
+### Geometry scene system
+
+Incremental source revision `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7`
+with geometry worktree changes; inspected migration 026, geometry storage,
+orchestration and routers. [Complete table/access reference](postgres/geometry_scene.md)
+documents columns and every operation family. Receipt preflight avoids paid
+work on accepted retries; immutable versions and a final owner/version CAS
+publish only replay-validated candidates. Candidate run evidence is private,
+and staff review updates cannot publish a rejected candidate.
+No solution-step completion, grading, mastery, graph or vector writes occur.
+The repository explicitly cleans tracked uploaded assets on transaction rollback;
+it does not pretend SQL and private object storage form one distributed transaction.
 
 ### Reviewed corpus authoring
 

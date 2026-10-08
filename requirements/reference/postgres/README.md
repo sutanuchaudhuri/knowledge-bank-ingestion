@@ -1,7 +1,7 @@
 # Complete PostgreSQL catalog and access index
 
-Observed **2026-10-07T13:40:57.292324+00:00** on the user-selected **REST-configured PostgreSQL** target.
-Source revision `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`; source tree was clean before this documentation task.
+Observed **2026-10-08T01:57:54.421824+00:00** on the user-selected **REST-configured PostgreSQL** target.
+Source revision `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7` plus implementation worktree changes.
 PostgreSQL `18.6 (4e955f5)`. Metadata only; no corpus, learner, credential or session row values were read.
 No migrations, grants, models, indexing, publication, service restarts or application code changes were performed.
 
@@ -9,6 +9,12 @@ This catalog supersedes old condensed column inventories for this selected deplo
 non-system schema and relation visible to the configured role. PostgreSQL internal `pg_*` and
 `information_schema` objects are server-owned metadata, not application tables, and are excluded.
 A table's existence does not prove populated content, correct mathematics, application ownership or a working UI.
+
+Incremental full-corpus migration source updates the compiler run/job sections
+in [pedagogy](pedagogy.md): uncapped positive cohort size, frozen bulk approval
+identity, QUEUED jobs and persisted safe validation diagnostics. These later
+source-derived changes are distinguished from the timestamped catalog above;
+see [requirement 39](../../39_PRECOMPILED_TUTORING_ROUTES.md) for operational results.
 
 ## Schema index
 
@@ -23,12 +29,13 @@ A table's existence does not prove populated content, correct mathematics, appli
 | [auth](auth.md) | 0 | 0 | 0 | Observed empty namespace; No checked-in MathBank access found. Do not infer an authentication implementation from its name. |
 | [authoring](authoring.md) | 5 | 0 | 1 | Versioned presentation authoring; `/v1/authoring/*`; shared admin API key. This is not a canonical atomic-step editor. |
 | [core](core.md) | 7 | 0 | 0 | Canonical corpus; Public corpus `/v1/problems`, `/v1/competitions`; admin corpus/import/textbook routes; private tutor reference reads. |
+| [geometry_scene](geometry_scene.md) | 4 | 0 | 0 | Private geometry scenes; `/v1/geometry-scenes/*`; learner JWT ownership or explicit staff operations. |
 | [ingest](ingest.md) | 8 | 0 | 4 | Staging and human review; `/v1/admin/imports/*`, `/v1/admin/corpus/*`; import CLI. Shared admin key, browser signed admin session. |
 | [knowledge](knowledge.md) | 15 | 0 | 0 | Canonical reviewed teaching metadata; Corpus filters/search, `/v1/concepts`, `/v1/techniques`, `/v1/tutor/*`, `/v1/admin/pedagogy/*`; enrichment/projector jobs. |
-| [learner](learner.md) | 10 | 0 | 0 | Authenticated learner data; `/v1/learner/*`, `/v1/students/{student_id}/problems/{problem_ref}/attempts`, `/v1/attempts/*`; JWT ownership checks. |
+| [learner](learner.md) | 11 | 0 | 0 | Authenticated learner data; `/v1/learner/*`, `/v1/students/{student_id}/problems/{problem_ref}/attempts`, `/v1/attempts/*`; JWT ownership checks. |
 | [live](live.md) | 7 | 0 | 0 | Live teaching orchestration; `/v1/live/*` through the mathbank-live socket gateway; staff commands and session-scoped access. |
 | [neon_auth](neon_auth.md) | 9 | 0 | 0 | Provider-managed authentication; No checked-in MathBank REST consumer found. Current learner JWT/shared admin login does not thereby use Neon Auth. |
-| [pedagogy](pedagogy.md) | 21 | 0 | 0 | Imported steps and tutoring evidence; `/v1/admin/textbooks/*`, `/v1/admin/imports/*`, `/v1/attempts/*`, tutor and step-search routes; package importer. |
+| [pedagogy](pedagogy.md) | 30 | 0 | 0 | Imported steps and released instructional routes; `/v1/admin/textbooks/*`, `/v1/admin/tutoring-routes/*`, `/v1/tutor/*`; source compiler and metadata projector. |
 | [pipeline](pipeline.md) | 7 | 0 | 0 | Operational work and publications; `/v1/admin/pipeline/*`, `/v1/admin/papers`, `/v1/admin/imports/projection-requests`; CLI workers/projectors. |
 | [public](public.md) | 0 | 0 | 0 | Default/extension namespace; Extension functions/operators are used indirectly by UUID, trigram and vector operations. |
 | [search](search.md) | 7 | 0 | 0 | Derived search representations; `/v1/search/*`, similar-step and recovery retrieval; explicit corpus/step embedding jobs. |
@@ -37,7 +44,7 @@ A table's existence does not prove populated content, correct mathematics, appli
 
 ## Source/deployment reconciliation
 
-Numbered migrations 001-025 declare **115 project tables**; the selected deployment exposes **129 tables**.
+Project SQL through 026 plus packaged REST migrations declare **129 project tables**; the selected deployment exposes **143 tables**.
 Missing declared tables: **0**. Additional tables: **14**, explicitly listed below.
 This comparison checks relation identities and column-name sets, including dynamic approval columns in migration 008.
 It is not a PostgreSQL DDL interpreter or a claim that every type/default/constraint exactly matches source:

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geometry-scene-engine"
+version = "0.1.0"
+description = "Independent deterministic cumulative geometry scenes with proof-leakage validation"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.7", "PyYAML>=6", "scipy>=1.11", "fastapi>=0.115"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2", "httpx>=0.27", "ruff>=0.4", "mypy>=1.10"]
+agent = ["openai>=1.50"]
+
+[project.scripts]
+geometry-scene = "geometry_scene.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true

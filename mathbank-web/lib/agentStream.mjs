@@ -22,6 +22,8 @@ const TOOL_STAGES = {
   advance_topic_lesson: "Checking the current lesson checkpoint",
   control_topic_lesson: "Updating the lesson path",
   get_topic_lesson: "Restoring the current learning stage",
+  choose_response_window: "Choosing thinking time for this checkpoint",
+  continue_idle_question: "Offering the next bit of help",
   retrieval_audit_agent: "Auditing the retrieved topic evidence",
 };
 
@@ -30,7 +32,7 @@ export function toolEvidence(name, response) {
   const evidence = [];
   const add = (label, status = "complete") => evidence.push({ type: "activity", label, status });
   const count = (value) => Array.isArray(value) ? value.length : null;
-  if (["pedagogy_agent", "advance_topic_lesson", "control_topic_lesson", "get_topic_lesson"].includes(name)
+  if (["pedagogy_agent", "advance_topic_lesson", "control_topic_lesson", "get_topic_lesson", "continue_idle_question"].includes(name)
       && response.progress && Array.isArray(response.progress.stages)) {
     evidence.push({ type: "progress", progress: response.progress });
   }
@@ -61,13 +63,13 @@ export function toolEvidence(name, response) {
   }
   if (name === "get_next_hint" && response.provenance?.review_status === "PENDING") add("Generated hint · pending expert review", "stopped");
   if (name === "prepare_problem_guidance") {
-    evidence.push(...toolEvidence("get_problem_learning_context", response.context));
+    evidence.push(...toolEvidence("get_problem_learning_context", { ...response.context, warnings: [] }));
     if (response.status === "ready" && Array.isArray(response.stages)) {
       add(`${response.stages.length} teaching stages prepared · one checkpoint at a time`);
     }
-    if (Number.isSafeInteger(response.diagram_count)) add(`${response.diagram_count} source diagrams loaded`);
+    if (Number.isSafeInteger(response.diagram_count) && response.diagram_count > 0) add(`${response.diagram_count} source diagrams loaded`);
   }
-  if (["prepare_problem_guidance", "get_next_hint"].includes(name)) {
+  if (name === "get_next_hint") {
     const references = response.solution_evidence;
     if (references?.status === "available" && Number.isSafeInteger(references.references_considered)) {
       add(`${references.references_considered} stored solution records consulted for guidance`);
@@ -93,7 +95,7 @@ export function toolEvidence(name, response) {
     add("Evidence audit pending human review · no canonical mutation", "stopped");
   }
   if (name === "report_pedagogy_feedback" && response.feedback_id) add(`Relevance report ${response.status === "PENDING" ? "queued for review" : "already recorded"} · annotations unchanged`, "stopped");
-  if (Array.isArray(response.warnings) && response.warnings.length) add(`${response.warnings.length} evidence limitations reported · see tutor explanation`, "stopped");
+  if (name !== "prepare_problem_guidance" && Array.isArray(response.warnings) && response.warnings.length) add(`${response.warnings.length} evidence limitations reported · see tutor explanation`, "stopped");
   return evidence;
 }
 
@@ -147,6 +149,12 @@ export function createAgentEventMapper() {
       throw new Error(event.errorMessage || (typeof event.error === "string" ? event.error : event.error?.message) || `Agent error: ${event.errorCode || "stream failed"}`);
     }
     const updates = [];
+    if (Object.hasOwn(event.actions?.stateDelta || {}, "tutor:response_window")) {
+      updates.push({
+        type: "response-window",
+        window: publicResponseWindow(event.actions.stateDelta["tutor:response_window"]),
+      });
+    }
     generatedCoaching ||= hasGeneratedCoaching(event);
     const parts = event.content?.parts ?? [];
     for (const part of parts) {
@@ -183,3 +191,4 @@ export function createAgentEventMapper() {
     return updates;
   };
 }
+import { publicResponseWindow } from "./tutorResponseWindow.mjs";

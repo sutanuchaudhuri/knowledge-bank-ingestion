@@ -1,10 +1,10 @@
 # PostgreSQL `pedagogy` schema
 
-**Role:** Imported steps and tutoring evidence. Source provenance, textbook step DAGs, hints, learning items, diagnosis and recovery.
+**Role:** Imported steps and released instructional routes. Textbook provenance plus reviewed immutable route releases, instructional assets and compiler jobs.
 
-**Access family:** `/v1/admin/textbooks/*`, `/v1/admin/imports/*`, `/v1/attempts/*`, tutor and step-search routes; package importer.
+**Access family:** `/v1/admin/textbooks/*`, `/v1/admin/tutoring-routes/*`, `/v1/tutor/*`; source compiler and metadata projector.
 
-**Evidence:** live catalog metadata at 2026-10-07T13:40:57.292324+00:00; source `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`.
+**Evidence:** live catalog metadata at 2026-10-08T01:57:54.421824+00:00; source `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7`.
 Metadata is observational, not proof of data correctness, endpoint authorization, or publication readiness.
 Exact columns/constraints/indexes below are the observed selected-target catalog. No private row values are included.
 
@@ -689,6 +689,318 @@ No user-defined triggers observed.
 **Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
 Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
 
+### `pedagogy.route_asset`
+
+**Kind / use case:** table. Release-local claim, misconception, theory or purpose-tagged learning item; not a shared canonical library.
+
+**Migration owner:** [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql#L98); subsequent ALTERs may change the catalog below.
+
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L107); [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L317); [mathbank-rest/src/mathbank_rest/route_projection.py](../../../mathbank-rest/src/mathbank_rest/route_projection.py#L74).
+
+These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
+Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
+
+**Row-level security:** enabled `False`, forced `False`. Application ownership checks remain necessary regardless of this flag.
+
+| Column | PostgreSQL type | Nullable | Default | Identity / generated |
+|---|---|---|---|---|
+| `route_release_id` | `uuid` | no | `-` | `- / -` |
+| `asset_key` | `text` | no | `-` | `- / -` |
+| `asset_id` | `uuid` | no | `gen_random_uuid()` | `- / -` |
+| `asset_kind` | `text` | no | `-` | `- / -` |
+| `content_hash` | `text` | no | `-` | `- / -` |
+| `content` | `jsonb` | no | `-` | `- / -` |
+
+**Constraints** (PK, unique, check, FK; default FK action omitted by PostgreSQL means NO ACTION):
+
+| Name / kind | Definition | Deferred / validated |
+|---|---|---|
+| `route_asset_asset_id_key` / `u` | `UNIQUE (asset_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_asset_id_not_null` / `n` | `NOT NULL asset_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_asset_key_not_null` / `n` | `NOT NULL asset_key` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_asset_kind_check` / `c` | `CHECK (asset_kind = ANY (ARRAY['CLAIM'::text, 'MISCONCEPTION'::text, 'THEORY'::text, 'LEARNING_ITEM'::text]))` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_asset_kind_not_null` / `n` | `NOT NULL asset_kind` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_content_hash_not_null` / `n` | `NOT NULL content_hash` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_content_not_null` / `n` | `NOT NULL content` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_pkey` / `p` | `PRIMARY KEY (route_release_id, asset_key)` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_route_release_id_fkey` / `f` | `FOREIGN KEY (route_release_id) REFERENCES pedagogy.solution_route_release(route_release_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_route_release_id_not_null` / `n` | `NOT NULL route_release_id` | deferrable=False, initially deferred=False, validated=True |
+
+**Incoming foreign keys:**
+
+- `pedagogy.route_asset_link` / `route_asset_link_route_release_id_asset_key_fkey`: `FOREIGN KEY (route_release_id, asset_key) REFERENCES pedagogy.route_asset(route_release_id, asset_key)`.
+
+**Indexes** (including constraint-backed indexes and partial predicates):
+
+- `route_asset_asset_id_key`: `CREATE UNIQUE INDEX route_asset_asset_id_key ON pedagogy.route_asset USING btree (asset_id)`; valid=True, ready=True.
+- `route_asset_pkey`: `CREATE UNIQUE INDEX route_asset_pkey ON pedagogy.route_asset USING btree (route_release_id, asset_key)`; valid=True, ready=True.
+
+**Triggers:**
+
+- `immutable_route_snapshot`: `CREATE TRIGGER immutable_route_snapshot BEFORE INSERT OR DELETE OR UPDATE ON pedagogy.route_asset FOR EACH ROW EXECUTE FUNCTION pedagogy.guard_route_snapshot()`; enabled `O` (O=origin, A=always, R=replica, D=disabled).
+
+**Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
+Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
+
+### `pedagogy.route_asset_link`
+
+**Kind / use case:** table. Typed checkpoint CAN_TRIGGER/CHECKED_BY/EXPLAINED_BY asset relationships.
+
+**Migration owner:** [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql#L108); subsequent ALTERs may change the catalog below.
+
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L70); [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L384).
+
+These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
+Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
+
+**Row-level security:** enabled `False`, forced `False`. Application ownership checks remain necessary regardless of this flag.
+
+| Column | PostgreSQL type | Nullable | Default | Identity / generated |
+|---|---|---|---|---|
+| `route_release_id` | `uuid` | no | `-` | `- / -` |
+| `step_index` | `integer` | no | `-` | `- / -` |
+| `asset_key` | `text` | no | `-` | `- / -` |
+| `role` | `text` | no | `-` | `- / -` |
+
+**Constraints** (PK, unique, check, FK; default FK action omitted by PostgreSQL means NO ACTION):
+
+| Name / kind | Definition | Deferred / validated |
+|---|---|---|
+| `route_asset_link_asset_key_not_null` / `n` | `NOT NULL asset_key` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_link_pkey` / `p` | `PRIMARY KEY (route_release_id, step_index, asset_key, role)` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_link_role_check` / `c` | `CHECK (role = ANY (ARRAY['CAN_TRIGGER'::text, 'CHECKED_BY'::text, 'EXPLAINED_BY'::text]))` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_link_role_not_null` / `n` | `NOT NULL role` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_link_route_release_id_asset_key_fkey` / `f` | `FOREIGN KEY (route_release_id, asset_key) REFERENCES pedagogy.route_asset(route_release_id, asset_key)` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_link_route_release_id_not_null` / `n` | `NOT NULL route_release_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_link_route_release_id_step_index_fkey` / `f` | `FOREIGN KEY (route_release_id, step_index) REFERENCES pedagogy.route_step(route_release_id, step_index)` | deferrable=False, initially deferred=False, validated=True |
+| `route_asset_link_step_index_not_null` / `n` | `NOT NULL step_index` | deferrable=False, initially deferred=False, validated=True |
+
+**Indexes** (including constraint-backed indexes and partial predicates):
+
+- `route_asset_link_pkey`: `CREATE UNIQUE INDEX route_asset_link_pkey ON pedagogy.route_asset_link USING btree (route_release_id, step_index, asset_key, role)`; valid=True, ready=True.
+
+**Triggers:**
+
+- `immutable_route_snapshot`: `CREATE TRIGGER immutable_route_snapshot BEFORE INSERT OR DELETE OR UPDATE ON pedagogy.route_asset_link FOR EACH ROW EXECUTE FUNCTION pedagogy.guard_route_snapshot()`; enabled `O` (O=origin, A=always, R=replica, D=disabled).
+
+**Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
+Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
+
+### `pedagogy.route_compiler_job`
+
+**Kind / use case:** table. Per-run solution/source hash, resumable QUEUED/RUNNING/DRAFT/REUSED/FAILED state and safe error class.
+Incremental full-corpus migration source adds `error_details` and QUEUED below;
+the remaining catalog fields retain the original observation.
+
+**Migration owner:** [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql#L40); subsequent ALTERs may change the catalog below.
+
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L80).
+
+These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
+Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
+
+**Row-level security:** enabled `False`, forced `False`. Application ownership checks remain necessary regardless of this flag.
+
+| Column | PostgreSQL type | Nullable | Default | Identity / generated |
+|---|---|---|---|---|
+| `run_id` | `uuid` | no | `-` | `- / -` |
+| `solution_id` | `uuid` | no | `-` | `- / -` |
+| `source_hash` | `text` | no | `-` | `- / -` |
+| `status` | `text` | no | `-` | `- / -` |
+| `route_release_id` | `uuid` | yes | `-` | `- / -` |
+| `error_code` | `text` | yes | `-` | `- / -` |
+| `error_details` | `jsonb` | no | `'[]'::jsonb` | `- / -` |
+| `created_at` | `timestamp with time zone` | no | `now()` | `- / -` |
+| `completed_at` | `timestamp with time zone` | yes | `-` | `- / -` |
+
+**Constraints** (PK, unique, check, FK; default FK action omitted by PostgreSQL means NO ACTION):
+
+| Name / kind | Definition | Deferred / validated |
+|---|---|---|
+| `route_compiler_job_created_at_not_null` / `n` | `NOT NULL created_at` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_job_pkey` / `p` | `PRIMARY KEY (run_id, solution_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_job_route_release_id_fkey` / `f` | `FOREIGN KEY (route_release_id) REFERENCES pedagogy.solution_route_release(route_release_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_job_run_id_fkey` / `f` | `FOREIGN KEY (run_id) REFERENCES pedagogy.route_compiler_run(run_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_job_run_id_not_null` / `n` | `NOT NULL run_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_job_solution_id_fkey` / `f` | `FOREIGN KEY (solution_id) REFERENCES core.solution(solution_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_job_solution_id_not_null` / `n` | `NOT NULL solution_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_job_source_hash_not_null` / `n` | `NOT NULL source_hash` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_job_status_check` / `c` | `CHECK (status IN ('QUEUED','RUNNING','DRAFT','REUSED','FAILED'))` | Source-derived full-corpus extension |
+| `route_compiler_job_status_not_null` / `n` | `NOT NULL status` | deferrable=False, initially deferred=False, validated=True |
+
+**Indexes** (including constraint-backed indexes and partial predicates):
+
+- `route_compiler_job_pkey`: `CREATE UNIQUE INDEX route_compiler_job_pkey ON pedagogy.route_compiler_job USING btree (run_id, solution_id)`; valid=True, ready=True.
+
+**Triggers:**
+
+No user-defined triggers observed.
+
+**Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
+Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
+
+### `pedagogy.route_compiler_run`
+
+**Kind / use case:** table. Frozen bounded/full-corpus source cohort, compiler version, operator bulk approval policy and aggregate ingestion outcome.
+Incremental full-corpus migration source adds `auto_review_by` and lifts the
+10,000-source constraint below; other fields retain the original observation.
+
+**Migration owner:** [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql#L3); subsequent ALTERs may change the catalog below.
+
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L415).
+
+These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
+Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
+
+**Row-level security:** enabled `False`, forced `False`. Application ownership checks remain necessary regardless of this flag.
+
+| Column | PostgreSQL type | Nullable | Default | Identity / generated |
+|---|---|---|---|---|
+| `run_id` | `uuid` | no | `gen_random_uuid()` | `- / -` |
+| `generator_version` | `text` | no | `-` | `- / -` |
+| `auto_review_by` | `text` | yes | `-` | `- / -` |
+| `requested_limit` | `integer` | no | `-` | `- / -` |
+| `status` | `text` | no | `-` | `- / -` |
+| `created_at` | `timestamp with time zone` | no | `now()` | `- / -` |
+| `completed_at` | `timestamp with time zone` | yes | `-` | `- / -` |
+
+**Constraints** (PK, unique, check, FK; default FK action omitted by PostgreSQL means NO ACTION):
+
+| Name / kind | Definition | Deferred / validated |
+|---|---|---|
+| `route_compiler_run_created_at_not_null` / `n` | `NOT NULL created_at` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_run_generator_version_not_null` / `n` | `NOT NULL generator_version` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_run_pkey` / `p` | `PRIMARY KEY (run_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_run_requested_limit_check` / `c` | `CHECK (requested_limit > 0)` | Source-derived full-corpus extension |
+| `route_compiler_run_requested_limit_not_null` / `n` | `NOT NULL requested_limit` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_run_run_id_not_null` / `n` | `NOT NULL run_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_run_status_check` / `c` | `CHECK (status = ANY (ARRAY['RUNNING'::text, 'COMPLETED'::text, 'PARTIAL'::text, 'FAILED'::text]))` | deferrable=False, initially deferred=False, validated=True |
+| `route_compiler_run_status_not_null` / `n` | `NOT NULL status` | deferrable=False, initially deferred=False, validated=True |
+
+**Incoming foreign keys:**
+
+- `pedagogy.route_compiler_job` / `route_compiler_job_run_id_fkey`: `FOREIGN KEY (run_id) REFERENCES pedagogy.route_compiler_run(run_id)`.
+
+**Indexes** (including constraint-backed indexes and partial predicates):
+
+- `route_compiler_run_pkey`: `CREATE UNIQUE INDEX route_compiler_run_pkey ON pedagogy.route_compiler_run USING btree (run_id)`; valid=True, ready=True.
+
+**Triggers:**
+
+No user-defined triggers observed.
+
+**Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
+Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
+
+### `pedagogy.route_step`
+
+**Kind / use case:** table. Release-owned 1-based atomic mathematical result, exact source excerpt and earlier claim/dependency references.
+
+**Migration owner:** [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql#L52); subsequent ALTERs may change the catalog below.
+
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L47); [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L331); [mathbank-rest/src/mathbank_rest/route_projection.py](../../../mathbank-rest/src/mathbank_rest/route_projection.py#L66); [mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py](../../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L73).
+
+These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
+Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
+
+**Row-level security:** enabled `False`, forced `False`. Application ownership checks remain necessary regardless of this flag.
+
+| Column | PostgreSQL type | Nullable | Default | Identity / generated |
+|---|---|---|---|---|
+| `route_release_id` | `uuid` | no | `-` | `- / -` |
+| `step_index` | `integer` | no | `-` | `- / -` |
+| `step_id` | `uuid` | no | `gen_random_uuid()` | `- / -` |
+| `mathematical_result` | `text` | no | `-` | `- / -` |
+| `source_quote` | `text` | no | `-` | `- / -` |
+| `depends_on` | `integer[]` | no | `'{}'::integer[]` | `- / -` |
+| `produces` | `text[]` | no | `'{}'::text[]` | `- / -` |
+| `uses_claims` | `text[]` | no | `'{}'::text[]` | `- / -` |
+
+**Constraints** (PK, unique, check, FK; default FK action omitted by PostgreSQL means NO ACTION):
+
+| Name / kind | Definition | Deferred / validated |
+|---|---|---|
+| `route_step_depends_on_not_null` / `n` | `NOT NULL depends_on` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_mathematical_result_not_null` / `n` | `NOT NULL mathematical_result` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_pkey` / `p` | `PRIMARY KEY (route_release_id, step_index)` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_produces_not_null` / `n` | `NOT NULL produces` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_route_release_id_fkey` / `f` | `FOREIGN KEY (route_release_id) REFERENCES pedagogy.solution_route_release(route_release_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_route_release_id_not_null` / `n` | `NOT NULL route_release_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_source_quote_not_null` / `n` | `NOT NULL source_quote` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_step_id_key` / `u` | `UNIQUE (step_id)` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_step_id_not_null` / `n` | `NOT NULL step_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_step_index_check` / `c` | `CHECK (step_index > 0)` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_step_index_not_null` / `n` | `NOT NULL step_index` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_uses_claims_not_null` / `n` | `NOT NULL uses_claims` | deferrable=False, initially deferred=False, validated=True |
+
+**Incoming foreign keys:**
+
+- `pedagogy.route_asset_link` / `route_asset_link_route_release_id_step_index_fkey`: `FOREIGN KEY (route_release_id, step_index) REFERENCES pedagogy.route_step(route_release_id, step_index)`.
+- `pedagogy.route_step_hint` / `route_step_hint_route_release_id_step_index_fkey`: `FOREIGN KEY (route_release_id, step_index) REFERENCES pedagogy.route_step(route_release_id, step_index)`.
+- `pedagogy.solution_step_instruction` / `solution_step_instruction_route_release_id_step_index_fkey`: `FOREIGN KEY (route_release_id, step_index) REFERENCES pedagogy.route_step(route_release_id, step_index)`.
+- `pedagogy.solution_step_requirement` / `solution_step_requirement_route_release_id_step_index_fkey`: `FOREIGN KEY (route_release_id, step_index) REFERENCES pedagogy.route_step(route_release_id, step_index)`.
+
+**Indexes** (including constraint-backed indexes and partial predicates):
+
+- `route_step_pkey`: `CREATE UNIQUE INDEX route_step_pkey ON pedagogy.route_step USING btree (route_release_id, step_index)`; valid=True, ready=True.
+- `route_step_step_id_key`: `CREATE UNIQUE INDEX route_step_step_id_key ON pedagogy.route_step USING btree (step_id)`; valid=True, ready=True.
+
+**Triggers:**
+
+- `immutable_route_snapshot`: `CREATE TRIGGER immutable_route_snapshot BEFORE INSERT OR DELETE OR UPDATE ON pedagogy.route_step FOR EACH ROW EXECUTE FUNCTION pedagogy.guard_route_snapshot()`; enabled `O` (O=origin, A=always, R=replica, D=disabled).
+
+**Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
+Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
+
+### `pedagogy.route_step_hint`
+
+**Kind / use case:** table. Precomputed H1-H4 and H5 current-step reveal, scoped by immutable release/step/variant/misconception.
+
+**Migration owner:** [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql#L74); subsequent ALTERs may change the catalog below.
+
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L79); [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L361).
+
+These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
+Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
+
+**Row-level security:** enabled `False`, forced `False`. Application ownership checks remain necessary regardless of this flag.
+
+| Column | PostgreSQL type | Nullable | Default | Identity / generated |
+|---|---|---|---|---|
+| `route_release_id` | `uuid` | no | `-` | `- / -` |
+| `step_index` | `integer` | no | `-` | `- / -` |
+| `hint_level` | `integer` | no | `-` | `- / -` |
+| `hint_variant` | `text` | no | `'default'::text` | `- / -` |
+| `misconception_key` | `text` | no | `''::text` | `- / -` |
+| `content_hash` | `text` | no | `-` | `- / -` |
+| `hint_text` | `text` | no | `-` | `- / -` |
+
+**Constraints** (PK, unique, check, FK; default FK action omitted by PostgreSQL means NO ACTION):
+
+| Name / kind | Definition | Deferred / validated |
+|---|---|---|
+| `route_step_hint_content_hash_not_null` / `n` | `NOT NULL content_hash` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_hint_hint_level_check` / `c` | `CHECK (hint_level >= 1 AND hint_level <= 5)` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_hint_hint_level_not_null` / `n` | `NOT NULL hint_level` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_hint_hint_text_not_null` / `n` | `NOT NULL hint_text` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_hint_hint_variant_not_null` / `n` | `NOT NULL hint_variant` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_hint_misconception_key_not_null` / `n` | `NOT NULL misconception_key` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_hint_pkey` / `p` | `PRIMARY KEY (route_release_id, step_index, hint_level, hint_variant, misconception_key)` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_hint_route_release_id_not_null` / `n` | `NOT NULL route_release_id` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_hint_route_release_id_step_index_fkey` / `f` | `FOREIGN KEY (route_release_id, step_index) REFERENCES pedagogy.route_step(route_release_id, step_index)` | deferrable=False, initially deferred=False, validated=True |
+| `route_step_hint_step_index_not_null` / `n` | `NOT NULL step_index` | deferrable=False, initially deferred=False, validated=True |
+
+**Indexes** (including constraint-backed indexes and partial predicates):
+
+- `route_step_hint_pkey`: `CREATE UNIQUE INDEX route_step_hint_pkey ON pedagogy.route_step_hint USING btree (route_release_id, step_index, hint_level, hint_variant, misconception_key)`; valid=True, ready=True.
+
+**Triggers:**
+
+- `immutable_route_snapshot`: `CREATE TRIGGER immutable_route_snapshot BEFORE INSERT OR DELETE OR UPDATE ON pedagogy.route_step_hint FOR EACH ROW EXECUTE FUNCTION pedagogy.guard_route_snapshot()`; enabled `O` (O=origin, A=always, R=replica, D=disabled).
+
+**Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
+Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
+
 ### `pedagogy.solution_dag_review`
 
 **Kind / use case:** table. Admin approval/needs-revision record for an imported solution DAG.
@@ -805,6 +1117,97 @@ No user-defined triggers observed.
 **Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
 Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
 
+### `pedagogy.solution_route_release`
+
+**Kind / use case:** table. Solution-owned versioned teaching route; source/content hashes and separate review/publication lifecycle.
+
+**Migration owner:** [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql#L12); subsequent ALTERs may change the catalog below.
+
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L19); [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L45); [mathbank-rest/src/mathbank_rest/route_projection.py](../../../mathbank-rest/src/mathbank_rest/route_projection.py#L33); [mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py](../../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L74).
+
+These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
+Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
+
+**Row-level security:** enabled `False`, forced `False`. Application ownership checks remain necessary regardless of this flag.
+
+| Column | PostgreSQL type | Nullable | Default | Identity / generated |
+|---|---|---|---|---|
+| `route_release_id` | `uuid` | no | `gen_random_uuid()` | `- / -` |
+| `solution_id` | `uuid` | no | `-` | `- / -` |
+| `problem_id` | `uuid` | no | `-` | `- / -` |
+| `release_version` | `integer` | no | `-` | `- / -` |
+| `source_hash` | `text` | no | `-` | `- / -` |
+| `content_hash` | `text` | no | `-` | `- / -` |
+| `approach_name` | `text` | no | `-` | `- / -` |
+| `approach_summary` | `text` | no | `-` | `- / -` |
+| `difficulty_level` | `integer` | no | `-` | `- / -` |
+| `conceptual_load` | `integer` | no | `-` | `- / -` |
+| `algebraic_load` | `integer` | no | `-` | `- / -` |
+| `insight_load` | `integer` | no | `-` | `- / -` |
+| `preferred_for_tutoring` | `boolean` | no | `false` | `- / -` |
+| `route_quality` | `numeric` | yes | `-` | `- / -` |
+| `status` | `text` | no | `'DRAFT'::text` | `- / -` |
+| `generator_version` | `text` | no | `-` | `- / -` |
+| `reviewed_by` | `text` | yes | `-` | `- / -` |
+| `reviewed_at` | `timestamp with time zone` | yes | `-` | `- / -` |
+| `published_at` | `timestamp with time zone` | yes | `-` | `- / -` |
+| `created_at` | `timestamp with time zone` | no | `now()` | `- / -` |
+
+**Constraints** (PK, unique, check, FK; default FK action omitted by PostgreSQL means NO ACTION):
+
+| Name / kind | Definition | Deferred / validated |
+|---|---|---|
+| `solution_route_release_algebraic_load_check` / `c` | `CHECK (algebraic_load >= 1 AND algebraic_load <= 5)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_algebraic_load_not_null` / `n` | `NOT NULL algebraic_load` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_approach_name_not_null` / `n` | `NOT NULL approach_name` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_approach_summary_not_null` / `n` | `NOT NULL approach_summary` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_check` / `c` | `CHECK (status = 'DRAFT'::text OR reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_conceptual_load_check` / `c` | `CHECK (conceptual_load >= 1 AND conceptual_load <= 5)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_conceptual_load_not_null` / `n` | `NOT NULL conceptual_load` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_content_hash_not_null` / `n` | `NOT NULL content_hash` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_created_at_not_null` / `n` | `NOT NULL created_at` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_difficulty_level_check` / `c` | `CHECK (difficulty_level >= 1 AND difficulty_level <= 5)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_difficulty_level_not_null` / `n` | `NOT NULL difficulty_level` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_generator_version_not_null` / `n` | `NOT NULL generator_version` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_insight_load_check` / `c` | `CHECK (insight_load >= 1 AND insight_load <= 5)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_insight_load_not_null` / `n` | `NOT NULL insight_load` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_pkey` / `p` | `PRIMARY KEY (route_release_id)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_preferred_for_tutoring_not_null` / `n` | `NOT NULL preferred_for_tutoring` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_problem_id_fkey` / `f` | `FOREIGN KEY (problem_id) REFERENCES core.problem(problem_id)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_problem_id_not_null` / `n` | `NOT NULL problem_id` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_release_version_check` / `c` | `CHECK (release_version > 0)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_release_version_not_null` / `n` | `NOT NULL release_version` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_route_quality_check` / `c` | `CHECK (route_quality >= 0::numeric AND route_quality <= 1::numeric)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_route_release_id_not_null` / `n` | `NOT NULL route_release_id` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_solution_id_fkey` / `f` | `FOREIGN KEY (solution_id) REFERENCES core.solution(solution_id)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_solution_id_not_null` / `n` | `NOT NULL solution_id` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_solution_id_release_version_key` / `u` | `UNIQUE (solution_id, release_version)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_solution_id_source_hash_generator_ve_key` / `u` | `UNIQUE (solution_id, source_hash, generator_version)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_source_hash_not_null` / `n` | `NOT NULL source_hash` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_status_check` / `c` | `CHECK (status = ANY (ARRAY['DRAFT'::text, 'REVIEWED'::text, 'PUBLISHED'::text, 'RETIRED'::text]))` | deferrable=False, initially deferred=False, validated=True |
+| `solution_route_release_status_not_null` / `n` | `NOT NULL status` | deferrable=False, initially deferred=False, validated=True |
+
+**Incoming foreign keys:**
+
+- `learner.route_attempt` / `route_attempt_route_release_id_fkey`: `FOREIGN KEY (route_release_id) REFERENCES pedagogy.solution_route_release(route_release_id)`.
+- `pedagogy.route_asset` / `route_asset_route_release_id_fkey`: `FOREIGN KEY (route_release_id) REFERENCES pedagogy.solution_route_release(route_release_id)`.
+- `pedagogy.route_compiler_job` / `route_compiler_job_route_release_id_fkey`: `FOREIGN KEY (route_release_id) REFERENCES pedagogy.solution_route_release(route_release_id)`.
+- `pedagogy.route_step` / `route_step_route_release_id_fkey`: `FOREIGN KEY (route_release_id) REFERENCES pedagogy.solution_route_release(route_release_id)`.
+
+**Indexes** (including constraint-backed indexes and partial predicates):
+
+- `route_release_problem_status`: `CREATE INDEX route_release_problem_status ON pedagogy.solution_route_release USING btree (problem_id, status)`; valid=True, ready=True.
+- `solution_route_release_pkey`: `CREATE UNIQUE INDEX solution_route_release_pkey ON pedagogy.solution_route_release USING btree (route_release_id)`; valid=True, ready=True.
+- `solution_route_release_solution_id_release_version_key`: `CREATE UNIQUE INDEX solution_route_release_solution_id_release_version_key ON pedagogy.solution_route_release USING btree (solution_id, release_version)`; valid=True, ready=True.
+- `solution_route_release_solution_id_source_hash_generator_ve_key`: `CREATE UNIQUE INDEX solution_route_release_solution_id_source_hash_generator_ve_key ON pedagogy.solution_route_release USING btree (solution_id, source_hash, generator_version)`; valid=True, ready=True.
+
+**Triggers:**
+
+- `immutable_route_release`: `CREATE TRIGGER immutable_route_release BEFORE DELETE OR UPDATE ON pedagogy.solution_route_release FOR EACH ROW EXECUTE FUNCTION pedagogy.guard_route_release()`; enabled `O` (O=origin, A=always, R=replica, D=disabled).
+
+**Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
+Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
+
 ### `pedagogy.solution_source_ref`
 
 **Kind / use case:** table. Printed solution identity/page linked to canonical solution.
@@ -862,7 +1265,7 @@ Role identities are intentionally not exported; this is not a full cluster-role/
 
 **Migration owner:** [010_textbook_import.sql](../../../mathbank-db/sql/010_textbook_import.sql#L239); subsequent ALTERs may change the catalog below.
 
-**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/attempt_media.py](../../../mathbank-rest/src/mathbank_rest/attempt_media.py#L390); [mathbank-rest/src/mathbank_rest/step_runtime.py](../../../mathbank-rest/src/mathbank_rest/step_runtime.py#L169); [mathbank-rest/src/mathbank_rest/step_recovery.py](../../../mathbank-rest/src/mathbank_rest/step_recovery.py#L183); [mathbank-rest/src/mathbank_rest/step_diagnosis.py](../../../mathbank-rest/src/mathbank_rest/step_diagnosis.py#L196); [mathbank-rest/src/mathbank_rest/step_tutor.py](../../../mathbank-rest/src/mathbank_rest/step_tutor.py#L206); [mathbank-rest/src/mathbank_rest/routers/attempt_media.py](../../../mathbank-rest/src/mathbank_rest/routers/attempt_media.py#L552); [mathbank-rest/src/mathbank_rest/db/step_search.py](../../../mathbank-rest/src/mathbank_rest/db/step_search.py#L37); [mathbank-rest/src/mathbank_rest/db/topic_pedagogy.py](../../../mathbank-rest/src/mathbank_rest/db/topic_pedagogy.py#L97); [mathbank-rest/src/mathbank_rest/db/textbook_admin.py](../../../mathbank-rest/src/mathbank_rest/db/textbook_admin.py#L73); [mathbank-rest/src/mathbank_rest/db/queries.py](../../../mathbank-rest/src/mathbank_rest/db/queries.py#L20).
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/attempt_media.py](../../../mathbank-rest/src/mathbank_rest/attempt_media.py#L390); [mathbank-rest/src/mathbank_rest/step_runtime.py](../../../mathbank-rest/src/mathbank_rest/step_runtime.py#L169); [mathbank-rest/src/mathbank_rest/step_recovery.py](../../../mathbank-rest/src/mathbank_rest/step_recovery.py#L183); [mathbank-rest/src/mathbank_rest/step_diagnosis.py](../../../mathbank-rest/src/mathbank_rest/step_diagnosis.py#L196); [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L522); [mathbank-rest/src/mathbank_rest/step_tutor.py](../../../mathbank-rest/src/mathbank_rest/step_tutor.py#L206); [mathbank-rest/src/mathbank_rest/routers/attempt_media.py](../../../mathbank-rest/src/mathbank_rest/routers/attempt_media.py#L552); [mathbank-rest/src/mathbank_rest/db/step_search.py](../../../mathbank-rest/src/mathbank_rest/db/step_search.py#L37); [mathbank-rest/src/mathbank_rest/db/topic_pedagogy.py](../../../mathbank-rest/src/mathbank_rest/db/topic_pedagogy.py#L97); [mathbank-rest/src/mathbank_rest/db/textbook_admin.py](../../../mathbank-rest/src/mathbank_rest/db/textbook_admin.py#L73).
 
 These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
 Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
@@ -1020,6 +1423,102 @@ Reads/writes and authorization are enforced in those callers, not inferred from 
 **Triggers:**
 
 No user-defined triggers observed.
+
+**Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
+Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
+
+### `pedagogy.solution_step_instruction`
+
+**Kind / use case:** table. Private complete goal, student prompt, expected response, recognition, reasoning and current-step explanation snapshot.
+
+**Migration owner:** [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql#L64); subsequent ALTERs may change the catalog below.
+
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L48); [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L348).
+
+These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
+Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
+
+**Row-level security:** enabled `False`, forced `False`. Application ownership checks remain necessary regardless of this flag.
+
+| Column | PostgreSQL type | Nullable | Default | Identity / generated |
+|---|---|---|---|---|
+| `route_release_id` | `uuid` | no | `-` | `- / -` |
+| `step_index` | `integer` | no | `-` | `- / -` |
+| `instruction_version` | `integer` | no | `1` | `- / -` |
+| `content_hash` | `text` | no | `-` | `- / -` |
+| `content` | `jsonb` | no | `-` | `- / -` |
+
+**Constraints** (PK, unique, check, FK; default FK action omitted by PostgreSQL means NO ACTION):
+
+| Name / kind | Definition | Deferred / validated |
+|---|---|---|
+| `solution_step_instruction_content_hash_not_null` / `n` | `NOT NULL content_hash` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_instruction_content_not_null` / `n` | `NOT NULL content` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_instruction_instruction_version_not_null` / `n` | `NOT NULL instruction_version` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_instruction_pkey` / `p` | `PRIMARY KEY (route_release_id, step_index)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_instruction_route_release_id_not_null` / `n` | `NOT NULL route_release_id` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_instruction_route_release_id_step_index_fkey` / `f` | `FOREIGN KEY (route_release_id, step_index) REFERENCES pedagogy.route_step(route_release_id, step_index)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_instruction_step_index_not_null` / `n` | `NOT NULL step_index` | deferrable=False, initially deferred=False, validated=True |
+
+**Indexes** (including constraint-backed indexes and partial predicates):
+
+- `solution_step_instruction_pkey`: `CREATE UNIQUE INDEX solution_step_instruction_pkey ON pedagogy.solution_step_instruction USING btree (route_release_id, step_index)`; valid=True, ready=True.
+
+**Triggers:**
+
+- `immutable_route_snapshot`: `CREATE TRIGGER immutable_route_snapshot BEFORE INSERT OR DELETE OR UPDATE ON pedagogy.solution_step_instruction FOR EACH ROW EXECUTE FUNCTION pedagogy.guard_route_snapshot()`; enabled `O` (O=origin, A=always, R=replica, D=disabled).
+
+**Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
+Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
+
+### `pedagogy.solution_step_requirement`
+
+**Kind / use case:** table. Canonical taxonomy prerequisite/use role, level, importance and blocking requirement.
+
+**Migration owner:** [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql#L86); subsequent ALTERs may change the catalog below.
+
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L60); [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L375).
+
+These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
+Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
+
+**Row-level security:** enabled `False`, forced `False`. Application ownership checks remain necessary regardless of this flag.
+
+| Column | PostgreSQL type | Nullable | Default | Identity / generated |
+|---|---|---|---|---|
+| `route_release_id` | `uuid` | no | `-` | `- / -` |
+| `step_index` | `integer` | no | `-` | `- / -` |
+| `taxonomy_node_id` | `text` | no | `-` | `- / -` |
+| `role` | `text` | no | `-` | `- / -` |
+| `required_level` | `integer` | no | `-` | `- / -` |
+| `importance` | `numeric` | no | `-` | `- / -` |
+| `blocking` | `boolean` | no | `-` | `- / -` |
+
+**Constraints** (PK, unique, check, FK; default FK action omitted by PostgreSQL means NO ACTION):
+
+| Name / kind | Definition | Deferred / validated |
+|---|---|---|
+| `solution_step_requirement_blocking_not_null` / `n` | `NOT NULL blocking` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_importance_check` / `c` | `CHECK (importance >= 0::numeric AND importance <= 1::numeric)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_importance_not_null` / `n` | `NOT NULL importance` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_pkey` / `p` | `PRIMARY KEY (route_release_id, step_index, taxonomy_node_id, role)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_required_level_check` / `c` | `CHECK (required_level >= 1 AND required_level <= 5)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_required_level_not_null` / `n` | `NOT NULL required_level` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_role_check` / `c` | `CHECK (role = ANY (ARRAY['REQUIRED'::text, 'HELPFUL'::text, 'RECOGNITION'::text, 'EXECUTION'::text, 'JUSTIFICATION'::text, 'USED'::text]))` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_role_not_null` / `n` | `NOT NULL role` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_route_release_id_not_null` / `n` | `NOT NULL route_release_id` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_route_release_id_step_index_fkey` / `f` | `FOREIGN KEY (route_release_id, step_index) REFERENCES pedagogy.route_step(route_release_id, step_index)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_step_index_not_null` / `n` | `NOT NULL step_index` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_taxonomy_node_id_fkey` / `f` | `FOREIGN KEY (taxonomy_node_id) REFERENCES pedagogy.taxonomy_node(taxonomy_node_id)` | deferrable=False, initially deferred=False, validated=True |
+| `solution_step_requirement_taxonomy_node_id_not_null` / `n` | `NOT NULL taxonomy_node_id` | deferrable=False, initially deferred=False, validated=True |
+
+**Indexes** (including constraint-backed indexes and partial predicates):
+
+- `solution_step_requirement_pkey`: `CREATE UNIQUE INDEX solution_step_requirement_pkey ON pedagogy.solution_step_requirement USING btree (route_release_id, step_index, taxonomy_node_id, role)`; valid=True, ready=True.
+
+**Triggers:**
+
+- `immutable_route_snapshot`: `CREATE TRIGGER immutable_route_snapshot BEFORE INSERT OR DELETE OR UPDATE ON pedagogy.solution_step_requirement FOR EACH ROW EXECUTE FUNCTION pedagogy.guard_route_snapshot()`; enabled `O` (O=origin, A=always, R=replica, D=disabled).
 
 **Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
 Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
@@ -1293,7 +1792,7 @@ Role identities are intentionally not exported; this is not a full cluster-role/
 
 **Migration owner:** [010_textbook_import.sql](../../../mathbank-db/sql/010_textbook_import.sql#L142); subsequent ALTERs may change the catalog below.
 
-**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/enrichment.py](../../../mathbank-rest/src/mathbank_rest/enrichment.py#L379); [mathbank-rest/src/mathbank_rest/step_recovery.py](../../../mathbank-rest/src/mathbank_rest/step_recovery.py#L183); [mathbank-rest/src/mathbank_rest/step_diagnosis.py](../../../mathbank-rest/src/mathbank_rest/step_diagnosis.py#L209); [mathbank-rest/src/mathbank_rest/db/step_search.py](../../../mathbank-rest/src/mathbank_rest/db/step_search.py#L82); [mathbank-rest/src/mathbank_rest/db/topic_pedagogy.py](../../../mathbank-rest/src/mathbank_rest/db/topic_pedagogy.py#L31); [mathbank-rest/src/mathbank_rest/db/textbook_admin.py](../../../mathbank-rest/src/mathbank_rest/db/textbook_admin.py#L67); [mathbank-rest/src/mathbank_rest/db/queries.py](../../../mathbank-rest/src/mathbank_rest/db/queries.py#L21); [mathbank-rest/src/mathbank_rest/db/retrieval_audit.py](../../../mathbank-rest/src/mathbank_rest/db/retrieval_audit.py#L29); [mathbank-rest/src/mathbank_rest/db/import_admin.py](../../../mathbank-rest/src/mathbank_rest/db/import_admin.py#L335); [mathbank-db/etl/derive_step_techniques.py](../../../mathbank-db/etl/derive_step_techniques.py#L178).
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/enrichment.py](../../../mathbank-rest/src/mathbank_rest/enrichment.py#L379); [mathbank-rest/src/mathbank_rest/step_recovery.py](../../../mathbank-rest/src/mathbank_rest/step_recovery.py#L183); [mathbank-rest/src/mathbank_rest/step_diagnosis.py](../../../mathbank-rest/src/mathbank_rest/step_diagnosis.py#L209); [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L231); [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L33); [mathbank-rest/src/mathbank_rest/route_projection.py](../../../mathbank-rest/src/mathbank_rest/route_projection.py#L44); [mathbank-rest/src/mathbank_rest/db/step_search.py](../../../mathbank-rest/src/mathbank_rest/db/step_search.py#L82); [mathbank-rest/src/mathbank_rest/db/topic_pedagogy.py](../../../mathbank-rest/src/mathbank_rest/db/topic_pedagogy.py#L31); [mathbank-rest/src/mathbank_rest/db/textbook_admin.py](../../../mathbank-rest/src/mathbank_rest/db/textbook_admin.py#L67); [mathbank-rest/src/mathbank_rest/db/queries.py](../../../mathbank-rest/src/mathbank_rest/db/queries.py#L21).
 
 These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
 Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
@@ -1344,6 +1843,7 @@ Reads/writes and authorization are enforced in those callers, not inferred from 
 - `pedagogy.solution_step` / `solution_step_concept_node_id_fkey`: `FOREIGN KEY (concept_node_id) REFERENCES pedagogy.taxonomy_node(taxonomy_node_id)`.
 - `pedagogy.solution_step` / `solution_step_skill_node_id_fkey`: `FOREIGN KEY (skill_node_id) REFERENCES pedagogy.taxonomy_node(taxonomy_node_id)`.
 - `pedagogy.solution_step` / `solution_step_subconcept_node_id_fkey`: `FOREIGN KEY (subconcept_node_id) REFERENCES pedagogy.taxonomy_node(taxonomy_node_id)`.
+- `pedagogy.solution_step_requirement` / `solution_step_requirement_taxonomy_node_id_fkey`: `FOREIGN KEY (taxonomy_node_id) REFERENCES pedagogy.taxonomy_node(taxonomy_node_id)`.
 - `pedagogy.solution_step_technique` / `solution_step_technique_technique_node_id_fkey`: `FOREIGN KEY (technique_node_id) REFERENCES pedagogy.taxonomy_node(taxonomy_node_id)`.
 - `pedagogy.taxonomy_edge` / `taxonomy_edge_from_node_id_fkey`: `FOREIGN KEY (from_node_id) REFERENCES pedagogy.taxonomy_node(taxonomy_node_id)`.
 - `pedagogy.taxonomy_edge` / `taxonomy_edge_to_node_id_fkey`: `FOREIGN KEY (to_node_id) REFERENCES pedagogy.taxonomy_node(taxonomy_node_id)`.
@@ -1362,3 +1862,71 @@ No user-defined triggers observed.
 **Visible grants:** current runtime role: DELETE (grantable=YES); current runtime role: INSERT (grantable=YES); current runtime role: REFERENCES (grantable=YES); current runtime role: SELECT (grantable=YES); current runtime role: TRIGGER (grantable=YES); current runtime role: TRUNCATE (grantable=YES); current runtime role: UPDATE (grantable=YES).
 Role identities are intentionally not exported; this is not a full cluster-role/grant audit.
 
+## Functions and routines
+
+Extension routines are owned by their installed extension, not project migration code.
+Volatility: i=immutable, s=stable, v=volatile. No routine was invoked by this inspection.
+
+| Signature | Returns | Language / volatility | Security definer | Owner / source |
+|---|---|---|---|---|
+| `guard_route_release(-)` | `trigger` | plpgsql / v | False | [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql) |
+| `guard_route_snapshot(-)` | `trigger` | plpgsql / v | False | [026_tutoring_routes.sql](../../../mathbank-db/sql/026_tutoring_routes.sql) |
+
+### Observed definition: `pedagogy.guard_route_release`
+
+Screened catalog definition; metadata only, never executed by this refresh.
+
+```sql
+CREATE OR REPLACE FUNCTION pedagogy.guard_route_release()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    IF TG_OP = 'DELETE' AND OLD.status <> 'DRAFT' THEN
+        RAISE EXCEPTION 'Reviewed releases cannot be deleted';
+    END IF;
+    IF TG_OP = 'UPDATE' AND OLD.status <> 'DRAFT' THEN
+        IF (to_jsonb(NEW) - ARRAY['status','published_at']) IS DISTINCT FROM
+           (to_jsonb(OLD) - ARRAY['status','published_at']) THEN
+            RAISE EXCEPTION 'Reviewed route metadata is immutable';
+        END IF;
+        IF NOT ((OLD.status = 'REVIEWED' AND NEW.status = 'PUBLISHED') OR
+                (OLD.status = 'PUBLISHED' AND NEW.status = 'RETIRED')) THEN
+            RAISE EXCEPTION 'Invalid reviewed route lifecycle transition';
+        END IF;
+    END IF;
+    IF TG_OP = 'UPDATE' AND OLD.status = 'DRAFT' AND NEW.status NOT IN ('DRAFT','REVIEWED') THEN
+        RAISE EXCEPTION 'Draft releases require review before publication';
+    END IF;
+    IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+    RETURN NEW;
+END $function$
+```
+
+### Observed definition: `pedagogy.guard_route_snapshot`
+
+Screened catalog definition; metadata only, never executed by this refresh.
+
+```sql
+CREATE OR REPLACE FUNCTION pedagogy.guard_route_snapshot()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE release_status text;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        SELECT status INTO release_status FROM pedagogy.solution_route_release
+            WHERE route_release_id = OLD.route_release_id FOR SHARE;
+        IF release_status IS DISTINCT FROM 'DRAFT' THEN
+            RAISE EXCEPTION 'Reviewed route snapshots cannot be moved to a draft';
+        END IF;
+    END IF;
+    SELECT status INTO release_status FROM pedagogy.solution_route_release
+        WHERE route_release_id = COALESCE(NEW.route_release_id, OLD.route_release_id) FOR SHARE;
+    IF release_status IS DISTINCT FROM 'DRAFT' THEN
+        RAISE EXCEPTION 'Reviewed route snapshots are immutable; create a new release';
+    END IF;
+    IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+    RETURN NEW;
+END $function$
+```

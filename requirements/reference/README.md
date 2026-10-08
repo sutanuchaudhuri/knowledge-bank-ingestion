@@ -4,7 +4,26 @@ This folder is the canonical architecture reference for the checked-in MathBank
 implementation and explicitly selected deployment metadata. Current evidence
 is below; older incremental observations are retained as dated history.
 
-## Current complete catalog refresh
+## Geometry system incremental source refresh
+
+Source revision `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7` with geometry
+worktree changes. The new [four-table schema/access catalog](postgres/geometry_scene.md),
+[DDL](POSTGRES_SCHEMA.md#geometry-scene-system-migration-026),
+[DML](POSTGRES_DML.md#geometry-scene-system) and
+[REST contract](REST_API.md#geometry-scene-system) describe migration 026,
+immutable owner-scoped frames/receipts, private model evidence and tutor/UI access.
+[Requirement 37](../37_GEOMETRY_SCENE_ENGINE.md) records execution/acceptance evidence.
+
+Screened source OpenAPI and the complete endpoint inventory now cover
+**209 paths / 220 operations / 116 schemas**. Read-only running/source schema
+equality was observed **2026-10-07 17:40:47 UTC**. This confirms the HTTP schema,
+not deployment of every implementation-only permission rule. No paid calls,
+database writes or restarts occurred during this documentation refresh.
+The older complete PostgreSQL/Neo4j live counts remain dated snapshots, not
+fresh catalog parity after the geometry addition. No graph labels/edges or
+vector publication were introduced by geometry.
+
+## Complete catalog snapshot before geometry migration 026
 
 Source revision `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`; the source tree was
 clean before documentation changes. The user explicitly selected the PostgreSQL

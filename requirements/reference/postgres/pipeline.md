@@ -4,7 +4,7 @@
 
 **Access family:** `/v1/admin/pipeline/*`, `/v1/admin/papers`, `/v1/admin/imports/projection-requests`; CLI workers/projectors.
 
-**Evidence:** live catalog metadata at 2026-10-07T13:40:57.292324+00:00; source `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`.
+**Evidence:** live catalog metadata at 2026-10-08T01:57:54.421824+00:00; source `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7`.
 Metadata is observational, not proof of data correctness, endpoint authorization, or publication readiness.
 Exact columns/constraints/indexes below are the observed selected-target catalog. No private row values are included.
 
@@ -18,7 +18,7 @@ Exact columns/constraints/indexes below are the observed selected-target catalog
 
 **Migration owner:** [001_schema.sql](../../../mathbank-db/sql/001_schema.sql#L185); subsequent ALTERs may change the catalog below.
 
-**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/routers/admin.py](../../../mathbank-rest/src/mathbank_rest/routers/admin.py#L10); [mathbank-rest/src/mathbank_rest/db/admin.py](../../../mathbank-rest/src/mathbank_rest/db/admin.py#L8); [mathbank-graph/etl/project_from_postgres.py](../../../mathbank-graph/etl/project_from_postgres.py#L5); [mathbank-graph/etl/project_textbook_steps.py](../../../mathbank-graph/etl/project_textbook_steps.py#L311).
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/route_projection.py](../../../mathbank-rest/src/mathbank_rest/route_projection.py#L254); [mathbank-rest/src/mathbank_rest/routers/admin.py](../../../mathbank-rest/src/mathbank_rest/routers/admin.py#L10); [mathbank-rest/src/mathbank_rest/db/admin.py](../../../mathbank-rest/src/mathbank_rest/db/admin.py#L8); [mathbank-graph/etl/project_from_postgres.py](../../../mathbank-graph/etl/project_from_postgres.py#L5); [mathbank-graph/etl/project_textbook_steps.py](../../../mathbank-graph/etl/project_textbook_steps.py#L311).
 
 These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
 Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.

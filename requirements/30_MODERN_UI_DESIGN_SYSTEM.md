@@ -30,6 +30,7 @@ requirements and records progress.
 | UI-18 | **Step-aligned geometry:** visual intents require the current prompt's objects/relations; progressive frames never default to a generic sketch. Every element has a definition, and small second-level constructions have an explicitly independently magnified panel. | Delivered for Q31; unsupported semantics fail visibly. See [34](34_GUIDED_PROBLEM_WORKSPACE.md). |
 | UI-19 | **Compact practice and trustworthy math:** collapsed routine diagnostics/settings, visible functional errors, matching KaTeX renderer/CSS, conservative PDF prose repair and measured subscript layout. | Delivered and checked at 1440/390 px; mathematical extraction/correctness certification remains out of scope. |
 | UI-20 | **Corpus repair and authoring:** responsive canonical-question master-detail, collapsed previews, Repair/New practice/Review pills, provenance warnings, pending/approved/rejected views and explicit paid-generation consent. | Delivered at `/admin/corpus`, checked at 1440/390 px. See [35](35_CORPUS_REPAIR_AND_AUTHORING.md); no automatic source recovery or mathematical certification. |
+| UI-21 | **Paced Tutor checkpoints:** compact thinking-time pill and Pause/Resume, agent-selected active-time windows, simpler idle hints followed by step explanation/next checkpoint, no mastery credit for inactivity. | Implemented in home Tutor; pauses on hidden tabs, composing, recording/transcription and uploads. See [34](34_GUIDED_PROBLEM_WORKSPACE.md). Separate REST-only workspaces remain unchanged. |
 
 ## 2. Building blocks
 

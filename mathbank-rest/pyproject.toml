@@ -22,6 +22,7 @@ dependencies = [
   "email-validator>=2.1",
   "pymupdf>=1.24",
   "boto3>=1.35",
+  "geometry-scene-engine>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -36,7 +37,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-mathbank_rest = ["practice_profiles.json"]
+mathbank_rest = ["practice_profiles.json", "migrations/*.sql"]
 
 [tool.ruff]
 line-length = 100

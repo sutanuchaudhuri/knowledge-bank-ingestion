@@ -2,7 +2,79 @@
 
 ## Evidence
 
-### Current complete operation inventory
+### Tutoring-route deployment follow-up
+
+The user-authorized REST reload exposes staff preview/edit/review/publication/
+graph refresh and JWT-owned attempt start/read/assistance. A read-only
+deployment check observed **218 mounted paths**; normalized running OpenAPI
+matches [the committed snapshot](openapi.json). Unauthenticated access to
+`GET /v1/admin/tutoring-routes` returns 401. Bulk operator review remains
+separate from student publication. See
+[requirement 39](../39_PRECOMPILED_TUTORING_ROUTES.md) for the exact deployment,
+approval and active ingestion observations. Older evidence sections below are
+historical.
+
+### Geometry scene system
+
+Incremental source revision `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7`
+with geometry worktree changes. Fresh screened OpenAPI and registered handler
+inventory cover **209 paths / 220 operations / 116 schemas**; the complete
+catalog numbers below retain their prior dated evidence.
+
+All geometry routes use existing learner JWT or shared staff-key authorization.
+Learner owner identities are server-derived; staff core operations use `admin`.
+Reads are owner-scoped and private/no-store. Staff diagnostics can explicitly
+select another owner; ordinary scene reads cannot.
+
+| Method/path (base `/v1/geometry-scenes`) | Contract/effects |
+|---|---|
+| POST base | Structured `SceneInput`; 201 accepted version zero; private state/SVG, optional receipt |
+| POST `/{scene_id}/deltas` | `StateDelta`; explicit expected version, cumulative immutable update |
+| GET `/{scene_id}` | Current owned accepted version |
+| GET `/{scene_id}/versions/{version}` | Pinned owned accepted version |
+| GET `/{scene_id}/versions/{version}/render` | Private hash-verified SVG with sandbox/nosniff headers |
+| POST `/{scene_id}/versions/{version}/validate` | Read-only mathematical/visual validation |
+| GET `/{scene_id}/frames` | Owned immutable history metadata |
+| POST `/interpret` | `GeometryRequest`; required configured-model reasoning/presentation/review, bounded revision, final CAS |
+| GET `/debug/runs?owner=...` | Staff only; optional `limit` 1-100, default 50 |
+| GET `/debug/runs/{run_id}?owner=...` | Staff only; source/plans/candidates/validation/provider records |
+| POST `/debug/runs/{run_id}/review?owner=...` | Staff decision/note only; never publishes or alters a frame |
+
+Interpretation preserves source text and accepted scene identity. Paired
+`scene_id`/`expected_version` are mandatory on updates. `solve_attempt_id`
+requires the owning learner and binds canonical problem/current visible step;
+geometry never completes/grades that step. Learners cannot supply authoritative
+`trusted_facts` or raw PROVEN/DISPROVEN mutations. Givens cannot be demoted.
+Source quotes alone cannot turn a target into a proof or disproof.
+
+`Idempotency-Key` is optional, bounded to 200 characters. Accepted retries
+reuse the exact receipt and skip paid interpretation. Concurrent first attempts
+can both call the model; publication is serialized by final CAS/receipt locks.
+Scene/version/caption/current-step/validation/replayed/run-reference and concise
+operation statuses are returned by interpretation. Rejected candidates are not
+published; exhausted runs provide a safe error/run reference, not private
+provider bodies or chain-of-thought.
+
+Important implementation errors: 401 authorization, 403 staff-only diagnostics,
+404 ownership-safe not found, 409 stale version/key-body conflict, 422 typed
+input/evidence/validation/bounded-plan rejection, 503 private-storage failure.
+OpenAPI's untyped dict success responses and documented errors are incomplete
+descriptions of these handler rules.
+
+The web uses same-origin `/api/rest/geometry-scenes/...` allowlisted routes.
+It fetches accepted SVG as an image, never injects raw SVG or puts tokens in
+URLs, and caps navigation at the tutor's pinned version. The registered
+`generate_geometry_scene` tool uses invocation-temp learner credentials and
+returns a `geometry-scene` fence. Protected staff UI:
+`/admin/geometry-scenes?run=RUN_ID&owner=OWNER`.
+
+See [full storage/access semantics](postgres/geometry_scene.md),
+[engine README](../../geometry-scene-engine/README.md) and
+[requirement 37](../37_GEOMETRY_SCENE_ENGINE.md). Theorem consultation is the
+versioned executable geometry catalog, not a general symbolic prover or an
+automatic Neo4j publication job.
+
+### Complete operation inventory before geometry integration
 
 Source `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`, clean source tree before docs
 changes. [Complete registered endpoint inventory](REST_ENDPOINTS.md) covers

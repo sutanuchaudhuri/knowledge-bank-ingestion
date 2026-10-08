@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
+    neo4j_database: str | None = None
 
     # Student login (learner.* schema) — HS256 JWT bearer tokens.
     # Must be set to a long random value via env/JWT_SECRET in every real

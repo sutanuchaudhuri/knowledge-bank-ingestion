@@ -88,20 +88,21 @@ test("coaching activity distinguishes machine approval and pending hints from hu
   assert.equal(toolEvidence("get_next_hint", { provenance: { review_status: "PENDING" } })[0].status, "stopped");
 });
 
-test("solution-grounded activity shows record counts and verification status, never raw solutions or answers", () => {
+test("guidance activity hides routine source diagnostics but retains teaching progress", () => {
   const rows = toolEvidence("prepare_problem_guidance", {
     status: "ready", stages: ["private stage detail", "group", "check"], diagram_count: 0,
-    context: { problem: { body: "PRIVATE" }, metadata_status: "automatic", skills: [] },
+    context: { problem: { body: "PRIVATE" }, metadata_status: "automatic", skills: [],
+      warnings: ["Internal context warning"] },
+    warnings: ["Stored reference is unverified"],
     solution_evidence: { status: "available", references_considered: 2,
       sources: [{ verification_status: "UNVERIFIED", body_markdown: "PRIVATE_SOLUTION", answer: "384" }] },
   });
-  assert.ok(rows.some((row) => row.label === "2 stored solution records consulted for guidance"));
-  assert.ok(rows.some((row) => row.label.includes("not correctness certification")));
+  assert.ok(!rows.some((row) => /stored solution|certification|source diagrams|evidence limitations/.test(row.label)));
   assert.ok(rows.some((row) => row.label.includes("3 teaching stages")));
   assert.doesNotMatch(JSON.stringify(rows), /PRIVATE|384|private stage/);
   const missing = toolEvidence("prepare_problem_guidance", { status: "unavailable",
     solution_evidence: { status: "unavailable", references_considered: 0 } });
-  assert.match(missing[0].label, /not solution-grounded/);
+  assert.deepEqual(missing, []);
 });
 
 test("topic plans and pending feedback expose bounded provenance, never allegations or answers", () => {

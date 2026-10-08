@@ -82,7 +82,7 @@ POWER_UNITS = [
     },
     {
         "stage": "ORIGINAL_PROBLEM", "title": "Try a source problem",
-        "theory": "You completed the introductory checkpoints, not a mastery certification. "
+        "theory": "You reached the end of the introductory path, not a mastery certification. "
                   "Ask for practice to select a complete, step-supported source problem; explain your first move before seeking hints.",
     },
 ]

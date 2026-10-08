@@ -2,6 +2,28 @@
 
 ## Evidence
 
+### Tutoring-route projection follow-up
+
+[Route projector](../../mathbank-rest/src/mathbank_rest/route_projection.py)
+owns only `projection_kind="tutoring_routes"` and selects PUBLISHED releases,
+not operator bulk-approved REVIEWED releases. Live refresh
+`14624a9d-d4e1-4ffa-9805-e724820ba725` completed with zero published releases,
+zero nodes and zero edges for that layer; this is an expected publication
+boundary, not evidence of a fully populated route graph. Canonical corpus
+graph content is retained. See the exact operational observation in
+[requirement 39](../39_PRECOMPILED_TUTORING_ROUTES.md).
+
+### Geometry integration boundary
+
+Incremental geometry source revision `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7`
+with worktree changes: geometry scenes are private PostgreSQL/object-store
+artifacts, not new Neo4j nodes/edges. The agent consults the versioned executable
+geometry theorem catalog; graph/vector lookup is not evidence authorizing a
+proof. No projector, taxonomy, learner DAG or graph schema is modified.
+See [geometry storage/access](postgres/geometry_scene.md) and
+[requirement 37](../37_GEOMETRY_SCENE_ENGINE.md).
+The older live graph inventory below is not a newly sampled deployment.
+
 - Evidence mode: current source-derived projection contract plus separately
   observed user-selected REST-configured Neo4j catalog.
 - Source revision: `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`; clean source tree

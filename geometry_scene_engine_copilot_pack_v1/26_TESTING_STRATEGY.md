@@ -4,6 +4,55 @@
 
 Test the Geometry Scene Engine independently from the tutor and application.
 
+Test the complete semi-deterministic capability with a second, configured-model suite.
+Offline engine success alone does not establish production natural-language acceptance.
+See [requirement 37](../requirements/37_GEOMETRY_SCENE_ENGINE.md).
+
+## Two mandatory suites
+
+### A. Deterministic engine tests: no LLM
+
+All ten fixtures already contain structured MathState/SceneState/VisualState and deltas.
+Render every cumulative frame, save image/state/validation/replay evidence, and test
+coordinates, styles, semantic identities, cumulative overlays, resolved refs and leakage.
+
+### B. Agent interpretation tests: configured paid model
+
+```text
+Natural-language problem + current tutor goal/context
+  → reasoning/presentation agent roles
+  → typed GeometryPlan / StateDelta / tool calls
+  → deterministic engine
+  → semantic assertions + validated frame sequence
+```
+
+Use the production configured model for all ten natural-language scenarios, paraphrases,
+ambiguous/unsupported input and failure-feedback/revision cases. Mocks cover transport
+contracts but are not interpretation tests. Do not require byte-identical plans.
+
+Mandatory A1 interpretation invariants:
+
+```text
+must identify triangle BCD
+must request circumcenter A1 over exactly B,C,D
+must preserve ABCD base scene
+must not substitute circumcenter of ABC or generic ABCD-only display
+must not introduce A2/B2/C2/D2 or disclose later B1/C1/D1 before their stage
+must not promote unproved targets
+accepted frame must contain triangle_BCD and point_A1
+```
+
+Check that presentation does not mutate truth, validation feedback causes bounded
+revision without accepted-state mutation, incompatible remedies fail, exhausted budgets
+stop explicitly and provider failures are visible. Save model/prompt/schema versions,
+normalized requests, theorem evidence, calls/retries, validation and images. Report
+per-invariant results and repeat-run variation; wrong-object acceptance, violated givens
+and proof leakage are hard failures, not averaged quality scores.
+
+Paid tests are explicitly selectable separately from offline CI. Skipped paid tests are
+"not evaluated", not "passed". Production needs both suites; paid access is not optional
+future architecture work.
+
 The testing strategy must cover:
 
 1. parsing,
@@ -33,7 +82,8 @@ The testing strategy must cover:
 ## Test levels
 
 ### Level 1 — Parser unit tests
-Input raw text and context array.
+Input typed DSL or the documented restricted context grammar. Free-form interpretation
+belongs in suite B, not an assertion that the deterministic parser understands arbitrary text.
 
 Assert:
 ```text

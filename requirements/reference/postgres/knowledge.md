@@ -4,7 +4,7 @@
 
 **Access family:** Corpus filters/search, `/v1/concepts`, `/v1/techniques`, `/v1/tutor/*`, `/v1/admin/pedagogy/*`; enrichment/projector jobs.
 
-**Evidence:** live catalog metadata at 2026-10-07T13:40:57.292324+00:00; source `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`.
+**Evidence:** live catalog metadata at 2026-10-08T01:57:54.421824+00:00; source `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7`.
 Metadata is observational, not proof of data correctness, endpoint authorization, or publication readiness.
 Exact columns/constraints/indexes below are the observed selected-target catalog. No private row values are included.
 

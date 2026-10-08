@@ -4,11 +4,31 @@
 
 Build a standalone, testable Geometry Scene Engine for the Mathematics Tutor platform.
 
-The engine converts a problem statement plus current mathematical context into a precise structured geometry scene, then applies additive instructions cumulatively as the student/tutor advances through the reasoning.
+The overall system interprets a problem statement plus current mathematical context
+through model-backed geometry reasoning and presentation roles. They create typed plans
+and deltas for an independent deterministic engine, inspect validation, and revise before
+acceptance. The engine applies structured instructions cumulatively; it is not itself the
+free-form natural-language reasoning layer.
+
+**The low-level geometry tools and rendering pipeline should be deterministic or
+reproducible given a structured MathState/SceneState/VisualState and seed. The overall
+Geometry Scene capability is semi-deterministic: a reasoning agent interprets
+natural-language problems, selects constructions/theorems, creates typed state deltas,
+invokes deterministic geometry tools, inspects validation results, and may revise the
+plan before accepting the artifact.**
+
+The complete requirement and implementation tracker is
+[requirement 37](../requirements/37_GEOMETRY_SCENE_ENGINE.md).
 
 It is not an ordinary image generator.
 
 ```text
+Natural-language problem / tutor goal
+    ↓
+Geometry Reasoning Agent + Geometry Presentation Agent
+    ↓
+Typed GeometryPlan / StateDelta
+    ↓
 Mathematical State
     ↓
 Geometry Scene State
@@ -16,6 +36,15 @@ Geometry Scene State
 Visual State
     ↓
 SVG / Overlay Frames
+    ↓
+Validation + agent review
+    ├─ accept → persist/show
+    └─ reject → bounded plan revision
+```
+
+```text
+DETERMINISTIC CORE + AGENTIC PLANNER / ORCHESTRATOR
+    = SEMI-DETERMINISTIC GEOMETRY SCENE SYSTEM
 ```
 
 ## Non-negotiable principles
@@ -30,6 +59,13 @@ SVG / Overlay Frames
 8. The engine must be callable/testable independently of the tutor.
 9. Every rendered element must have stable semantic identity.
 10. The tutor requests a state delta or visual focus, not “draw a picture.”
+11. Reasoning and presentation are two logical roles, even when one model performs both;
+    visual decisions cannot change mathematical truth.
+12. Production natural-language interpretation requires the configured model. Offline
+    deterministic tests remain model-free; paid interpretation tests check semantic
+    invariants, not byte-identical plans.
+13. A failed candidate is not published. Preserve diagnostics, revise within explicit
+    budgets, and never relax known relations or leakage protection to obtain an image.
 
 ## Documents
 

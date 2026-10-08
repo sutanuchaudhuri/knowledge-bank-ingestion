@@ -1,0 +1,21 @@
+{
+  "case_id": "02_collinear_target",
+  "initial": {
+    "problem_text":"Prove that A,E,C are collinear; E is defined by two auxiliary lines.",
+    "objects":{"A":{},"E":{},"C":{},"U":{},"V":{},"W":{},"Z":{}},
+    "positions":{"A":[90,170],"C":[550,180],"E":[290,250],"U":[140,100],"V":[440,400],"W":[100,345],"Z":[480,155]},
+    "relations":[
+      {"id":"target","type":"COLLINEAR","args":["A","E","C"],"status":"TARGET_TO_PROVE"},
+      {"id":"intersection","type":"INTERSECTION","args":["E","U","V","W","Z"],"status":"GIVEN"}
+    ]
+  },
+  "expected":[
+    {"entities":["point_A","point_E","point_C"],"absent":["line_AEC"],"statuses":{"target":"TARGET_TO_PROVE"}},
+    {"entities":["aux_UV","aux_WZ"],"highlight":["point_E"],"dashed":["aux_UV","aux_WZ"]},
+    {"entities":["line_AEC"],"statuses":{"target":"PROVEN"}}
+  ],
+  "steps":[
+    {"expected_version":0,"add_entities":[{"id":"aux_UV","type":"LINE","refs":["U","V"],"role":"AUXILIARY"},{"id":"aux_WZ","type":"LINE","refs":["W","Z"],"role":"AUXILIARY"}],"visual":{"highlight":["point_E"]}},
+    {"expected_version":1,"relayout":true,"change_status":[{"relation_id":"target","status":"PROVEN","provenance":"Externally supplied proof establishes collinearity."}]}
+  ]
+}

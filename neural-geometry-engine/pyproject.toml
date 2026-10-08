@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neural-geometry-engine"
+version = "0.1.0"
+description = "Independent neural-symbolic geometry compiler foundation"
+requires-python = ">=3.11"
+dependencies = ["geometry-scene-engine>=0.1.0,<0.2", "pydantic>=2.7"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2", "ruff>=0.4", "mypy>=1.10"]
+
+[project.scripts]
+neural-geometry = "neural_geometry.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true

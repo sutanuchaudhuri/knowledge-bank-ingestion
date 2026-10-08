@@ -2,7 +2,7 @@
 // Student math composer (requirements 29): symbol toolbar, instant deterministic formatting, optional
 // agentic (✨) formatting through the host app's server route, live KaTeX preview and optional dictation.
 // Slim by default: the toolbar and preview only appear when the student asks for them / types math.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SYMBOL_GROUPS, checkLatex, deterministicFormat, insertSnippet } from "./format.mjs";
 import { MicButton } from "./VoiceControls.jsx";
 import { WIcon, WidgetStyles } from "./icons.jsx";
@@ -11,12 +11,17 @@ export default function MathComposer({
   value, onChange, onSubmit, renderMath, placeholder = "Type your answer… e.g. PA*PB = PT^2",
   formatEndpoint = "/api/format-math", allowAgentic = true, voice = true, sttEndpoint = "/api/voice/stt",
   disabled = false, submitLabel = "Send", showSubmit = true, rows = 2, autoFocus = false, testId = "math-composer",
-  id, ariaLabel = "Message", children,
+  id, ariaLabel = "Message", children, onBusyChange,
 }) {
   const ref = useRef(null);
   const [tools, setTools] = useState(false);
   const [group, setGroup] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  useEffect(() => {
+    onBusyChange?.(busy || voiceBusy);
+    return () => onBusyChange?.(false);
+  }, [busy, voiceBusy, onBusyChange]);
   const [note, setNote] = useState("");
   const warnings = value ? checkLatex(value) : [];
   const hasMath = /\$|\\\(|\\\[/.test(value || "");
@@ -93,7 +98,7 @@ export default function MathComposer({
           <span className="mbw-note ms-1" data-testid="composer-note" aria-live="polite">{note}</span>
           {warnings.length > 0 && <span className="mbw-warn ms-1" data-testid="composer-warnings"><WIcon name="alert" size={14} /> {warnings.join(", ")}</span>}
           <span className="mbw-spacer" />
-          {voice && <MicButton endpoint={sttEndpoint} disabled={disabled}
+          {voice && <MicButton endpoint={sttEndpoint} disabled={disabled} onBusyChange={setVoiceBusy}
             onTranscript={(t) => onChange(value?.trim() ? `${value.trimEnd()} ${deterministicFormat(t)}` : deterministicFormat(t))} />}
           {children}
           {onSubmit && showSubmit && (

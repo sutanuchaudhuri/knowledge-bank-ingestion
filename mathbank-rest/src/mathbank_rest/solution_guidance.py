@@ -139,6 +139,50 @@ def _authored_plan(evidence: SolutionEvidence) -> TeachingPlan | None:
         return re.sub(r"\s+", "", value).replace(r"\dfrac", r"\frac")
 
     statement = compact(evidence.problem["statement_text"])
+    if evidence.problem["canonical_code"] == "PAPER_HMMT_2018_NOV_GUTS_Q08":
+        if not all(
+            item in statement
+            for item in (
+                "PentagonJAMES",
+                "AM=SJ",
+                "∠J=∠A=∠E=90",
+                "∠M=∠S",
+                "diagonalofJAMESthatbisectsitsarea",
+                "shortestsideofJAMES",
+                "longestsideofJAMES",
+            )
+        ):
+            return None
+        reference = next(
+            (
+                item
+                for item in evidence.references
+                if "JAMSmustbearectangle" in compact(item["body_markdown"])
+                and "onlydiagonalthatcanbisect" in compact(item["body_markdown"])
+            ),
+            None,
+        )
+        if reference is None:
+            return None
+        return TeachingPlan(
+            selected_solution_id=reference["solution_id"],
+            rationale=(
+                "The stored approach connects the given angle and side conditions to "
+                "smaller regions inside the pentagon, then compares their areas. "
+                "Start with the givens before choosing any diagonal."
+            ),
+            stages=[
+                "Record the side equality and the given interior angles of JAMES.",
+                "Use the polygon angle sum to relate the two remaining angles.",
+                "Explore how a diagonal splits the pentagon and test equal-area conditions.",
+                "Use the resulting length relations to compare the shortest and longest sides.",
+            ],
+            first_checkpoint=(
+                "For a five-sided polygon, what is the sum of its interior angles? "
+                "Write an equation using the three given right angles and the two "
+                "equal remaining angles, without choosing an area-bisecting diagonal yet."
+            ),
+        )
     if evidence.problem["canonical_code"] != "AIME_1985_Q01" or not all(
         item in statement
         for item in (
@@ -171,7 +215,12 @@ def _authored_plan(evidence: SolutionEvidence) -> TeachingPlan | None:
     )
 
 
-def guidance_plan(code: str) -> dict:
+def guidance_plan(code: str, allow_dynamic_fallback: bool = True) -> dict:
+    from mathbank_rest import route_runtime
+
+    published = route_runtime.plan(code)
+    if published:
+        return published
     evidence = load_references(code)
     summary = evidence.summary()
     if not evidence.references:
@@ -184,6 +233,12 @@ def guidance_plan(code: str) -> dict:
     plan = _authored_plan(evidence)
     method = "authored-source-gated"
     if plan is None:
+        if not allow_dynamic_fallback:
+            return {
+                "problem_code": code, "status": "unavailable",
+                "solution_evidence": summary,
+                "warnings": ["No published instructional route is available; explicit authoring/fallback is required."],
+            }
         from mathbank_rest.tutor import MODEL_NAME, _client
 
         method = f"generated:{MODEL_NAME}"

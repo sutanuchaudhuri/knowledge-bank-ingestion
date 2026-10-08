@@ -5,6 +5,8 @@ const NODE_FIELDS = [
   "number_of_steps", "prerequisite_depth", "estimated_contest_level",
   "pedagogy_source", "pedagogy_confidence", "pedagogy_review_status", "pedagogy_approval_method",
   "problem_page_images", "solution_page_images",
+  "route_release_id", "release_version", "step_index", "asset_key", "purpose",
+  "difficulty_level", "conceptual_load", "insight_load", "projection_kind",
 ];
 const EDGE_FIELDS = ["role", "required_level", "importance", "confidence", "source", "assertion_source", "review_status", "approval_method", "relation_type", "strength"];
 

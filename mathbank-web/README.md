@@ -58,6 +58,58 @@ See [requirements/24](../requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md).
 
 ## Math and embedded source diagrams
 
+### Accepted geometry scenes
+
+Tutor replies can embed a pinned, declarative reference (version zero is valid):
+
+````text
+```geometry-scene
+{"scene_id":"triangle_ABC","version":2,"caption":"Draw the altitude.","current_math_step":"step_2"}
+```
+````
+
+Only closed, validated references load an image; incomplete streamed fences show
+pending and malformed references show an error. Images are fetched as authenticated
+blobs, never injected SVG. Navigation begins at the pinned version and can only
+visit earlier frames. Each displayed caption comes from that version's
+`visual_state.caption`, not the latest scene or a supplied image URL.
+
+The tightly allowlisted `/api/rest/geometry-scenes/*` proxy forwards to REST:
+`GET /v1/geometry-scenes/{id}`, `/{id}/frames`,
+`/{id}/versions/{version}`, and `/{id}/versions/{version}/render`.
+JSON metadata must include `scene_id`, `version`, and `visual_state.caption`;
+frames return `{"frames":[{"version":0},...]}`. Renders must have
+`image/svg+xml` or `image/png` MIME. All responses are private/no-store.
+Credentials remain server-side: the existing student JWT or a verified admin
+session with the configured admin API key. REST must enforce ownership.
+
+Production orchestration is available only through explicit
+`POST /api/rest/geometry-scenes/interpret`, forwarding to
+`POST /v1/geometry-scenes/interpret` with required `problem_text` (20,000 characters)
+and `goal` (2,000 characters), optional paired `scene_id`/`expected_version`,
+`context` containing `{type,fact}` objects (up to 128, bounded to 32 KiB),
+identifier-array `required_entities`/`forbidden_entities`, and integer
+`seed` from 0–2,147,483,647 (for example 17). Optional `current_math_step`,
+`problem_id`, `solution_step_id`, and `solve_attempt_id` are bounded to 200 characters.
+Rendering a reference never calls this potentially paid endpoint.
+Staff-only `/admin/geometry-scenes?run=<run_id>&owner=<learner_uuid|admin>` reads
+JSON diagnostics from `GET /v1/geometry-scenes/debug/runs/{run_id}?owner=...`.
+The same protected proxy allowlists `GET /debug/runs?owner=...` and
+`POST /debug/runs/{run_id}/review?owner=...` with
+`{decision: "ACCEPTED"|"REJECTED"|"NEEDS_REVISION", note?: string}` (note max 4,000).
+Only staff debug routes accept exactly one `owner` query; it must be `admin` or
+a learner UUID. The view remains read-only and never reviews automatically.
+Run links accept both `run_<32 hex>` and `failed_<32 hex>` receipts.
+Interpret errors retain only bounded public `code`, `message`, and `run_id`
+inside `detail`; private provider responses and diagnostic evidence are omitted.
+Neither scene mutations nor arbitrary upstream paths, query parameters, tokens
+in URLs, or browser-supplied credentials are forwarded.
+
+Focused offline tests:
+`node --test tests/geometryScenes*.test.mjs` and
+`npx playwright test e2e/geometry-scenes.spec.mjs` against the running web app.
+The browser tests mock service responses and make no paid model calls.
+
 ### Guided problem workspace
 
 `/learn?problem=CANONICAL_CODE` pairs Tutor with My work rather than requiring

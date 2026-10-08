@@ -1,5 +1,12 @@
 # Standalone Test Harness
 
+This is the model-free deterministic harness for structured fixtures and deltas.
+It is one of **two mandatory suites**. A separate configured-model harness must execute
+natural-language input → agent plan/tool calls → engine → semantic/frame assertions.
+Do not substitute mocks or byte-identical plan snapshots for paid interpretation acceptance.
+See [testing strategy](26_TESTING_STRATEGY.md) and
+[requirement 37](../requirements/37_GEOMETRY_SCENE_ENGINE.md).
+
 CLI:
 
 ```bash

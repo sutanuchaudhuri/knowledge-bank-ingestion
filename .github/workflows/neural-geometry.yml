@@ -1,0 +1,25 @@
+name: Neural geometry compiler foundation
+on:
+  push:
+    paths: ["neural-geometry-engine/**", "geometry-scene-engine/**", ".github/workflows/neural-geometry.yml"]
+  pull_request:
+    paths: ["neural-geometry-engine/**", "geometry-scene-engine/**", ".github/workflows/neural-geometry.yml"]
+permissions:
+  contents: read
+jobs:
+  independent-offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ./geometry-scene-engine -e "./neural-geometry-engine[dev]"
+      - run: pytest neural-geometry-engine/tests -q
+      - run: ruff check neural-geometry-engine/src neural-geometry-engine/tests
+      - run: mypy neural-geometry-engine/src --ignore-missing-imports
+      - run: python -m neural_geometry.cli gallery --output neural-geometry-engine/output/gallery
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neural-geometry-foundation-images-and-programs
+          path: neural-geometry-engine/output/gallery

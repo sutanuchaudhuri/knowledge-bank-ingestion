@@ -102,8 +102,10 @@ def _call(operation: Callable[..., dict], *args: Any) -> dict:
 
 
 @router.get("/learning-context/{problem_code}")
-def learning_context(problem_code: str) -> dict:
-    _call(ensure_learning_metadata, problem_code)
+def learning_context(problem_code: str, enrich: bool = True) -> dict:
+    """Use enrich=false for read-only tutoring; default retains existing enrichment behavior."""
+    if enrich:
+        _call(ensure_learning_metadata, problem_code)
     result = _call(pedagogy.learning_context, problem_code)
     result["pedagogy_session"] = guided_orientation.orientation(result["problem"])
     return result
@@ -126,12 +128,13 @@ class MicroCheckRequest(BaseModel):
 class GuidancePlanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     problem_code: str = Field(min_length=1, max_length=200, pattern=r"^\S+$")
+    allow_dynamic_fallback: bool = False
 
 
 @router.post("/guidance-plan")
 def guidance_plan(body: GuidancePlanRequest) -> dict:
     """Explicit planning action; raw solutions remain inside the REST service."""
-    return _call(solution_guidance.guidance_plan, body.problem_code)
+    return _call(solution_guidance.guidance_plan, body.problem_code, body.allow_dynamic_fallback)
 
 
 @router.post("/micro-check")

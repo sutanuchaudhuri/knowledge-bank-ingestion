@@ -18,6 +18,23 @@ export const RELATIONSHIPS = {
   "concept-hierarchy": { type: "PART_OF", from: "Concept", to: "Concept", title: "Concept hierarchy", pedagogical: true },
   "concept-prerequisites": { type: "PREREQUISITE_OF", from: "Concept", to: "Concept", title: "Concept prerequisites", pedagogical: true },
   "skill-builds-on": { type: "BUILDS_ON", from: "Skill", to: "Skill", title: "Useful prior skills", pedagogical: true },
+  "solution-routes": { type: "HAS_ROUTE", from: "Solution", to: "RouteRelease", title: "Published solution routes", pedagogical: true },
+  "route-steps": { type: "HAS_STEP", from: "RouteRelease", to: "RouteStep", title: "Route checkpoints", pedagogical: true },
+  "step-requires-technique": { type: "REQUIRES", from: "RouteStep", to: "Technique", title: "Step prerequisites · techniques", pedagogical: true },
+  "step-requires-skill": { type: "REQUIRES", from: "RouteStep", to: "Skill", title: "Step prerequisites · skills", pedagogical: true },
+  "step-requires-concept": { type: "REQUIRES", from: "RouteStep", to: "Concept", title: "Step prerequisites · concepts", pedagogical: true },
+  "step-produces": { type: "PRODUCES", from: "RouteStep", to: "Claim", title: "Step outputs", pedagogical: true },
+  "step-uses-claim": { type: "USES_CLAIM", from: "RouteStep", to: "Claim", title: "Earlier claims used", pedagogical: true },
+  "step-dependencies": { type: "DEPENDS_ON", from: "RouteStep", to: "RouteStep", title: "Checkpoint dependencies", pedagogical: true },
+  "step-misconceptions": { type: "CAN_TRIGGER", from: "RouteStep", to: "Misconception", title: "Possible misconceptions", pedagogical: true },
+  "step-checks": { type: "CHECKED_BY", from: "RouteStep", to: "LearningItem", title: "Checkpoint probes", pedagogical: true },
+  "step-theory": { type: "EXPLAINED_BY", from: "RouteStep", to: "TheoryItem", title: "Checkpoint recaps", pedagogical: true },
+  "misconception-remediation": { type: "REMEDIATED_BY", from: "Misconception", to: "TheoryItem", title: "Misconception recaps", pedagogical: true },
+  "misconception-diagnosis": { type: "DIAGNOSED_BY", from: "Misconception", to: "LearningItem", title: "Misconception probes", pedagogical: true },
+  "theory-techniques": { type: "EXPLAINS", from: "TheoryItem", to: "Technique", title: "Theory explains technique", pedagogical: true },
+  "item-techniques": { type: "PRACTICES", from: "LearningItem", to: "Technique", title: "Practice targets", pedagogical: true },
+  "item-misconceptions": { type: "TESTS_MISCONCEPTION", from: "LearningItem", to: "Misconception", title: "Diagnostic targets", pedagogical: true },
+  "solution-approaches": { type: "USES_APPROACH", from: "Solution", to: "Technique", title: "Solution approaches", pedagogical: true },
 };
 
 export const GRAPH_DEFAULT_LIMIT = 1000;
@@ -40,6 +57,15 @@ export function labelOf(label, props) {
       return props.name || "Concept";
     case "Technique":
       return props.name || "Technique";
+    case "RouteRelease":
+      return `${props.canonical_code || "Route"} · v${props.release_version ?? "?"}`;
+    case "RouteStep":
+      return `Checkpoint ${props.step_index ?? "?"}`;
+    case "Claim":
+    case "Misconception":
+    case "TheoryItem":
+    case "LearningItem":
+      return props.asset_key || props.external_id || label;
     default:
       return props.canonical_id || label;
   }

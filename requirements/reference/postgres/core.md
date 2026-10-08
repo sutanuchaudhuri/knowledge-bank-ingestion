@@ -4,7 +4,7 @@
 
 **Access family:** Public corpus `/v1/problems`, `/v1/competitions`; admin corpus/import/textbook routes; private tutor reference reads.
 
-**Evidence:** live catalog metadata at 2026-10-07T13:40:57.292324+00:00; source `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`.
+**Evidence:** live catalog metadata at 2026-10-08T01:57:54.421824+00:00; source `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7`.
 Metadata is observational, not proof of data correctness, endpoint authorization, or publication readiness.
 Exact columns/constraints/indexes below are the observed selected-target catalog. No private row values are included.
 
@@ -175,7 +175,7 @@ Role identities are intentionally not exported; this is not a full cluster-role/
 
 **Migration owner:** [001_schema.sql](../../../mathbank-db/sql/001_schema.sql#L47); subsequent ALTERs may change the catalog below.
 
-**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/corpus_authoring.py](../../../mathbank-rest/src/mathbank_rest/corpus_authoring.py#L38); [mathbank-rest/src/mathbank_rest/enrichment.py](../../../mathbank-rest/src/mathbank_rest/enrichment.py#L71); [mathbank-rest/src/mathbank_rest/artifact_runtime.py](../../../mathbank-rest/src/mathbank_rest/artifact_runtime.py#L778); [mathbank-rest/src/mathbank_rest/live_runtime.py](../../../mathbank-rest/src/mathbank_rest/live_runtime.py#L290); [mathbank-rest/src/mathbank_rest/mastery.py](../../../mathbank-rest/src/mathbank_rest/mastery.py#L28); [mathbank-rest/src/mathbank_rest/step_runtime.py](../../../mathbank-rest/src/mathbank_rest/step_runtime.py#L255); [mathbank-rest/src/mathbank_rest/step_recovery.py](../../../mathbank-rest/src/mathbank_rest/step_recovery.py#L207); [mathbank-rest/src/mathbank_rest/step_diagnosis.py](../../../mathbank-rest/src/mathbank_rest/step_diagnosis.py#L281); [mathbank-rest/src/mathbank_rest/pedagogy.py](../../../mathbank-rest/src/mathbank_rest/pedagogy.py#L120); [mathbank-rest/src/mathbank_rest/step_tutor.py](../../../mathbank-rest/src/mathbank_rest/step_tutor.py#L207).
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/corpus_authoring.py](../../../mathbank-rest/src/mathbank_rest/corpus_authoring.py#L38); [mathbank-rest/src/mathbank_rest/enrichment.py](../../../mathbank-rest/src/mathbank_rest/enrichment.py#L71); [mathbank-rest/src/mathbank_rest/artifact_runtime.py](../../../mathbank-rest/src/mathbank_rest/artifact_runtime.py#L778); [mathbank-rest/src/mathbank_rest/live_runtime.py](../../../mathbank-rest/src/mathbank_rest/live_runtime.py#L290); [mathbank-rest/src/mathbank_rest/mastery.py](../../../mathbank-rest/src/mathbank_rest/mastery.py#L28); [mathbank-rest/src/mathbank_rest/step_runtime.py](../../../mathbank-rest/src/mathbank_rest/step_runtime.py#L255); [mathbank-rest/src/mathbank_rest/step_recovery.py](../../../mathbank-rest/src/mathbank_rest/step_recovery.py#L207); [mathbank-rest/src/mathbank_rest/step_diagnosis.py](../../../mathbank-rest/src/mathbank_rest/step_diagnosis.py#L281); [mathbank-rest/src/mathbank_rest/pedagogy.py](../../../mathbank-rest/src/mathbank_rest/pedagogy.py#L120); [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L19).
 
 These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
 Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
@@ -240,6 +240,7 @@ Reads/writes and authorization are enforced in those callers, not inferred from 
 - `pedagogy.recovery_plan` / `recovery_plan_origin_problem_id_fkey`: `FOREIGN KEY (origin_problem_id) REFERENCES core.problem(problem_id)`.
 - `pedagogy.solution_dag_review` / `solution_dag_review_problem_id_fkey`: `FOREIGN KEY (problem_id) REFERENCES core.problem(problem_id) ON DELETE CASCADE`.
 - `pedagogy.solution_part` / `solution_part_problem_id_fkey`: `FOREIGN KEY (problem_id) REFERENCES core.problem(problem_id) ON DELETE CASCADE`.
+- `pedagogy.solution_route_release` / `solution_route_release_problem_id_fkey`: `FOREIGN KEY (problem_id) REFERENCES core.problem(problem_id)`.
 - `pedagogy.solution_source_ref` / `solution_source_ref_problem_id_fkey`: `FOREIGN KEY (problem_id) REFERENCES core.problem(problem_id) ON DELETE CASCADE`.
 - `pedagogy.solution_step` / `solution_step_problem_id_fkey`: `FOREIGN KEY (problem_id) REFERENCES core.problem(problem_id) ON DELETE CASCADE`.
 - `search.chunk` / `chunk_problem_id_fkey`: `FOREIGN KEY (problem_id) REFERENCES core.problem(problem_id)`.
@@ -318,7 +319,7 @@ Role identities are intentionally not exported; this is not a full cluster-role/
 
 **Migration owner:** [001_schema.sql](../../../mathbank-db/sql/001_schema.sql#L70); subsequent ALTERs may change the catalog below.
 
-**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/corpus_authoring.py](../../../mathbank-rest/src/mathbank_rest/corpus_authoring.py#L231); [mathbank-rest/src/mathbank_rest/enrichment.py](../../../mathbank-rest/src/mathbank_rest/enrichment.py#L406); [mathbank-rest/src/mathbank_rest/solution_guidance.py](../../../mathbank-rest/src/mathbank_rest/solution_guidance.py#L79); [mathbank-rest/src/mathbank_rest/db/textbook_admin.py](../../../mathbank-rest/src/mathbank_rest/db/textbook_admin.py#L364); [mathbank-rest/src/mathbank_rest/db/queries.py](../../../mathbank-rest/src/mathbank_rest/db/queries.py#L159); [mathbank-rest/src/mathbank_rest/db/pipeline_jobs.py](../../../mathbank-rest/src/mathbank_rest/db/pipeline_jobs.py#L121); [mathbank-db/etl/arml_queue.py](../../../mathbank-db/etl/arml_queue.py#L70); [mathbank-db/etl/embed_corpus.py](../../../mathbank-db/etl/embed_corpus.py#L3); [mathbank-db/etl/pdf_pipeline.py](../../../mathbank-db/etl/pdf_pipeline.py#L21); [mathbank-db/etl/load_corpus.py](../../../mathbank-db/etl/load_corpus.py#L227).
+**Direct source access evidence:** [mathbank-rest/src/mathbank_rest/corpus_authoring.py](../../../mathbank-rest/src/mathbank_rest/corpus_authoring.py#L231); [mathbank-rest/src/mathbank_rest/enrichment.py](../../../mathbank-rest/src/mathbank_rest/enrichment.py#L406); [mathbank-rest/src/mathbank_rest/route_runtime.py](../../../mathbank-rest/src/mathbank_rest/route_runtime.py#L20); [mathbank-rest/src/mathbank_rest/route_compiler.py](../../../mathbank-rest/src/mathbank_rest/route_compiler.py#L58); [mathbank-rest/src/mathbank_rest/solution_guidance.py](../../../mathbank-rest/src/mathbank_rest/solution_guidance.py#L79); [mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py](../../../mathbank-rest/src/mathbank_rest/routers/tutoring_routes.py#L110); [mathbank-rest/src/mathbank_rest/db/textbook_admin.py](../../../mathbank-rest/src/mathbank_rest/db/textbook_admin.py#L364); [mathbank-rest/src/mathbank_rest/db/queries.py](../../../mathbank-rest/src/mathbank_rest/db/queries.py#L159); [mathbank-rest/src/mathbank_rest/db/pipeline_jobs.py](../../../mathbank-rest/src/mathbank_rest/db/pipeline_jobs.py#L121); [mathbank-db/etl/arml_queue.py](../../../mathbank-db/etl/arml_queue.py#L70).
 
 These are literal table references, not proof that every endpoint in the schema's access family reads this relation.
 Reads/writes and authorization are enforced in those callers, not inferred from SQL grants.
@@ -353,8 +354,10 @@ Reads/writes and authorization are enforced in those callers, not inferred from 
 **Incoming foreign keys:**
 
 - `core.solution_step` / `solution_step_solution_id_fkey`: `FOREIGN KEY (solution_id) REFERENCES core.solution(solution_id) ON DELETE CASCADE`.
+- `pedagogy.route_compiler_job` / `route_compiler_job_solution_id_fkey`: `FOREIGN KEY (solution_id) REFERENCES core.solution(solution_id)`.
 - `pedagogy.solution_dag_review` / `solution_dag_review_solution_id_fkey`: `FOREIGN KEY (solution_id) REFERENCES core.solution(solution_id) ON DELETE CASCADE`.
 - `pedagogy.solution_part` / `solution_part_solution_id_fkey`: `FOREIGN KEY (solution_id) REFERENCES core.solution(solution_id) ON DELETE CASCADE`.
+- `pedagogy.solution_route_release` / `solution_route_release_solution_id_fkey`: `FOREIGN KEY (solution_id) REFERENCES core.solution(solution_id)`.
 - `pedagogy.solution_source_ref` / `solution_source_ref_solution_id_fkey`: `FOREIGN KEY (solution_id) REFERENCES core.solution(solution_id) ON DELETE CASCADE`.
 - `pedagogy.solution_step` / `solution_step_solution_id_fkey`: `FOREIGN KEY (solution_id) REFERENCES core.solution(solution_id) ON DELETE CASCADE`.
 - `search.chunk` / `chunk_solution_id_fkey`: `FOREIGN KEY (solution_id) REFERENCES core.solution(solution_id)`.

@@ -32,7 +32,16 @@ venv:                           ## Create the virtual environment
 
 .PHONY: install
 install: venv                   ## Install runtime + dev dependencies
+	uv pip install --python $(BIN)/python -e ../geometry-scene-engine
 	uv pip install --python $(BIN)/python -e ".[dev]"
+
+.PHONY: migrate-geometry-scenes
+migrate-geometry-scenes:        ## Explicitly apply additive geometry storage migration 026
+	$(BIN)/python scripts/migrate_geometry_scenes.py --apply --direct
+
+.PHONY: test-geometry
+test-geometry:                  ## Geometry REST/unit tests (PG integration opt-in via GEOMETRY_TEST_POSTGRES_DSN)
+	$(PYTEST) tests/test_geometry_storage.py tests/test_geometry_api.py tests/test_geometry_postgres.py
 
 # ── Quality ────────────────────────────────────────────────────────────────
 

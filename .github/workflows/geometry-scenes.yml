@@ -1,0 +1,23 @@
+name: Geometry scene regressions
+on:
+  push:
+    paths: ["geometry-scene-engine/**", ".github/workflows/geometry-scenes.yml"]
+  pull_request:
+    paths: ["geometry-scene-engine/**", ".github/workflows/geometry-scenes.yml"]
+jobs:
+  deterministic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e "./geometry-scene-engine[dev]"
+      - run: pytest geometry-scene-engine/tests -q
+      - run: ruff check geometry-scene-engine/src geometry-scene-engine/tests
+      - run: mypy geometry-scene-engine/src --ignore-missing-imports
+      - run: python -m geometry_scene.gallery --fixtures geometry-scene-engine/fixtures --output geometry-scene-engine/output/gallery
+      - uses: actions/upload-artifact@v4
+        with:
+          name: geometry-scene-images-and-states
+          path: geometry-scene-engine/output/gallery

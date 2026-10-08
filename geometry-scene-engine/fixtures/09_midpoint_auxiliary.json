@@ -1,0 +1,16 @@
+{
+  "case_id":"09_midpoint_auxiliary",
+  "initial":{
+    "problem_text":"M is midpoint of AB; later draw CM as an auxiliary segment.",
+    "objects":{"A":{},"B":{},"C":{},"M":{}},
+    "positions":{"A":[100,330],"B":[520,330],"C":[240,100]},
+    "relations":[{"id":"midpoint","type":"MIDPOINT","args":["M","A","B"],"status":"GIVEN"}]
+  },
+  "expected":[
+    {"entities":["point_M","segment_AM","segment_MB","mark_midpoint_midpoint"],"absent":["segment_CM"]},
+    {"entities":["segment_CM","mark_midpoint_midpoint"],"highlight":["segment_CM"],"dashed":["segment_CM"]}
+  ],
+  "steps":[
+    {"expected_version":0,"add_entities":[{"id":"segment_CM","type":"SEGMENT","refs":["C","M"],"role":"AUXILIARY"}],"visual":{"highlight":["segment_CM"]}}
+  ]
+}

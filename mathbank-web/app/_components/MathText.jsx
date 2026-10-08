@@ -11,6 +11,8 @@ import ProblemSource from "./ProblemSource.jsx";
 import { geometryArtifactSource } from "../../lib/tutorProblem.mjs";
 import GeometryArtifact from "./GeometryArtifact.jsx";
 import AsymptoteDiagram from "./AsymptoteDiagram.jsx";
+import { geometrySceneSource } from "../../lib/geometryScenes.mjs";
+import GeometryScene from "./GeometryScene.jsx";
 
 const renderInline = (t) => <MathText>{t}</MathText>;
 const learningPlanSections = new Map([
@@ -45,6 +47,10 @@ const components = {
     return <SourceImage key={src} {...props} src={src} className="mb-source-image" />;
   },
   pre({ node, children, ...props }) {
+    const scene = geometrySceneSource(node);
+    if (scene?.scene) return <GeometryScene key={`${scene.scene.scene_id}:${scene.scene.version}`} scene={scene.scene} />;
+    if (scene?.error) return <div role="alert" className="text-danger">{scene.error}</div>;
+    if (scene?.pending) return <div role="status" className="text-secondary small">Receiving geometry scene…</div>;
     const code = node?.children?.find((child) => child.tagName === "code");
     const classes = code?.properties?.className || [];
     const languages = Array.isArray(classes) ? classes : [classes];
