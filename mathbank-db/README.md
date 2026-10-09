@@ -1,5 +1,15 @@
 # mathbank-db
 
+## Active local snapshot
+
+The user-approved remote replacement now runs PostgreSQL 18 on port 5433 with
+database `mathbank`. The Makefile defaults to version 18; the old PostgreSQL 16
+cluster is stopped and retained for rollback. Complete remote export, prior
+local backup, checksum and verified row counts are documented in
+[DATABASES.md](../DATABASES.md#postgresql-18-replacement-2026-10-08).
+This is a snapshot, not ongoing sync, and does not redirect REST/agent or start
+model calls.
+
 ## Complete schema and step-lifecycle reference
 
 The newer generic tutoring-route layer is documented in

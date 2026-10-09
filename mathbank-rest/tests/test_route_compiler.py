@@ -49,10 +49,10 @@ def test_invalid_source_quote_gets_one_bounded_repair(monkeypatch):
     assert "excerpt index" in repair and "invent" in repair
 
 
-def test_second_rejected_output_is_not_persisted_or_silently_accepted(monkeypatch):
+def test_two_error_guided_repairs_do_not_accept_invalid_output(monkeypatch):
     bad = program()
     bad["steps"][0]["source_quote"] = "Not in source"
-    create = provider(monkeypatch, [bad, bad])
+    create = provider(monkeypatch, [bad, bad, bad])
     with pytest.raises(ValueError, match="excerpt index"):
         route_compiler.generate(
             {
@@ -63,7 +63,7 @@ def test_second_rejected_output_is_not_persisted_or_silently_accepted(monkeypatc
             },
             [],
         )
-    assert create.call_count == 2
+    assert create.call_count == 3
 
 
 def test_source_hash_changes_on_statement_solution_or_verification_change():

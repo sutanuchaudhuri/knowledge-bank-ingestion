@@ -4,6 +4,45 @@
 
 ### Incremental tutoring-route changes
 
+Source-derived worktree addition at `b0ca4ac`:
+[migration 028](../../mathbank-db/sql/028_route_distributed_queue.sql) defines
+`pedagogy.route_compile_task` for the multi-machine local ingestion pipeline.
+It is operational metadata, not a Neo4j node or REST endpoint.
+
+| Column | SQL type / nullability / default |
+|---|---|
+| `task_id` | uuid PK, default `gen_random_uuid()` |
+| `generator_version`, `source_hash` | text NOT NULL |
+| `solution_id` | uuid NOT NULL FK `core.solution`, default NO ACTION |
+| `status` | text NOT NULL default QUEUED; QUEUED/RUNNING/DONE/FAILED |
+| `owner_token` | nullable uuid, unique claim identity (not a credential) |
+| `owner_run_id` | nullable uuid FK `route_compiler_run`, NO ACTION |
+| `lease_until` | nullable timestamptz |
+| `attempts` | integer NOT NULL default 0 |
+| `route_release_id` | nullable uuid FK `solution_route_release`, NO ACTION |
+| `error_code` | nullable text |
+| `created_at` | timestamptz NOT NULL default `now()` |
+| `completed_at` | nullable timestamptz |
+
+Unique `(generator_version,solution_id,source_hash)` prevents duplicate task
+identity across machines. Index `(generator_version,status,lease_until,created_at)`
+supports claims/recovery. No learner data or model output resides in this queue;
+existing run/job/step JSONB holds provenance/evals. Migration application is an
+operator action; this source inventory does not itself establish deployment parity.
+Separately, migration 028 was applied to the explicitly authorized remote
+PostgreSQL during pipeline validation on 2026-10-09 UTC; two-connection claim/
+reclaim/fencing checks passed. This is not a full updated catalog/parity audit.
+
+[Migration 027](../../mathbank-db/sql/027_route_generation_provenance.sql) adds
+`generation_config jsonb NOT NULL DEFAULT '{}'` to `route_compiler_run` and
+`generation_metadata jsonb NOT NULL DEFAULT '{}'` to both `route_compiler_job`
+and `route_step` in schema `pedagogy`. Applied to the explicitly authorized
+remote target for local Ollama ingestion. Step metadata contains model identity,
+digest/runtime/options/usage/timing/source/output hashes and taxonomy snapshots;
+historical unknown provenance stays empty. Reviewed snapshot guards also protect
+step metadata. This later change supersedes the older catalog column inventories
+for these three tables; local SQL backups remain at their earlier schema.
+
 Current source/worktree migration
 [026](../../mathbank-db/sql/026_tutoring_routes.sql) adds ten route tables, with
 the full inventory in [pedagogy](postgres/pedagogy.md) and

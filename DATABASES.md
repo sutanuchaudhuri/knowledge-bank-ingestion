@@ -26,6 +26,66 @@ SSD and never inside this git repo.
 
 ## Services
 
+### PostgreSQL 18 replacement (2026-10-08)
+
+The user approved replacing the active local database from the remote Neon
+snapshot, not creating a second app database. The new cluster lives under
+`/Volumes/External/Developer/databases/postgres18/data`; the database remains
+`mathbank`, with port 5433 after verified cutover. The PostgreSQL 16 cluster is
+retained for rollback rather than deleted. The default database Makefile now
+uses version 18; `PG_VERSION=16` explicitly selects the legacy cluster.
+
+Exports are stored outside Git under
+`/Volumes/External/Developer/databases/backups/2026-10-08-neon-snapshot/`:
+`neon-full.dump` is the complete remote schema/data export, while
+`local-mathbank-before.dump` preserves the previous local database.
+Files/directories have restricted permissions because they include private
+application/provider data. External object-store files are not included.
+
+Local restore omits only the hosted `pg_session_jwt` extension and its comment;
+the complete export retains these entries. Neon-managed authentication
+services are not recreated by restoring their tables. PostgreSQL `vector`
+is restored with the locally available pgvector version. Application REST/
+agent connection settings remain remote; replacing the local database does
+not silently redirect running applications or resume paid ingestion.
+
+The PostgreSQL 16 layout and setup instructions below describe the legacy
+cluster; current default lifecycle commands select PostgreSQL 18.
+
+**Completed and verified:** PostgreSQL 18.6 now serves `127.0.0.1:5433/mathbank`.
+Application-role TCP login works. Source/local table/view column inventories
+match (1,405 columns compared), with matching key counts: 12,542 problems,
+18,749 solutions, 7,814 original textbook steps, 146 REVIEWED route releases,
+562 route steps, 2,810 hint rows and 18,756 compiler jobs. This is a point-in-time
+copy, not continuous replication. Restoration used four workers and stopped
+on errors; pgvector is locally 0.8.7 versus source 0.8.6.
+`verification.json`, `SHA256SUMS` and the restore manifest accompany the backups.
+The old PostgreSQL 16 server is stopped, its data retained. No paid generation
+was restarted, and REST/agent remain pointed at the remote databases.
+
+### Image and object-file export (2026-10-08)
+
+User selected copying all referenced files locally without deleting remote
+originals or changing application connections. The snapshot's companion
+`backups/2026-10-08-neon-snapshot/assets/` contains:
+
+- `runtime_objects/`: all **6 objects** from the configured private S3 bucket,
+  retaining object keys for later filesystem-backend use.
+- `repository_files/`: **1,230 distinct files** resolved from restored
+  `core.problem_image.local_path`, `pedagogy.diagram.local_path` and
+  `ingest.package_file` joined to its `content_package.source_root`.
+- `manifest.json`: relative locations, sizes and SHA-256 hashes; **zero missing
+  files**, **60,572,229 bytes** copied. All 1,236 files were independently
+  rehashed after export. Provider SHA-256 metadata was checked where available.
+
+The 989 problem-image and 250 textbook-diagram rows mostly referenced files
+already on this machine, not S3. Deduplicated source/package references are
+archived with their repository-relative directory layout. This is a private
+backup, not a publicly served directory. Remote objects, local/remote SQL
+references and REST settings are unchanged. Linked external problem/solution
+URLs are not crawled: the export covers stored objects and referenced local
+files, not arbitrary internet pages. No model calls were made.
+
 | Service    | Port(s)        | Admin user        | App user       | Database |
 |------------|----------------|-------------------|----------------|----------|
 | PostgreSQL | 5433 (TCP)     | `mathbank_admin`  | `mathbank_app` | `mathbank` |
@@ -217,4 +277,3 @@ Run `make vector-status-remote` afterward to confirm
   a no-op (`ON CONFLICT DO UPDATE` just re-marks it `ACTIVE`), changed text
   inserts a new row and marks the old one `SUPERSEDED`. Idempotent, but see
   the "reprocesses the whole corpus every run" performance caveat above.
-

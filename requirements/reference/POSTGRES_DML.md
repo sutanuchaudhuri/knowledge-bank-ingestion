@@ -14,6 +14,40 @@
 
 ### Full-corpus tutoring routes and operator bulk approval
 
+Source-derived worktree addition (`b0ca4ac`):
+[route_batch.py](../../mathbank-rest/src/mathbank_rest/route_batch.py) seeds
+version/solution/hash tasks with ON CONFLICT DO NOTHING. Multiple machines
+claim QUEUED or expired RUNNING rows via a CTE with FOR UPDATE SKIP LOCKED;
+claim token, owning run, lease and attempts update in the same transaction as
+the per-machine RUNNING job insertion. There is no global compiler lease on
+this path. Heartbeats renew every 30 seconds within a 180-second lease.
+Route insertion holds a short task-row ownership fence and source/solution
+locks; task DONE, job/model metadata and optional REVIEWED transition commit
+together. Stale owners cannot insert or finish another owner's task.
+Model inference holds no SQL locks. Failed tasks require explicit requeue;
+crashed tasks become reclaimable on expiry.
+
+Mandatory enrichment is checked before insertion and review/publication.
+A different-model critic evaluates seven criteria per step, PASS/all >=3/4/
+no issues, bound to program hash. Critic model/usage/evals and bounded feedback
+history join generation provenance in job/step JSONB. New v3 routes require
+critic provenance again at review/publication; changing draft content invalidates
+the eval hash. No proof certification, automatic publication or graph write.
+Two structural repairs per stage and two critic-feedback revisions are bounded.
+Rolled-back persistence retries twice only for connection/serialization/deadlock
+failures; permanent SQL failures are surfaced.
+
+The local-only Ollama path now writes provider/model/digest/runtime/options,
+per-call token/duration metrics, source/output hashes and validation provenance
+to jobs and every newly created step before review, in the same persistence
+transaction. Step provenance includes ordinal/time and canonical requirement
+snapshots; source content and normalized taxonomy joins remain authoritative.
+The run freezes generation configuration and rejects a mismatched provider on
+resume. It does not relabel old OpenAI jobs. Same-version/source releases are
+reused; v3 can create new enriched versions alongside older releases.
+The staff preview source includes `step_generation_metadata` separately from
+editable program JSON. See [the execution plan](../../requirements.txt).
+
 Incremental source evidence: migration
 [026](../../mathbank-db/sql/026_tutoring_routes.sql),
 [compiler](../../mathbank-rest/src/mathbank_rest/route_compiler.py) and
@@ -29,7 +63,7 @@ dated live operational results, separately from this source-derived description.
 | `--approve-by` | Run stores `auto_review_by`; shared hash/source/taxonomy/DAG validator transitions DRAFT to REVIEWED in the persistence transaction | Explicit operator bulk approval, not independent mathematical certification; never PUBLISHED |
 | `approve-drafts` | Snapshot current draft IDs; validate and review each in its own transaction | Rejected/stale draft remains unapproved with an explicit failure; previously reviewed snapshots untouched |
 | Resume/status | Retry frozen unfinished jobs; inherit approval policy; whole-cohort job/release counts | Job DRAFT means generated snapshot exists; release status independently records REVIEWED/PUBLISHED |
-| Failure | Persist safe `error_code` and JSON `error_details`; no raw provider body | At most one repair per attempt; invalid sources never turn into empty successful steps |
+| Failure | Persist safe `error_code` and JSON `error_details`; no raw provider body | At most two repairs per stage; invalid sources never turn into empty successful steps |
 
 Publication, Neo4j projection and embeddings remain separate operations.
 

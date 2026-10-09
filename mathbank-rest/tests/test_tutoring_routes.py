@@ -66,7 +66,7 @@ def live_conn():
             transaction.rollback()
 
 
-def draft(conn):
+def draft(conn, generation_metadata=None):
     source = dict(
         conn.execute(
             text("""
@@ -81,6 +81,8 @@ def draft(conn):
         .mappings()
         .one()
     )
+    if generation_metadata:
+        source["_generation_metadata"] = generation_metadata
     payload = program()
     for step in payload["steps"]:
         step["instruction"] = dict(step["instruction"])
@@ -89,8 +91,43 @@ def draft(conn):
     payload["steps"][1]["instruction"]["full_explanation"] = "FUTURE_EXPLANATION_SECRET"
     payload["steps"][1]["instruction"]["expected_response"] = "FUTURE_ANSWER_SECRET"
     value = RouteProgram.model_validate(payload)
+    from test_route_critic import accepted_metadata
+
+    source["_generation_metadata"] = accepted_metadata(value, generation_metadata)
     release_id = UUID(persist(conn, source, value, str(uuid4())))
     return release_id, source, value
+
+
+def test_per_step_model_provenance_persists_and_is_immutable_after_review(live_conn):
+    metadata = {
+        "provider": "ollama",
+        "model": "test-local",
+        "digest": "test-digest",
+        "calls": [{"eval_count": 100}],
+        "validation": "passed",
+    }
+    release, _, value = draft(live_conn, metadata)
+    rows = list(
+        live_conn.execute(
+            text("""
+        SELECT generation_metadata FROM pedagogy.route_step
+        WHERE route_release_id=:r ORDER BY step_index
+    """),
+            {"r": release},
+        ).scalars()
+    )
+    assert len(rows) == 2
+    assert all(row["model"] == "test-local" and row["digest"] == "test-digest" for row in rows)
+    assert rows[0]["step_index"] == 1 and "taxonomy_annotations" in rows[0]
+    route_runtime.review(live_conn, release, "rollback test", program_digest(value))
+    with pytest.raises(SQLAlchemyError, match="Reviewed route snapshots"), live_conn.begin_nested():
+        live_conn.execute(
+            text("""
+            UPDATE pedagogy.route_step SET generation_metadata='{}'::jsonb
+            WHERE route_release_id=:r
+        """),
+            {"r": release},
+        )
 
 
 def test_review_publication_and_snapshot_immutability(live_conn):
@@ -172,7 +209,7 @@ def test_attempt_ownership_current_step_and_retirement_pin(live_conn):
     assert "FUTURE_" not in str(advanced)
 
 
-def test_draft_edit_is_atomic_and_hash_guarded(live_conn):
+def test_draft_edit_is_atomic_and_hash_guarded(live_conn, monkeypatch):
     conn = live_conn
     release, _, value = draft(conn)
     changed = value.model_copy(deep=True)
@@ -182,6 +219,29 @@ def test_draft_edit_is_atomic_and_hash_guarded(live_conn):
     result = route_runtime.edit(conn, release, program_digest(value), changed)
     loaded = route_runtime.load_program(conn, str(release))
     assert result["content_hash"] == program_digest(loaded) == program_digest(changed)
+    with pytest.raises(ValueError, match="critic model"):
+        route_runtime.review(conn, release, "rollback test", result["content_hash"])
+    # Exercise the CLI's re-evaluation writer without calling a live model.
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from test_route_critic import accepted_metadata
+
+    from mathbank_rest import route_batch
+    from mathbank_rest.route_ollama import OllamaProvider
+
+    monkeypatch.setattr(
+        route_batch,
+        "engine",
+        SimpleNamespace(
+            connect=lambda: nullcontext(conn),
+            begin=lambda: nullcontext(conn),
+        ),
+    )
+    monkeypatch.setattr(
+        route_batch, "evaluate", lambda program, *args: accepted_metadata(program)["critic"]
+    )
+    route_batch.recheck(release, OllamaProvider(model="test-critic", digest="test-critic-digest"))
     route_runtime.review(conn, release, "rollback test", result["content_hash"])
     with pytest.raises(StateVersionConflict):
         route_runtime.edit(conn, release, result["content_hash"], value)

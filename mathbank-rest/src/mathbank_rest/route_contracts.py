@@ -179,6 +179,39 @@ def validate_source(program: RouteProgram, source: str, taxonomy_ids: set[str]) 
             raise ValueError("Asset refers to an unknown canonical taxonomy ID.")
 
 
+def validate_enrichment(program: RouteProgram) -> None:
+    """Drafts may be incomplete; review/publication requires connected teaching assets."""
+    assets = {asset.key: asset for asset in program.assets}
+    for index, step in enumerate(program.steps, 1):
+        roles = {link.role for link in step.asset_links}
+        if not step.produces or not {"CAN_TRIGGER", "EXPLAINED_BY", "CHECKED_BY"} <= roles:
+            raise ValueError(
+                f"Step {index} requires claim, misconception, theory and quiz enrichment."
+            )
+        misconceptions = {link.asset_key for link in step.asset_links if link.role == "CAN_TRIGGER"}
+        theories = [
+            assets[link.asset_key] for link in step.asset_links if link.role == "EXPLAINED_BY"
+        ]
+        quizzes = [assets[link.asset_key] for link in step.asset_links if link.role == "CHECKED_BY"]
+        for key in step.produces:
+            if not assets[key].description.strip():
+                raise ValueError(f"Step {index} requires a substantive claim.")
+        if any(not item.description.strip() for item in theories):
+            raise ValueError(f"Step {index} requires substantive theory content.")
+        if any(not item.question.strip() or not item.expected_answer.strip() for item in quizzes):
+            raise ValueError(f"Step {index} requires a nonblank quiz and answer.")
+        for key in misconceptions:
+            asset = assets[key]
+            if not all(
+                text.strip() for text in (asset.symptom, asset.why_wrong, asset.correct_model)
+            ):
+                raise ValueError(f"Step {index} requires substantive misconception content.")
+            if not any(key in item.remediates for item in theories):
+                raise ValueError(f"Step {index} requires theory remediation for {key}.")
+            if not any(key in item.diagnoses for item in quizzes):
+                raise ValueError(f"Step {index} requires a diagnostic quiz for {key}.")
+
+
 def program_digest(program: RouteProgram) -> str:
     """Hash semantic content independently of unordered relation/asset SQL row order."""
     payload = program.model_dump()

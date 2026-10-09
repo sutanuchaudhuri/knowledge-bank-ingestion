@@ -1,4 +1,4 @@
-# mathbank-db — local PostgreSQL 16 cluster stored on the external APFS drive.
+# mathbank-db — local PostgreSQL 18 cluster stored on the external APFS drive.
 #
 # Quick start:
 #   cp .env.example .env            # then edit the passwords
@@ -10,7 +10,7 @@
 -include .env
 export
 
-PG_VERSION       ?= 16
+PG_VERSION       ?= 18
 EXTERNAL_DB_ROOT ?= /Volumes/External/Developer/databases
 PG_PORT          ?= 5433
 PG_SUPERUSER     ?= mathbank_admin

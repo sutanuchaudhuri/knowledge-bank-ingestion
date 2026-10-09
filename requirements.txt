@@ -1,0 +1,152 @@
+LOCAL OLLAMA TUTORING STEP INGESTION PLAN
+Authorized: 2026-10-09 UTC (2026-10-08 evening EDT).
+
+CURRENT POLICY (supersedes the initial atomic-only launch below):
+Claims, misconceptions, theory and diagnostic quizzes are MANDATORY per step.
+The atomic-only run 3275ee2d-860a-47ee-ae30-2d36a6ccc119 was stopped; do not
+resume it. Its historical releases remain intact, not treated as complete.
+Use make routes-prepare / routes-plan / routes-ingest / routes-progress.
+The user will run the pipeline on multiple Macs; no full replacement bulk
+run is automatically started by this change.
+Migration028 adds a shared version/solution/source-hash work queue.
+No global ingestion lock: atomic SKIP LOCKED claims, unique ownership tokens,
+180-second leases, 30-second heartbeats, transaction-level persistence fencing.
+Every machine calculates available OS/RAM/CPU/model resources before inference,
+uses its maximum conservatively safe concurrency from memory/CPU (no fixed cap), and
+starts only its own local Ollama server. Unsafe worker overrides are refused.
+Missing generator/critic models are downloaded automatically before inference.
+Default generator qwen2.5:7b, critic llama3.2:3b (different model and digest).
+Mandatory per-step evals score source/math/disclosure/teaching/misconception/
+quiz/taxonomy 0-4; require PASS, every score >=3 and no issues. FAIL/ABSTAIN
+blocks persistence. Initial generation plus two error-guided repairs; critic
+feedback permits two bounded complete revisions. No private chain-of-thought.
+Per-step model provenance includes both providers/models/digests/options/usage,
+evals bound to program hash and repair/critic history.
+All checks happen before route insertion; whole transactions roll back on SQL
+failure. Only transient DB errors retry twice; no blind permanent-error retry.
+Model runtime itself must be installed and on PATH. Both models use one
+resident slot set; memory sizing budgets the larger model, not their sum.
+README.md contains exact commands, overrides, logs and two-machine behavior.
+ROUTE_LOG_ROOT must be set to an external-drive path appropriate to each Mac.
+ROUTE_RUN_ID optionally selects per-machine detail in make routes-progress.
+Review/publication gates reject missing mandatory enrichment or stale/missing
+critic evals for new compiler releases. Older snapshots are not mutated.
+
+PIPELINE VALIDATION OBSERVATION (2026-10-09 UTC):
+Migration028 applied to the explicitly authorized remote PostgreSQL.
+59 targeted tests passed with live DB checks enabled: real two-connection
+SKIP LOCKED claiming, expired-lease reclamation and stale-owner fencing;
+rollback-only route/provenance/review tests; critic thresholds/veto/feedback;
+two transient SQL retries and refusal to retry permanent constraint errors.
+Ruff checks and edited-file diagnostics passed.
+Automatic installation of missing llama3.2:3b succeeded, including digest
+verification and manifest write; download logs remain on the external drive.
+Actual default-model preflight refused inference because this busy Mac had
+only 6,051,840,000 bytes (5.64 GiB) available memory. No unsafe override,
+model evaluation or full ingestion was forced. Both old owned runner/server
+processes are absent; the atomic-only run is recorded PARTIAL with 18,590
+QUEUED and two InterruptedByPolicyChange jobs, zero full-run releases.
+The replacement v3 shared queue remains empty for the user to launch.
+Live full generator+critic mathematical acceptance remains unverified here
+until a machine passes the resource preflight. No paid API calls were made.
+Use make routes-progress for shared completion, failures, reclaimable leases,
+latest machine runs and critic step-eval verdict counts.
+After a manual DRAFT edit, use make routes-evaluate ROUTE_RELEASE_ID=<uuid>
+to refresh hash-bound critic evals without generation/review/publication.
+
+Objective:
+Generate source-grounded atomic tutoring steps using only loopback Ollama.
+Persist into the existing REST-configured remote Neon PostgreSQL.
+Never fall back to OpenAI or another paid model. Preserve existing reviewed
+routes, imported textbook steps, source verification flags and local backups.
+
+Hardware and initial model choice:
+Apple M4, 10 CPU cores, 16 GiB unified RAM. Installed qwen2.5:7b Q4_K_M
+is selected over installed qwen2.5:1.5b for mathematical/instruction quality.
+This is the strongest installed suitable model, not a universal best-model
+claim. Larger models and arbitrary thread counts risk swapping/OOM.
+Start with two generation workers, eight CPU inference threads per request,
+16,384 context tokens, maximum 4,096 output tokens, temperature 0.1.
+Measure real validation acceptance, generation throughput and memory pressure
+before increasing concurrency. More HTTP threads are not more GPU throughput.
+Use a dedicated loopback Ollama server with two parallel slots, one loaded
+model, flash attention and quantized KV cache. Do not interrupt other Ollama.
+
+Plan:
+1. Add migration 027 for run configuration, job diagnostics/usage and per-step
+   model provenance; apply on the explicitly authorized remote target.
+2. Reuse the strict route IR, exact source excerpt binding, canonical taxonomy,
+   dependency validation, source freshness locks and immutable release lifecycle.
+3. Persist provider, model name, model digest, Ollama version, generation options,
+   token counts, durations, repair count, source hash, semantic output hash and
+   validation result for every newly generated step and each attempted job.
+   Concepts/skills/techniques remain normalized in solution_step_requirement;
+   claims/misconceptions/theory remain versioned release assets.
+   Historical unknown provenance stays empty, never fabricated.
+4. Provider config is frozen per run. Do not resume an OpenAI run as Ollama.
+   Start a new remaining-source cohort, excluding same-version existing routes.
+5. Run focused tests and a small live Ollama acceptance before full ingestion.
+   Initial two-case rich-asset trial was rejected (invalid misconception link
+   and invented taxonomy ID). Do not promote these outputs.
+   Local atomic-step profile now constrains taxonomy IDs in the JSON schema,
+   emitted steps/instructions/hints/requirements without library assets.
+   That historical subset was stopped at the user's correction: library assets
+   are mandatory, generated in bounded per-step calls before acceptance.
+6. Launch all remaining solutions only when live validated persistence succeeds.
+   Store all runner/server/progress logs under:
+   /Volumes/External/Developer/databases/logs/ollama-routes/
+7. Inherit user's explicit bulk approval identity only after shared structural/
+   source/hash/taxonomy validation passes. REVIEWED is not proof certification,
+   student publication, graph refresh or embedding publication.
+8. At most two structural repairs per stage; timeout 900 seconds per local call.
+   Refusal, invalid/truncated output and unavailable local service fail explicitly.
+   Server/transport failure stops new scheduling; no unbounded retries.
+9. Failed jobs retain safe diagnostics and provenance for explicit retry.
+   Report whole-cohort progress with independently queryable SQL status.
+10. Local backup remains unchanged; remote data grows. No automatic remote
+    deletion or continuous backup synchronization.
+
+Acceptance:
+Unit/API regression tests; real local model produces validated stored steps;
+each step has Ollama model/digest/options/usage; SQL taxonomy/DAG/hash checks
+pass; no OpenAI calls on Ollama code path; server and workers responsive.
+Log/manifest permissions restricted; no credentials or raw private reasoning
+in logs. No model-generated chain-of-thought persisted.
+
+Measured acceptance:
+First schema-constrained atomic case persisted four reviewed steps using only
+qwen2.5:7b: 2,227 prompt tokens, 2,246 output tokens, 137.6 seconds total.
+Another case was explicitly rejected before inference by the conservative
+context guard. Output budget adjusted from 7,000 to 4,096 to reserve more
+source context; local repair repeats canonical source plus safe diagnostics
+without reinserting the full rejected JSON. Larger/unsafe sources remain
+explicit failures, never silently truncated. Observed server model VRAM
+allocation 5.52 GB; system memory-free percentage 17-19% with two slots.
+Two concurrent workers are the current measured safe operating ceiling;
+four/eight inference requests are not authorized by evidence on 16 GiB RAM.
+
+HISTORICAL ATOMIC-ONLY LAUNCH (NOW STOPPED):
+Remote run: 3275ee2d-860a-47ee-ae30-2d36a6ccc119
+Started: 2026-10-09 00:18:12 UTC.
+Frozen remaining cohort: 18,592 solutions; two RUNNING workers observed.
+Model digest: 845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e
+Ollama version: 0.34.2. Profile: atomic-steps-taxonomy-v1.
+156 earlier reviewed routes preserved; one live Ollama acceptance added four
+steps, making 157 existing reviewed routes before full-run generation.
+29 targeted tests passed, including live rollback-only step metadata
+persistence and immutability; no-paid-fallback and context/output guards.
+All ongoing logs/progress are on external drive, not the repository.
+
+Status:
+cd mathbank-rest
+.venv/bin/python -m mathbank_rest.route_compiler status --resume-run 3275ee2d-860a-47ee-ae30-2d36a6ccc119
+
+Replacement pipeline:
+make routes-prepare
+make routes-plan
+make routes-ingest
+make routes-progress
+Override ROUTE_LOG_ROOT on another machine. Do not resume the atomic-only run.
+
+Stop the recorded compiler process specifically; never stop other Ollama users
+or restart OpenAI ingestion. No automatic retry loop or paid fallback.

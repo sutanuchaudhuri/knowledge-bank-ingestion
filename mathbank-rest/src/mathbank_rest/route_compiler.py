@@ -20,11 +20,13 @@ from mathbank_rest.route_contracts import (
     RouteProgram,
     content_hash,
     program_digest,
+    validate_enrichment,
     validate_source,
 )
+from mathbank_rest.route_ollama import OllamaError, OllamaProvider
 from mathbank_rest.step_runtime import RuntimeError_
 
-VERSION = "tutoring-route-compiler-v1"
+VERSION = "tutoring-route-compiler-v3-enrichment-critic"
 log = logging.getLogger(__name__)
 
 
@@ -104,8 +106,9 @@ def source_hash(source: dict) -> str:
     )
 
 
-def generate(source: dict, nodes: list[dict]) -> RouteProgram:
-    from mathbank_rest.tutor import MODEL_NAME, _client
+def generate(
+    source: dict, nodes: list[dict], provider: OllamaProvider | None = None
+) -> RouteProgram:
 
     # Match a bounded canonical vocabulary using existing problem and step metadata.
     # Unknown IDs remain forbidden even if the provider proposes new terminology.
@@ -122,7 +125,7 @@ def generate(source: dict, nodes: list[dict]) -> RouteProgram:
             -len(words & set(re.findall(r"[a-z]{3,}", node["name"].lower()))),
             node["taxonomy_node_id"],
         ),
-    )[:100]
+    )[: 20 if provider else 100]
     excerpts = source_excerpts(source["source"])
     if not excerpts:
         raise ValueError("No canonical source excerpts are available.")
@@ -167,35 +170,88 @@ def generate(source: dict, nodes: list[dict]) -> RouteProgram:
                     ],
                     "verification_status": source["verification_status"],
                     "canonical_taxonomy": vocabulary,
+                    "critic_feedback": source.get("_critic_feedback", []),
                 }
             ),
         },
     ]
-    for attempt in range(2):
-        response = _client.with_options(timeout=120, max_retries=0).chat.completions.create(
-            model=MODEL_NAME,
-            temperature=0.1,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "offline_tutoring_route",
-                    "strict": True,
-                    "schema": generation_schema(excerpts),
-                },
-            },
-            messages=messages,
+    source["_generation_metadata"] = {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "compiler_version": VERSION,
+        "source_hash": source_hash(source) if "solution_id" in source else None,
+        "calls": [],
+        "validation": "pending",
+    }
+    if provider:
+        source["_generation_metadata"].update(provider.config())
+        messages[0]["content"] += (
+            " For this local compilation use 2-6 concise atomic steps. "
+            "This local atomic-step profile requires assets=[], produces=[], uses_claims=[] "
+            "and asset_links=[] during decomposition ONLY; mandatory enrichment follows before acceptance. "
+            "Use the supplied canonical taxonomy to identify genuine techniques/skills/concepts "
+            "in requirements; do not replace taxonomy requirements with invented asset IDs. "
+            "Keep explanations concise but mathematically complete for the current step."
         )
-        if not response.choices or not response.choices[0].message.content:
-            raise ValueError("Provider refused or returned no program.")
-        raw = response.choices[0].message.content
+    for attempt in range(3):
+        if provider:
+            schema = generation_schema(excerpts)
+            schema["properties"]["assets"]["maxItems"] = 0
+            step_schema = schema["$defs"]["RouteStep"]["properties"]
+            for field in ("produces", "uses_claims", "asset_links"):
+                step_schema[field]["maxItems"] = 0
+            ids = [node["taxonomy_node_id"] for node in vocabulary]
+            if ids:
+                schema["$defs"]["Requirement"]["properties"]["taxonomy_node_id"]["enum"] = ids
+            else:
+                step_schema["requirements"]["maxItems"] = 0
+            raw, metrics = provider.complete(messages, schema)
+            source["_generation_metadata"]["calls"].append(
+                metrics | {"stage": "decomposition", "attempt": attempt}
+            )
+        else:
+            from mathbank_rest.tutor import MODEL_NAME, _client
+
+            response = _client.with_options(timeout=120, max_retries=0).chat.completions.create(
+                model=MODEL_NAME,
+                temperature=0.1,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "offline_tutoring_route",
+                        "strict": True,
+                        "schema": generation_schema(excerpts),
+                    },
+                },
+                messages=messages,
+            )
+            if not response.choices or not response.choices[0].message.content:
+                raise ValueError("Provider refused or returned no program.")
+            raw = response.choices[0].message.content
+            source["_generation_metadata"]["model"] = MODEL_NAME
+            source["_generation_metadata"]["calls"].append(
+                {"usage": response.usage.model_dump() if getattr(response, "usage", None) else None}
+            )
         try:
             program = bind_excerpts(raw, excerpts)
             validate_source(
                 program, source["source"], {node["taxonomy_node_id"] for node in vocabulary}
             )
+            if provider:
+                if program.assets or any(
+                    step.produces or step.uses_claims or step.asset_links for step in program.steps
+                ):
+                    raise ValueError("Decomposition must leave assets for mandatory enrichment.")
+                break
+            validate_enrichment(program)
+            source["_generation_metadata"].update(
+                validation="source_structure_taxonomy_dag_passed",
+                repair_count=attempt,
+                program_hash=program_digest(program),
+            )
             return program
         except (ValidationError, ValueError, TypeError) as exc:
-            if attempt:
+            if attempt == 2:
                 raise
             details = (
                 exc.errors(include_input=False, include_context=False, include_url=False)
@@ -203,8 +259,8 @@ def generate(source: dict, nodes: list[dict]) -> RouteProgram:
                 else str(exc)
             )
             messages.extend(
-                [
-                    {"role": "assistant", "content": raw},
+                ([] if provider else [{"role": "assistant", "content": raw}])
+                + [
                     {
                         "role": "user",
                         "content": (
@@ -215,6 +271,25 @@ def generate(source: dict, nodes: list[dict]) -> RouteProgram:
                     },
                 ]
             )
+    if provider:
+        from mathbank_rest.route_enrichment import enrich
+
+        program = enrich(program, source, provider)
+        validate_enrichment(program)
+        validate_source(
+            program, source["source"], {node["taxonomy_node_id"] for node in vocabulary}
+        )
+        source["_generation_metadata"].update(
+            validation="source_structure_taxonomy_dag_enrichment_passed",
+            repair_count=attempt
+            + sum(
+                call["attempt"]
+                for call in source["_generation_metadata"]["calls"]
+                if call.get("stage") == "mandatory_enrichment"
+            ),
+            program_hash=program_digest(program),
+        )
+        return program
     raise RuntimeError("No validated compilation result.")
 
 
@@ -262,6 +337,12 @@ def bind_excerpts(raw: str, excerpts: list[str]) -> RouteProgram:
 
 
 def persist(conn, source: dict, program: RouteProgram, run_id: str) -> str:
+    validate_enrichment(program)
+    from mathbank_rest.route_critic import validate_critic_metadata
+
+    validate_critic_metadata(
+        source.get("_generation_metadata", {}), len(program.steps), program_digest(program)
+    )
     sid = source["solution_id"]
     conn.execute(text("SELECT pg_advisory_xact_lock(hashtext(:id))"), {"id": sid})
     current = dict(
@@ -321,6 +402,27 @@ def persist(conn, source: dict, program: RouteProgram, run_id: str) -> str:
         },
     ).scalar_one()
     write_program(conn, release, program)
+    if source.get("_generation_metadata"):
+        conn.execute(
+            text("""
+            UPDATE pedagogy.route_step st SET generation_metadata=
+                CAST(:metadata AS jsonb) || jsonb_build_object(
+                    'generated_at',now(),'step_index',st.step_index,
+                    'taxonomy_annotations',coalesce((
+                        SELECT jsonb_agg(jsonb_build_object(
+                            'taxonomy_node_id',req.taxonomy_node_id,
+                            'node_type',node.node_type,'name',node.name,
+                            'role',req.role,'required_level',req.required_level,
+                            'importance',req.importance,'blocking',req.blocking)
+                            ORDER BY req.taxonomy_node_id,req.role)
+                        FROM pedagogy.solution_step_requirement req
+                        JOIN pedagogy.taxonomy_node node USING(taxonomy_node_id)
+                        WHERE req.route_release_id=st.route_release_id
+                          AND req.step_index=st.step_index),'[]'::jsonb))
+            WHERE st.route_release_id=:r
+        """),
+            {"r": release, "metadata": json.dumps(source["_generation_metadata"])},
+        )
     conn.execute(
         text("""
         UPDATE pedagogy.route_compiler_job SET status='DRAFT',route_release_id=:r,completed_at=now()
@@ -416,6 +518,7 @@ def compile_pilot(
     workers: int = 1,
     report_path: Path | None = None,
     approve_by: str | None = None,
+    provider: OllamaProvider | None = None,
 ) -> dict:
     if not 1 <= workers <= 8:
         raise ValueError("Choose between 1 and 8 bounded compiler workers.")
@@ -427,7 +530,7 @@ def compile_pilot(
             if not acquired:
                 raise RuntimeError("Another route compiler holds the run lease.")
             try:
-                return _compile_pilot(limit, resume_run, workers, report_path, approve_by)
+                return _compile_pilot(limit, resume_run, workers, report_path, approve_by, provider)
             finally:
                 lease.execute(text("SELECT pg_advisory_unlock(390026)"))
                 lease.commit()
@@ -441,6 +544,7 @@ def _compile_pilot(
     workers: int,
     report_path: Path | None,
     approve_by: str | None = None,
+    provider: OllamaProvider | None = None,
 ) -> dict:
     with engine.begin() as conn:
         nodes = taxonomy(conn)
@@ -460,6 +564,10 @@ def _compile_pilot(
             if approve_by is not None and approve_by != run["auto_review_by"]:
                 raise ValueError("Resume cannot change the frozen run approval policy.")
             approve_by = run["auto_review_by"]
+            if run["generation_config"] != (provider.config() if provider else {}):
+                raise ValueError(
+                    "Resume requires the same frozen generation provider/model settings."
+                )
             run_id = resume_run
             sources = resume_sources(conn, run_id)
             conn.execute(
@@ -472,13 +580,14 @@ def _compile_pilot(
             sources = select_sources(conn, limit)
             run_id = conn.execute(
                 text("""
-                INSERT INTO pedagogy.route_compiler_run(generator_version,requested_limit,status,auto_review_by)
-                VALUES (:v,:n,'RUNNING',:reviewer) RETURNING run_id::text
+                INSERT INTO pedagogy.route_compiler_run(generator_version,requested_limit,status,auto_review_by,generation_config)
+                VALUES (:v,:n,'RUNNING',:reviewer,CAST(:config AS jsonb)) RETURNING run_id::text
             """),
                 {
                     "v": VERSION,
                     "n": limit if limit is not None else max(1, len(sources)),
                     "reviewer": approve_by,
+                    "config": json.dumps(provider.config() if provider else {}),
                 },
             ).scalar_one()
         # Freeze the entire cohort before the first paid call so interruption never expands it.
@@ -514,7 +623,9 @@ def _compile_pilot(
         with ThreadPoolExecutor(max_workers=workers) as pool:
             pending = {}
             for source in source_iter:
-                pending[pool.submit(compile_source, source, nodes, run_id, approve_by)] = source
+                pending[
+                    pool.submit(compile_source, source, nodes, run_id, approve_by, provider)
+                ] = source
                 if len(pending) == workers:
                     break
             while pending:
@@ -526,9 +637,9 @@ def _compile_pilot(
                     write_report(report_path, run_report(run_id))
                     source = next(source_iter, None)
                     if source is not None:
-                        pending[pool.submit(compile_source, source, nodes, run_id, approve_by)] = (
-                            source
-                        )
+                        pending[
+                            pool.submit(compile_source, source, nodes, run_id, approve_by, provider)
+                        ] = source
     finally:
         report = run_report(run_id)
         terminal = (
@@ -547,19 +658,40 @@ def _compile_pilot(
 
 
 def compile_source(
-    source: dict, nodes: list[dict], run_id: str, approve_by: str | None = None
+    source: dict,
+    nodes: list[dict],
+    run_id: str,
+    approve_by: str | None = None,
+    provider: OllamaProvider | None = None,
 ) -> dict:
     with engine.begin() as conn:
         conn.execute(
             text("""
-                UPDATE pedagogy.route_compiler_job SET status='RUNNING' WHERE run_id=:run AND solution_id=:sid
+                UPDATE pedagogy.route_compiler_job SET status='RUNNING',
+                    generation_metadata=CAST(:metadata AS jsonb)
+                WHERE run_id=:run AND solution_id=:sid
             """),
-            {"run": run_id, "sid": source["solution_id"]},
+            {
+                "run": run_id,
+                "sid": source["solution_id"],
+                "metadata": json.dumps(provider.config() if provider else {}),
+            },
         )
     try:
-        program = generate(source, nodes)
+        program = generate(source, nodes, provider) if provider else generate(source, nodes)
         with engine.begin() as conn:
             release = persist(conn, source, program, run_id)
+            conn.execute(
+                text("""
+                UPDATE pedagogy.route_compiler_job SET generation_metadata=CAST(:m AS jsonb)
+                WHERE run_id=:run AND solution_id=:sid
+            """),
+                {
+                    "m": json.dumps(source.get("_generation_metadata", {})),
+                    "run": run_id,
+                    "sid": source["solution_id"],
+                },
+            )
             state = (
                 conn.execute(
                     text("""
@@ -592,6 +724,7 @@ def compile_source(
         TypeError,
         SQLAlchemyError,
         RuntimeError_,
+        OllamaError,
     ) as exc:
         # Store safe class/stage, never provider credentials or canonical solution text.
         error = type(exc).__name__
@@ -607,7 +740,8 @@ def compile_source(
             conn.execute(
                 text("""
                     UPDATE pedagogy.route_compiler_job SET status='FAILED',error_code=:error,
-                        error_details=CAST(:details AS jsonb),completed_at=now()
+                        error_details=CAST(:details AS jsonb),
+                        generation_metadata=CAST(:metadata AS jsonb),completed_at=now()
                     WHERE run_id=:run AND solution_id=:sid
                 """),
                 {
@@ -615,6 +749,7 @@ def compile_source(
                     "run": run_id,
                     "sid": source["solution_id"],
                     "details": json.dumps(details),
+                    "metadata": json.dumps(source.get("_generation_metadata", {})),
                 },
             )
         result = {
@@ -630,6 +765,8 @@ def compile_source(
             raise RuntimeError(
                 f"Compiler stopped: provider {error}; resolve credentials/quota before resuming."
             ) from None
+        if isinstance(exc, OllamaError):
+            raise OllamaError("Ollama unavailable; stopped scheduling, no paid fallback.") from None
     return result
 
 
@@ -680,7 +817,7 @@ def run_report(run_id: str) -> dict:
         run = dict(
             conn.execute(
                 text("""
-            SELECT run_id::text,generator_version,status,requested_limit,auto_review_by,created_at,completed_at
+            SELECT run_id::text,generator_version,status,requested_limit,auto_review_by,generation_config,created_at,completed_at
             FROM pedagogy.route_compiler_run WHERE run_id=:id
         """),
                 {"id": run_id},
@@ -769,10 +906,20 @@ def main() -> None:
         "--workers", type=int, default=1, help="Bounded concurrent generation, 1-8; default 1."
     )
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--provider", choices=["openai", "ollama"], default="openai")
+    parser.add_argument("--ollama-model", default="qwen2.5:7b")
+    parser.add_argument("--ollama-endpoint", default="http://127.0.0.1:11434")
+    parser.add_argument("--num-ctx", type=int, default=16384)
+    parser.add_argument("--num-thread", type=int, default=8)
     parser.add_argument(
         "--resume-run", help="Retry only unfinished jobs in this frozen run cohort."
     )
     args = parser.parse_args()
+    if args.command == "compile":
+        parser.error(
+            "Direct compile is superseded by the mandatory-enrichment/critic pipeline; "
+            "use make routes-ingest (local Ollama only)."
+        )
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive")
     if not 1 <= args.workers <= 8:
@@ -790,15 +937,28 @@ def main() -> None:
         )
         with direct.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             conn.exec_driver_sql(sql.read_text(), execution_options={"no_parameters": True})
+            provenance = sql.with_name("027_route_generation_provenance.sql")
+            conn.exec_driver_sql(provenance.read_text(), execution_options={"no_parameters": True})
         direct.dispose()
         report = inspect()
     elif args.command == "compile":
+        provider = (
+            OllamaProvider(
+                model=args.ollama_model,
+                endpoint=args.ollama_endpoint,
+                num_ctx=args.num_ctx,
+                num_thread=args.num_thread,
+            ).preflight()
+            if args.provider == "ollama"
+            else None
+        )
         report = compile_pilot(
             None if args.all else args.limit or 20,
             args.resume_run,
             args.workers,
             args.report,
             args.approve_by,
+            provider,
         )
     elif args.command == "approve-drafts":
         report = approve_drafts(args.approve_by)

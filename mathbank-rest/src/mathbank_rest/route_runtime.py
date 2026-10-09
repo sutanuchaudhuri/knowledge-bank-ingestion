@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import json
 from uuid import UUID
 
 from sqlalchemy import text
 
 from mathbank_rest.db.postgres import engine
-from mathbank_rest.route_contracts import RouteProgram, program_digest, validate_source
+from mathbank_rest.route_contracts import (
+    RouteProgram,
+    program_digest,
+    validate_enrichment,
+    validate_source,
+)
 from mathbank_rest.step_runtime import InvalidTransition, NotFound, StateVersionConflict
 
 
@@ -204,6 +210,27 @@ def coaching(code: str, level: int) -> dict | None:
     }
 
 
+def validate_release_evals(conn, release: dict, program: RouteProgram) -> None:
+    from mathbank_rest.route_compiler import VERSION
+    from mathbank_rest.route_critic import validate_critic_metadata
+
+    if release["generator_version"] != VERSION:
+        return
+    metadata = list(
+        conn.execute(
+            text("""
+        SELECT generation_metadata FROM pedagogy.route_step
+        WHERE route_release_id=:id ORDER BY step_index
+    """),
+            {"id": release["route_release_id"]},
+        ).scalars()
+    )
+    if len(metadata) != len(program.steps):
+        raise ValueError("Missing per-step critic provenance.")
+    for value in metadata:
+        validate_critic_metadata(value, len(program.steps), program_digest(program))
+
+
 def review(conn, release_id: UUID, reviewer: str, expected_hash: str) -> dict:
     release = (
         conn.execute(
@@ -230,6 +257,8 @@ def review(conn, release_id: UUID, reviewer: str, expected_hash: str) -> dict:
         )
     ids = set(conn.execute(text("SELECT taxonomy_node_id FROM pedagogy.taxonomy_node")).scalars())
     validate_source(program, release["source"], ids)
+    validate_enrichment(program)
+    validate_release_evals(conn, release, program)
     from mathbank_rest.route_compiler import source_hash
 
     if (
@@ -248,6 +277,21 @@ def review(conn, release_id: UUID, reviewer: str, expected_hash: str) -> dict:
 
 
 def publish(conn, release_id: UUID) -> dict:
+    release = (
+        conn.execute(
+            text(
+                "SELECT * FROM pedagogy.solution_route_release WHERE route_release_id=:id FOR UPDATE"
+            ),
+            {"id": release_id},
+        )
+        .mappings()
+        .first()
+    )
+    if not release or release["status"] != "REVIEWED":
+        raise InvalidTransition("Only a reviewed release can be published.")
+    program = load_program(conn, str(release_id))
+    validate_enrichment(program)
+    validate_release_evals(conn, release, program)
     row = conn.execute(
         text("""
         UPDATE pedagogy.solution_route_release SET status='PUBLISHED',published_at=now()
@@ -285,6 +329,15 @@ def edit(conn, release_id: UUID, expected_hash: str, program: RouteProgram) -> d
         raise StateVersionConflict("Only the current unchanged draft can be edited.")
     ids = set(conn.execute(text("SELECT taxonomy_node_id FROM pedagogy.taxonomy_node")).scalars())
     validate_source(program, release["source"], ids)
+    previous_metadata = list(
+        conn.execute(
+            text("""
+        SELECT generation_metadata FROM pedagogy.route_step
+        WHERE route_release_id=:id ORDER BY step_index
+    """),
+            {"id": release_id},
+        ).scalars()
+    )
     for table in (
         "route_asset_link",
         "solution_step_requirement",
@@ -297,6 +350,22 @@ def edit(conn, release_id: UUID, expected_hash: str, program: RouteProgram) -> d
             text(f"DELETE FROM pedagogy.{table} WHERE route_release_id=:id"), {"id": release_id}
         )
     write_program(conn, str(release_id), program)
+    for index, metadata in enumerate(previous_metadata[: len(program.steps)], 1):
+        conn.execute(
+            text("""
+            UPDATE pedagogy.route_step SET generation_metadata=CAST(:m AS jsonb)
+                || jsonb_build_object('manual_edit',jsonb_build_object(
+                    'edited_at',now(),'previous_hash',CAST(:old AS text),'current_hash',CAST(:new AS text)))
+            WHERE route_release_id=:id AND step_index=:i
+        """),
+            {
+                "m": json.dumps(metadata),
+                "old": expected_hash,
+                "new": program_digest(program),
+                "id": release_id,
+                "i": index,
+            },
+        )
     conn.execute(
         text("""
         UPDATE pedagogy.solution_route_release

@@ -118,6 +118,16 @@ def preview(release_id: UUID):
             "release": dict(row),
             "source": dict(source),
             "program": route_runtime.load_program(conn, str(release_id)).model_dump(),
+            "step_generation_metadata": [
+                dict(step)
+                for step in conn.execute(
+                    text("""
+                    SELECT step_index,generation_metadata FROM pedagogy.route_step
+                    WHERE route_release_id=:r ORDER BY step_index
+                """),
+                    {"r": release_id},
+                ).mappings()
+            ],
         }
 
     return call(load)

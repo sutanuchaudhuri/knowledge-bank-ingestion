@@ -298,6 +298,112 @@ resumed. This is structural/source-grounding evidence, not mathematical review.
 
 ### Service activation and integrity follow-up
 
+**Current policy: mandatory enrichment plus different-model critic.** The
+atomic-only run below was stopped when the user clarified that claims,
+misconceptions, theory and diagnostic quiz assets are mandatory. New source
+implementation is compiler `tutoring-route-compiler-v3-enrichment-critic`:
+decomposition, bounded per-step assets, seven-criterion critic evals, two
+error-guided repairs, then fenced atomic persistence. PASS/all scores >=3/4/
+no issues is required; ABSTAIN fails closed. This is not proof certification.
+Default models are `qwen2.5:7b` and `llama3.2:3b`, both downloaded if absent.
+Their digests must differ. Evals bind to program hash and persist per step.
+New enriched versions replace no historical reviewed snapshots in place.
+
+The [Make pipeline](../Makefile) supports multiple macOS/Linux machines against
+the same configured PostgreSQL with migration
+[028](../mathbank-db/sql/028_route_distributed_queue.sql), a unique work queue,
+SKIP LOCKED claims, expiring renewable leases and ownership fencing. There is
+no global run lock in this pipeline. Resources are calculated before inference
+and logs are per machine on an operator-selected external drive.
+See [README commands and limitations](../README.md#local-ollama-tutoring-ingestion-one-or-multiple-machines).
+This is source-derived implementation evidence, not a claim that the replacement
+full corpus has completed or that the running REST service has been reloaded.
+
+Pipeline validation observed 2026-10-09 UTC: migration 028 applied to the
+authorized remote target; **59 targeted tests passed**, including actual
+two-connection claims, expired-lease recovery/stale-owner fencing and rollback
+provenance/review tests. Missing `llama3.2:3b` installed successfully. Actual
+default-model resource preflight rejected this busy Mac's 5.64 GiB available
+RAM before inference. No new full run or paid fallback was started; end-to-end
+live generator+critic acceptance still requires a resource-qualified machine.
+The v3 queue is empty for operator launch. The old atomic run is PARTIAL,
+18,590 QUEUED/two interrupted jobs/no full-run releases; backups are unchanged.
+`make routes-progress` also reports critic verdict totals from job evals.
+
+**Historical atomic-only ingestion: local Ollama, remote PostgreSQL, started
+2026-10-09 00:18:12 UTC.** User requested replacing paid generation with local
+inference. The detailed requested plain-text plan is
+[requirements.txt](../requirements.txt). New run
+`3275ee2d-860a-47ee-ae30-2d36a6ccc119` freezes 18,592 remaining sources.
+Existing 156 reviewed routes are retained; a successful local acceptance
+added one four-step reviewed route. The OpenAI run stays stopped.
+
+`qwen2.5:7b` Q4_K_M is the strongest installed selected model; two parallel
+generation workers/eight inference threads operate on the 16 GiB M4 using an
+isolated loopback server on port 11435. Model allocation observed 5.52 GB and
+17-19% system memory free; arbitrary extra inference workers were not added.
+Context/output budgets are 16,384/4,096. Source/repair input is conservatively
+bounded by UTF-8 bytes plus chat overhead to prevent silent context truncation.
+Oversized sources fail explicitly for a later larger-context strategy.
+
+[Migration 027](../mathbank-db/sql/027_route_generation_provenance.sql) adds
+frozen run `generation_config`, job `generation_metadata` and step
+`generation_metadata`. Each new step stores provider/model/digest/runtime,
+options, token/duration metrics, repair count, source/program hashes, validation
+result, timestamp, ordinal and canonical taxonomy snapshot. Normalized technique/
+skill/concept IDs and requirement roles remain in `solution_step_requirement`.
+Existing unknown model provenance is not fabricated. Reviewed metadata is
+immutable along with its step. Staff preview source exposes provenance separately
+from mathematical program JSON; deployment requires the updated REST code.
+
+Initial rich-asset local outputs were rejected. The historical local atomic profile
+uses schema-enumerated canonical taxonomy IDs and emits steps/instructions/
+hints/requirements, with claim/misconception/quiz/library assets left
+empty. The user rejected that incomplete scope; assets are now mandatory.
+This historical run was not complete rich-library
+generation or proof certification. The shared structural/source validators and
+operator-authorized review gates were not relaxed. Real acceptance persisted
+four steps with verified Ollama provenance; 29 targeted tests passed, including
+live rollback-only provenance persistence/immutability and no-paid-fallback tests.
+
+All local server/ingestion logs and progress live under
+`/Volumes/External/Developer/databases/logs/ollama-routes/`. Ollama transport
+failure stops scheduling; it never calls OpenAI. This run is now stopped
+and incomplete. Publication/graph/embeddings and local-backup refresh
+remain separate operations. Older stop/resume entries below are historical.
+
+**Previous paid-run state: STOPPED AGAIN at explicit user request, 2026-10-08
+23:58:01 UTC.** The resumed compiler process was terminated and its absence
+verified. The run is PARTIAL: 139 successful full-run releases plus 17 pilot
+releases (**156 REVIEWED total**), 18,585 QUEUED sources and eight unsuccessful
+jobs (four validation rejections, four interrupted calls). No automatic restart
+or retry is scheduled; further paid ingestion requires fresh authorization.
+The local backup remains the earlier 146-release snapshot, unchanged.
+
+**Resumption authorized 2026-10-08 23:54 UTC:** after verifying the local
+database/object-file backup, the user explicitly requested resuming paid
+generation into remote PostgreSQL. Resume the same frozen run
+`1ece0009-8ab9-441f-a1b0-712d0a7c37cc` with four workers and its unchanged
+operator bulk-review policy. The starting state is 129 successful full-run
+releases, 32 unsuccessful jobs and 18,571 queued sources (18,603 to attempt).
+Previously successful releases are not regenerated. Local SQL and asset backups
+remain point-in-time copies and are not updated by remote ingestion.
+Student publication, graph refresh and embeddings remain separate.
+The stop entry below documents the prior interruption, not a prohibition on
+this newly authorized resumption.
+
+**Previous interruption: STOPPED by user request at
+2026-10-08 02:50:06 UTC** to avoid further token consumption. The independent
+compiler process was terminated and its absence verified; no automatic restart
+or retry is scheduled. Run `1ece0009-8ab9-441f-a1b0-712d0a7c37cc` is persisted
+as PARTIAL. It produced **129 REVIEWED releases**, plus the 17 pilot releases
+(**146 REVIEWED total**). There are **18,571 untouched QUEUED sources** and
+**32 unsuccessful jobs**: 27 validation rejections, one provider timeout and
+four interrupted in-flight jobs. Completed routes remain intact and unpublished.
+Already submitted provider requests may still incur charges; termination
+prevents this worker from scheduling any further calls. Resumption requires
+new explicit user authorization. Earlier RUNNING observations below are history.
+
 After explicit user approval, REST and Tutor-agent services were restarted
 using their verified owned process IDs and existing startup targets. REST now
 exposes all nine route-admin/owned-attempt paths: **218 mounted OpenAPI paths**.

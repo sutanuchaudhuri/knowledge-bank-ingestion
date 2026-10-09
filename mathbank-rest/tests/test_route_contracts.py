@@ -5,28 +5,77 @@ from mathbank_rest.route_contracts import RouteProgram, content_hash, validate_s
 
 
 def program():
-    instruction = {key: key for key in (
-        "goal_text", "recognition_cue", "reasoning_explanation", "why_this_works",
-        "prerequisite_recap", "connection_to_previous_step", "connection_to_next_step",
-        "common_error_summary", "student_prompt", "expected_response", "short_explanation",
-        "full_explanation",
-    )}
-    return {
-        "approach_name": "Angle sum", "approach_summary": "Use the given angles.",
-        "difficulty_level": 2, "conceptual_load": 2, "algebraic_load": 1, "insight_load": 1,
-        "assets": [],
-        "steps": [{
-            "mathematical_result": "result", "source_quote": "Given three right angles",
-            "depends_on": [], "produces": [], "uses_claims": [], "requirements": [],
-            "instruction": instruction, "hints": ["orient", "recognize", "setup", "near"],
-            "asset_links": [],
-        }, {
-            "mathematical_result": "result2", "source_quote": "Use the sum",
-            "depends_on": [1], "produces": [], "uses_claims": [], "requirements": [],
-            "instruction": instruction, "hints": ["orient", "recognize", "setup", "near"],
-            "asset_links": [],
-        }],
+    instruction = {
+        key: key
+        for key in (
+            "goal_text",
+            "recognition_cue",
+            "reasoning_explanation",
+            "why_this_works",
+            "prerequisite_recap",
+            "connection_to_previous_step",
+            "connection_to_next_step",
+            "common_error_summary",
+            "student_prompt",
+            "expected_response",
+            "short_explanation",
+            "full_explanation",
+        )
     }
+    payload = {
+        "approach_name": "Angle sum",
+        "approach_summary": "Use the given angles.",
+        "difficulty_level": 2,
+        "conceptual_load": 2,
+        "algebraic_load": 1,
+        "insight_load": 1,
+        "assets": [],
+        "steps": [
+            {
+                "mathematical_result": "result",
+                "source_quote": "Given three right angles",
+                "depends_on": [],
+                "produces": [],
+                "uses_claims": [],
+                "requirements": [],
+                "instruction": instruction,
+                "hints": ["orient", "recognize", "setup", "near"],
+                "asset_links": [],
+            },
+            {
+                "mathematical_result": "result2",
+                "source_quote": "Use the sum",
+                "depends_on": [1],
+                "produces": [],
+                "uses_claims": [],
+                "requirements": [],
+                "instruction": instruction,
+                "hints": ["orient", "recognize", "setup", "near"],
+                "asset_links": [],
+            },
+        ],
+    }
+    from mathbank_rest.route_enrichment import StepEnrichment, attach_enrichment
+
+    value = RouteProgram.model_validate(payload)
+    for index in range(1, 3):
+        attach_enrichment(
+            value,
+            index,
+            StepEnrichment(
+                claim=f"Step {index} result",
+                misconception="Use the wrong angle sum.",
+                symptom="Incorrect angle total",
+                why_wrong="The polygon has five sides.",
+                correct_model="Use the pentagon angle sum.",
+                theory_title="Polygon angles",
+                theory="For n sides the interior angles sum to (n-2)*180 degrees.",
+                recognition_cues=["Count the sides."],
+                quiz_question="Which angle sum applies?",
+                quiz_answer="540 degrees for a pentagon.",
+            ),
+        )
+    return value.model_dump()
 
 
 def test_source_grounding_and_canonical_ids_are_checked():
@@ -38,7 +87,9 @@ def test_source_grounding_and_canonical_ids_are_checked():
     assert content_hash({"a": 1, "b": 2}) == content_hash({"b": 2, "a": 1})
 
 
-@pytest.mark.parametrize("change", ["cycle", "future", "missing_claim", "missing_asset", "missing_hint"])
+@pytest.mark.parametrize(
+    "change", ["cycle", "future", "missing_claim", "missing_asset", "missing_hint"]
+)
 def test_structurally_invalid_route_is_rejected(change):
     data = program()
     if change in {"cycle", "future"}:
