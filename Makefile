@@ -15,27 +15,25 @@
 
 ROUTE_PYTHON ?= $(CURDIR)/mathbank-rest/.venv/bin/python
 ROUTE_MODEL ?= qwen2.5:7b
+ROUTE_CRITIC ?= 0
 ROUTE_CRITIC_MODEL ?= llama3.2:3b
 ROUTE_CONTEXT ?= 16384
+ROUTE_NUM_PREDICT ?= 4096
 ROUTE_LOG_ROOT ?= /Volumes/External/Developer/databases/logs/ollama-routes
 ROUTE_LOG_DIR ?= $(ROUTE_LOG_ROOT)/$(shell hostname)-$(shell date -u +%Y%m%dT%H%M%SZ)
-ROUTE_ARGS = --model "$(ROUTE_MODEL)" --critic-model "$(ROUTE_CRITIC_MODEL)" --context "$(ROUTE_CONTEXT)" --log-dir "$(ROUTE_LOG_DIR)" $(if $(ROUTE_WORKERS),--workers "$(ROUTE_WORKERS)",) $(if $(ROUTE_LIMIT),--limit "$(ROUTE_LIMIT)",) $(if $(ROUTE_APPROVE_BY),--approve-by "$(ROUTE_APPROVE_BY)",) $(if $(filter 1,$(ROUTE_RETRY_FAILED)),--retry-failed,)
+ROUTE_ARGS = --model "$(ROUTE_MODEL)" --context "$(ROUTE_CONTEXT)" --num-predict "$(ROUTE_NUM_PREDICT)" --log-dir "$(ROUTE_LOG_DIR)" $(if $(filter 1 true yes,$(ROUTE_CRITIC)),--critic-model "$(ROUTE_CRITIC_MODEL)",) $(if $(ROUTE_WORKERS),--workers "$(ROUTE_WORKERS)",) $(if $(ROUTE_LIMIT),--limit "$(ROUTE_LIMIT)",) $(if $(ROUTE_APPROVE_BY),--approve-by "$(ROUTE_APPROVE_BY)",) $(if $(filter 1,$(ROUTE_RETRY_FAILED)),--retry-failed,)
 
-.PHONY: routes-plan routes-prepare routes-ingest routes-evaluate routes-migrate routes-status routes-progress routes-test
+.PHONY: routes-plan routes-prepare routes-ingest routes-migrate routes-status routes-progress routes-test
 routes-plan:                    ## Discover OS/RAM/CPU/model and print safe local worker ceiling; no inference or SQL writes
 	@cd mathbank-rest && "$(ROUTE_PYTHON)" -m mathbank_rest.route_batch plan $(ROUTE_ARGS)
 
 routes-ingest:                  ## Local Ollama mandatory-enrichment pipeline; resource-sized, shared multi-machine queue
 	@cd mathbank-rest && "$(ROUTE_PYTHON)" -m mathbank_rest.route_batch run $(ROUTE_ARGS)
 
-routes-prepare:                 ## Install missing Ollama model, then check safe resources; no inference or database writes
+routes-prepare:                 ## Install missing Ollama model(s), then check safe resources; no inference or database writes
 	@cd mathbank-rest && "$(ROUTE_PYTHON)" -m mathbank_rest.route_batch prepare $(ROUTE_ARGS)
 
-routes-evaluate:                ## Re-evaluate an edited DRAFT with local critic (requires ROUTE_RELEASE_ID); no publication
-	@test -n "$(ROUTE_RELEASE_ID)" || { echo "Set ROUTE_RELEASE_ID to the draft UUID"; exit 1; }
-	@cd mathbank-rest && "$(ROUTE_PYTHON)" -m mathbank_rest.route_batch evaluate $(ROUTE_ARGS) --release-id "$(ROUTE_RELEASE_ID)"
-
-routes-migrate:                 ## Apply distributed queue migration 028 once to configured PostgreSQL (requires 026/027)
+routes-migrate:                 ## Apply distributed queue migration 028/029 once to configured PostgreSQL (requires 026/027)
 	@cd mathbank-rest && "$(ROUTE_PYTHON)" -m mathbank_rest.route_batch migrate --log-dir "$(ROUTE_LOG_DIR)"
 
 routes-status:                  ## Show shared queue counts for current compiler version; no generation
@@ -45,6 +43,7 @@ routes-progress: routes-status  ## Check shared completion/failures/leases and l
 
 routes-test:                    ## Run targeted route/compiler/resource/queue tests; DB checks opt-in with ROUTE_DB_TESTS=1
 	@cd mathbank-rest && "$(ROUTE_PYTHON)" -m pytest -q tests/test_route_contracts.py tests/test_route_compiler.py tests/test_route_ollama.py tests/test_route_enrichment.py tests/test_route_batch.py tests/test_route_critic.py tests/test_tutoring_routes.py
+
 
 .PHONY: sync-env
 sync-env:                        ## Distribute the shared root .env into every service's own .env (backs up existing files first)

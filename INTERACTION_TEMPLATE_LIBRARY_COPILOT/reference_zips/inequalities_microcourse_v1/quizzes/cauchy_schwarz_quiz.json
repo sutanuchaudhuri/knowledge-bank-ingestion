@@ -1,0 +1,58 @@
+{
+  "quiz_id": "QUIZ-CS",
+  "topic": "Cauchy-Schwarz",
+  "questions": [
+    {
+      "id": "CS1",
+      "type": "single_select",
+      "prompt": "Which is finite Cauchy-Schwarz?",
+      "options": [
+        "(sum ai bi)^2 <= (sum ai^2)(sum bi^2)",
+        "(sum ai bi)^2 >= (sum ai^2)(sum bi^2)",
+        "sum ai bi <= sum(ai+bi)",
+        "sum ai^2 <= (sum ai)^2"
+      ],
+      "answer": 0,
+      "explanation": "The square of the dot product is bounded by the product of squared norms."
+    },
+    {
+      "id": "CS2",
+      "type": "single_select",
+      "prompt": "For nonzero real vectors, equality occurs when:",
+      "options": [
+        "Norms equal",
+        "Vectors proportional",
+        "Every coordinate positive",
+        "Dot product zero"
+      ],
+      "answer": 1,
+      "explanation": "Equality means one vector is a scalar multiple of the other."
+    },
+    {
+      "id": "CS3",
+      "type": "single_select",
+      "prompt": "Pairing (x,y,z) with (1,1,1) gives:",
+      "options": [
+        "(x+y+z)^2 <= 3(x^2+y^2+z^2)",
+        "(x+y+z)^2 >= 3(x^2+y^2+z^2)",
+        "x+y+z <= xyz",
+        "x^2+y^2+z^2 <= xyz"
+      ],
+      "answer": 0,
+      "explanation": "The second squared norm equals 3."
+    },
+    {
+      "id": "CS4",
+      "type": "single_select",
+      "prompt": "For p,q>0, which Titu/Engel consequence is valid?",
+      "options": [
+        "a^2/p+b^2/q >= (a+b)^2/(p+q)",
+        "a^2/p+b^2/q <= (a+b)^2/(p+q)",
+        "a^2/p+b^2/q >= ab/(pq)",
+        "a^2/p+b^2/q = (a+b)/(p+q)"
+      ],
+      "answer": 0,
+      "explanation": "This is Cauchy-Schwarz in Engel form."
+    }
+  ]
+}

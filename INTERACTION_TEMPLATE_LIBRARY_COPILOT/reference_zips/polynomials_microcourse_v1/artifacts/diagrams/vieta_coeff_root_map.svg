@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="40" y="50" font-family="Arial" font-size="30" font-weight="bold">Vieta: roots to coefficients</text>
+<rect x="60" y="120" width="240" height="70" rx="12" fill="#f6f6f8" stroke="#333"/>
+<text x="180.0" y="161.0" text-anchor="middle" font-family="Arial" font-size="20">roots r₁,…,rₙ</text>
+<rect x="380" y="100" width="250" height="110" rx="12" fill="#f6f6f8" stroke="#333"/>
+<text x="505.0" y="161.0" text-anchor="middle" font-family="Arial" font-size="20">elementary symmetric
+sums e₁,e₂,…</text>
+<rect x="710" y="120" width="230" height="70" rx="12" fill="#f6f6f8" stroke="#333"/>
+<text x="825.0" y="161.0" text-anchor="middle" font-family="Arial" font-size="20">coefficients aₙ,…,a₀</text>
+<line x1="300" y1="155" x2="380" y2="155" stroke="#333" stroke-width="2"/>
+<polygon points="380,155 368,149 368,161" fill="#333"/>
+<text x="340.0" y="147.0" text-anchor="middle" font-family="Arial" font-size="16">symmetrize</text>
+<line x1="630" y1="155" x2="710" y2="155" stroke="#333" stroke-width="2"/>
+<polygon points="710,155 698,149 698,161" fill="#333"/>
+<text x="670.0" y="147.0" text-anchor="middle" font-family="Arial" font-size="16">alternating signs / aₙ</text>
+</svg>

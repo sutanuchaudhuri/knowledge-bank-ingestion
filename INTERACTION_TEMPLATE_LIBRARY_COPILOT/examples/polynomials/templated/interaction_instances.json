@@ -1,0 +1,138 @@
+{
+  "library": "POLYNOMIAL_TEMPLATE_EXAMPLES_V1",
+  "instances": [
+    {
+      "canonical_code": "INT-VIETA-ROOT-COEFF-01",
+      "template_key": "POLYNOMIAL_ROOT_COEFFICIENT_EXPLORER_V1",
+      "template_version": 1,
+      "learning_objective": "Map roots to elementary symmetric sums and polynomial coefficients.",
+      "controls": {
+        "r1": {
+          "control": "REAL_SLIDER",
+          "min": -5,
+          "max": 5,
+          "step": 0.1,
+          "initial": 1
+        },
+        "r2": {
+          "control": "REAL_SLIDER",
+          "min": -5,
+          "max": 5,
+          "step": 0.1,
+          "initial": 2
+        },
+        "r3": {
+          "control": "REAL_SLIDER",
+          "min": -5,
+          "max": 5,
+          "step": 0.1,
+          "initial": -3
+        }
+      },
+      "computed": {
+        "e1": "r1+r2+r3",
+        "e2": "r1*r2+r1*r3+r2*r3",
+        "e3": "r1*r2*r3",
+        "polynomial": "x^3-e1*x^2+e2*x-e3"
+      },
+      "semantic_bindings": {
+        "concept_ids": [
+          "ALG_VIETA"
+        ],
+        "technique_ids": [
+          "VIETA_SYMSUM"
+        ],
+        "misconception_ids": [
+          "VIETA-M01",
+          "VIETA-M02"
+        ]
+      },
+      "success_criteria": {
+        "alternating_sign_pattern": true
+      },
+      "feedback_policy": "POLICY-VIETA-COEFFICIENTS-V1",
+      "scene_spec": "SCENE-VIETA-ROOTS-TO-COEFF-01"
+    },
+    {
+      "canonical_code": "INT-QUAD-DISCRIM-01",
+      "template_key": "PARAMETER_EXPLORER_V1",
+      "template_version": 1,
+      "learning_objective": "Connect discriminant sign to quadratic root type.",
+      "semantic_bindings": {
+        "concept_ids": [
+          "ALG_QUAD"
+        ],
+        "misconception_ids": [
+          "QUAD-M01"
+        ]
+      },
+      "success_criteria": {
+        "maps_discriminant_to_root_type": true
+      },
+      "feedback_policy": "POLICY-QUAD-DISCRIM-V1"
+    },
+    {
+      "canonical_code": "INT-CUBIC-TRANSFORM-01",
+      "template_key": "SYMMETRIC_SUM_EXPLORER_V1",
+      "template_version": 1,
+      "learning_objective": "Build a polynomial from transformed cubic roots without solving the roots.",
+      "semantic_bindings": {
+        "concept_ids": [
+          "ALG_VIETA"
+        ],
+        "technique_ids": [
+          "VIETA_SYMSUM",
+          "VIETA_CONSTRUCT"
+        ],
+        "misconception_ids": [
+          "CUBIC-M04"
+        ]
+      },
+      "success_criteria": {
+        "computes_E1_E2_E3": true
+      },
+      "feedback_policy": "POLICY-CUBIC-TRANSFORM-V1"
+    },
+    {
+      "canonical_code": "INT-BIQUAD-SUB-01",
+      "template_key": "SUBSTITUTION_PIPELINE_V1",
+      "template_version": 1,
+      "learning_objective": "Recognize and execute y=x^2 reduction only when structure permits it.",
+      "semantic_bindings": {
+        "concept_ids": [
+          "ALG_POLY",
+          "ALG_QUAD"
+        ],
+        "misconception_ids": [
+          "QUARTIC-M01",
+          "QUARTIC-M02",
+          "QUARTIC-M03"
+        ]
+      },
+      "success_criteria": {
+        "substitution": "y=x^2",
+        "back_substitution_checked": true
+      },
+      "feedback_policy": "POLICY-BIQUAD-SUB-V1"
+    },
+    {
+      "canonical_code": "INT-NEWTON-01",
+      "template_key": "STEP_THROUGH_DERIVATION_V1",
+      "template_version": 1,
+      "learning_objective": "Relate power sums to elementary symmetric sums through Newton identities.",
+      "semantic_bindings": {
+        "technique_ids": [
+          "VIETA_POWER",
+          "VIETA_SYMSUM"
+        ],
+        "misconception_ids": [
+          "HPOLY-M03"
+        ]
+      },
+      "success_criteria": {
+        "derivation_complete": true
+      },
+      "feedback_policy": "POLICY-NEWTON-V1"
+    }
+  ]
+}

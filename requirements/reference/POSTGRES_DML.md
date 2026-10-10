@@ -27,15 +27,35 @@ together. Stale owners cannot insert or finish another owner's task.
 Model inference holds no SQL locks. Failed tasks require explicit requeue;
 crashed tasks become reclaimable on expiry.
 
-Mandatory enrichment is checked before insertion and review/publication.
-A different-model critic evaluates seven criteria per step, PASS/all >=3/4/
-no issues, bound to program hash. Critic model/usage/evals and bounded feedback
-history join generation provenance in job/step JSONB. New v3 routes require
-critic provenance again at review/publication; changing draft content invalidates
-the eval hash. No proof certification, automatic publication or graph write.
-Two structural repairs per stage and two critic-feedback revisions are bounded.
+Mandatory enrichment is checked before insertion; review/publication no
+longer require critic evals. An independent different-model critic is
+**optional**, enabled per machine/run via `make routes-ingest ROUTE_CRITIC=1
+ROUTE_CRITIC_MODEL=<model>`; when enabled it evaluates seven criteria per
+step (PASS/all >=3/4/no issues) with up to two feedback-guided generator
+repairs before the task fails. Critic model/usage/evals and bounded feedback
+history join generation provenance in job/step JSONB when used; `critic_model`
+is an explicit JSON `null` when disabled (the default), alongside an explicit
+`generation_started_at` timestamp and the generator `model` name on every
+persisted step/job/run record (migration 029 documents this via column
+comments). No proof certification, automatic publication or graph write.
+Two structural repairs per stage are bounded regardless of critic use.
 Rolled-back persistence retries twice only for connection/serialization/deadlock
 failures; permanent SQL failures are surfaced.
+
+`route_compiler.py`'s single-process `compile`/`compile_pilot` path (distinct
+from the distributed `route_batch.py` queue above) resolves the canonical
+taxonomy shortlist through an in-memory `TaxonomyCache` rather than querying
+Postgres per job: each worker's `.get()` call reuses the cached node list for
+up to 10 minutes, then transparently re-queries, so newly authored taxonomy
+nodes become usable by an already-running multi-hour job without a restart.
+At the end of a `compile_pilot` invocation (natural exhaustion of its frozen
+cohort, not an external process kill/SIGTERM), it also calls
+[`route_projection.project()`](../../mathbank-rest/src/mathbank_rest/route_projection.py)
+to refresh the Neo4j projection; since projection reads only **PUBLISHED**
+releases, a DRAFT/REVIEWED-only run legitimately reports zero projected
+nodes/edges — that is expected, not a failure. Projection errors (Neo4j
+unreachable, etc.) are caught and recorded in the run report rather than
+discarding already-persisted job results.
 
 The local-only Ollama path now writes provider/model/digest/runtime/options,
 per-call token/duration metrics, source/output hashes and validation provenance

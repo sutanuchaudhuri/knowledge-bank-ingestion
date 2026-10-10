@@ -252,9 +252,9 @@ def process(
     run_id: str,
     nodes: list[dict],
     provider: OllamaProvider,
-    critic: OllamaProvider,
     reviewer: str | None,
     stop: threading.Event,
+    critic: OllamaProvider | None = None,
 ) -> dict:
     source = {}
     try:
@@ -278,29 +278,23 @@ def process(
                 raise ValueError(
                     "Canonical source changed since queue creation; reseed updated source."
                 )
-            history = []
-            for attempt in range(3):
+            if critic is None:
                 program = route_compiler.generate(source, nodes, provider)
-                evaluation = evaluate(program, source, critic, provider, nodes)
-                history.append(
-                    {
-                        "attempt": attempt,
-                        "generator": {
-                            key: source["_generation_metadata"].get(key)
-                            for key in ("model", "digest", "calls", "program_hash", "repair_count")
-                        },
-                        "critic": evaluation,
-                    }
-                )
-                source["_generation_metadata"]["critic_attempt_history"] = list(history)
-                source["_critic_attempt_history"] = list(history)
-                if evaluation["accepted"]:
-                    break
-                source["_critic_feedback"] = evaluation["evaluations"]
-                if attempt == 2:
-                    raise CriticRejected(
-                        "Different-model eval rejected after two feedback repairs."
-                    )
+            else:
+                history = []
+                for attempt in range(3):
+                    program = route_compiler.generate(source, nodes, provider)
+                    evaluation = evaluate(program, source, critic, provider, nodes)
+                    source["_generation_metadata"]["critic_model"] = critic.model
+                    history.append({"attempt": attempt, "critic": evaluation})
+                    source["_generation_metadata"]["critic_attempt_history"] = list(history)
+                    if evaluation["accepted"]:
+                        break
+                    source["_critic_feedback"] = evaluation["evaluations"]
+                    if attempt == 2:
+                        raise CriticRejected(
+                            "Different-model eval rejected after two feedback repairs."
+                        )
             release = store(task, source, program, run_id, reviewer)
         return {"task_id": str(task["task_id"]), "status": "DONE", "release": release}
     except (
@@ -320,10 +314,6 @@ def process(
             else []
         )
         log.error("Task failed: %s %s %s", task["task_id"], type(exc).__name__, details)
-        if source.get("_critic_attempt_history"):
-            source.setdefault("_generation_metadata", {})["critic_attempt_history"] = source[
-                "_critic_attempt_history"
-            ]
         if isinstance(exc, (OllamaError, LeaseLost, SQLAlchemyError)):
             stop.set()
         with engine.begin() as conn:
@@ -414,15 +404,13 @@ def progress(run_id: str | None = None) -> dict:
             dict(row)
             for row in conn.execute(
                 text("""
-            SELECT j.generation_metadata #>> '{critic,model}' AS critic_model,
-                   item->'evaluation'->>'verdict' AS verdict,count(*) AS step_evals
+            SELECT j.generation_metadata ->> 'model' AS model,
+                   j.generation_metadata ->> 'critic_model' AS critic_model,
+                   j.status,count(*) AS jobs
             FROM pedagogy.route_compiler_job j
             JOIN pedagogy.route_compiler_run r USING(run_id)
-            CROSS JOIN LATERAL jsonb_array_elements(
-                coalesce(j.generation_metadata #> '{critic,evaluations}','[]'::jsonb)
-            ) AS item
             WHERE r.generator_version=:v
-            GROUP BY critic_model,verdict ORDER BY critic_model,verdict
+            GROUP BY model,critic_model,j.status ORDER BY model,critic_model,j.status
         """),
                 {"v": route_compiler.VERSION},
             ).mappings()
@@ -437,107 +425,11 @@ def progress(run_id: str | None = None) -> dict:
         "expired_reclaimable_leases": expired,
         "failures_by_code": errors,
         "latest_machine_runs": runs,
-        "job_eval_summary": evals,
+        "generation_model_summary": evals,
     }
     if run_id:
         report["machine_run"] = route_compiler.run_report(run_id)
     return report
-
-
-def recheck(release_id: UUID, critic: OllamaProvider) -> dict:
-    """Re-evaluate a manually edited draft without regenerating or publishing it."""
-    with engine.connect() as conn:
-        release = dict(
-            conn.execute(
-                text("""
-            SELECT r.*,p.statement_text,s.verification_status,
-                coalesce(nullif(trim(s.body_markdown),''),s.body_latex) AS source
-            FROM pedagogy.solution_route_release r JOIN core.solution s USING(solution_id)
-            JOIN core.problem p ON p.problem_id=r.problem_id WHERE route_release_id=:id
-        """),
-                {"id": release_id},
-            )
-            .mappings()
-            .one()
-        )
-        if release["status"] != "DRAFT":
-            raise ValueError("Only a DRAFT can receive new critic evaluations.")
-        program = route_runtime.load_program(conn, str(release_id))
-        rows = list(
-            conn.execute(
-                text("""
-            SELECT generation_metadata FROM pedagogy.route_step
-            WHERE route_release_id=:id ORDER BY step_index
-        """),
-                {"id": release_id},
-            ).scalars()
-        )
-        nodes = route_compiler.taxonomy(conn)
-    generator_metadata = next((row for row in rows if row.get("model") and row.get("digest")), None)
-    if generator_metadata is None:
-        raise ValueError(
-            "Draft has no known generator identity; recompile rather than invent provenance."
-        )
-    if any(not row.get("model") or not row.get("digest") for row in rows):
-        raise ValueError("A step has unknown original model provenance; recompile the route.")
-    source = dict(release) | {
-        "solution_id": str(release["solution_id"]),
-        "_generation_metadata": dict(generator_metadata),
-    }
-    from mathbank_rest.route_contracts import program_digest, validate_enrichment, validate_source
-
-    if route_compiler.source_hash(source) != release["source_hash"]:
-        raise ValueError("Canonical source changed; recompile rather than re-evaluate.")
-    validate_enrichment(program)
-    validate_source(program, source["source"], {node["taxonomy_node_id"] for node in nodes})
-    result = evaluate(
-        program,
-        source,
-        critic,
-        OllamaProvider(
-            model=generator_metadata["model"],
-            digest=generator_metadata["digest"],
-        ),
-        nodes,
-    )
-    with engine.begin() as conn:
-        current = (
-            conn.execute(
-                text("""
-            SELECT r.status,r.content_hash,p.statement_text,s.verification_status,
-                s.solution_id::text,
-                coalesce(nullif(trim(s.body_markdown),''),s.body_latex) AS source
-            FROM pedagogy.solution_route_release r JOIN core.solution s USING(solution_id)
-            JOIN core.problem p ON p.problem_id=r.problem_id
-            WHERE route_release_id=:id FOR UPDATE OF r FOR SHARE OF s,p
-        """),
-                {"id": release_id},
-            )
-            .mappings()
-            .one()
-        )
-        if (
-            current["status"] != "DRAFT"
-            or current["content_hash"] != program_digest(program)
-            or route_compiler.source_hash(dict(current)) != release["source_hash"]
-        ):
-            raise ValueError(
-                "Draft/source changed during critic evaluation; retry the current draft."
-            )
-        for index, metadata in enumerate(rows, 1):
-            updated = dict(metadata)
-            updated["critic_eval_history"] = metadata.get("critic_eval_history", []) + [
-                metadata.get("critic", {}),
-            ]
-            updated["critic"] = result
-            conn.execute(
-                text("""
-                UPDATE pedagogy.route_step SET generation_metadata=CAST(:m AS jsonb)
-                WHERE route_release_id=:id AND step_index=:i
-            """),
-                {"m": json.dumps(updated), "id": release_id, "i": index},
-            )
-    return {"route_release_id": str(release_id), "critic": result}
 
 
 def migrate() -> None:
@@ -546,6 +438,8 @@ def migrate() -> None:
     try:
         with direct.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             conn.exec_driver_sql(sql.read_text(), execution_options={"no_parameters": True})
+            comments = sql.with_name("029_generation_provenance_comment.sql")
+            conn.exec_driver_sql(comments.read_text(), execution_options={"no_parameters": True})
     finally:
         direct.dispose()
 
@@ -623,7 +517,7 @@ def ensure_model(endpoint: str, model: str, log_dir: Path) -> None:
 
 
 def run(
-    provider: OllamaProvider, critic: OllamaProvider, sizing: dict, args, log_dir: Path
+    provider: OllamaProvider, critic: OllamaProvider | None, sizing: dict, args, log_dir: Path
 ) -> dict:
     selected = seed(args.limit, args.retry_failed)
     with engine.begin() as conn:
@@ -639,7 +533,12 @@ def run(
                 "who": args.approve_by,
                 "config": json.dumps(
                     provider.config()
-                    | {"critic": critic.config(), "resources": sizing, "host": socket.gethostname()}
+                    | {
+                        "critic": critic.config() if critic else None,
+                        "critic_model": critic.model if critic else None,
+                        "resources": sizing,
+                        "host": socket.gethostname(),
+                    }
                 ),
             },
         ).scalar_one()
@@ -662,7 +561,7 @@ def run(
             task = claim(run_id)
             if task is None:
                 return
-            result = process(task, run_id, nodes, provider, critic, args.approve_by, stop)
+            result = process(task, run_id, nodes, provider, args.approve_by, stop, critic)
             log.info("Task result %s", json.dumps(result))
             print(json.dumps(result), flush=True)
             snapshot()
@@ -698,12 +597,22 @@ def run(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "command", choices=["plan", "prepare", "run", "evaluate", "migrate", "status"]
-    )
+    parser.add_argument("command", choices=["plan", "prepare", "run", "migrate", "status"])
     parser.add_argument("--model", default="qwen2.5:7b")
-    parser.add_argument("--critic-model", default="llama3.2:3b")
+    parser.add_argument(
+        "--critic-model",
+        default=None,
+        help="Optional different-model critic; omit (or leave unset) to disable critic "
+        "evaluation entirely and generate without it.",
+    )
     parser.add_argument("--context", type=int, default=16384)
+    parser.add_argument(
+        "--num-predict",
+        type=int,
+        default=4096,
+        help="Generator output token budget; must be less than --context. Increase this "
+        "(not concurrency) if a model repeatedly hits the truncation retry limit.",
+    )
     parser.add_argument(
         "--workers", type=int, help="Optional lower ceiling; unsafe overrides refused."
     )
@@ -711,19 +620,20 @@ def main() -> None:
     parser.add_argument("--retry-failed", action="store_true")
     parser.add_argument("--approve-by", help="Named operator bulk approval; never publishes.")
     parser.add_argument("--run-id", help="Include detailed progress for one machine run.")
-    parser.add_argument(
-        "--release-id", type=UUID, help="DRAFT release to re-evaluate after an edit."
-    )
     parser.add_argument("--log-dir", type=Path, required=True)
     args = parser.parse_args()
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive")
-    if not 8192 <= args.context <= 32768:
-        parser.error("--context must be 8192-32768 for generation plus critic evals")
+    if not 2048 <= args.context <= 32768:
+        parser.error("--context must be 2048-32768")
     if args.approve_by is not None and not args.approve_by.strip():
         parser.error("--approve-by must be nonblank")
-    if args.command == "evaluate" and args.release_id is None:
-        parser.error("evaluate requires --release-id")
+    if args.critic_model is not None and not args.critic_model.strip():
+        parser.error("--critic-model must be nonblank when provided")
+    if args.critic_model == args.model:
+        parser.error("--critic-model must differ from --model")
+    if not 1 <= args.num_predict < args.context:
+        parser.error("--num-predict must be positive and smaller than --context")
     os.umask(0o077)
     args.log_dir.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
@@ -757,28 +667,18 @@ def main() -> None:
     route_compiler.write_report(args.log_dir / "infrastructure.json", startup)
     log.info("Infrastructure %s", json.dumps(startup))
     print(json.dumps(startup), flush=True)
-    if args.model == args.critic_model:
-        raise ValueError("Generator and critic models must be different.")
+    selected_models = [args.model] + ([args.critic_model] if args.critic_model else [])
     # Probe model inventory without loading it, before sizing the inference server.
     with server(args.log_dir, 1) as endpoint:
-        if args.command in {"prepare", "run", "evaluate"}:
-            if args.command != "evaluate":
-                ensure_model(endpoint, args.model, args.log_dir)
-            ensure_model(endpoint, args.critic_model, args.log_dir)
-        selected_models = (
-            [args.critic_model]
-            if args.command == "evaluate"
-            else [
-                args.model,
-                args.critic_model,
-            ]
-        )
+        if args.command in {"prepare", "run"}:
+            for model in selected_models:
+                ensure_model(endpoint, model, args.log_dir)
         providers = [
             OllamaProvider(model=model, endpoint=endpoint, num_ctx=args.context).preflight()
             for model in selected_models
         ]
         if len(providers) == 2 and providers[0].digest == providers[1].digest:
-            raise ValueError("Generator and critic digests must differ.")
+            raise ValueError("Generator and critic models must have different digests.")
         with httpx.Client(timeout=15) as client:
             tags = client.get(endpoint + "/api/tags")
             tags.raise_for_status()
@@ -791,33 +691,30 @@ def main() -> None:
         sizing["model_sizes"] = sizes
         sizing["generator_model"] = args.model
         sizing["critic_model"] = args.critic_model
+        sizing["num_predict"] = args.num_predict
     route_compiler.write_report(args.log_dir / "resources.json", sizing)
     print(json.dumps(sizing, indent=2), flush=True)
     if args.command in {"plan", "prepare"}:
         return
     with server(args.log_dir, sizing["workers"]) as endpoint:
-        critic = OllamaProvider(
-            model=args.critic_model,
-            endpoint=endpoint,
-            num_ctx=args.context,
-            num_thread=sizing["num_thread"],
-            num_predict=2048,
-        ).preflight()
-        if args.command == "evaluate":
-            result = recheck(args.release_id, critic)
-            route_compiler.write_report(args.log_dir / "critic-evals.json", result)
-            print(json.dumps(result, indent=2), flush=True)
-            if not result["critic"]["accepted"]:
-                raise SystemExit(1)
-            return
         provider = OllamaProvider(
             model=args.model,
             endpoint=endpoint,
             num_ctx=args.context,
             num_thread=sizing["num_thread"],
+            num_predict=args.num_predict,
         ).preflight()
-        if provider.digest == critic.digest:
-            raise ValueError("Generator and critic digests must differ.")
+        critic = None
+        if args.critic_model:
+            critic = OllamaProvider(
+                model=args.critic_model,
+                endpoint=endpoint,
+                num_ctx=args.context,
+                num_thread=sizing["num_thread"],
+                num_predict=2048,
+            ).preflight()
+            if provider.digest == critic.digest:
+                raise ValueError("Generator and critic digests must differ.")
         report = run(provider, critic, sizing, args, args.log_dir)
     print(json.dumps(report, indent=2, default=str), flush=True)
     if report["failures"] or report["remaining"]:

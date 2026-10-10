@@ -96,7 +96,7 @@ export default function PipelineJobs({ refreshToken }) {
                     </div>)}
                   </details>
                   {item.errors?.length > 0 && <details className="text-danger mt-2"><summary>Errors ({item.errors.length})</summary>
-                    <ul>{item.errors.map((message) => <li key={message}>{message}</li>)}</ul>
+                    <ul>{item.errors.map((message, index) => <li key={`${item.paper_external_code}:${index}`}>{message}</li>)}</ul>
                   </details>}
                 </td>
                 <td><Badge status={item.overall_status} /></td>

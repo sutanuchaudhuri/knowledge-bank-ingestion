@@ -1,0 +1,82 @@
+{
+  "videos": [
+    {
+      "video_ref": "YT-INEQ-ANCHOR",
+      "provider": "YOUTUBE",
+      "url": "https://www.youtube.com/watch?v=CPlSjinOpFo",
+      "title": "Math Olympiad | An inequality solver's heaven | 15+ Classical inequalities | Ample solved examples",
+      "channel": "Mathsmerizing",
+      "status": "CURATED_TRANSCRIPT_PENDING_IMPORT",
+      "student_questioning_enabled": false,
+      "publish_blocker": "ACTUAL_TIMESTAMPED_TRANSCRIPT_MUST_BE_IMPORTED_AND_APPROVED",
+      "chapter_windows": [
+        {
+          "key": "AM_GM",
+          "start_ms": 0,
+          "end_ms": 874000,
+          "actual_transcript_text": null
+        },
+        {
+          "key": "WEIGHTED_AM_GM",
+          "start_ms": 874000,
+          "end_ms": 1574000,
+          "actual_transcript_text": null
+        },
+        {
+          "key": "CAUCHY",
+          "start_ms": 5914000,
+          "end_ms": 6412000,
+          "actual_transcript_text": null
+        },
+        {
+          "key": "JENSEN",
+          "start_ms": 7248000,
+          "end_ms": 8032000,
+          "actual_transcript_text": null
+        },
+        {
+          "key": "MUIRHEAD",
+          "start_ms": 9076000,
+          "end_ms": null,
+          "actual_transcript_text": null
+        }
+      ]
+    },
+    {
+      "video_ref": "YT-WAMGM-CHEENTA",
+      "provider": "YOUTUBE",
+      "url": "https://www.youtube.com/watch?v=tIZheroo3es",
+      "status": "OPTIONAL_TRANSCRIPT_PENDING_IMPORT",
+      "student_questioning_enabled": false
+    },
+    {
+      "video_ref": "YT-JENSEN-VINDAL",
+      "provider": "YOUTUBE",
+      "url": "https://www.youtube.com/watch?v=I812A0T1kiE",
+      "status": "OPTIONAL_TRANSCRIPT_PENDING_IMPORT",
+      "student_questioning_enabled": false
+    },
+    {
+      "video_ref": "YT-CS-DRWANG",
+      "provider": "YOUTUBE",
+      "url": "https://www.youtube.com/watch?v=kjSxw8-fjiY",
+      "status": "OPTIONAL_TRANSCRIPT_PENDING_IMPORT",
+      "student_questioning_enabled": false
+    }
+  ],
+  "transcript_ingestion_rules": {
+    "accepted_formats": [
+      "WEBVTT",
+      "SRT",
+      "YOUTUBE_CAPTIONS_JSON",
+      "TIMESTAMPED_JSON"
+    ],
+    "publication_requires": [
+      "transcript status APPROVED",
+      "all used segments APPROVED",
+      "segment timestamps valid and within video duration",
+      "semantic bindings on every required teaching segment",
+      "student_questioning_enabled only after approval"
+    ]
+  }
+}

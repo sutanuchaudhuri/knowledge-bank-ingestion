@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -26,6 +27,21 @@ MisconceptionKey = Annotated[str, Field(pattern=r"^MIS_[A-Z0-9_-]{1,60}$")]
 class Instruction(StrictModel):
     goal_text: str = Field(min_length=1, max_length=600)
     recognition_cue: str
+    # Defaults preserve backward compatibility with routes persisted before this
+    # field existed (RouteProgram.model_validate on older stored JSON); the OpenAI
+    # strict-mode schema still forces these into "required" at generation time.
+    has_diagram: bool = False
+    diagram_description: str = Field(
+        default="",
+        max_length=1200,
+        description="What the figure depicts, stated before any explanation. Empty if has_diagram is false.",
+    )
+    diagram_instructions: str = Field(
+        default="",
+        max_length=1600,
+        description="Concrete enough to render the figure: labeled points/shapes/angles/measurements "
+        "and their relative positions. Empty if has_diagram is false.",
+    )
     reasoning_explanation: str
     why_this_works: str
     prerequisite_recap: str
@@ -37,6 +53,20 @@ class Instruction(StrictModel):
     short_explanation: str
     full_explanation: str = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def validate_diagram_fields(self):
+        if self.has_diagram:
+            if not self.diagram_description.strip() or not self.diagram_instructions.strip():
+                raise ValueError(
+                    "has_diagram is true but diagram_description/diagram_instructions are blank."
+                )
+        elif self.diagram_description.strip() or self.diagram_instructions.strip():
+            raise ValueError(
+                "has_diagram is false; diagram_description/diagram_instructions must be empty, "
+                "not invented for a step without a figure."
+            )
+        return self
+
 
 class Requirement(StrictModel):
     taxonomy_node_id: str
@@ -44,6 +74,35 @@ class Requirement(StrictModel):
     required_level: int = Field(ge=1, le=5)
     importance: float = Field(ge=0, le=1)
     blocking: bool
+    proposed_node_type: Literal["CONCEPT", "SUBCONCEPT", "SKILL", "TECHNIQUE", ""] = Field(
+        default="",
+        description="Blank when taxonomy_node_id is an existing canonical ID. Set this plus "
+        "proposed_name/proposed_description together ONLY when proposing a genuinely new "
+        "node absent from canonical_taxonomy; general problem-solving strategies use TECHNIQUE.",
+    )
+    proposed_name: str = Field(default="", max_length=200)
+    proposed_description: str = Field(default="", max_length=600)
+
+    @model_validator(mode="after")
+    def validate_proposal_consistency(self):
+        fields = (
+            self.proposed_node_type,
+            self.proposed_name.strip(),
+            self.proposed_description.strip(),
+        )
+        if any(fields) and not all(fields):
+            raise ValueError(
+                "A taxonomy proposal needs proposed_node_type, proposed_name and "
+                "proposed_description together, or none of them."
+            )
+        if self.proposed_node_type and not re.match(
+            r"^[A-Z][A-Z0-9]*(\.[A-Z0-9_]+){1,6}$", self.taxonomy_node_id
+        ):
+            raise ValueError(
+                "A proposed taxonomy_node_id must follow the dotted uppercase convention, "
+                "e.g. ALG.C01.S02 or SKILL.NT.APPLY_CRT."
+            )
+        return self
 
 
 class Asset(StrictModel):
@@ -167,15 +226,58 @@ class RouteProgram(StrictModel):
         return self
 
 
-def validate_source(program: RouteProgram, source: str, taxonomy_ids: set[str]) -> None:
+def validate_source(
+    program: RouteProgram,
+    source: str,
+    taxonomy_ids: set[str],
+    enforce_proposal_novelty: bool = True,
+) -> None:
     normalized = " ".join(source.split())
+    # A requirement may introduce a brand-new canonical node (role/level/etc. plus a
+    # proposed_node_type/name/description) when nothing supplied genuinely applies;
+    # persistence later upserts these into pedagogy.taxonomy_node for future runs.
+    proposed_ids = {
+        item.taxonomy_node_id
+        for step in program.steps
+        for item in step.requirements
+        if item.proposed_node_type
+    }
+    allowed_ids = taxonomy_ids | proposed_ids
+    # A single decomposition call must not collapse several genuinely different
+    # proposed concepts onto one ID: whichever upserts first would silently fix
+    # that ID's canonical name/description for every later, unrelated use of it.
+    proposals_by_id: dict[str, tuple] = {}
     for step in program.steps:
         if " ".join(step.source_quote.split()) not in normalized:
             raise ValueError("Every step must cite an exact nonempty source excerpt.")
-        if any(item.taxonomy_node_id not in taxonomy_ids for item in step.requirements):
-            raise ValueError("Requirement refers to an unknown canonical taxonomy ID.")
+        for item in step.requirements:
+            if item.taxonomy_node_id not in allowed_ids:
+                raise ValueError(
+                    "Requirement refers to an unknown canonical taxonomy ID without a proposal."
+                )
+            # This collision guard only makes sense against the small shortlist the
+            # model actually saw at generation time (route_compiler.generate()). By
+            # review/edit/publish time, taxonomy_ids is the FULL canonical table,
+            # which by definition already contains this same program's own earlier
+            # proposal once persisted — that is expected, not a new contradiction.
+            if (
+                enforce_proposal_novelty
+                and item.taxonomy_node_id in taxonomy_ids
+                and item.proposed_node_type
+            ):
+                raise ValueError(
+                    "Requirement must not propose new metadata for an already-known taxonomy ID."
+                )
+            if item.proposed_node_type:
+                signature = (item.proposed_node_type, item.proposed_name, item.proposed_description)
+                existing = proposals_by_id.setdefault(item.taxonomy_node_id, signature)
+                if existing != signature:
+                    raise ValueError(
+                        f"Proposed taxonomy_node_id {item.taxonomy_node_id!r} was used for two "
+                        "different concepts in the same program; each new concept needs its own ID."
+                    )
     for asset in program.assets:
-        if not set(asset.taxonomy_node_ids) <= taxonomy_ids:
+        if not set(asset.taxonomy_node_ids) <= allowed_ids:
             raise ValueError("Asset refers to an unknown canonical taxonomy ID.")
 
 

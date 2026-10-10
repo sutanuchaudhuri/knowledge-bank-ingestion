@@ -1,0 +1,58 @@
+{
+  "quiz_id": "QUIZ-WAMGM",
+  "topic": "Weighted AM-GM",
+  "questions": [
+    {
+      "id": "W1",
+      "type": "single_select",
+      "prompt": "Correct form for weights 2/3 and 1/3?",
+      "options": [
+        "(2x+y)/3 >= x^(2/3)y^(1/3)",
+        "(2x+y)/3 >= x^(1/3)y^(2/3)",
+        "2x+y >= x^2y",
+        "x+y >= x^(2/3)y^(1/3)"
+      ],
+      "answer": 0,
+      "explanation": "Arithmetic coefficients and geometric exponents use the same normalized weights."
+    },
+    {
+      "id": "W2",
+      "type": "single_select",
+      "prompt": "What must normalized nonnegative weights satisfy?",
+      "options": [
+        "Product 1",
+        "Sum 1",
+        "All equal",
+        "All integers"
+      ],
+      "answer": 1,
+      "explanation": "Weighted AM-GM uses nonnegative weights summing to one."
+    },
+    {
+      "id": "W3",
+      "type": "single_select",
+      "prompt": "Which bound is valid for x,y>0?",
+      "options": [
+        "2x+y >= 3(x^2y)^(1/3)",
+        "2x+y <= 3(x^2y)^(1/3)",
+        "2x+y >= x^2y",
+        "x+y >= 3(x^2y)^(1/3)"
+      ],
+      "answer": 0,
+      "explanation": "Use weights 2/3 and 1/3 and multiply by 3."
+    },
+    {
+      "id": "W4",
+      "type": "single_select",
+      "prompt": "With positive weights, equality occurs when:",
+      "options": [
+        "Weights are equal",
+        "Inputs are equal",
+        "Weighted product is 1",
+        "Always for two variables"
+      ],
+      "answer": 1,
+      "explanation": "Equality depends on equality of the inputs, not equality of weights."
+    }
+  ]
+}

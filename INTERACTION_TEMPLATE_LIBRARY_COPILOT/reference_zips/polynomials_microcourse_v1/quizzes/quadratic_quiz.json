@@ -1,0 +1,71 @@
+{
+  "quiz_id": "QUIZ-QUAD",
+  "module": "Quadratic",
+  "questions": [
+    {
+      "id": "Q1",
+      "type": "single_select",
+      "prompt": "If \u0394=b^2-4ac<0 for real coefficients, the quadratic has:",
+      "options": [
+        "Two nonreal conjugate roots",
+        "Two distinct real roots",
+        "One repeated real root",
+        "No complex roots"
+      ],
+      "answer": 0,
+      "explanation": "A negative discriminant produces a complex-conjugate pair."
+    },
+    {
+      "id": "Q2",
+      "type": "single_select",
+      "prompt": "If roots r,s satisfy r+s=5 and rs=6, which monic quadratic has those roots?",
+      "options": [
+        "x^2-5x+6",
+        "x^2+5x+6",
+        "x^2-6x+5",
+        "x^2+6x-5"
+      ],
+      "answer": 0,
+      "explanation": "(x-r)(x-s)=x^2-(r+s)x+rs=x^2-5x+6."
+    },
+    {
+      "id": "Q3",
+      "type": "single_select",
+      "prompt": "A repeated root occurs exactly when:",
+      "options": [
+        "\u0394=0",
+        "\u0394>0",
+        "\u0394<0",
+        "c=0"
+      ],
+      "answer": 0,
+      "explanation": "The two quadratic-formula branches coincide when the discriminant is zero."
+    },
+    {
+      "id": "Q4",
+      "type": "single_select",
+      "prompt": "For x^4-5x^2+4=0, the most efficient first substitution is:",
+      "options": [
+        "y=x^2",
+        "y=x^3",
+        "y=x+1",
+        "y=1/x"
+      ],
+      "answer": 0,
+      "explanation": "The equation uses only even powers and becomes y^2-5y+4=0."
+    },
+    {
+      "id": "Q5",
+      "type": "single_select",
+      "prompt": "When solving P(P(x))=0 for a quadratic P, which structural step is usually useful first?",
+      "options": [
+        "Find the roots of the outer equation P(y)=0",
+        "Fully expand P(P(x)) immediately",
+        "Differentiate P twice",
+        "Assume P is even"
+      ],
+      "answer": 0,
+      "explanation": "If P(y)=0 at y=r,s, solve P(x)=r or P(x)=s before considering expansion."
+    }
+  ]
+}

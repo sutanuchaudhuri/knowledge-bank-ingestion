@@ -79,6 +79,38 @@ html, body { background: var(--mb-bg); }
 .mb-diagram-code { margin-top: .75rem; min-width: 0; }
 .mb-diagram-code summary { color: var(--mb-muted); cursor: pointer; }
 .mb-diagram-code pre { max-height: 20rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mb-course-reading { max-width: 80ch; }
+.mb-course-state-graph, .mb-course-function-plot { display: block; width: 100%; max-width: 560px; height: auto; margin-inline: auto; }
+.mb-course-graph-edge, .mb-course-function-curve, .mb-course-function-chord, .mb-course-graph-axis { fill: none; }
+.mb-course-graph-edge { stroke: var(--mb-muted); stroke-width: 1.5; }
+.mb-course-graph-arrow { fill: var(--mb-muted); }
+.mb-course-graph-node { fill: var(--mb-primary-soft); stroke: var(--mb-primary); stroke-width: 2; }
+.mb-course-graph-label { fill: var(--mb-primary-ink); font-size: 10px; font-weight: 650; }
+.mb-course-graph-axis { stroke: var(--mb-border); stroke-width: 1; }
+.mb-course-graph-axis-label { fill: var(--mb-muted); font-size: 10px; }
+.mb-course-function-curve { stroke: var(--mb-primary); stroke-width: 2.5; }
+.mb-course-function-chord { stroke: var(--mb-info); stroke-width: 2; }
+.mb-course-function-point { fill: var(--mb-info); }
+.mb-course-function-mean { fill: var(--mb-success); }
+.mb-course-function-chord-mean { fill: var(--mb-warning); }
+.mb-course-workspace { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.mb-course-stepper { display: flex; flex-direction: column; gap: 2px; position: sticky; top: calc(var(--mb-topbar) + 1rem); }
+.mb-course-step { display: flex; align-items: center; gap: .6rem; padding: .6rem .75rem; border-radius: var(--mb-radius-sm); border: 0; background: transparent; text-align: left; width: 100%; color: var(--mb-text); }
+.mb-course-step:hover:not(:disabled) { background: var(--mb-neutral-soft); }
+.mb-course-step.is-current { background: var(--mb-primary-soft); color: var(--mb-primary-ink); }
+.mb-course-step.is-current .mb-course-step-dot { background: var(--mb-primary); color: #fff; }
+.mb-course-step.is-done .mb-course-step-dot { background: var(--mb-success); color: #fff; }
+.mb-course-step:disabled { color: var(--mb-muted); cursor: not-allowed; opacity: .55; }
+.mb-course-step-dot { width: 1.7rem; height: 1.7rem; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--mb-neutral-soft); font-size: .78rem; font-weight: 700; }
+.mb-course-step-label { min-width: 0; font-size: .875rem; font-weight: 600; line-height: 1.25; }
+.mb-course-content { min-width: 0; }
+@media (max-width: 991.98px) {
+  .mb-course-workspace { grid-template-columns: minmax(0, 1fr); }
+  .mb-course-stepper { position: static; flex-direction: row; overflow-x: auto; gap: .5rem; padding-bottom: .35rem; }
+  .mb-course-step { flex: none; width: auto; white-space: nowrap; }
+  .mb-course-step-label { display: none; }
+  .mb-course-step.is-current .mb-course-step-label { display: block; }
+}
 body {
   font-family: var(--mb-font);
   font-feature-settings: "cv11", "ss01";

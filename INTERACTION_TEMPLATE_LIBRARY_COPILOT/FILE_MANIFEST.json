@@ -1,0 +1,272 @@
+[
+  {
+    "path": "00_INDEX.md",
+    "sha256": "641ae92eec629b603d336acce6b59fdc2290fadb20ce00892c0ab6d74f5657e2",
+    "bytes": 2109
+  },
+  {
+    "path": "NEXT_MIGRATION_SKELETON.sql",
+    "sha256": "9613d3fe3d9ef4c76d28c3b876f2e4d5af47a3cdd2c5845ab03c7432d4b531b6",
+    "bytes": 806
+  },
+  {
+    "path": "README.md",
+    "sha256": "11b6af856884e0c8e1d5bfb29d8d154e99dcfa3d121fbef05ad3d8f30d20beae",
+    "bytes": 1961
+  },
+  {
+    "path": "docs/01_ARCHITECTURE.md",
+    "sha256": "a2716fcc81671dc33844a27fd050369dc8469d7dd0a0e3e1149fd5d5fa2265d0",
+    "bytes": 2600
+  },
+  {
+    "path": "docs/02_POSTGRES_SCHEMA.md",
+    "sha256": "a48d093d57aca4c3de8397d52b9973c5d95f8f2d9e49667bfa81ce82f651ef72",
+    "bytes": 8010
+  },
+  {
+    "path": "docs/03_TEMPLATE_CATALOG.md",
+    "sha256": "946408b1c109a5675069b8f13d1d51b383917ffe00aa0649b6f7e8cb7502dbbb",
+    "bytes": 2752
+  },
+  {
+    "path": "docs/04_INTERACTION_RUNTIME.md",
+    "sha256": "ce26a1be1bde2ec09b2d49bddd26aeff2eb397522e2ce483e694008ccfab46a9",
+    "bytes": 2620
+  },
+  {
+    "path": "docs/05_ANIMATION_SCENESPEC.md",
+    "sha256": "5a0fe20a453d9c8fdcd43c2d59a5456c63c743cc74312696bb7dddeaf5eae6df",
+    "bytes": 2473
+  },
+  {
+    "path": "docs/06_FEEDBACK_MISCONCEPTIONS.md",
+    "sha256": "57b337b821e253e6a0ee9ae2c48ddcfba0b0b6dec2c4c4381ce7cd80343ff0d6",
+    "bytes": 2641
+  },
+  {
+    "path": "docs/07_ADMIN_UI_CLI.md",
+    "sha256": "f577b79699ef8484c6008dee4477dfee0cff78d45d158bef45b461f6a7293929",
+    "bytes": 3925
+  },
+  {
+    "path": "docs/08_GRAPH_INTERACTIONS.md",
+    "sha256": "05889da8f501d18ad55d298049142bbc539a95725218346081185d2335897f95",
+    "bytes": 8438
+  },
+  {
+    "path": "docs/09_API_CONTRACTS.md",
+    "sha256": "8e69cd5777007e6973d5fa688870a66b9642dc59e38b9406d6c15d489feb9f02",
+    "bytes": 2684
+  },
+  {
+    "path": "docs/10_REFACTOR_THREE_EXAMPLES.md",
+    "sha256": "35745a4cc20f8a65952612cde44bf1bf3fdfa2ee5e18ca753c5ad0b71f0aa282",
+    "bytes": 3313
+  },
+  {
+    "path": "docs/11_EXAMPLE_FLOWS.md",
+    "sha256": "b56d16acefd0866c3460e584598f7929e84d0447e92748284a8122c59ea082dd",
+    "bytes": 3602
+  },
+  {
+    "path": "docs/12_VALIDATION_TESTS.md",
+    "sha256": "c9be63b13b8bc0b0bae85c6b9b3288b06dc43bd77e87108a0edf67e9be45c17d",
+    "bytes": 2601
+  },
+  {
+    "path": "docs/13_COPILOT_MASTER_PROMPT.md",
+    "sha256": "a84cd5260ce08f0caa4b3b96d52b0b5c9559761728e193b53e6872ed78b0956a",
+    "bytes": 4592
+  },
+  {
+    "path": "examples/flows/evidence_rules.json",
+    "sha256": "b07fdf3f520a6875ccbf64d4740ed76102e41d83a847e109ac19770e6e9a8ebc",
+    "bytes": 1562
+  },
+  {
+    "path": "examples/flows/feedback_policies.json",
+    "sha256": "79d06770b1abfef62473697b76154510881170f0b3ee56dc41e3ced290d7090f",
+    "bytes": 1999
+  },
+  {
+    "path": "examples/flows/graph_projection_manifest.json",
+    "sha256": "629a945e1ab3c78db7d5810de8c2cfdda0be67b442617984ba7f7fbf9f4aac68",
+    "bytes": 1311
+  },
+  {
+    "path": "examples/flows/markov_row_sum_error_event.json",
+    "sha256": "4af22b585d62581e2e890c49164e258b11355b532613333b9064236ea9aec1f2",
+    "bytes": 513
+  },
+  {
+    "path": "examples/flows/scene_specs.json",
+    "sha256": "bf4bf838421ead6be58c37d69e3f3314d2ebcb1ca9ac59684c7801dd5bf34416",
+    "bytes": 3078
+  },
+  {
+    "path": "examples/inequalities/original/artifacts/artifact_specs.json",
+    "sha256": "f0da4c07cb4b15e626bf4c01b54307582e10bbc6c4f492db61262f4ad8df388b",
+    "bytes": 2308
+  },
+  {
+    "path": "examples/inequalities/original/artifacts/inequality_lab.html",
+    "sha256": "824938f19d43bce646a3a4dae164e019da51ace7d028131895621a71dc5de6fa",
+    "bytes": 5635
+  },
+  {
+    "path": "examples/inequalities/original/course_manifest.json",
+    "sha256": "6ffe99a1ad69441957db3704516ccf4dc5b4fd13150fd814af52ed0d14c2bb8a",
+    "bytes": 2039
+  },
+  {
+    "path": "examples/inequalities/original/manim/MANIM_STORYBOARD.md",
+    "sha256": "ee2db5b3583d6900d1d8dd575a22d04be676bf119d408e59243166ad30296454",
+    "bytes": 1790
+  },
+  {
+    "path": "examples/inequalities/original/manim/inequalities_manim.py",
+    "sha256": "6af44a07cbcafa24c21dcab702882c70f6d5a35b77a8898934dd2581bb3e4a97",
+    "bytes": 3208
+  },
+  {
+    "path": "examples/inequalities/original/youtube_ingestion_manifest.json",
+    "sha256": "e401bf758c3c95dcf9f7529b1306e8af6422be8cfab3f0b29ec72d14c711090b",
+    "bytes": 2425
+  },
+  {
+    "path": "examples/inequalities/templated/interaction_instances.json",
+    "sha256": "f4ae3a82e19c714cfa6aeb9b856f0909a06fba77ed953404e411f37ef609b9fe",
+    "bytes": 4538
+  },
+  {
+    "path": "examples/markov/original/artifacts/artifact_specs.json",
+    "sha256": "3a03a36012699fc2cf42957c413a97cd674ef520e0c72d72ef264bcd3ce70f2a",
+    "bytes": 1152
+  },
+  {
+    "path": "examples/markov/original/artifacts/markov_lab.html",
+    "sha256": "e6475cf8effcd12038c938b0a85c3008a70e7efa3a8481c5dd48f3f86678e332",
+    "bytes": 5123
+  },
+  {
+    "path": "examples/markov/original/course_manifest.json",
+    "sha256": "77166ce7d5f10bc04a2815c895beb73eaf0c9b48d5e04d193e5594efa8f7bf05",
+    "bytes": 1303
+  },
+  {
+    "path": "examples/markov/original/manim/MANIM_STORYBOARD.md",
+    "sha256": "8b87fc3d81b3d703f47c994da1281d6717811831ff740b9653dba11bfd50d2ad",
+    "bytes": 2156
+  },
+  {
+    "path": "examples/markov/original/manim/markov_manim.py",
+    "sha256": "ea61f02d19b31fc35122612bfe6f76dd63288db5dc0d7640629663b2d08f2b6f",
+    "bytes": 3453
+  },
+  {
+    "path": "examples/markov/original/youtube_ingestion_manifest.json",
+    "sha256": "3efe33910b1ed06d9212eb291afaed035579dede54cf29f23e04aa604102926f",
+    "bytes": 4409
+  },
+  {
+    "path": "examples/markov/templated/interaction_instances.json",
+    "sha256": "54784bc6a0da20d44320a30d934a54abe42f7ca483c9707c86fb566041292c80",
+    "bytes": 3997
+  },
+  {
+    "path": "examples/polynomials/original/artifacts/artifact_specs.json",
+    "sha256": "c02b295520672719797d1e11bff94e318dc95604d69fda0adfb20d8fdbd5432a",
+    "bytes": 1006
+  },
+  {
+    "path": "examples/polynomials/original/artifacts/polynomial_lab.html",
+    "sha256": "adf4c40baf48dea3080103b32bc7a955d714002deb0203249bb56c3ce1c43d31",
+    "bytes": 5868
+  },
+  {
+    "path": "examples/polynomials/original/course_manifest.json",
+    "sha256": "b50ece9b60d020f1ee9ee447d7d4d119e333ad486a2b06e2469ff04031b1d54e",
+    "bytes": 1684
+  },
+  {
+    "path": "examples/polynomials/original/manim/MANIM_STORYBOARD.md",
+    "sha256": "9c7798833a91cd25a3f3a8338cd19379b63ef5aa892a3465d0cddec8510fd0f8",
+    "bytes": 1931
+  },
+  {
+    "path": "examples/polynomials/original/manim/polynomial_manim.py",
+    "sha256": "941088e37a9daf8c32beb25fc85568d0f9c0a373dd9c5f700898f7feb87172d4",
+    "bytes": 3021
+  },
+  {
+    "path": "examples/polynomials/original/youtube_ingestion_manifest.json",
+    "sha256": "9839dfa6837408b6c0ae421388286009d96dce32bf7c0e73f71d1da392ba6738",
+    "bytes": 3672
+  },
+  {
+    "path": "examples/polynomials/templated/interaction_instances.json",
+    "sha256": "a2e7b5786e7f4573102df209474470d6660f41d689b4df5e275e0533b36aa1f4",
+    "bytes": 3706
+  },
+  {
+    "path": "reference_zips/inequalities_microcourse_v1.zip",
+    "sha256": "677fdfa24f5b60b9a9e94239727ad623bc7880cb88eedf871c6294efbc2b20ca",
+    "bytes": 18585
+  },
+  {
+    "path": "reference_zips/markov_microcourse_v1.zip",
+    "sha256": "f88eaa24bbf173019aab9aa7962950e5634a9112c5f38660b250a44aec01b006",
+    "bytes": 52349
+  },
+  {
+    "path": "reference_zips/polynomials_microcourse_v1.zip",
+    "sha256": "ea7827525a3368da3b02f451a55ec5e4f75b0d71a8b7fdcbfefd5c68e0deed2a",
+    "bytes": 43950
+  },
+  {
+    "path": "schemas/evidence_rule.schema.json",
+    "sha256": "ef659d4487d36eefba73d1db0f06bc83736f0a0a7741ad4d0851aad4aaf904b8",
+    "bytes": 994
+  },
+  {
+    "path": "schemas/feedback_policy.schema.json",
+    "sha256": "b18da2f030a35cca4af49db43c1a15a0bd8e4fb5b5fc7c4b3c8389f21f50251c",
+    "bytes": 824
+  },
+  {
+    "path": "schemas/interaction_instance.schema.json",
+    "sha256": "55cf28e1e064bf3e4b0e60cd8e9b92af61a1008700b215adb725a270fa7320cf",
+    "bytes": 1558
+  },
+  {
+    "path": "schemas/scene_spec.schema.json",
+    "sha256": "acc2830910ad5a09edd823249c25f277f64fa35e599f837b9d6029db63b15894",
+    "bytes": 1742
+  },
+  {
+    "path": "schemas/semantic_event.schema.json",
+    "sha256": "f2516242e78d6f0c24ef7754cb28f8e068d2c02bb325c11ab4ecb27e10ee6baf",
+    "bytes": 821
+  },
+  {
+    "path": "seeds/animation_templates.json",
+    "sha256": "3ad3c92c069939e648a619dd7a8ade2915b68e9514bfc7e08f756b1a88c821d8",
+    "bytes": 2628
+  },
+  {
+    "path": "seeds/control_templates.json",
+    "sha256": "b341b9017292e5d6e00b4d6e3af421b9e022cc4ead36bddda7432cfbca825f42",
+    "bytes": 1283
+  },
+  {
+    "path": "seeds/icon_tokens.json",
+    "sha256": "76b889a66eec403f62fe9093d14cccc326412e6191551dbe59424f87fac03282",
+    "bytes": 2637
+  },
+  {
+    "path": "seeds/interaction_templates.json",
+    "sha256": "c688eb4327364ca8ae74fbafe30e46e12d9753a0e7c619add32f4a1e2e882cda",
+    "bytes": 1984
+  }
+]

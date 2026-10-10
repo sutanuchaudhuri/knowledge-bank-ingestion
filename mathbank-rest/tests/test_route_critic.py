@@ -134,3 +134,32 @@ def test_critic_json_has_two_repairs(monkeypatch):
         [],
     )
     assert complete.call_count == 4
+
+
+def test_critic_retries_truncation_with_brevity_hint(monkeypatch):
+    from mathbank_rest.route_ollama import OutputTruncated
+
+    complete = MagicMock(
+        side_effect=[
+            OutputTruncated("too long"),
+            (json.dumps(verdict()), {}),
+            (json.dumps(verdict()), {}),
+        ]
+    )
+    monkeypatch.setattr(OllamaProvider, "complete", complete)
+    source = {
+        "statement_text": "Problem",
+        "source": "Source",
+        "verification_status": "UNVERIFIED",
+        "_generation_metadata": {},
+    }
+    result = evaluate(
+        RouteProgram.model_validate(program()),
+        source,
+        OllamaProvider(model="critic", digest="critic"),
+        OllamaProvider(model="gen", digest="gen"),
+        [],
+    )
+    assert complete.call_count == 3 and result["accepted"]
+    retry_prompt = complete.call_args_list[1].args[0][-1]["content"]
+    assert "SHORTER" in retry_prompt

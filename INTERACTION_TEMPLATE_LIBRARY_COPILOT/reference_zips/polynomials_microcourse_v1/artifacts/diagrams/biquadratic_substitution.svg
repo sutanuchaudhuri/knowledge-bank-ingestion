@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="40" y="50" font-family="Arial" font-size="30" font-weight="bold">Biquadratic substitution</text>
+<rect x="50" y="110" width="250" height="80" rx="12" fill="#f6f6f8" stroke="#333"/>
+<text x="175.0" y="156.0" text-anchor="middle" font-family="Arial" font-size="20">Ax⁴+Bx²+C=0</text>
+<rect x="380" y="110" width="220" height="80" rx="12" fill="#f6f6f8" stroke="#333"/>
+<text x="490.0" y="156.0" text-anchor="middle" font-family="Arial" font-size="20">set y=x²</text>
+<rect x="680" y="110" width="250" height="80" rx="12" fill="#f6f6f8" stroke="#333"/>
+<text x="805.0" y="156.0" text-anchor="middle" font-family="Arial" font-size="20">Ay²+By+C=0</text>
+<rect x="680" y="310" width="250" height="100" rx="12" fill="#f6f6f8" stroke="#333"/>
+<text x="805.0" y="366.0" text-anchor="middle" font-family="Arial" font-size="20">map each y back
+to x=±√y</text>
+<line x1="300" y1="150" x2="380" y2="150" stroke="#333" stroke-width="2"/>
+<polygon points="380,150 368,144 368,156" fill="#333"/>
+<text x="340.0" y="142.0" text-anchor="middle" font-family="Arial" font-size="16">structure</text>
+<line x1="600" y1="150" x2="680" y2="150" stroke="#333" stroke-width="2"/>
+<polygon points="680,150 668,144 668,156" fill="#333"/>
+<text x="640.0" y="142.0" text-anchor="middle" font-family="Arial" font-size="16">quadratic</text>
+<line x1="805" y1="190" x2="805" y2="310" stroke="#333" stroke-width="2"/>
+<polygon points="805,310 793,304 793,316" fill="#333"/>
+<text x="805.0" y="242.0" text-anchor="middle" font-family="Arial" font-size="16">back-substitute</text>
+</svg>

@@ -1,5 +1,298 @@
 # 39. Precompiled tutoring routes and instructional reasoning graph
 
+## Comprehensive-system integration contract
+
+> **Normative precedence.** This section defines how precompiled tutoring routes participate
+> in the complete MathBank platform. Historical implementation/status notes later in this
+> file remain evidence of what happened at a point in time. If a historical note conflicts
+> with the target architecture here, this section controls future implementation.
+
+### 39.A Role in the complete system
+
+Precompiled tutoring routes are the **problem-solving execution layer**. They own reviewed,
+solution-specific reasoning programs: route releases, atomic steps, claims, requirements,
+hints, theory links, misconceptions, diagnostics and route-local teaching assets.
+
+They are not:
+- a second micro-course engine;
+- a second interaction runtime;
+- a learner mastery graph;
+- a replacement for canonical Concept/Technique/Skill nodes.
+
+```text
+Source Problem + Stored Solution
+            |
+            v
+     Offline Route Compiler
+            |
+            v
+ Immutable RouteRelease
+   |      |       |
+   |      |       +--> reviewed hints / theory / claims / diagnostics
+   |      +----------> approved InteractionInstance / SceneSpec bindings
+   +-----------------> canonical Concept / Technique / Skill requirements
+            |
+            v
+      learner.route_attempt
+            |
+            +--> current route step
+            +--> current approved hint level
+            +--> semantic interaction events
+            +--> deterministic diagnostic evidence
+```
+
+### 39.B Explicit micro-course → tutoring-route bridge
+
+A micro-course `PRACTICE`, `EXAMPLE`, `CHECKPOINT`, or `TRANSFER` state may bind a specific
+published tutoring-route release.
+
+Add an FK-backed binding table following repository naming conventions, for example:
+
+```text
+pedagogy.micro_course_state_route
+---------------------------------
+state_route_id
+state_id
+route_release_id
+ordinal
+role                PRIMARY_PRACTICE | WORKED_EXAMPLE | TRANSFER | OPTIONAL
+required
+completion_policy   EXPLAINED | ANSWERED | ASSESSED | OPTIONAL
+created_at
+```
+
+**Important:** implementation must inspect the actual tutoring-route migration and bind to
+the real route-release PK/table name; do not guess it from this document.
+
+Rules:
+1. publishable course states may bind only `PUBLISHED` route releases;
+2. retirement blocks new route starts, not already-pinned attempts;
+3. route content is never copied into course tables;
+4. route attempt and course enrollment pin independent immutable releases;
+5. course progression resumes only through an authored course transition after route return.
+
+Graph:
+
+```text
+CourseState -[:USES_TUTORING_ROUTE]-> RouteRelease
+RouteRelease -[:FOR_PROBLEM]-> Problem
+```
+
+No hint/explanation/answer body enters Neo4j.
+
+### 39.C Route step ↔ interaction/animation bridge
+
+A route step may bind an approved reusable interaction and/or SceneSpec:
+
+```text
+route_step_interaction
+----------------------
+route_step_id
+interaction_instance_id
+ordinal
+role       EXPLAIN | EXPLORE | DIAGNOSE | REMEDIATE
+required
+```
+
+Requirements:
+- exact interaction-template version is `PUBLISHED`;
+- instance is `APPROVED`;
+- SceneSpec is approved;
+- IDs/versions participate in route content hash;
+- bindings freeze with publication;
+- learner events use the same interaction runtime as micro-courses;
+- route compiler may propose a binding but cannot create/publish arbitrary controls,
+  icons, templates, evidence rules or animations at runtime.
+
+Graph:
+
+```text
+RouteStep -[:USES_INTERACTION]-> InteractionInstance
+RouteStep -[:USES_SCENE]-> SceneSpec
+InteractionInstance -[:CAN_REVEAL]-> Misconception
+SceneSpec -[:EXPLAINS]-> Concept|Technique
+```
+
+### 39.D One deterministic misconception/evidence model
+
+Canonical misconception:
+`knowledge.misconception`
+
+Private learner evidence:
+PostgreSQL only.
+
+Evidence can come from:
+- route diagnostic answers;
+- route interaction events;
+- course activities;
+- course interaction events;
+- transfer checks.
+
+Allowed shared graph:
+
+```text
+RouteStep -[:CAN_TRIGGER]-> Misconception
+InteractionInstance -[:CAN_REVEAL]-> Misconception
+Misconception -[:DIAGNOSED_BY]-> LearningItem
+Misconception -[:REMEDIATED_BY]-> Intervention
+```
+
+Forbidden shared graph:
+
+```text
+Student -[:HAS_MISCONCEPTION]-> Misconception
+Student -[:FAILED]-> Skill
+```
+
+### 39.E Runtime policy
+
+Published authored structure first; LLM interpretation second.
+
+The route tutor may:
+- interpret free-form learner work;
+- classify among predeclared misconception candidates;
+- rephrase approved hints/instructions/theory;
+- answer unexpected questions grounded in the current approved route/course context.
+
+It may not:
+- mutate the route DAG;
+- invent a canonical prerequisite;
+- create a new interaction/animation;
+- mark mastery because a hint was displayed;
+- jump to an arbitrary course state;
+- expose future route hints/expected responses.
+
+### 39.F Nested runtime and exact return
+
+When route practice is launched from a course:
+
+```text
+CourseState
+   |
+   | Start problem
+   v
+RouteAttempt (pinned release)
+   |
+   +--> RouteStep 1
+   +--> RouteStep 2
+   +--> ...
+   |
+   v
+Route Completed / Return
+   |
+   v
+same CourseState
+   |
+   v
+authored NEXT / CORRECT / RETRY / TRANSFER transition
+```
+
+Persist:
+- origin course enrollment ID;
+- origin course state ID;
+- optional origin video time;
+- route attempt ID;
+- return policy.
+
+The route cannot choose the next course state.
+
+### 39.G Route tutor screen wireframe
+
+Desktop:
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Course: Markov Chains        Step 5 of 8      Practice problem        [?]   │
+├───────────────────┬──────────────────────────────────────┬───────────────────┤
+│ COURSE STEPPER    │ PROBLEM / WORK AREA                  │ TUTOR CONTEXT     │
+│ ✓ Intro           │                                      │ Goal              │
+│ ✓ Video           │  Problem statement                   │ ───────────────   │
+│ ✓ Explorer        │  ┌───────────────────────────────┐   │ Current concept   │
+│ ● Practice        │  │ diagram / formula / scratch   │   │ Technique         │
+│ ○ Transfer        │  │ interaction widget            │   │ Misconceptions    │
+│                   │  └───────────────────────────────┘   │ allowed here      │
+│                   │                                      │                   │
+│                   │  Your response: [______________]     │ [Hint 1] [Ask]    │
+│                   │  [Check] [Show approved explorer]    │                   │
+├───────────────────┴──────────────────────────────────────┴───────────────────┤
+│ Route: Approach A · Step 2/4     [Return to course]      [Continue if valid]│
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+Phone:
+
+```text
+┌─────────────────────────────┐
+│ ‹ Course     Practice 2/4   │
+│ Markov absorbing walk       │
+├─────────────────────────────┤
+│ Problem statement           │
+│                             │
+│ [diagram / interaction]     │
+│                             │
+│ Your response               │
+│ [_______________________]   │
+│ [Check]                     │
+├─────────────────────────────┤
+│ Tutor                       │
+│ Goal: ...                   │
+│ [Hint] [Ask]                │
+├─────────────────────────────┤
+│ [Return]          [Continue]│
+└─────────────────────────────┘
+```
+
+Rules:
+- future route steps/expected answers are not prefetched into learner JSON;
+- current hint/interaction only;
+- course stepper position is preserved while route subflow is active;
+- route completion does not imply course mastery unless authored assessment says so.
+
+### 39.H Search, graph, outbox and publication
+
+At route publication:
+- canonical Postgres transaction succeeds first;
+- outbox event records publication;
+- structural route graph refresh happens asynchronously;
+- route search representations/embeddings happen asynchronously;
+- each derived subsystem records independent status.
+
+Recommended search entity kinds:
+
+```text
+TUTORING_ROUTE_RELEASE
+TUTORING_ROUTE_STEP
+THEORY_ITEM
+CLAIM
+```
+
+Do not embed hidden answer keys or private learner evidence.
+
+### 39.I Comprehensive route acceptance test
+
+Must pass:
+
+```text
+publish route
+→ attach to draft course state
+→ publish course
+→ graph projection
+→ enroll learner
+→ enter practice state
+→ create pinned route attempt
+→ request H1
+→ manipulate approved route-step interaction
+→ emit deterministic error signature
+→ evidence update
+→ diagnostic/remediation if threshold crossed
+→ complete route
+→ return to exact course state
+→ authored course transition
+→ verify structural graph only
+→ verify learner evidence only in PostgreSQL
+```
+
+
 ## Decision and rollout
 
 Requested 2026-10-08 UTC from the attached 1,005-line architecture proposal.
@@ -298,16 +591,23 @@ resumed. This is structural/source-grounding evidence, not mathematical review.
 
 ### Service activation and integrity follow-up
 
-**Current policy: mandatory enrichment plus different-model critic.** The
-atomic-only run below was stopped when the user clarified that claims,
-misconceptions, theory and diagnostic quiz assets are mandatory. New source
-implementation is compiler `tutoring-route-compiler-v3-enrichment-critic`:
-decomposition, bounded per-step assets, seven-criterion critic evals, two
-error-guided repairs, then fenced atomic persistence. PASS/all scores >=3/4/
-no issues is required; ABSTAIN fails closed. This is not proof certification.
-Default models are `qwen2.5:7b` and `llama3.2:3b`, both downloaded if absent.
-Their digests must differ. Evals bind to program hash and persist per step.
-New enriched versions replace no historical reviewed snapshots in place.
+**Current policy: mandatory enrichment with an optional different-model
+critic.** The atomic-only run below was stopped when the user clarified that
+claims, misconceptions, theory and diagnostic quiz assets are mandatory.
+Compiler `tutoring-route-compiler-v2-mandatory-enrichment` performs
+decomposition and bounded per-step enrichment, then fenced atomic persistence;
+mandatory enrichment is not proof certification. An independent critic model
+is **optional**, toggled per machine/run via `make`'s `ROUTE_CRITIC`
+(default off) and `ROUTE_CRITIC_MODEL` (default `llama3.2:3b`); when enabled
+it scores seven criteria per step with up to two feedback-guided repairs and
+requires PASS/all scores >=3/4/no issues, otherwise the generator model
+(`qwen2.5:7b` by default) is accepted on its own. Review/publish no longer
+require critic evals for any release. Every persisted step/job/run record
+stores `generation_started_at` (UTC) and the generator model name;
+`critic_model` is an explicit JSON `null` unless the critic was enabled for
+that run (migration 029 documents this in column comments on the authorized
+remote target). New enriched versions replace no historical reviewed
+snapshots in place.
 
 The [Make pipeline](../Makefile) supports multiple macOS/Linux machines against
 the same configured PostgreSQL with migration
@@ -322,13 +622,89 @@ full corpus has completed or that the running REST service has been reloaded.
 Pipeline validation observed 2026-10-09 UTC: migration 028 applied to the
 authorized remote target; **59 targeted tests passed**, including actual
 two-connection claims, expired-lease recovery/stale-owner fencing and rollback
-provenance/review tests. Missing `llama3.2:3b` installed successfully. Actual
-default-model resource preflight rejected this busy Mac's 5.64 GiB available
-RAM before inference. No new full run or paid fallback was started; end-to-end
-live generator+critic acceptance still requires a resource-qualified machine.
-The v3 queue is empty for operator launch. The old atomic run is PARTIAL,
-18,590 QUEUED/two interrupted jobs/no full-run releases; backups are unchanged.
-`make routes-progress` also reports critic verdict totals from job evals.
+provenance/review tests (predating the critic becoming optional; all still
+pass with the critic disabled). Missing `llama3.2:3b` installed successfully.
+Actual default-model resource preflight rejected this busy Mac's 5.64 GiB
+available RAM before inference. No new full run or paid fallback was started;
+end-to-end live generator (optionally plus critic) acceptance still requires
+a resource-qualified machine. The v2 queue is empty for operator launch. The
+old atomic run is PARTIAL, 18,590 QUEUED/two interrupted jobs/no full-run
+releases; backups are unchanged. `make routes-progress` reports a
+generator/critic-model summary grouped by job status.
+
+**Re-enabled single-OpenAI-model path (2026-10-09 UTC), then fixed its real
+failure mode.** The user asked for a cost estimate, then explicitly asked to
+re-enable the previously CLI-blocked `compile` command and run it. The
+*original* single-shot schema (one `gpt-4o-mini` call producing decomposition
+and all claim/misconception/theory/quiz assets together) failed **9 of the
+first 13** real paid attempts with cross-reference errors (invalid asset
+links, claims used before being produced, incomplete learning items) —
+the same failure class seen earlier with Ollama's initial rich-asset attempt.
+The run was stopped immediately at the user's request.
+
+**Fix:** unified the OpenAI path onto the same proven architecture as Ollama.
+`generate()` now requires an explicit provider (no more implicit "None means
+OpenAI"); a new [`route_openai.py`](../mathbank-rest/src/mathbank_rest/route_openai.py)
+`OpenAIChatProvider` implements the same `.complete()`/`.config()` interface
+as `OllamaProvider`. Every provider now does atomic decomposition first, then
+calls [`route_enrichment.enrich()`](../mathbank-rest/src/mathbank_rest/route_enrichment.py),
+which constructs claim/misconception/theory/quiz asset keys and links
+**deterministically in Python** rather than asking the model to get
+cross-references right. A real 20-solution batch then succeeded **20/20**
+(0 repairs), at $0.00243/solution (~$46 estimated for the full remaining
+corpus), versus the single-shot path's 0% success rate. 59 tests still pass.
+
+**Diagram requirement added before the full run.** Per explicit request, the
+`Instruction` schema gained `has_diagram`, `diagram_description` (what the
+figure depicts, to be stated before any explanation) and
+`diagram_instructions` (concrete enough to render: labeled points/shapes/
+angles/measurements/relative positions), with a validator requiring both
+fields nonblank exactly when `has_diagram` is true, and blank otherwise.
+Verified on a real diagram-bearing solution (`PAPER_HMMT_2016_FEB_GUTS_Q12`):
+the model correctly described a rectangle's vertices/edges before any
+explanation and left non-diagram steps blank.
+
+**Full remaining-corpus run started**, authorized by the user: run
+`4f163e6c-940d-41e1-b7d6-15e29c5056f0`, 18,728 solutions, 4 `gpt-4o-mini`
+workers, DRAFT-only (no `--approve-by`). Every persisted step/job/run record
+includes `generation_started_at` and the generator `model` name;
+`critic_model` is an explicit JSON `null` (no critic was enabled for this
+OpenAI run). Monitor with `--resume-run 4f163e6c-940d-41e1-b7d6-15e29c5056f0`
+on the `status` command, or tail
+`/Volumes/External/Developer/databases/logs/openai-mandatory-enrichment-routes/progress-full.json`.
+
+**Raised the worker ceiling from 8 to 32** after measuring this account's
+actual OpenAI rate limits via real response headers (30,000 requests/min,
+150,000,000 tokens/min for `gpt-4o-mini`) — far above anything 8 workers
+could reach; the prior cap was an arbitrary local sanity bound, not a rate
+limit. The run was stopped cleanly (advisory lock verified released) and
+resumed with the same frozen run/cohort at 16 workers.
+
+**Taxonomy coverage gap found and the run stopped again.** With 159 real
+persisted steps, **97% had zero taxonomy requirements** and only 10 of 500
+available `pedagogy.taxonomy_node` rows had ever been used. Root cause: the
+entire existing taxonomy (`GEO.*`, 245 concepts/subconcepts + 202 geometry
+skills + 54 geometry techniques) covers geometry only, while the corpus is
+mostly HMMT/SMT/AIME/CHMMC/CMM algebra, number theory and combinatorics with
+zero matching taxonomy — the model was correctly leaving requirements empty
+rather than inventing IDs, not malfunctioning. The run was stopped again
+(135 DRAFT routes preserved) pending a decision on how to author the missing
+domains; this is unresolved and the run has not resumed.
+
+**Caching and end-of-run graph refresh added while taxonomy content is
+decided.** A new `TaxonomyCache` (`route_compiler.py`) backs the canonical
+shortlist with a 10-minute TTL instead of one query per job, so a long
+multi-hour run can pick up newly authored taxonomy nodes without a restart;
+existing plain-list callers (tests, direct `generate()` use) are unaffected
+via duck typing. `compile_pilot` now calls
+[`route_projection.project()`](../../mathbank-rest/src/mathbank_rest/route_projection.py)
+when its invocation naturally exhausts its cohort (not on an external
+process kill), recording the outcome in the run report. Projection reads
+only **PUBLISHED** releases, so a DRAFT-only run legitimately reports zero
+projected nodes/edges until routes are reviewed and published — this is
+expected, not a bug. 61 tests pass, including live-cache TTL-refresh and
+plain-list/cache duck-typing coverage.
+
 
 **Historical atomic-only ingestion: local Ollama, remote PostgreSQL, started
 2026-10-09 00:18:12 UTC.** User requested replacing paid generation with local
@@ -456,3 +832,38 @@ content is outside this projector's ownership.
 - Source/widget/video attachments and a visual split/merge editor remain the
   separate requirement36 completion work; draft JSON supports coherent edits
   and reordering with complete DAG validation, not arbitrary runtime patching.
+
+## Cross-document implementation sequence
+
+All six documents must be implemented as one dependency-ordered program:
+
+```text
+Phase 0  Inventory current DB migrations, services, projectors, routes, UI and tests.
+Phase 1  Resolve canonical schema/contract gaps and secure student payload v2.
+Phase 2  Complete interaction catalogs + deterministic runtime + evidence engine.
+Phase 3  Complete SceneSpec Web/Manim/mobile renderers and accessibility behavior.
+Phase 4  Complete micro-course media/transcript/Q&A/intervention authoring.
+Phase 5  Add micro-course ↔ tutoring-route bindings and nested route runtime.
+Phase 6  Complete student web/tablet/phone layouts and shared API client.
+Phase 7  Complete admin catalog/workspace/media/widgets/routes/publish/graph screens.
+Phase 8  Complete structural Neo4j projectors + verify/diff for all projection kinds.
+Phase 9  Complete search/embedding publication for approved course/route content.
+Phase 10 Wire audit, AI usage, outbox consumers, analytics rollups and retention.
+Phase 11 Build mobile client/offline replay/push features.
+Phase 12 Run comprehensive cross-system golden fixtures and security/privacy checks.
+```
+
+### Global hard prohibitions
+
+Never:
+- create a parallel Concept/Technique/Skill taxonomy;
+- mutate published content in place;
+- expose hidden answers/evaluation policy in learner JSON;
+- treat one wrong answer as a confirmed misconception;
+- project learner-specific misconception/mastery data into shared Neo4j;
+- run destructive shared-graph rebuilds;
+- let runtime LLMs invent course states/routes/interactions/remediations;
+- duplicate service logic separately in UI/CLI/mobile;
+- claim graph/search parity from a queued job;
+- use a separate fake preview renderer;
+- lose exact return state/time when launching a subflow.

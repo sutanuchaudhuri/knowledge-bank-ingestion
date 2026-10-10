@@ -1,0 +1,71 @@
+{
+  "quiz_id": "QUIZ-CUBIC",
+  "module": "Cubic",
+  "questions": [
+    {
+      "id": "C1",
+      "type": "single_select",
+      "prompt": "For x^3+Ax^2+Bx+C with roots a,b,c, which is a+b+c?",
+      "options": [
+        "-A",
+        "A",
+        "B",
+        "-C"
+      ],
+      "answer": 0,
+      "explanation": "Vieta gives the first elementary symmetric sum as -A."
+    },
+    {
+      "id": "C2",
+      "type": "single_select",
+      "prompt": "For the same monic cubic, which is abc?",
+      "options": [
+        "-C",
+        "C",
+        "-B",
+        "A"
+      ],
+      "answer": 0,
+      "explanation": "The sign alternates, so product of three roots is -C."
+    },
+    {
+      "id": "C3",
+      "type": "single_select",
+      "prompt": "If a,b,c are roots, what is (a+b)+(b+c)+(c+a)?",
+      "options": [
+        "2(a+b+c)",
+        "a+b+c",
+        "3(a+b+c)",
+        "ab+bc+ca"
+      ],
+      "answer": 0,
+      "explanation": "Each root appears in two of the three pair sums."
+    },
+    {
+      "id": "C4",
+      "type": "single_select",
+      "prompt": "Which technique is best when the target is symmetric in cubic roots?",
+      "options": [
+        "Rewrite using elementary symmetric sums",
+        "Solve Cardano's formula first",
+        "Graph numerically first",
+        "Assume integer roots"
+      ],
+      "answer": 0,
+      "explanation": "Competition problems typically reward coefficient-root relations over explicit cubic solving."
+    },
+    {
+      "id": "C5",
+      "type": "single_select",
+      "prompt": "If r is known to be a root of a cubic P(x), what should you test next?",
+      "options": [
+        "Factor out (x-r)",
+        "Differentiate until constant",
+        "Square P",
+        "Replace x by 1/x automatically"
+      ],
+      "answer": 0,
+      "explanation": "The factor theorem reduces the cubic to a quadratic after dividing by x-r."
+    }
+  ]
+}

@@ -10,6 +10,10 @@ class OllamaError(RuntimeError):
     pass
 
 
+class OutputTruncated(ValueError):
+    """Model output hit num_predict; distinct from unretryable context-size failures."""
+
+
 @dataclass(frozen=True)
 class OllamaProvider:
     model: str
@@ -93,7 +97,9 @@ class OllamaProvider:
                 "Local Ollama generation/transport failed; no paid fallback."
             ) from None
         if data.get("done_reason") == "length":
-            raise ValueError("Ollama output exceeded token budget; no partial program accepted.")
+            raise OutputTruncated(
+                "Ollama output exceeded token budget; no partial program accepted."
+            )
         raw = data.get("message", {}).get("content")
         if not isinstance(raw, str) or not raw.strip():
             raise ValueError("Ollama returned no structured program.")

@@ -1,0 +1,52 @@
+{
+  "quiz_id": "QUIZ-AMGM",
+  "topic": "AM-GM",
+  "questions": [
+    {
+      "id": "AM1",
+      "type": "single_select",
+      "prompt": "For x,y>0, which is AM-GM?",
+      "options": [
+        "(x+y)/2 >= sqrt(xy)",
+        "(x+y)/2 <= sqrt(xy)",
+        "x+y >= xy",
+        "sqrt(x)+sqrt(y) >= x+y"
+      ],
+      "answer": 0,
+      "explanation": "The arithmetic mean is at least the geometric mean."
+    },
+    {
+      "id": "AM2",
+      "type": "single_select",
+      "prompt": "When does equality hold for positive x1,...,xn?",
+      "options": [
+        "One variable is zero",
+        "All variables are equal",
+        "Their product is 1",
+        "n is even"
+      ],
+      "answer": 1,
+      "explanation": "Equality holds exactly when all compared inputs are equal."
+    },
+    {
+      "id": "AM3",
+      "type": "numeric",
+      "prompt": "If x,y>0 and x+y=12, maximize xy.",
+      "answer": 36,
+      "explanation": "sqrt(xy)<=6, so xy<=36, with equality at x=y=6."
+    },
+    {
+      "id": "AM4",
+      "type": "single_select",
+      "prompt": "Which AM-GM application proves a^2+b^2 >= 2ab?",
+      "options": [
+        "Apply to a,b",
+        "Apply to a^2,b^2",
+        "Apply to a+b,a-b",
+        "AM-GM cannot prove it"
+      ],
+      "answer": 1,
+      "explanation": "(a^2+b^2)/2 >= |ab| >= ab."
+    }
+  ]
+}

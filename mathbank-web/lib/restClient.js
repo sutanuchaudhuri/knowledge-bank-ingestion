@@ -95,6 +95,25 @@ export async function restAdminSend(method, path, payload) {
   return body;
 }
 
+export async function restAdminUpload(path, data, contentType, searchParams) {
+  const res = await fetch(buildUrl(path, searchParams), {
+    method: "POST",
+    headers: {
+      "X-Admin-Api-Key": process.env.MATHBANK_ADMIN_API_KEY || "",
+      "Content-Type": contentType,
+    },
+    body: data,
+    cache: "no-store",
+  });
+  const body = await parseJsonSafely(res);
+  if (!res.ok) {
+    const err = new Error(body?.detail ? JSON.stringify(body.detail) : `mathbank-rest POST ${path} failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
 /**
  * Fetches `limit+1` rows from a list endpoint and trims to `limit`, so the UI can
  * offer prev/next pagination via a `hasMore` flag without a backend count query.

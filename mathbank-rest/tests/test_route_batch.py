@@ -162,9 +162,9 @@ def test_critic_feedback_controls_retry_and_persistence(monkeypatch, eventual_pa
         str(uuid4()),
         [],
         OllamaProvider(model="gen", digest="gen"),
-        OllamaProvider(model="critic", digest="critic"),
         None,
         threading.Event(),
+        OllamaProvider(model="critic", digest="critic"),
     )
     assert critic.call_count == 3 and feedback[0] is None and feedback[1]
     if eventual_pass:
@@ -173,6 +173,44 @@ def test_critic_feedback_controls_retry_and_persistence(monkeypatch, eventual_pa
     else:
         assert result["status"] == "FAILED" and result["error_code"] == "CriticRejected"
         store.assert_not_called()
+
+
+def test_critic_disabled_never_calls_evaluate_and_generates_once(monkeypatch):
+    source = {
+        "solution_id": str(uuid4()),
+        "problem_id": str(uuid4()),
+        "statement_text": "Problem",
+        "source": "Given three right angles. Use the sum.",
+        "canonical_code": "TEST",
+        "verification_status": "UNVERIFIED",
+    }
+    task = {
+        "task_id": uuid4(),
+        "owner_token": uuid4(),
+        "solution_id": source["solution_id"],
+        "source_hash": route_batch.route_compiler.source_hash(source),
+    }
+    conn = MagicMock()
+    conn.execute.return_value.mappings.return_value.one.return_value = source
+    monkeypatch.setattr(
+        route_batch,
+        "engine",
+        SimpleNamespace(connect=lambda: nullcontext(conn), begin=lambda: nullcontext(conn)),
+    )
+    monkeypatch.setattr(route_batch, "heartbeat", lambda *args: nullcontext())
+    value = RouteProgram.model_validate(program())
+    generate = MagicMock(return_value=value)
+    monkeypatch.setattr(route_batch.route_compiler, "generate", generate)
+    evaluate = MagicMock(side_effect=AssertionError("critic must not be called when disabled"))
+    monkeypatch.setattr(route_batch, "evaluate", evaluate)
+    store = MagicMock(return_value=str(uuid4()))
+    monkeypatch.setattr(route_batch, "store", store)
+    result = route_batch.process(
+        task, str(uuid4()), [], OllamaProvider(model="gen", digest="gen"), None, threading.Event()
+    )
+    assert result["status"] == "DONE" and generate.call_count == 1
+    evaluate.assert_not_called()
+    store.assert_called_once()
 
 
 def test_store_retries_transient_errors_twice_without_regeneration(monkeypatch):

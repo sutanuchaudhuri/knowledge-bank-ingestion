@@ -1,7 +1,22 @@
 LOCAL OLLAMA TUTORING STEP INGESTION PLAN
 Authorized: 2026-10-09 UTC (2026-10-08 evening EDT).
 
-CURRENT POLICY (supersedes the initial atomic-only launch below):
+CURRENT POLICY (2026-10-09, supersedes the mandatory-critic entry below):
+Claims, misconceptions, theory and diagnostic quizzes remain MANDATORY per
+step; this was not relaxed. The independent different-model critic is now
+OPTIONAL, controlled per machine/run by make's ROUTE_CRITIC (default 0/off)
+and ROUTE_CRITIC_MODEL (default llama3.2:3b, used only when enabled). With
+the critic disabled, generation accepts the first structurally/source-valid
+enriched program without a second model call; review/publish no longer
+require critic evals for any release. Every persisted step/job/run record
+explicitly stores generation_started_at (ISO 8601 UTC) and the generator
+model name; critic_model is an explicit JSON null unless an operator enabled
+the critic for that run, matching migration029's column-comment documentation
+applied to the authorized remote target. The standalone post-hoc
+routes-evaluate/recheck command was removed with the mandatory critic gate;
+re-running make routes-ingest is the only way to add critic evals to new work.
+
+HISTORICAL POLICY (mandatory-critic entry, superseded above):
 Claims, misconceptions, theory and diagnostic quizzes are MANDATORY per step.
 The atomic-only run 3275ee2d-860a-47ee-ae30-2d36a6ccc119 was stopped; do not
 resume it. Its historical releases remain intact, not treated as complete.
@@ -50,9 +65,10 @@ The replacement v3 shared queue remains empty for the user to launch.
 Live full generator+critic mathematical acceptance remains unverified here
 until a machine passes the resource preflight. No paid API calls were made.
 Use make routes-progress for shared completion, failures, reclaimable leases,
-latest machine runs and critic step-eval verdict counts.
-After a manual DRAFT edit, use make routes-evaluate ROUTE_RELEASE_ID=<uuid>
-to refresh hash-bound critic evals without generation/review/publication.
+latest machine runs and a generator/critic-model summary by job status.
+This historical observation predates the critic becoming optional; the
+routes-evaluate command it referenced below no longer exists (see the
+CURRENT POLICY entry above).
 
 Objective:
 Generate source-grounded atomic tutoring steps using only loopback Ollama.

@@ -1,0 +1,105 @@
+{
+  "publication_rule": {
+    "interactive_video_requires_approved_timestamped_transcript": true,
+    "student_questioning_enabled_until_approval": false,
+    "authored_notes_are_not_transcript": true
+  },
+  "videos": [
+    {
+      "id": "YT-MARKOV-HARVARD-STAT110",
+      "tier": "CORE",
+      "title": "Lecture 31: Markov Chains | Statistics 110",
+      "channel": "Harvard University",
+      "url": "https://www.youtube.com/watch?v=8AJPs3gvNlY",
+      "purpose": "Markov property, transition matrices, stationary distributions",
+      "mapped_problem": "",
+      "transcript_status": "PENDING_IMPORT",
+      "questioning": false,
+      "annotation_targets": "Markov property; state space; transition matrix; stationary distribution"
+    },
+    {
+      "id": "YT-MARKOV-DATAMLISTIC",
+      "tier": "FOUNDATION",
+      "title": "Markov Chains - Explained",
+      "channel": "DataMListic",
+      "url": "https://www.youtube.com/watch?v=rYSVFScr7qw",
+      "purpose": "Accessible weather example; states; transitions; matrix; steady-state intuition",
+      "mapped_problem": "",
+      "transcript_status": "PENDING_IMPORT",
+      "questioning": false,
+      "annotation_targets": "state; transition probability; initial distribution; steady state"
+    },
+    {
+      "id": "YT-MARKOV-GRESTY-ABSORB-1",
+      "tier": "INTERMEDIATE",
+      "title": "Absorbing Markov Chains, Total Probabilities and Recursion",
+      "channel": "Gresty Academy",
+      "url": "https://www.youtube.com/watch?v=yln2kp5-9Jo",
+      "purpose": "Absorbing states; total probability; recursion",
+      "mapped_problem": "AMC12_2025B_Q20",
+      "transcript_status": "PENDING_IMPORT",
+      "questioning": false,
+      "annotation_targets": "absorbing state; first-step analysis; hitting probability; recursion"
+    },
+    {
+      "id": "YT-MARKOV-GRESTY-ABSORB-2",
+      "tier": "INTERMEDIATE",
+      "title": "Absorbing Markov Chains Solved with Transition and Solution Matrices",
+      "channel": "Gresty Academy",
+      "url": "https://www.youtube.com/watch?v=WxCBILZt_0U",
+      "purpose": "Transition matrices and matrix solution of absorbing problems",
+      "mapped_problem": "",
+      "transcript_status": "PENDING_IMPORT",
+      "questioning": false,
+      "annotation_targets": "transition matrix; transient state; absorbing state; linear system"
+    },
+    {
+      "id": "YT-MARKOV-CMU-RANDOM-WALKS",
+      "tier": "ADVANCED",
+      "title": "Great Ideas in Theoretical Computer Science: Random Walks and Markov Chains",
+      "channel": "Ryan O'Donnell / CMU 15-251",
+      "url": "https://www.youtube.com/watch?v=86N-awvgi1w",
+      "purpose": "Random walks and Markov chains at a deeper conceptual level",
+      "mapped_problem": "AIME_2003_II_Q13",
+      "transcript_status": "PENDING_IMPORT",
+      "questioning": false,
+      "annotation_targets": "random walk; graph state; Markov chain; long-run behavior"
+    },
+    {
+      "id": "YT-AIME-2003-II-13-KHAN",
+      "tier": "COMPETITION",
+      "title": "2003 AIME II problem 13 | AIME | Math for fun and glory",
+      "channel": "Khan Academy",
+      "url": "https://www.youtube.com/watch?v=vKMNRcctwL4",
+      "purpose": "Exact contest problem: triangle random walk",
+      "mapped_problem": "AIME_2003_II_Q13",
+      "transcript_status": "PENDING_IMPORT",
+      "questioning": false,
+      "annotation_targets": "state compression; recurrence p_(n+1)=1/2(1-p_n); fixed point"
+    },
+    {
+      "id": "YT-AMC10-2020A-13",
+      "tier": "COMPETITION",
+      "title": "2020 AMC 10A Problem 13",
+      "channel": "WhyMath",
+      "url": "https://www.youtube.com/watch?v=0m4lbXSUV1I",
+      "purpose": "Exact contest problem: frog random walk on square lattice",
+      "mapped_problem": "AMC10_2020A_Q13",
+      "transcript_status": "PENDING_IMPORT",
+      "questioning": false,
+      "annotation_targets": "2D random walk; boundary hitting; symmetry"
+    },
+    {
+      "id": "YT-AMC12-2025B-20",
+      "tier": "COMPETITION",
+      "title": "2025 AMC 12B Problem 20/10B Problem 24",
+      "channel": "Sohil Rathi",
+      "url": "https://www.youtube.com/watch?v=wBBlErp40Xc",
+      "purpose": "Exact contest problem: absorbing frog walk",
+      "mapped_problem": "AMC12_2025B_Q20",
+      "transcript_status": "PENDING_IMPORT",
+      "questioning": false,
+      "annotation_targets": "first-step equations; absorbing failure; recurrence; hitting probability"
+    }
+  ]
+}

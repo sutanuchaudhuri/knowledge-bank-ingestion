@@ -1,0 +1,141 @@
+{
+  "youtube": [
+    {
+      "video_id": "YT-VIETA-THINKING-NUMERICALLY",
+      "module": "Vieta / Quadratic / Cubic",
+      "title": "VIETA FORMULAS and the ROOTS of a POLYNOMIAL | Thinking Numerically",
+      "url": "https://www.youtube.com/watch?v=CCZNMGvGKQQ",
+      "mapped_question_id": "",
+      "chapter_or_problem": "0:31 second degree; 4:53 third degree; 10:10 exercise 1; 12:39 exercise 2",
+      "transcript_status": "PENDING_IMPORT",
+      "student_questioning_enabled": false,
+      "notes": "Public description exposes chapter timestamps. Actual captions must be imported/reviewed."
+    },
+    {
+      "video_id": "YT-QUAD-OLYMPIAD-PYQ",
+      "module": "Quadratic",
+      "title": "Quadratic Equations | Top Olympiad PYQs | IOQM 2026 | Prashant Jain",
+      "url": "https://www.youtube.com/watch?v=1wNj8L8beos",
+      "mapped_question_id": "",
+      "chapter_or_problem": "Olympiad quadratic PYQ resource",
+      "transcript_status": "PENDING_IMPORT",
+      "student_questioning_enabled": false,
+      "notes": "No verified timestamp chapters in current source snapshot."
+    },
+    {
+      "video_id": "YT-CUBIC-OLYMPIAD",
+      "module": "Cubic",
+      "title": "Math Olympiad - Find all roots of a cubic equation | Be Careful",
+      "url": "https://www.youtube.com/watch?v=HmOKY6E6QIc",
+      "mapped_question_id": "",
+      "chapter_or_problem": "Olympiad cubic roots",
+      "transcript_status": "PENDING_IMPORT",
+      "student_questioning_enabled": false,
+      "notes": "Focused cubic problem video."
+    },
+    {
+      "video_id": "YT-BIQUAD-OLYMPIAD",
+      "module": "Biquadratic / Quartic",
+      "title": "Challenging Math Olympiad Question | Biquadratic Equation | Quartic Equation",
+      "url": "https://www.youtube.com/watch?v=_XzOsM1p9M8",
+      "mapped_question_id": "",
+      "chapter_or_problem": "Biquadratic/quartic olympiad equation",
+      "transcript_status": "PENDING_IMPORT",
+      "student_questioning_enabled": false,
+      "notes": "Use as curated module video only after transcript approval."
+    },
+    {
+      "video_id": "YT-AIME-1986-Q11",
+      "module": "Higher Polynomial",
+      "title": "1986 AIME Problem #11 Rewriting a Polynomial!",
+      "url": "https://www.youtube.com/watch?v=nbuv_d6q3qQ",
+      "mapped_question_id": "AIME_1986_Q11",
+      "chapter_or_problem": "Exact corpus problem",
+      "transcript_status": "PENDING_IMPORT",
+      "student_questioning_enabled": false,
+      "notes": "Direct problem-video connection."
+    },
+    {
+      "video_id": "YT-AIME-2016-Q11",
+      "module": "Higher Polynomial",
+      "title": "AIME: Polynomial Functional Equation (Reupload) 2016 A Problem 11",
+      "url": "https://www.youtube.com/watch?v=QWKvbjKQ4B4",
+      "mapped_question_id": "AIME_2016_I_Q11",
+      "chapter_or_problem": "Exact corpus problem",
+      "transcript_status": "PENDING_IMPORT",
+      "student_questioning_enabled": false,
+      "notes": "Direct problem-video connection."
+    },
+    {
+      "video_id": "YT-AIME-2020-Q14",
+      "module": "Quadratic / Quartic",
+      "title": "AIME 2020 Problem 14 Discussion | Solving Polynomial Equations",
+      "url": "https://www.youtube.com/watch?v=HSuzY6roMM0",
+      "mapped_question_id": "AIME_2020_I_Q14",
+      "chapter_or_problem": "Exact corpus problem",
+      "transcript_status": "PENDING_IMPORT",
+      "student_questioning_enabled": false,
+      "notes": "Direct problem-video connection."
+    }
+  ],
+  "wiki": [
+    {
+      "module": "Vieta",
+      "title": "Vieta's formulas",
+      "url": "https://en.wikipedia.org/wiki/Vieta%27s_formulas",
+      "use": "Root/coefficient relations; elementary symmetric sums"
+    },
+    {
+      "module": "Quadratic",
+      "title": "Quadratic equation",
+      "url": "https://en.wikipedia.org/wiki/Quadratic_equation",
+      "use": "Roots, discriminant, quadratic formula"
+    },
+    {
+      "module": "Cubic",
+      "title": "Cubic equation",
+      "url": "https://en.wikipedia.org/wiki/Cubic_equation",
+      "use": "Degree-three equations and root structure"
+    },
+    {
+      "module": "Biquadratic / Quartic",
+      "title": "Quartic equation",
+      "url": "https://en.wikipedia.org/wiki/Quartic_equation",
+      "use": "Degree-four equations; special even-power forms treated separately in course"
+    },
+    {
+      "module": "Higher Polynomial",
+      "title": "Polynomial",
+      "url": "https://en.wikipedia.org/wiki/Polynomial",
+      "use": "General polynomial language"
+    },
+    {
+      "module": "Higher Polynomial",
+      "title": "Newton's identities",
+      "url": "https://en.wikipedia.org/wiki/Newton%27s_identities",
+      "use": "Power sums from elementary symmetric sums"
+    },
+    {
+      "module": "Higher Polynomial",
+      "title": "Polynomial remainder theorem",
+      "url": "https://en.wikipedia.org/wiki/Polynomial_remainder_theorem",
+      "use": "Factor/remainder evaluation"
+    },
+    {
+      "module": "Higher Polynomial",
+      "title": "Fundamental theorem of algebra",
+      "url": "https://en.wikipedia.org/wiki/Fundamental_theorem_of_algebra",
+      "use": "Complex-root count with multiplicity"
+    }
+  ],
+  "corpus_source": {
+    "title": "Tika Competition Math Master Question Corpus",
+    "spreadsheet_id": "1Ox9Qe0wo-jjWdJcD3PeOVtLxaG-Te0zkDYpwTLzYqJs",
+    "tabs": [
+      "Canonical Topic Hierarchy",
+      "Topic Alias Index",
+      "Fast Topic Question Index",
+      "Question Index"
+    ]
+  }
+}

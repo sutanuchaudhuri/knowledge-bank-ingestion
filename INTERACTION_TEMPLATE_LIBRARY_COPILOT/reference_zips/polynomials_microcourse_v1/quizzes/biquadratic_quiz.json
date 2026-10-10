@@ -1,0 +1,71 @@
+{
+  "quiz_id": "QUIZ-BIQUAD",
+  "module": "Biquadratic / Quartic",
+  "questions": [
+    {
+      "id": "B1",
+      "type": "single_select",
+      "prompt": "Which equation is biquadratic?",
+      "options": [
+        "2x^4-7x^2+3=0",
+        "x^4+x^3+1=0",
+        "x^4+x+1=0",
+        "x^3+x^2+1=0"
+      ],
+      "answer": 0,
+      "explanation": "A biquadratic equation is quadratic in x^2 and contains only x^4, x^2, and constant terms."
+    },
+    {
+      "id": "B2",
+      "type": "single_select",
+      "prompt": "After y=x^2 in x^4-5x^2+4=0, which equation results?",
+      "options": [
+        "y^2-5y+4=0",
+        "y^4-5y^2+4=0",
+        "y^2-5x+4=0",
+        "y-5y^2+4=0"
+      ],
+      "answer": 0,
+      "explanation": "x^4=(x^2)^2=y^2 and x^2=y."
+    },
+    {
+      "id": "B3",
+      "type": "single_select",
+      "prompt": "If the y=x^2 substitution produces y=-4 and only real x are sought, then:",
+      "options": [
+        "That y yields no real x",
+        "x=\u00b12",
+        "x=4 only",
+        "x=-4 only"
+      ],
+      "answer": 0,
+      "explanation": "No real number has square -4."
+    },
+    {
+      "id": "B4",
+      "type": "single_select",
+      "prompt": "Which statement about quartics is correct?",
+      "options": [
+        "Every biquadratic is quartic, but not every quartic is biquadratic",
+        "Every quartic is biquadratic",
+        "No biquadratic is quartic",
+        "A quartic cannot have an x^3 term"
+      ],
+      "answer": 0,
+      "explanation": "Biquadratic is a special degree-four structure with only even powers."
+    },
+    {
+      "id": "B5",
+      "type": "single_select",
+      "prompt": "If P is quadratic, the degree of P(P(x)) is generically:",
+      "options": [
+        "4",
+        "2",
+        "3",
+        "8"
+      ],
+      "answer": 0,
+      "explanation": "Degree multiplies under composition: 2\u00d72=4."
+    }
+  ]
+}

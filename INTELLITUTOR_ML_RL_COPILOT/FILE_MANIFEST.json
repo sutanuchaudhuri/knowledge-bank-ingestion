@@ -1,0 +1,87 @@
+[
+  {
+    "file": "00_INDEX.md",
+    "bytes": 3272,
+    "sha256": "1a13613cdb815f179e79c04d08077a25b34683e8ff8f178e61f5713ead4b29f4"
+  },
+  {
+    "file": "01_SYSTEM_ARCHITECTURE.md",
+    "bytes": 3342,
+    "sha256": "790924c9d2e7cb3c78ee3e7c0262d6b5427c45cdfd15f25d8def60397a47b091"
+  },
+  {
+    "file": "02_DATA_MODEL_AND_EVENT_CONTRACTS.md",
+    "bytes": 3725,
+    "sha256": "b83c50f3e29469feffba38315f358332f4d9c31fc96bb27e967cbfcfae452127"
+  },
+  {
+    "file": "03_FEATURE_STORE_AND_LABELS.md",
+    "bytes": 2698,
+    "sha256": "aafe2c30c8143c4a5aa54bc1d2892890b20c9e7c1f1fbddf9277999fb9adab03"
+  },
+  {
+    "file": "04_MASTERY_AND_MISCONCEPTION_TIMESERIES.md",
+    "bytes": 2008,
+    "sha256": "743c50d7b25b80d2d5f7900668be3ed395ea61d44e42ff894bfb5367590adbec"
+  },
+  {
+    "file": "05_RECOMMENDATION_MODELS.md",
+    "bytes": 1945,
+    "sha256": "df00e668948ee4fdc0e94252a3635832390509c9b34b12148aeac616ceedd803"
+  },
+  {
+    "file": "06_EXAM_ANALYTICS_AND_STRATEGY.md",
+    "bytes": 1903,
+    "sha256": "7e4e9cff23fd4bc7f2e36ae104d2943f70693e538303a97fce43461457bbb81d"
+  },
+  {
+    "file": "07_DYNAMIC_EXAM_ASSEMBLY.md",
+    "bytes": 3612,
+    "sha256": "c1f63b41a0a920cb404069c02be3125c97e9246e55712f47ad535c94911b2dd3"
+  },
+  {
+    "file": "08_COHORT_CLUSTERING_ADMIN_ANALYTICS.md",
+    "bytes": 2841,
+    "sha256": "6a2ed63d6ff77fe6ad0cab21c60d034e70576495d9e4f4432bed76ddfd714bcb"
+  },
+  {
+    "file": "09_DATA_READINESS_METADATA_GAPS.md",
+    "bytes": 2732,
+    "sha256": "a77ed0c99f7b7c41f598ac000a4cacf1d59f9ee434e09df3d98a4762d3fb3eea"
+  },
+  {
+    "file": "10_TUTOR_STUDENT_SIMULATION.md",
+    "bytes": 3153,
+    "sha256": "98d0b6e17c4ea365d41bc7fa7e035958798f6a0117b3f8060c347d0f57a437a1"
+  },
+  {
+    "file": "11_RL_BANDIT_AND_OFFLINE_POLICY.md",
+    "bytes": 3829,
+    "sha256": "0d45ecf810513b6dc3cc9b10eb9930afb61bf82dc7b7e3162964f1ca678d26e1"
+  },
+  {
+    "file": "12_TUTOR_FEEDBACK_AND_MODEL_IMPROVEMENT.md",
+    "bytes": 3914,
+    "sha256": "41b26eb1e4805e38ae36f76044f2f934337dd9f0a08a422db213b141538140ee"
+  },
+  {
+    "file": "13_TRAINING_INFERENCE_MLOPS.md",
+    "bytes": 3262,
+    "sha256": "c8c377a49ac811d398dae6dd7fe2d8dcaa3b29f0a0764c60ba4c6c5479dcd6c9"
+  },
+  {
+    "file": "14_API_FASTMCP_ADMIN_STUDENT_UI.md",
+    "bytes": 6164,
+    "sha256": "ad22b2244e6a5507c653729aceac3a5a38e225f2503b90968328bb7d499e229a"
+  },
+  {
+    "file": "15_EVALUATION_SAFETY_AND_ACCEPTANCE.md",
+    "bytes": 2761,
+    "sha256": "c2483a38dfde238aae981d56e9792b469416c990812eb741b5a193536ecddba3"
+  },
+  {
+    "file": "16_COPILOT_MASTER_PROMPT.md",
+    "bytes": 5667,
+    "sha256": "fdce65ed78d9a2e45c760d53814431a8e440aeb752df9b942492e4e23d0bdbbe"
+  }
+]

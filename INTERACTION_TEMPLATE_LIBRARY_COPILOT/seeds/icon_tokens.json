@@ -1,0 +1,127 @@
+[
+  {
+    "token_key": "PLAY",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "play media"
+  },
+  {
+    "token_key": "PAUSE",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "pause media"
+  },
+  {
+    "token_key": "NEXT",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "continue"
+  },
+  {
+    "token_key": "BACK",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "go back"
+  },
+  {
+    "token_key": "RESET",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "reset"
+  },
+  {
+    "token_key": "HINT",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "approved hint"
+  },
+  {
+    "token_key": "ASK",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "ask about current context"
+  },
+  {
+    "token_key": "CHECK",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "submit/check"
+  },
+  {
+    "token_key": "TRY_AGAIN",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "retry"
+  },
+  {
+    "token_key": "CORRECT",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "correct"
+  },
+  {
+    "token_key": "PARTIAL",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "partially correct"
+  },
+  {
+    "token_key": "WARNING",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "warning"
+  },
+  {
+    "token_key": "MISCONCEPTION",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "diagnostic misconception"
+  },
+  {
+    "token_key": "PREREQUISITE",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "prerequisite gap"
+  },
+  {
+    "token_key": "REPAIR",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "remediation"
+  },
+  {
+    "token_key": "COMPLETE",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "complete"
+  },
+  {
+    "token_key": "OUT_OF_SCOPE",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "unsupported"
+  },
+  {
+    "token_key": "START_STATE",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "start state"
+  },
+  {
+    "token_key": "TARGET_STATE",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "target state"
+  },
+  {
+    "token_key": "ABSORBING_STATE",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "absorbing state"
+  },
+  {
+    "token_key": "FAILURE_STATE",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "failure state"
+  },
+  {
+    "token_key": "MATRIX",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "matrix"
+  },
+  {
+    "token_key": "GRAPH",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "graph"
+  },
+  {
+    "token_key": "FORMULA",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "formula"
+  },
+  {
+    "token_key": "VIDEO",
+    "icon_class": "SEMANTIC",
+    "accessible_label": "video"
+  }
+]

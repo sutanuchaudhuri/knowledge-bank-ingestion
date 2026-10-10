@@ -4,6 +4,16 @@
 
 ### Incremental tutoring-route changes
 
+Source-derived worktree addition (same revision): `pedagogy.solution_step_instruction.content`
+(JSONB, no new column) gained three required `Instruction` fields enforced by
+application-level Pydantic validation, not a SQL constraint:
+`has_diagram boolean`, `diagram_description text` (what a referenced figure
+depicts, generated before any explanation) and `diagram_instructions text`
+(concrete enough to render: labeled points/shapes/angles/measurements/relative
+positions). A model validator requires both text fields nonblank exactly when
+`has_diagram` is true, and blank otherwise. Historical rows predating this
+change lack these keys; readers must not assume their presence for old content.
+
 Source-derived worktree addition at `b0ca4ac`:
 [migration 028](../../mathbank-db/sql/028_route_distributed_queue.sql) defines
 `pedagogy.route_compile_task` for the multi-machine local ingestion pipeline.
@@ -32,6 +42,16 @@ operator action; this source inventory does not itself establish deployment pari
 Separately, migration 028 was applied to the explicitly authorized remote
 PostgreSQL during pipeline validation on 2026-10-09 UTC; two-connection claim/
 reclaim/fencing checks passed. This is not a full updated catalog/parity audit.
+
+[Migration 029](../../mathbank-db/sql/029_generation_provenance_comment.sql)
+is a documentation-only, idempotent `COMMENT ON COLUMN` update (no DDL/data
+change) for `route_step.generation_metadata`, `route_compiler_job.generation_metadata`
+and `route_compiler_run.generation_config`. It records the contract that every
+persisted record includes `generation_started_at` (UTC) and the generator
+`model` name, and that `critic_model` is an explicit JSON `null` unless an
+operator enabled the optional different-model critic
+(`make routes-ingest ROUTE_CRITIC=1 ROUTE_CRITIC_MODEL=<model>`) for that run.
+Applied to the explicitly authorized remote target on 2026-10-09 UTC.
 
 [Migration 027](../../mathbank-db/sql/027_route_generation_provenance.sql) adds
 `generation_config jsonb NOT NULL DEFAULT '{}'` to `route_compiler_run` and

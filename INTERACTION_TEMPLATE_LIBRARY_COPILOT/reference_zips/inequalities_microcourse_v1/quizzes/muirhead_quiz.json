@@ -1,0 +1,58 @@
+{
+  "quiz_id": "QUIZ-MUIRHEAD",
+  "topic": "Muirhead",
+  "questions": [
+    {
+      "id": "M1",
+      "type": "single_select",
+      "prompt": "Which condition is essential before Muirhead?",
+      "options": [
+        "Symmetric and homogeneous",
+        "Only cyclic",
+        "Complex variables",
+        "Different total degree"
+      ],
+      "answer": 0,
+      "explanation": "Muirhead compares symmetric homogeneous sums via exponent majorization."
+    },
+    {
+      "id": "M2",
+      "type": "single_select",
+      "prompt": "Does (4,0,0) majorize (2,1,1)?",
+      "options": [
+        "Yes",
+        "No",
+        "Only if variables sum to 1",
+        "Only for two variables"
+      ],
+      "answer": 0,
+      "explanation": "Partial sums: 4>=2, 4>=3, totals 4=4."
+    },
+    {
+      "id": "M3",
+      "type": "single_select",
+      "prompt": "Why use normalized symmetric-mean notation?",
+      "options": [
+        "Avoid repeated-permutation coefficient ambiguity",
+        "Muirhead works only with matrices",
+        "Exponents must be negative",
+        "Variables cannot repeat"
+      ],
+      "answer": 0,
+      "explanation": "Repeated exponent patterns can duplicate monomials; normalization prevents coefficient mistakes."
+    },
+    {
+      "id": "M4",
+      "type": "single_select",
+      "prompt": "Can Muirhead be applied directly to a merely cyclic non-symmetric inequality?",
+      "options": [
+        "Yes",
+        "No",
+        "Only four variables",
+        "Only integer exponents"
+      ],
+      "answer": 1,
+      "explanation": "Muirhead is a theorem about symmetric sums."
+    }
+  ]
+}

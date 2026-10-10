@@ -1,0 +1,60 @@
+{
+  "canonical_code": "MC-MARKOV-COMP-01",
+  "title": "Markov Chains for Competition Mathematics",
+  "version": 1,
+  "status": "DRAFT",
+  "canonical_targets": [
+    "PROB_MARKOV",
+    "PROB_MARKOV_MATRIX",
+    "TECH_STATE_GRAPH"
+  ],
+  "prerequisite_nodes": [
+    "PROB_BASIC",
+    "PROB_COND",
+    "PROB_EXP",
+    "COUNT_REC"
+  ],
+  "helpful_nodes": [
+    "ALG_MATRIX"
+  ],
+  "modules": [
+    {
+      "id": "M0",
+      "title": "Prerequisite diagnostic",
+      "assessment": "QUIZ-MARKOV-PRE"
+    },
+    {
+      "id": "M1",
+      "title": "State design and Markov property"
+    },
+    {
+      "id": "M2",
+      "title": "Transition graph and matrix"
+    },
+    {
+      "id": "M3",
+      "title": "First-step recursion and hitting probability"
+    },
+    {
+      "id": "M4",
+      "title": "Absorbing chains and expected hitting time"
+    },
+    {
+      "id": "M5",
+      "title": "Stationary distributions and periodicity"
+    },
+    {
+      "id": "M6",
+      "title": "Competition transfer",
+      "assessment": "QUIZ-MARKOV-POST"
+    }
+  ],
+  "assessment_policy": {
+    "pre": "deterministic prerequisite routing",
+    "intermediate": "fixed checkpoints after M1/M4/M5",
+    "post": "fixed transfer quiz"
+  },
+  "video_policy": {
+    "interactive_requires_approved_timestamped_transcript": true
+  }
+}

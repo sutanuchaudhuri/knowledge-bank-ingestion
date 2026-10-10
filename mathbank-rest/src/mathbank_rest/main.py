@@ -13,6 +13,9 @@ from mathbank_rest.routers.agent_sessions import router as agent_sessions_router
 from mathbank_rest.routers.fluid import router as fluid_router
 from mathbank_rest.routers.geometry_scenes import router as geometry_scenes_router
 from mathbank_rest.routers.geometry_interpretation import router as geometry_interpretation_router
+from mathbank_rest.routers.interaction_templates import router as interaction_templates_router
+from mathbank_rest.routers.micro_courses import admin_router as micro_course_admin_router
+from mathbank_rest.routers.micro_courses import student_router as micro_course_student_router
 from mathbank_rest.routers.learner import router as learner_router
 from mathbank_rest.routers.live import router as live_router
 from mathbank_rest.routers.attempt_media import router as attempt_media_router
@@ -43,6 +46,9 @@ app.include_router(attempt_media_router)
 app.include_router(artifacts_router)
 app.include_router(geometry_interpretation_router)
 app.include_router(geometry_scenes_router)
+app.include_router(interaction_templates_router)
+app.include_router(micro_course_admin_router)
+app.include_router(micro_course_student_router)
 
 
 @app.get("/health")

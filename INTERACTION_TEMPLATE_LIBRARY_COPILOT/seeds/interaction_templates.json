@@ -1,0 +1,102 @@
+[
+  {
+    "template_key": "SINGLE_SELECT_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "MULTI_SELECT_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "NUMERIC_INPUT_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "ORDER_STEPS_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "MATCH_PAIRS_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "DRAG_CLASSIFY_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "SLIDER_COMPARE_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "PARAMETER_EXPLORER_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "VECTOR_EXPLORER_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "FUNCTION_GRAPH_EXPLORER_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "STATE_GRAPH_EXPLORER_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "TRANSITION_MATRIX_EDITOR_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "RECURRENCE_EXPLORER_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "SYMMETRIC_SUM_EXPLORER_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "POLYNOMIAL_ROOT_COEFFICIENT_EXPLORER_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "SUBSTITUTION_PIPELINE_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "MAJORIZATION_EXPLORER_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "VIDEO_TIMELINE_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "STEP_THROUGH_DERIVATION_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  },
+  {
+    "template_key": "COMPARE_TWO_METHODS_V1",
+    "version": 1,
+    "status": "DRAFT_SEED"
+  }
+]

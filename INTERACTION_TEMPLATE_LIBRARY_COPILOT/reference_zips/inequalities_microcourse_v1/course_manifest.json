@@ -1,0 +1,100 @@
+{
+  "canonical_code": "MC-INEQ-FOUNDATIONS-01",
+  "title": "Olympiad Inequalities: AM-GM, Weighted AM-GM, Cauchy-Schwarz, Jensen, Muirhead",
+  "version": 1,
+  "status": "DRAFT",
+  "publication_policy": {
+    "dynamic_course_generation": false,
+    "runtime_youtube_search": false,
+    "runtime_quiz_generation": false,
+    "runtime_image_generation": false,
+    "interactive_video_requires_approved_timestamped_transcript": true
+  },
+  "states": [
+    {
+      "key": "S100",
+      "type": "EXPLANATION",
+      "title": "AM-GM core theory"
+    },
+    {
+      "key": "S110",
+      "type": "VIDEO",
+      "title": "AM-GM video",
+      "window": "AM_GM"
+    },
+    {
+      "key": "S120",
+      "type": "QUIZ",
+      "quiz_ref": "QUIZ-AMGM"
+    },
+    {
+      "key": "S200",
+      "type": "EXPLANATION",
+      "title": "Weighted AM-GM"
+    },
+    {
+      "key": "S210",
+      "type": "VIDEO",
+      "title": "Weighted AM-GM video",
+      "window": "WEIGHTED_AM_GM"
+    },
+    {
+      "key": "S220",
+      "type": "QUIZ",
+      "quiz_ref": "QUIZ-WAMGM"
+    },
+    {
+      "key": "S300",
+      "type": "EXPLANATION",
+      "title": "Cauchy-Schwarz"
+    },
+    {
+      "key": "S310",
+      "type": "VIDEO",
+      "title": "Cauchy-Schwarz video",
+      "window": "CAUCHY"
+    },
+    {
+      "key": "S320",
+      "type": "QUIZ",
+      "quiz_ref": "QUIZ-CS"
+    },
+    {
+      "key": "S400",
+      "type": "EXPLANATION",
+      "title": "Jensen"
+    },
+    {
+      "key": "S410",
+      "type": "VIDEO",
+      "title": "Jensen video",
+      "window": "JENSEN"
+    },
+    {
+      "key": "S420",
+      "type": "QUIZ",
+      "quiz_ref": "QUIZ-JENSEN"
+    },
+    {
+      "key": "S500",
+      "type": "EXPLANATION",
+      "title": "Muirhead"
+    },
+    {
+      "key": "S510",
+      "type": "VIDEO",
+      "title": "Muirhead video",
+      "window": "MUIRHEAD"
+    },
+    {
+      "key": "S520",
+      "type": "QUIZ",
+      "quiz_ref": "QUIZ-MUIRHEAD"
+    },
+    {
+      "key": "S900",
+      "type": "TRANSFER",
+      "title": "Technique selection"
+    }
+  ]
+}

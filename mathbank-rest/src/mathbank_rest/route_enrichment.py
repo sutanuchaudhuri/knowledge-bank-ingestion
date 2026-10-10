@@ -5,7 +5,8 @@ import json
 from pydantic import Field, ValidationError
 
 from mathbank_rest.route_contracts import Asset, AssetLink, RouteProgram, StrictModel
-from mathbank_rest.route_ollama import OllamaProvider
+from mathbank_rest.route_ollama import OllamaProvider, OutputTruncated
+from mathbank_rest.route_openai import OpenAIChatProvider
 
 
 class StepEnrichment(StrictModel):
@@ -90,7 +91,9 @@ def attach_enrichment(program: RouteProgram, index: int, value: StepEnrichment) 
     ]
 
 
-def enrich(program: RouteProgram, source: dict, provider: OllamaProvider) -> RouteProgram:
+def enrich(
+    program: RouteProgram, source: dict, provider: OllamaProvider | OpenAIChatProvider
+) -> RouteProgram:
     metadata = source["_generation_metadata"]
     for index, step in enumerate(program.steps, 1):
         messages = [
@@ -117,7 +120,31 @@ def enrich(program: RouteProgram, source: dict, provider: OllamaProvider) -> Rou
             },
         ]
         for attempt in range(3):
-            raw, metrics = provider.complete(messages, StepEnrichment.model_json_schema())
+            try:
+                raw, metrics = provider.complete(messages, StepEnrichment.model_json_schema())
+            except OutputTruncated as exc:
+                metadata["calls"].append(
+                    {
+                        "stage": "mandatory_enrichment",
+                        "step_index": index,
+                        "attempt": attempt,
+                        "error": str(exc),
+                    }
+                )
+                if attempt == 2:
+                    raise
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "The previous attempt exceeded the output token budget before "
+                            "completing the JSON and was rejected, not persisted. Produce a "
+                            "SHORTER, more concise answer for this one step while still "
+                            "satisfying every required field."
+                        ),
+                    }
+                )
+                continue
             metadata["calls"].append(
                 metrics
                 | {

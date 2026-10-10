@@ -209,7 +209,7 @@ def test_attempt_ownership_current_step_and_retirement_pin(live_conn):
     assert "FUTURE_" not in str(advanced)
 
 
-def test_draft_edit_is_atomic_and_hash_guarded(live_conn, monkeypatch):
+def test_draft_edit_is_atomic_and_hash_guarded(live_conn):
     conn = live_conn
     release, _, value = draft(conn)
     changed = value.model_copy(deep=True)
@@ -219,29 +219,65 @@ def test_draft_edit_is_atomic_and_hash_guarded(live_conn, monkeypatch):
     result = route_runtime.edit(conn, release, program_digest(value), changed)
     loaded = route_runtime.load_program(conn, str(release))
     assert result["content_hash"] == program_digest(loaded) == program_digest(changed)
-    with pytest.raises(ValueError, match="critic model"):
-        route_runtime.review(conn, release, "rollback test", result["content_hash"])
-    # Exercise the CLI's re-evaluation writer without calling a live model.
-    from contextlib import nullcontext
-    from types import SimpleNamespace
-
-    from test_route_critic import accepted_metadata
-
-    from mathbank_rest import route_batch
-    from mathbank_rest.route_ollama import OllamaProvider
-
-    monkeypatch.setattr(
-        route_batch,
-        "engine",
-        SimpleNamespace(
-            connect=lambda: nullcontext(conn),
-            begin=lambda: nullcontext(conn),
-        ),
-    )
-    monkeypatch.setattr(
-        route_batch, "evaluate", lambda program, *args: accepted_metadata(program)["critic"]
-    )
-    route_batch.recheck(release, OllamaProvider(model="test-critic", digest="test-critic-digest"))
     route_runtime.review(conn, release, "rollback test", result["content_hash"])
     with pytest.raises(StateVersionConflict):
         route_runtime.edit(conn, release, result["content_hash"], value)
+
+
+def test_proposed_taxonomy_node_is_upserted_and_reusable(live_conn):
+    conn = live_conn
+    new_id = f"TEST.PROPOSED.{uuid4().hex[:8].upper()}"
+    source = dict(
+        conn.execute(
+            text("""
+        SELECT s.solution_id::text,s.problem_id::text,p.canonical_code,p.statement_text,
+               s.verification_status,coalesce(nullif(trim(s.body_markdown),''),s.body_latex) AS source
+        FROM core.solution s JOIN core.problem p USING(problem_id)
+        WHERE NOT EXISTS (SELECT 1 FROM pedagogy.solution_route_release r WHERE r.solution_id=s.solution_id)
+          AND length(coalesce(nullif(trim(s.body_markdown),''),s.body_latex))>100
+        ORDER BY p.canonical_code DESC,s.solution_id LIMIT 1
+    """)
+        )
+        .mappings()
+        .one()
+    )
+    payload = program()
+    for step in payload["steps"]:
+        step["instruction"] = dict(step["instruction"])
+        step["source_quote"] = source["source"][:80]
+    payload["steps"][0]["requirements"] = [
+        {
+            "taxonomy_node_id": new_id,
+            "role": "REQUIRED",
+            "required_level": 2,
+            "importance": 0.5,
+            "blocking": True,
+            "proposed_node_type": "TECHNIQUE",
+            "proposed_name": "Test proposed technique",
+            "proposed_description": "A technique proposed only by this rollback-only test.",
+        }
+    ]
+    value = RouteProgram.model_validate(payload)
+    release = UUID(persist(conn, source, value, str(uuid4())))
+    row = (
+        conn.execute(
+            text("""
+        SELECT node_type,name,description,proposed_by,proposed_at
+        FROM pedagogy.taxonomy_node WHERE taxonomy_node_id=:id
+    """),
+            {"id": new_id},
+        )
+        .mappings()
+        .one()
+    )
+    assert row["node_type"] == "TECHNIQUE" and row["name"] == "Test proposed technique"
+    assert row["proposed_by"] and row["proposed_by"].startswith("route_compiler:")
+    assert row["proposed_at"] is not None
+    linked = conn.execute(
+        text("""
+        SELECT taxonomy_node_id FROM pedagogy.solution_step_requirement
+        WHERE route_release_id=:r AND step_index=1
+    """),
+        {"r": release},
+    ).scalar_one()
+    assert linked == new_id

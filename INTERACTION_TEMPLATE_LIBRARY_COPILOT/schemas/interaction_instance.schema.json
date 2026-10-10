@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MathBank Interaction Instance",
+  "type": "object",
+  "required": [
+    "canonical_code",
+    "template_key",
+    "template_version",
+    "learning_objective",
+    "semantic_bindings",
+    "success_criteria",
+    "feedback_policy"
+  ],
+  "properties": {
+    "canonical_code": {
+      "type": "string"
+    },
+    "template_key": {
+      "type": "string"
+    },
+    "template_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "learning_objective": {
+      "type": "string"
+    },
+    "controls": {
+      "type": "object"
+    },
+    "initial_state": {
+      "type": "object"
+    },
+    "semantic_bindings": {
+      "type": "object",
+      "properties": {
+        "concept_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "technique_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "misconception_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "success_criteria": {
+      "type": "object"
+    },
+    "feedback_policy": {
+      "type": "string"
+    },
+    "scene_spec": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "accessibility_overrides": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

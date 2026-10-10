@@ -56,31 +56,35 @@ This offline pipeline reads stored solutions from the PostgreSQL configured in
 `mathbank-rest/.env`. It writes new versioned routes to that same database.
 **Claims, misconceptions, theory recaps and diagnostic quizzes are mandatory
 for every step**, in addition to instructions, hints and canonical taxonomy.
-It also requires a **different-model critic**: generator `qwen2.5:7b`, critic
-`llama3.2:3b` by default. Each step is scored 0–4 for source faithfulness,
-mathematical consistency, current-step-only disclosure, instructional quality,
-misconception correctness, quiz correctness and taxonomy alignment. Acceptance
-requires PASS, every score at least 3, and no reported issues. FAIL or ABSTAIN
-blocks insertion; the generator receives critic feedback for at most two
-revisions. Evals are tied to the program content hash and stored with critic
-model/digest/options/token usage/timings and attempt history per job and step.
-This is an independent-model quality gate, **not mathematical certification**.
-Incomplete output is not inserted, reviewed or published by the pipeline.
-There is **no OpenAI fallback**. Publication and graph refresh remain separate.
+
+An **independent different-model critic is optional**, controlled by
+`ROUTE_CRITIC` (default `0`/off). When enabled (`ROUTE_CRITIC=1`), a second,
+different Ollama model (`ROUTE_CRITIC_MODEL`, default `llama3.2:3b`) scores
+each step 0–4 for source faithfulness, mathematical consistency,
+current-step-only disclosure, instructional quality, misconception
+correctness, quiz correctness and taxonomy alignment. Acceptance requires
+PASS, every score at least 3, and no reported issues; FAIL/ABSTAIN triggers
+up to two feedback-guided regenerations before the task fails. This is an
+independent-model quality signal, **not mathematical certification**, and is
+off by default to avoid the extra memory/time cost of a second resident model.
+Incomplete mandatory-enrichment output is never inserted regardless of the
+critic setting. There is **no OpenAI fallback**. Publication and graph refresh
+remain separate.
 
 On each macOS or Linux machine:
 
 1. Install the REST project and its dev dependencies using its existing
    installation instructions; install the Ollama application/CLI.
-   **The pipeline automatically pulls either selected model if it is missing**,
-   before any inference or queue seeding. An interrupted/failed download aborts.
+   **The pipeline automatically pulls the generator model (and the critic
+   model, if enabled) when missing**, before any inference or queue seeding.
+   An interrupted/failed download aborts.
 2. Securely configure `mathbank-rest/.env` to point to the **same remote
    PostgreSQL** on both machines. Do not copy credentials into commands or logs.
    No local PostgreSQL, web server or Tutor-agent is required.
 3. Choose a writable log directory on your machine's external drive. The root
    `requirements.txt` is the execution plan, **not** a pip dependency manifest.
 4. Apply migrations 026/027 if absent using the existing route compiler migration
-   command, then apply 028 **once**, before starting either worker machine:
+   command, then apply 028/029 **once**, before starting either worker machine:
 
 ```bash
 make routes-migrate ROUTE_LOG_ROOT=/your/external-drive/mathbank-logs
@@ -90,6 +94,9 @@ make routes-plan ROUTE_LOG_ROOT=/your/external-drive/mathbank-logs
 make routes-ingest ROUTE_LIMIT=2 ROUTE_LOG_ROOT=/your/external-drive/mathbank-logs
 # After inspecting acceptance, run on BOTH machines concurrently:
 make routes-ingest ROUTE_LOG_ROOT=/your/external-drive/mathbank-logs
+# Optionally enable the independent critic (uses more memory/time):
+make routes-ingest ROUTE_CRITIC=1 ROUTE_CRITIC_MODEL=llama3.2:3b \
+  ROUTE_LOG_ROOT=/your/external-drive/mathbank-logs
 # Only if you authorize structural bulk review (not proof certification):
 make routes-ingest ROUTE_APPROVE_BY=operator-your-name \
   ROUTE_LOG_ROOT=/your/external-drive/mathbank-logs
@@ -108,17 +115,17 @@ the older globally locked `route_compiler compile` command alongside this pipeli
 **Before inference**, the orchestrator probes OS, available RAM, logical CPU
 affinity/count, installed model size and (Linux with NVIDIA) minimum free
 per-device VRAM. It reserves the greater of 3 GiB or 20% of RAM, budgets 1.25x
-the larger generator/critic model disk size plus at least 1 GiB per slot
-(1.5 GiB at 16K context), and chooses
-the largest concurrency within those estimated limits and CPU count,
-without a fixed eight-worker cap. Insufficient memory aborts explicitly. These are
-conservative estimates, not an OOM guarantee; other workloads can change RAM
-after preflight. Close competing model servers if needed. CPU threads are
-`min(10, max(1, CPUs / workers))`; this does not multiply GPU throughput.
-The pipeline starts/stops only its **own** loopback Ollama server on a free
-port with matching parallel slots; shared Ollama servers are not modified.
-Only one model is resident at a time; generator/critic switching may reduce
-throughput but avoids budgeting two resident models on a small Mac.
+the larger of the generator/critic model disk sizes (just the generator when
+the critic is disabled) plus at least 1 GiB per slot (1.5 GiB at 16K context),
+and chooses the largest concurrency within those estimated limits and CPU
+count, without a fixed eight-worker cap. Insufficient memory aborts explicitly.
+These are conservative estimates, not an OOM guarantee; other workloads can
+change RAM after preflight. Close competing model servers if needed. CPU
+threads are `min(10, max(1, CPUs / workers))`; this does not multiply GPU
+throughput. The pipeline starts/stops only its **own** loopback Ollama server
+on a free port with matching parallel slots; shared Ollama servers are not
+modified. Only one model is resident at a time; generator/critic switching may
+reduce throughput but avoids budgeting two resident models on a small Mac.
 Windows automatic sizing is currently rejected rather than guessed.
 
 Overrides:
@@ -126,8 +133,9 @@ Overrides:
 | Make variable | Default / behavior |
 |---|---|
 | `ROUTE_MODEL` | `qwen2.5:7b`; auto-installed by prepare/ingest if missing |
-| `ROUTE_CRITIC_MODEL` | `llama3.2:3b`; auto-installed, must differ by name and digest |
-| `ROUTE_CONTEXT` | `16384`, pipeline supported 8192–32768 |
+| `ROUTE_CRITIC` | `0`/off by default; set `1`/`true`/`yes` to enable the independent critic |
+| `ROUTE_CRITIC_MODEL` | `llama3.2:3b`; only used/installed when `ROUTE_CRITIC` is enabled, must differ by name and digest from `ROUTE_MODEL` |
+| `ROUTE_CONTEXT` | `16384`, supported 2048–32768 |
 | `ROUTE_WORKERS` | Auto; optional lower override, unsafe increases rejected |
 | `ROUTE_LIMIT` | All; limits **new queue seeding**, not already shared queued work |
 | `ROUTE_APPROVE_BY` | Unset: DRAFT only; explicit identity enables validated REVIEWED |
@@ -146,7 +154,8 @@ transaction that inserts the route and completes the task. A stale worker
 cannot write after another worker reclaims it. Short per-task/per-solution
 transaction locks and uniqueness constraints remain necessary to prevent
 duplicate writes; inference never holds them. Each machine has its own run
-and model/hardware provenance, even when models differ.
+and model/hardware provenance, even when models differ, and each can
+independently enable or disable the critic.
 
 **Validation and retries:** decomposition and each step's enrichment get an
 initial attempt plus **two error-guided repairs**. Repairs include safe
@@ -158,39 +167,32 @@ transaction retries, not regenerated mathematics. Permanent SQL errors fail
 explicitly. Transport failures stop new work on that machine. Oversized input
 and truncated output fail, without silent clipping or paid fallback.
 
-`routes-plan` is read-only and requires both models already installed;
-`routes-prepare` downloads missing models but makes no inference/SQL calls.
-Model downloads need internet access to the Ollama registry and sufficient
-disk space; this transfers model artifacts only, not corpus data or credentials.
-Ollama itself must be installed and on PATH; the pipeline does not install
-system software silently.
+
+`routes-plan` is read-only and requires the generator model (and the critic
+model, if `ROUTE_CRITIC` is enabled) already installed; `routes-prepare`
+downloads missing models but makes no inference/SQL calls. Model downloads
+need internet access to the Ollama registry and sufficient disk space; this
+transfers model artifacts only, not corpus data or credentials. Ollama itself
+must be installed and on PATH; the pipeline does not install system software
+silently.
 
 Logs are private and per invocation: `infrastructure.json`, `resources.json`, `server.log`,
 `ingestion.log`, `progress.json`. PostgreSQL persists run/model configuration,
-per-job diagnostics and per-step model digest/options/token usage/timing/source
-hashes/taxonomy snapshots. Shared queue totals and this machine's results are
-reported separately: local completion is not corpus completion.
-Missing-model download progress is in `model-install.log`.
+per-job diagnostics and per-step model name, digest, options, token usage,
+timing, source hashes and taxonomy snapshots. Every stored record includes
+**when generation started** (`generation_started_at`) and **which generator
+model** produced it (`model`); `critic_model` is an explicit JSON `null`
+unless an operator enabled the critic for that run, in which case it holds
+the critic's model name alongside its nested per-step evaluation. Shared queue
+totals and this machine's results are reported separately: local completion is
+not corpus completion. Missing-model download progress is in `model-install.log`.
 `routes-progress` includes completion percentage, failures by code, expired
-reclaimable leases, latest machine runs and critic step-eval verdict totals.
-The new compiler version creates enriched replacements for old step-only
-routes without deleting or modifying reviewed snapshots or local backups.
-Edited v3 drafts keep their original generation provenance but their old
-critic hash no longer authorizes review. Re-evaluate a draft explicitly:
-
-```bash
-make routes-evaluate ROUTE_RELEASE_ID=your-draft-uuid \
-  ROUTE_LOG_ROOT=/your/external-drive/mathbank-logs
-```
-
-This runs only the critic, updates draft eval provenance, and never reviews or
-publishes. Failed evals remain visible and block review. Unknown original model
-identity is rejected rather than fabricated. Restart the REST service through
-its normal lifecycle when deploying updated review/publication gates; the Make
-pipeline itself uses the new validators without requiring the web stack.
-
-Historical unenriched routes cannot newly pass the updated review/publication
-gates; existing published/attempt-pinned content is not silently swapped.
+reclaimable leases, latest machine runs and a generator/critic-model summary
+by job status. The mandatory-enrichment compiler version creates enriched
+replacements for old step-only routes without deleting or modifying reviewed
+snapshots or local backups. Historical unenriched routes cannot newly pass the
+updated review/publication gates; existing published/attempt-pinned content is
+not silently swapped.
 
 ```bash
 make routes-test                         # no model calls; rollback DB tests skipped

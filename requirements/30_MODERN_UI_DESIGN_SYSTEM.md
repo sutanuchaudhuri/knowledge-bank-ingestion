@@ -6,6 +6,13 @@ The working contract for agents is the skill
 [`.github/skills/modern-ui-design/SKILL.md`](../.github/skills/modern-ui-design/SKILL.md). This document holds the
 requirements and records progress.
 
+> **Audit note (planning only, not yet actioned).** [48_SITE_WIDE_UX_VISUAL_AUDIT.md](48_SITE_WIDE_UX_VISUAL_AUDIT.md)
+> is a page-by-page re-sweep of every route against this document's checklist. It found real,
+> cited exceptions to the UI-2/UI-6/UI-14/UI-15 ✅ marks below — mainly on the `db/*` and `graph/*`
+> routes, which predate this system and were never swept — plus inconsistent loading/empty-state
+> treatment across many pages. See that document's §4 for the exact mapping; nothing below has
+> been changed to reflect it yet, since §48 is documentation-only.
+
 ## 1. Requirements
 
 | ID | Requirement | Status |
@@ -31,6 +38,7 @@ requirements and records progress.
 | UI-19 | **Compact practice and trustworthy math:** collapsed routine diagnostics/settings, visible functional errors, matching KaTeX renderer/CSS, conservative PDF prose repair and measured subscript layout. | Delivered and checked at 1440/390 px; mathematical extraction/correctness certification remains out of scope. |
 | UI-20 | **Corpus repair and authoring:** responsive canonical-question master-detail, collapsed previews, Repair/New practice/Review pills, provenance warnings, pending/approved/rejected views and explicit paid-generation consent. | Delivered at `/admin/corpus`, checked at 1440/390 px. See [35](35_CORPUS_REPAIR_AND_AUTHORING.md); no automatic source recovery or mathematical certification. |
 | UI-21 | **Paced Tutor checkpoints:** compact thinking-time pill and Pause/Resume, agent-selected active-time windows, simpler idle hints followed by step explanation/next checkpoint, no mastery credit for inactivity. | Implemented in home Tutor; pauses on hidden tabs, composing, recording/transcription and uploads. See [34](34_GUIDED_PROBLEM_WORKSPACE.md). Separate REST-only workspaces remain unchanged. |
+| UI-22 | **Published micro-courses:** admin can create a course, select an existing canonical target, author draft modules/states/semantic bindings/transitions, bind pre-approved interactions, upload private assets, validate, approve and publish; students can browse published courses in a step-by-step stepper with real enrollment, embedded YouTube video, and recorded quiz attempts. | Implemented at `/admin/micro-courses` and `/learn/courses` using the shared shell, `PageHeader`, `Pill`, `Callout`, focus states and theme tokens. The student renderer supports an accessible Markov state graph, recurrences/matrices, Vieta root-coefficient exploration and a Jensen x² curve/chord plot with sliders; uploaded media and embedded YouTube video stream through publication-gated REST. The reader is a one-step-at-a-time stepper (sticky vertical rail ≥992 px, horizontal scrollable row <992 px — see [42_MICRO_COURSE_STUDENT_NAVIGATION.md](42_MICRO_COURSE_STUDENT_NAVIGATION.md)) with a real persisted enrollment runtime for logged-in students (Start/Continue/Back, server-pinned progress, recorded quiz attempts) and a free local preview for anonymous visitors. Verified live (not mocked) at 1440 px and 390 px with no horizontal overflow and zero console errors. |
 
 ## 2. Building blocks
 

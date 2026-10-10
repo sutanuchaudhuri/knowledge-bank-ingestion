@@ -6,7 +6,8 @@ from typing import Literal
 from pydantic import Field, ValidationError
 
 from mathbank_rest.route_contracts import RouteProgram, StrictModel, program_digest
-from mathbank_rest.route_ollama import OllamaProvider
+from mathbank_rest.route_ollama import OllamaProvider, OutputTruncated
+from mathbank_rest.route_openai import OpenAIChatProvider
 
 
 class Evaluation(StrictModel):
@@ -59,8 +60,8 @@ def validate_critic_metadata(metadata: dict, step_count: int, expected_hash: str
 def evaluate(
     program: RouteProgram,
     source: dict,
-    critic: OllamaProvider,
-    generator: OllamaProvider,
+    critic: OllamaProvider | OpenAIChatProvider,
+    generator: OllamaProvider | OpenAIChatProvider,
     taxonomy: list[dict],
 ) -> dict:
     if critic.model == generator.model or not critic.digest or critic.digest == generator.digest:
@@ -78,6 +79,19 @@ def evaluate(
     source["_generation_metadata"]["critic"] = result
     assets = {asset.key: asset for asset in program.assets}
     known = {node["taxonomy_node_id"]: node for node in taxonomy}
+
+    def taxonomy_context(item):
+        return known.get(
+            item.taxonomy_node_id,
+            {
+                "taxonomy_node_id": item.taxonomy_node_id,
+                "node_type": item.proposed_node_type,
+                "name": item.proposed_name,
+                "description": item.proposed_description,
+                "status": "PROPOSED_NOT_YET_CANONICAL",
+            },
+        )
+
     for index, step in enumerate(program.steps, 1):
         keys = step.produces + step.uses_claims + [link.asset_key for link in step.asset_links]
         messages = [
@@ -89,7 +103,14 @@ def evaluate(
                     "the supplied current step against canonical problem/source and prior/later "
                     "results. Check mathematical consistency and faithful method, current-step "
                     "answer leakage in prompts/hints, explanation quality, plausible misconception "
-                    "and valid correction, theory recap, diagnostic quiz and answer, taxonomy use. "
+                    "and valid correction, theory recap, diagnostic quiz and answer. For "
+                    "taxonomy_alignment, judge ONLY topical relevance: does each requirement's "
+                    "taxonomy_node_id (reused or freshly proposed) genuinely describe this step's "
+                    "actual mathematical content, not just share a generic word with the problem "
+                    "text (e.g. 'theorem' or 'value' alone proves nothing)? A proposed node must "
+                    "also have nonblank proposed_node_type/proposed_name/proposed_description; "
+                    "flag a reused ID from an unrelated domain (e.g. a geometry ID on an algebra "
+                    "step) as a concrete issue, not merely a low score. "
                     "Full explanation/H4 may reveal the current step; student_prompt/goal must not. "
                     "No later answers may leak. Score each criterion 0-4 (3=adequate,4=strong). "
                     "PASS only if every score >=3 and no issues. FAIL for concrete errors. ABSTAIN "
@@ -115,13 +136,29 @@ def evaluate(
                         "later_results": [
                             item.mathematical_result for item in program.steps[index:]
                         ],
-                        "taxonomy": [known[item.taxonomy_node_id] for item in step.requirements],
+                        "taxonomy": [taxonomy_context(item) for item in step.requirements],
                     }
                 ),
             },
         ]
         for attempt in range(3):
-            raw, metrics = critic.complete(messages, Evaluation.model_json_schema())
+            try:
+                raw, metrics = critic.complete(messages, Evaluation.model_json_schema())
+            except OutputTruncated as exc:
+                result["calls"].append({"step_index": index, "attempt": attempt, "error": str(exc)})
+                if attempt == 2:
+                    raise
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "The previous attempt exceeded the output token budget before "
+                            "completing the JSON and was rejected. Produce a SHORTER, more "
+                            "concise evaluation while still satisfying every required field."
+                        ),
+                    }
+                )
+                continue
             result["calls"].append(metrics | {"step_index": index, "attempt": attempt})
             try:
                 evaluation = Evaluation.model_validate_json(raw)

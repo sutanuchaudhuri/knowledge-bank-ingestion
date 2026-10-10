@@ -62,7 +62,8 @@ def load_program(conn, release_id: str) -> RouteProgram:
             dict(item)
             for item in conn.execute(
                 text("""
-            SELECT taxonomy_node_id,role,required_level,importance,blocking
+            SELECT taxonomy_node_id,role,required_level,importance,blocking,
+                   proposed_node_type,proposed_name,proposed_description
             FROM pedagogy.solution_step_requirement WHERE route_release_id=:id AND step_index=:i
             ORDER BY taxonomy_node_id,role
         """),
@@ -210,27 +211,6 @@ def coaching(code: str, level: int) -> dict | None:
     }
 
 
-def validate_release_evals(conn, release: dict, program: RouteProgram) -> None:
-    from mathbank_rest.route_compiler import VERSION
-    from mathbank_rest.route_critic import validate_critic_metadata
-
-    if release["generator_version"] != VERSION:
-        return
-    metadata = list(
-        conn.execute(
-            text("""
-        SELECT generation_metadata FROM pedagogy.route_step
-        WHERE route_release_id=:id ORDER BY step_index
-    """),
-            {"id": release["route_release_id"]},
-        ).scalars()
-    )
-    if len(metadata) != len(program.steps):
-        raise ValueError("Missing per-step critic provenance.")
-    for value in metadata:
-        validate_critic_metadata(value, len(program.steps), program_digest(program))
-
-
 def review(conn, release_id: UUID, reviewer: str, expected_hash: str) -> dict:
     release = (
         conn.execute(
@@ -256,9 +236,8 @@ def review(conn, release_id: UUID, reviewer: str, expected_hash: str) -> dict:
             "Draft content changed without a matching release hash; recompile."
         )
     ids = set(conn.execute(text("SELECT taxonomy_node_id FROM pedagogy.taxonomy_node")).scalars())
-    validate_source(program, release["source"], ids)
+    validate_source(program, release["source"], ids, enforce_proposal_novelty=False)
     validate_enrichment(program)
-    validate_release_evals(conn, release, program)
     from mathbank_rest.route_compiler import source_hash
 
     if (
@@ -291,7 +270,6 @@ def publish(conn, release_id: UUID) -> dict:
         raise InvalidTransition("Only a reviewed release can be published.")
     program = load_program(conn, str(release_id))
     validate_enrichment(program)
-    validate_release_evals(conn, release, program)
     row = conn.execute(
         text("""
         UPDATE pedagogy.solution_route_release SET status='PUBLISHED',published_at=now()
@@ -328,7 +306,7 @@ def edit(conn, release_id: UUID, expected_hash: str, program: RouteProgram) -> d
     if release["status"] != "DRAFT" or release["content_hash"] != expected_hash:
         raise StateVersionConflict("Only the current unchanged draft can be edited.")
     ids = set(conn.execute(text("SELECT taxonomy_node_id FROM pedagogy.taxonomy_node")).scalars())
-    validate_source(program, release["source"], ids)
+    validate_source(program, release["source"], ids, enforce_proposal_novelty=False)
     previous_metadata = list(
         conn.execute(
             text("""

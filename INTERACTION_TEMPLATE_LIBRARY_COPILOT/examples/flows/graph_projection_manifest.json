@@ -1,0 +1,60 @@
+{
+  "projection_kind": "interaction_template",
+  "projection_version": "v1",
+  "labels": [
+    "InteractionTemplate",
+    "InteractionTemplateVersion",
+    "InteractionInstance",
+    "ControlTemplate",
+    "IconToken",
+    "AnimationTemplate",
+    "SceneSpec",
+    "FeedbackTemplate",
+    "FeedbackPolicy",
+    "EvidenceRule"
+  ],
+  "relationships": [
+    "HAS_VERSION",
+    "USES_TEMPLATE_VERSION",
+    "USES_INTERACTION",
+    "TEACHES",
+    "PRACTICES",
+    "REQUIRES",
+    "ASSESSES",
+    "CAN_REVEAL",
+    "REMEDIATES",
+    "USES_FEEDBACK_POLICY",
+    "MAY_USE",
+    "APPLIES_TO",
+    "EVIDENCE_FOR",
+    "USES_DIAGNOSTIC",
+    "USES_FEEDBACK",
+    "USES_SCENE",
+    "USES_ANIMATION",
+    "EXPLAINS",
+    "ADDRESSES",
+    "ALLOWS_CONTROL",
+    "ALLOWS_ICON",
+    "USES_ICON",
+    "USES_VIDEO",
+    "HAS_SEGMENT",
+    "CAN_LAUNCH",
+    "ALIGNED_WITH",
+    "VISUALIZES",
+    "RENDERS_SCENE"
+  ],
+  "must_not_project": [
+    "learner.interaction_event",
+    "learner.misconception_evidence",
+    "learner answers",
+    "hidden answer keys",
+    "full transcript text",
+    "private object keys",
+    "raw LLM classifications"
+  ],
+  "commands": {
+    "rebuild": "interactions graph rebuild --all-published",
+    "verify": "interactions graph verify <scope>",
+    "diff": "interactions graph diff <scope>"
+  }
+}

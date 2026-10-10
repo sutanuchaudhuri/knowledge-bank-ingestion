@@ -1,0 +1,71 @@
+{
+  "quiz_id": "QUIZ-VIETA",
+  "module": "Vieta",
+  "questions": [
+    {
+      "id": "V1",
+      "type": "single_select",
+      "prompt": "For 2x^2-7x+3=0 with roots r,s, what is r+s?",
+      "options": [
+        "7/2",
+        "-7/2",
+        "3/2",
+        "-3/2"
+      ],
+      "answer": 0,
+      "explanation": "Vieta gives r+s=-b/a=-(-7)/2=7/2."
+    },
+    {
+      "id": "V2",
+      "type": "single_select",
+      "prompt": "For x^3+4x^2-5x+6=0 with roots a,b,c, what is abc?",
+      "options": [
+        "-6",
+        "6",
+        "-4",
+        "5"
+      ],
+      "answer": 0,
+      "explanation": "For a monic cubic x^3+Ax^2+Bx+C, abc=-C, so abc=-6."
+    },
+    {
+      "id": "V3",
+      "type": "single_select",
+      "prompt": "Which coefficient of a monic cubic determines ab+bc+ca?",
+      "options": [
+        "Coefficient of x",
+        "Coefficient of x^2",
+        "Constant with a minus sign",
+        "Leading coefficient only"
+      ],
+      "answer": 0,
+      "explanation": "For x^3+Ax^2+Bx+C, ab+bc+ca=B."
+    },
+    {
+      "id": "V4",
+      "type": "single_select",
+      "prompt": "If roots are r1,...,rn, which object is directly encoded by coefficients through Vieta?",
+      "options": [
+        "Elementary symmetric sums",
+        "Only individual roots",
+        "Only power sums",
+        "Only absolute values"
+      ],
+      "answer": 0,
+      "explanation": "Vieta directly relates coefficients to elementary symmetric sums."
+    },
+    {
+      "id": "V5",
+      "type": "single_select",
+      "prompt": "For a nonmonic polynomial, what must be done before reading Vieta ratios?",
+      "options": [
+        "Divide relevant coefficients by the leading coefficient",
+        "Differentiate the polynomial",
+        "Square the roots",
+        "Assume the leading coefficient is 1"
+      ],
+      "answer": 0,
+      "explanation": "The general formulas use coefficient ratios a_(n-k)/a_n."
+    }
+  ]
+}

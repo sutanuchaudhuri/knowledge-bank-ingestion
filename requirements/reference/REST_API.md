@@ -2,6 +2,45 @@
 
 ## Evidence
 
+### Micro-course authoring and published catalog (initial slice)
+
+The source currently mounts `/v1/admin/micro-courses` with the shared
+`X-Admin-Api-Key` dependency. The admin Next.js proxy additionally requires the
+existing admin session and never exposes the REST key to the browser.
+
+| Method/path | Contract |
+|---|---|
+| GET `/v1/admin/micro-courses` | Paged course inventory with latest release, state count and primary canonical targets |
+| GET `/v1/admin/micro-courses/targets?target_type=&q=&limit=` | Search existing concepts, techniques, skills or approved misconceptions |
+| POST `/v1/admin/micro-courses` | Create a course mapped to existing canonical Concept/Technique/Skill IDs |
+| GET `/v1/admin/micro-courses/{canonical_code}` | Course metadata, canonical targets and release history |
+| POST `/v1/admin/micro-courses/{canonical_code}/releases` | Create a lineage-linked DRAFT release |
+| GET `/v1/admin/micro-courses/releases/{release_id}` | Release outline and state semantic bindings |
+| POST `/v1/admin/micro-courses/releases/{release_id}/modules` | Add a draft module |
+| POST `/v1/admin/micro-courses/releases/{release_id}/states` | Add a draft state with explicit bounded-agent policy |
+| POST `/v1/admin/micro-courses/states/{state_id}/bindings` | Bind an existing canonical node with a constrained role |
+| POST `/v1/admin/micro-courses/releases/{release_id}/transitions` | Add an authored deterministic transition between states in that release |
+| POST `/v1/admin/micro-courses/releases/{release_id}/validate` | Check primary target, state reachability/termination, assets, quizzes, interventions and runtime policy |
+| POST `/v1/admin/micro-courses/releases/{release_id}/review` | Append an APPROVED/NEEDS_REVISION/REJECTED review decision |
+| POST `/v1/admin/micro-courses/releases/{release_id}/publish` | Publish only an approved, valid release and record `MICRO_COURSE_PUBLISHED` in the PostgreSQL outbox |
+
+`GET /v1/micro-courses` and `GET /v1/micro-courses/{canonical_code}` are
+read-only student catalog/detail endpoints. They filter to PUBLISHED releases,
+approved transcript segments and Q&A contexts, approved student-visible fixed
+learning items, and omit answer keys. The same-origin web proxy is
+`/api/rest/micro-courses/*`; admin calls use
+`/api/rest/admin/micro-courses/*`.
+
+Expected errors: 401 for missing admin key/session, 404 for missing course or
+release, 409 for invalid lifecycle transitions or database uniqueness/
+immutability conflicts, 422 for invalid authoring input/foreign canonical IDs
+or failed validation, and 503 for database failures. Publishing does not
+synchronously call Neo4j; projection remains pending until its consumer is
+implemented. YouTube/transcript authoring, enrollment/runtime, CLI parity and
+the micro-course projector/verifier are not yet implemented. These handlers
+were source/build/unit tested, but no live database operation or deployment
+OpenAPI parity check was performed in this session.
+
 ### Tutoring-route deployment follow-up
 
 The user-authorized REST reload exposes staff preview/edit/review/publication/

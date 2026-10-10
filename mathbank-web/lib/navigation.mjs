@@ -6,6 +6,7 @@ export const NAV_GROUPS = [
     items: [
       { href: "/", label: "Tutor", icon: "chat-dots" },
       { href: "/learn", label: "Guided practice", icon: "signpost-split" },
+      { href: "/learn/courses", label: "Micro-courses", icon: "diagram-3" },
       { href: "/learn/attempt-media", label: "My submitted work", icon: "file-earmark-richtext" },
       { href: "/learn/conversations", label: "My conversations", icon: "chat-left-text" },
       { href: "/profile", label: "My progress", icon: "graph-up-arrow" },
@@ -29,6 +30,7 @@ export const NAV_GROUPS = [
       { href: "/admin/textbooks", label: "Textbooks", icon: "book" },
       { href: "/admin/pedagogy", label: "Pedagogy review", icon: "patch-check" },
       { href: "/admin/tutoring-routes", label: "Teaching routes", icon: "list-check" },
+      { href: "/admin/micro-courses", label: "Micro-courses", icon: "diagram-3" },
       { href: "/admin/knowledge-gaps", label: "Knowledge gaps", icon: "exclamation-diamond" },
       { href: "/admin/imports", label: "Imports", icon: "box-arrow-in-down" },
       { href: "/admin/conversations", label: "Conversations", icon: "people" },
@@ -57,6 +59,7 @@ const SEGMENT_LABELS = {
   "knowledge-gaps": "Knowledge gaps", imports: "Imports", widgets: "Widgets", login: "Sign in",
   "attempt-media": "My submitted work", artifacts: "Artifact library", corpus: "Corpus repair",
   "geometry-scenes": "Geometry diagnostics",
+  courses: "Micro-courses", "micro-courses": "Micro-courses",
   "tutoring-routes": "Teaching routes",
 };
 

@@ -1,0 +1,58 @@
+{
+  "quiz_id": "QUIZ-JENSEN",
+  "topic": "Jensen",
+  "questions": [
+    {
+      "id": "J1",
+      "type": "single_select",
+      "prompt": "For convex f and normalized weights, Jensen gives:",
+      "options": [
+        "f(sum lambda_i x_i) <= sum lambda_i f(x_i)",
+        "f(sum lambda_i x_i) >= sum lambda_i f(x_i)",
+        "f(sum x_i) = sum f(x_i)",
+        "sum lambda_i f(x_i) <= 0"
+      ],
+      "answer": 0,
+      "explanation": "For convex f, f at the weighted mean lies below the weighted mean of f-values."
+    },
+    {
+      "id": "J2",
+      "type": "single_select",
+      "prompt": "For concave f:",
+      "options": [
+        "Nothing changes",
+        "The direction reverses",
+        "Weights become negative",
+        "Equality is impossible"
+      ],
+      "answer": 1,
+      "explanation": "Concavity reverses Jensen's inequality."
+    },
+    {
+      "id": "J3",
+      "type": "single_select",
+      "prompt": "Which function derives Weighted AM-GM from Jensen on positive inputs?",
+      "options": [
+        "log x",
+        "x^2",
+        "1/x",
+        "sin x on all reals"
+      ],
+      "answer": 0,
+      "explanation": "log is concave on x>0; exponentiating Jensen gives Weighted AM-GM."
+    },
+    {
+      "id": "J4",
+      "type": "single_select",
+      "prompt": "Before applying Jensen, check:",
+      "options": [
+        "Differentiability at one point",
+        "Convexity/concavity on the full relevant interval and normalized weights",
+        "All xi integers",
+        "f polynomial"
+      ],
+      "answer": 1,
+      "explanation": "Jensen is interval- and domain-sensitive."
+    }
+  ]
+}

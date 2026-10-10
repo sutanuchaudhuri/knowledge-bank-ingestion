@@ -1,0 +1,153 @@
+{
+  "library": "MARKOV_TEMPLATE_EXAMPLES_V1",
+  "instances": [
+    {
+      "canonical_code": "INT-MARKOV-TWO-STATE-01",
+      "template_key": "STATE_GRAPH_EXPLORER_V1",
+      "template_version": 1,
+      "learning_objective": "Compress symmetric configurations into behavioral states.",
+      "instance_config": {
+        "states": [
+          {
+            "id": "A",
+            "label": "(1,1,1)"
+          },
+          {
+            "id": "B",
+            "label": "type (2,1,0)"
+          }
+        ],
+        "transitions": [
+          {
+            "from": "A",
+            "to": "A",
+            "p": "1/4"
+          },
+          {
+            "from": "A",
+            "to": "B",
+            "p": "3/4"
+          },
+          {
+            "from": "B",
+            "to": "A",
+            "p": "1/4"
+          },
+          {
+            "from": "B",
+            "to": "B",
+            "p": "3/4"
+          }
+        ]
+      },
+      "semantic_bindings": {
+        "concept_ids": [
+          "PROB_MARKOV"
+        ],
+        "technique_ids": [
+          "TECH_STATE_GRAPH"
+        ],
+        "misconception_ids": [
+          "MC-M01",
+          "MC-M08"
+        ]
+      },
+      "success_criteria": {
+        "identify_invariant_distribution": true
+      },
+      "feedback_policy": "POLICY-MARKOV-STATE-COMPRESSION-V1",
+      "scene_spec": "SCENE-MARKOV-AMC-2019-01"
+    },
+    {
+      "canonical_code": "INT-MARKOV-RECURRENCE-01",
+      "template_key": "RECURRENCE_EXPLORER_V1",
+      "template_version": 1,
+      "learning_objective": "Recognize the triangle random walk recurrence and its fixed point.",
+      "instance_config": {
+        "recurrence": "p[n+1]=0.5*(1-p[n])",
+        "initial": "p[0]=1",
+        "fixed_point": "1/3"
+      },
+      "semantic_bindings": {
+        "concept_ids": [
+          "PROB_MARKOV",
+          "COUNT_REC"
+        ],
+        "misconception_ids": []
+      },
+      "success_criteria": {
+        "fixed_point_identified": true
+      },
+      "feedback_policy": "POLICY-MARKOV-RECURRENCE-V1"
+    },
+    {
+      "canonical_code": "INT-MARKOV-HIT-01",
+      "template_key": "STATE_GRAPH_EXPLORER_V1",
+      "template_version": 1,
+      "learning_objective": "Write success-hitting probabilities with correct absorbing boundaries.",
+      "semantic_bindings": {
+        "concept_ids": [
+          "PROB_MARKOV",
+          "PROB_COND"
+        ],
+        "misconception_ids": [
+          "MC-M06",
+          "MC-M07"
+        ]
+      },
+      "success_criteria": {
+        "success_boundary": 1,
+        "failure_boundary": 0
+      },
+      "feedback_policy": "POLICY-MARKOV-HITTING-V1"
+    },
+    {
+      "canonical_code": "INT-MARKOV-MATRIX-01",
+      "template_key": "TRANSITION_MATRIX_EDITOR_V1",
+      "template_version": 1,
+      "learning_objective": "Construct a valid transition matrix from a state graph.",
+      "controls": {
+        "matrix_cells": {
+          "control": "PROBABILITY_MATRIX_CELL"
+        }
+      },
+      "semantic_bindings": {
+        "technique_ids": [
+          "PROB_MARKOV_MATRIX"
+        ],
+        "concept_ids": [
+          "ALG_MATRIX"
+        ],
+        "misconception_ids": [
+          "MC-M02",
+          "MC-M05",
+          "MC-M09"
+        ]
+      },
+      "success_criteria": {
+        "rows_sum_to": 1,
+        "matches_graph": true
+      },
+      "feedback_policy": "POLICY-MARKOV-MATRIX-V1",
+      "scene_spec": "SCENE-MARKOV-GRAPH-TO-MATRIX-01"
+    },
+    {
+      "canonical_code": "INT-MARKOV-STATIONARY-01",
+      "template_key": "PARAMETER_EXPLORER_V1",
+      "template_version": 1,
+      "learning_objective": "Explore stationary distributions while distinguishing stationarity from convergence.",
+      "semantic_bindings": {
+        "technique_ids": [
+          "PROB_MARKOV_MATRIX"
+        ],
+        "misconception_ids": [
+          "MC-M04"
+        ]
+      },
+      "success_criteria": {
+        "solves_piP_equals_pi": true
+      },
+      "feedback_policy": "POLICY-MARKOV-STATIONARY-V1"
+    }
+  ]
+}

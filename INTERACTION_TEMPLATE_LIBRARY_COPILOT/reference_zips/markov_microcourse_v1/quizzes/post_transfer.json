@@ -1,0 +1,151 @@
+{
+  "quiz_id": "QUIZ-MARKOV-POST",
+  "phase": "POST",
+  "title": "Transfer and Technique Selection",
+  "questions": [
+    {
+      "id": "POST1",
+      "prompt": "A random walk on positions 0,1,2,3,4 stops at 0 or 4. To find P(hit 4 before 0), best first setup?",
+      "options": [
+        "Let h_i be success probability from position i, set h_0=0,h_4=1, write first-step equations",
+        "List every possible path",
+        "Find stationary distribution first",
+        "Use expected value only"
+      ],
+      "answer": 0,
+      "explanation": "This is the standard finite hitting-probability model."
+    },
+    {
+      "id": "POST2",
+      "prompt": "A board position has many labels, but only the number of red tokens changes future probabilities. Best state?",
+      "options": [
+        "Number of red tokens",
+        "Full ordered history",
+        "Time only",
+        "Last coin flip only"
+      ],
+      "answer": 0,
+      "explanation": "Use the smallest sufficient statistic for future transitions."
+    },
+    {
+      "id": "POST3",
+      "prompt": "Target asks probability of being in state A exactly after 100 steps. Best representation if state space is small?",
+      "options": [
+        "Transition matrix power or equivalent recurrence",
+        "Absorption time equation only",
+        "Bayes theorem alone",
+        "Geometry"
+      ],
+      "answer": 0,
+      "explanation": "Finite n-step distributions are naturally obtained by recurrence or P^n."
+    },
+    {
+      "id": "POST4",
+      "prompt": "Target asks probability of ever reaching S before F. Best representation?",
+      "options": [
+        "Hitting probabilities with h_S=1,h_F=0",
+        "Stationary distribution only",
+        "Expected time only",
+        "Count paths of arbitrary length directly"
+      ],
+      "answer": 0,
+      "explanation": "First-step hitting equations sum over infinitely many possible paths implicitly."
+    },
+    {
+      "id": "POST5",
+      "prompt": "What is the most suspicious sign your state is too coarse?",
+      "options": [
+        "Two configurations assigned the same state have different next-step laws",
+        "There are only two states",
+        "The graph has loops",
+        "A row sums to 1"
+      ],
+      "answer": 0,
+      "explanation": "Markov sufficiency fails if same-state configurations have different conditional futures."
+    },
+    {
+      "id": "POST6",
+      "prompt": "What is the most suspicious sign your state is too fine?",
+      "options": [
+        "Many states are symmetric and have identical transition behavior",
+        "There is an absorbing state",
+        "The problem has a recurrence",
+        "Probabilities are rational"
+      ],
+      "answer": 0,
+      "explanation": "Unnecessary distinctions create a large system with no informational benefit."
+    },
+    {
+      "id": "POST7",
+      "prompt": "If the expected time equation from i is E_i=1+0.4E_i+0.6E_j, why can E_i appear on both sides?",
+      "options": [
+        "The process can return/remain in i after one step",
+        "Expectation is invalid",
+        "States must be absorbing",
+        "It means probability exceeds 1"
+      ],
+      "answer": 0,
+      "explanation": "Self-loops naturally produce the current-state expectation on the right-hand side."
+    },
+    {
+      "id": "POST8",
+      "prompt": "In a finite irreducible aperiodic chain, long-run distribution is governed by:",
+      "options": [
+        "The unique stationary distribution",
+        "The initial state forever",
+        "Only absorbing states",
+        "The largest matrix entry"
+      ],
+      "answer": 0,
+      "explanation": "Under these hypotheses, distributions converge to the unique stationary distribution."
+    },
+    {
+      "id": "POST9",
+      "prompt": "What distinguishes 'at state S on step n' from 'hit S by step n'?",
+      "options": [
+        "The second is a cumulative hitting event; the first concerns only the nth-time state",
+        "They are always identical",
+        "The first requires absorption",
+        "The second cannot be computed"
+      ],
+      "answer": 0,
+      "explanation": "A chain may visit S early and leave; exact-time and cumulative events differ unless S is absorbing."
+    },
+    {
+      "id": "POST10",
+      "prompt": "A problem's transition rules change with time n. Can one fixed transition matrix P necessarily model it?",
+      "options": [
+        "No; it may require time-dependent matrices or an enlarged state including phase",
+        "Yes always",
+        "Only if probabilities are rational",
+        "Only after finding stationarity"
+      ],
+      "answer": 0,
+      "explanation": "Time-homogeneity is an assumption; augmenting state with phase can sometimes restore it."
+    },
+    {
+      "id": "POST11",
+      "prompt": "Why does first-step analysis avoid infinite path enumeration?",
+      "options": [
+        "It folds all future paths into state values that satisfy a finite linear system",
+        "It assumes paths stop after one step",
+        "It ignores revisits",
+        "It makes outcomes independent"
+      ],
+      "answer": 0,
+      "explanation": "State values recursively summarize all continuation paths."
+    },
+    {
+      "id": "POST12",
+      "prompt": "Best final verification after solving a hitting-probability system?",
+      "options": [
+        "Check boundary values, equations, and that all probabilities lie in [0,1]",
+        "Only check algebraic simplification",
+        "Check that every value is 1/2",
+        "Replace exact values by decimals"
+      ],
+      "answer": 0,
+      "explanation": "Structural verification catches state/modeling errors that algebra alone may miss."
+    }
+  ]
+}
