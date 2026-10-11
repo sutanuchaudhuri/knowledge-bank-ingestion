@@ -12,6 +12,11 @@ notes, roadmap and gotchas.
 start with [MathBank in action](documentation/BLOG_USE_CASES.md) — a business-audience
 walkthrough of what students and admins actually do, use case by use case.
 
+📚 **Unfamiliar term or acronym?** Check the
+[Domain and Technical Glossary](documentation/requirements/17_DOMAIN_AND_TECHNICAL_GLOSSARY.md)
+— every acronym (AIME, MCP, BKT, TTL, RAG, C4, ...) defined with its exact database
+representation, kept current with this README.
+
 ## Repository map
 
 ```text
@@ -1480,6 +1485,7 @@ embedding-backfill step: [DATABASES.md § Full corpus pipeline](documentation/DA
 ## Requirements & design docs
 
 - [requirements/00_INDEX.md](documentation/requirements/00_INDEX.md) — product/data-model/ingestion/RAG/API/infra/agentic-tutor/student-UI requirements, numbered and cross-referenced.
+- [requirements/17_DOMAIN_AND_TECHNICAL_GLOSSARY.md](documentation/requirements/17_DOMAIN_AND_TECHNICAL_GLOSSARY.md) — the domain and technical glossary: every acronym and term (math/corpus, taxonomy, learner mastery, ingestion, hybrid RAG, services, ITL/micro-courses, the video studio, MCP, ML/RL, quiz generation, diagramming conventions) with its exact database/code representation.
 - [requirements/reference/](documentation/requirements/reference/) — canonical source-derived PostgreSQL, graph, DML and REST/OpenAPI reference for the current implementation.
 - [documentation/copilot-instructions/mathematics-tutor-db-plan/](documentation/copilot-instructions/mathematics-tutor-db-plan/) — the detailed Postgres/Neo4j/vector/agent architecture these requirements are built from.
 - [presentation/](documentation/presentation/) — a static HTML walkthrough of the whole system (`index.html`) for a mixed technical/business audience, including real screenshots and live-captured data.

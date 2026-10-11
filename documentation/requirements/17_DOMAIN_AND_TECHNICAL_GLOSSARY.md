@@ -450,6 +450,74 @@ REST-configured PostgreSQL catalog on 2026-10-07 UTC; object-store deployment
 acceptance and private row correctness were not tested. They are not projected
 into Neo4j. See the [complete catalog](reference/postgres/README.md).
 
+## 8e. Interaction Template Library (ITL) and micro-courses
+
+| Term | Meaning | Representation |
+|---|---|---|
+| Interaction Template Library (ITL) | The catalog of reusable, admin-configurable interactive building blocks (simulators, control widgets, icons, animations) used to assemble micro-courses without new engineering per lesson. | `visual.*` schema; [documentation/requirements/41](41_INTERACTION_TEMPLATE_LIBRARY.md) and the earlier design/requirement 40. |
+| Interaction template | A reusable, versioned *type* of interactive step, e.g. the Markov-chain simulator or `VIDEO_EXPLAINER_V1`. | `visual.interaction_template`. |
+| Interaction template version | One published revision of a template's schema/behavior contract. | `visual.interaction_template_version`. |
+| Interaction instance | One concrete, configured use of a template version inside a specific micro-course step. | `visual.interaction_instance`; join tables link it to the concepts/skills/techniques/misconceptions it targets. |
+| Control template | A reusable UI control type usable inside an interaction (slider, multiple choice, `VIDEO_TIMELINE`, etc.). | `visual.control_template`. |
+| Icon token | A named, versioned icon reference usable inside interaction configs, independent of any one framework's icon set. | `visual.icon_token`. |
+| Animation template | A reusable, parameterized animation definition an interaction can trigger. | `visual.animation_template`. |
+| Deterministic runtime engine | The evidence-accumulation state machine behind an interaction, e.g. confirming a Markov-chain answer only after evidence crosses a threshold across several attempts (0.35 → 0.70 → 1.00), never on the first try alone. | Seeded via the catalog loader; validated against invented "golden scenario" regression runs. |
+| Scene spec / SceneSpec | A validated, versioned JSON description of a visual or video scene (camera, objects, narration, timing) consumed by both deterministic interactions and the video studio below. | `visual.scene_spec`; `rendered_video_asset_id`/`source_studio_job_id` link it to a promoted video. |
+| Micro-course | A short, structured, student-facing lesson composed of ordered interaction instances. | `pedagogy.micro_course`. |
+| Micro-course release | An immutable, versioned, published snapshot of a micro-course; publishing creates a new release rather than mutating a live one. | `pedagogy.micro_course_release`. |
+| Micro-course state | One step/screen within a published micro-course release. | `pedagogy.micro_course_state`, `micro_course_state_interaction`. |
+| Micro-course enrollment | A student's registration in, and progress through, a published micro-course. | `learner.micro_course_enrollment`, `learner.micro_course_state_event`. |
+
+## 8f. Explainer video studio (`mathbank-manim-studio`)
+
+| Term | Meaning | Representation |
+|---|---|---|
+| Manim | The open-source Python animation engine (originally built for 3Blue1Brown) used to render a SceneSpec into a real `.mp4` explainer video. | Invoked via a deterministic SceneSpec-to-Manim-Python compiler; real ffmpeg/cairo/pango/LaTeX render, not a mock. |
+| mathbank-manim-studio | The standalone service hosting two long-running agents over the SceneSpec contract. | Port 8020; [documentation/requirements/60](60_MANIM_VIDEO_STUDIO_RESEARCH_AND_RENDER_AGENTS.md). |
+| Research agent (scene) | An LLM tool-calling agent that turns a topic prompt into a grounded SceneSpec plus a narration script, citing the competition corpus via MCP (see 8g). | `research_agent.py`; writes a `studio.scene_research_job`. |
+| Video render agent | An agent/worker that compiles an approved SceneSpec into Manim Python and renders it into a real video file. | `video_render_agent.py`; writes a `studio.video_render_job`. |
+| TTL (time to live) | The automatic expiry window for ephemeral studio jobs — 1 day. Jobs are disposable scratch work, not a permanent archive. | `studio.scene_research_job`, `studio.video_render_job`; migration 044. |
+| Promotion (scene) | The admin-approved action that copies a throwaway studio job's output into the permanent, canonical `visual.scene_spec`/`visual.asset` catalog, so it survives past the 1-day TTL. | `scene_spec_promotion.py`; also flips the linked asset to `VALID` on approval. |
+| VIDEO_EXPLAINER_V1 | The self-seeding interaction template type for a published, passive video lesson step (as opposed to the genuinely interactive templates in 8e). | `visual.interaction_template`; rendered by the `VideoExplainer` React component. |
+| Asset | A stored, durable file (video, image, etc.) referenced by an `object-store:` URI, never a bare path or an invented URI scheme. | `visual.asset`; served only through REST's owner/publication checks. |
+
+## 8g. MCP integration (`mathbank-mcp-competitions`)
+
+| Term | Meaning | Representation |
+|---|---|---|
+| MCP (Model Context Protocol) | An open, standardized protocol letting any AI agent discover and call a service's tools/data (over stdio or HTTP) without bespoke integration code per agent. | Used both to expose MathBank's corpus to third parties and, internally, for the research agent (8f) to query the corpus. |
+| FastMCP | The Python framework used to build `mathbank-mcp-competitions`, MathBank's standalone MCP server. | `mathbank-mcp-competitions/`; [documentation/requirements/49](49_FASTMCP_INTELLITUTOR_MCP_APPS_INTEGRATION.md). |
+| mathbank-mcp-competitions | The standalone MCP server exposing 6 read-only competition-corpus data tools plus 4 admin-scoped scene-review/promotion tools to any MCP-capable agent. | stdio transport, no fixed port; also ships a Prefab UI explorer for humans. |
+| Prefab (UI) | The lightweight, client-rendered HTML UI framework used to give a human a point-and-click explorer over an MCP server's tools, without writing a custom agent. | Bundled with `mathbank-mcp-competitions`. |
+
+## 8h. ML/RL platform (`mathbank-ml-*`, scaffolded)
+
+| Term | Meaning | Representation |
+|---|---|---|
+| BKT (Bayesian Knowledge Tracing) | A probabilistic model that estimates a learner's latent mastery of a skill from a sequence of right/wrong attempts, updating a belief rather than just averaging scores. | Planned training target in `mathbank-ml-training`; not yet trained on real data. |
+| EWMA (Exponentially Weighted Moving Average) | A simpler recency-weighted mastery estimate that discounts older attempts more than recent ones. | Planned alongside BKT as an alternative/ensemble mastery signal. |
+| Model registry | The versioned record of trained model artifacts and their metadata, used by inference to pick which version to serve. | Written by `mathbank-ml-training`, read by `mathbank-ml-inference`. |
+| Mandatory explanation | The ML/RL platform's hard requirement that every prediction/recommendation endpoint returns a human-readable `Explanation` field — no black-box scores. | Enforced across every `mathbank-ml-inference` endpoint, even while scaffolded (see below). |
+| Scaffolded | Status meaning every endpoint, page and pipeline stage exists, is wired together, and has been live-verified to boot/route/render correctly — but no model has been trained on real data yet, so predictions are not yet real. | Current status of the entire ML/RL platform (requirements 54-58); endpoints return structured `501 MLUnavailable`. |
+
+## 8i. Quiz / question-paper generation agent
+
+| Term | Meaning | Representation |
+|---|---|---|
+| AIME-style / HMMT-style | A question-paper format convention matching a specific competition's rules, e.g. AIME's integer 0-999 answers versus HMMT's mixed formats. | Quiz-generation prompt/validation constraints, not a stored competition record; [documentation/requirements/53](53_AI_GENERATED_QUIZ_SUBAGENT.md). |
+| Quiz paper | One generated, student-specific set of questions — can be MCQ, free-text or proof-based. | `quiz.paper`. |
+| Quiz question | One generated question within a paper, linked to the concepts/skills/techniques it targets. | `quiz.question`, `question_concept`, `question_skill`, `question_technique`. |
+| Quiz response / quiz solution | A student's submitted answer, and the templated, professional solution writeup shown after submission. | `quiz.response`, `quiz.solution`; both persisted to the student's profile via object storage. |
+
+## 8j. Documentation and diagramming conventions
+
+| Term | Meaning | Representation |
+|---|---|---|
+| Mermaid | The diagram-as-code tool used for every architecture/sequence/entity diagram in this repo's READMEs; renders natively on GitHub and VS Code with no extra plugin. | See the root [README.md](../../README.md) Architecture and Data model sections. |
+| C4 model | A leveled system-architecture-diagramming vocabulary (Person, System, Container, Component, `Rel`, `System_Boundary`) popularized by C4-PlantUML; Mermaid's `C4Context`/`C4Container` types use the same vocabulary. | Root README's C1/C2 diagrams. |
+| C1 / System Context diagram | The top C4 level: who uses the platform and which external systems it depends on, with internals collapsed into one box. | Root README `C4Context` diagram. |
+| C2 / Container diagram | The next C4 level down: every independently-runnable/deployable piece (service, UI, database), still without internal component detail. | Root README `C4Container` diagram. |
+
 ## 9. Planned terms that must not be confused with live functionality
 
 - **Course / curriculum / learning path:** versioned ordering of lessons,
