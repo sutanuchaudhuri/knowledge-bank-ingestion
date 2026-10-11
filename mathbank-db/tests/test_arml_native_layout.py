@@ -12,15 +12,15 @@ import pymupdf
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "mathbank-db/etl"))
-sys.path.insert(0, str(ROOT / "mathbank_data_ingestion/src"))
+sys.path.insert(0, str(ROOT / "mathbank-data-ingestion/src"))
 import arml_archive as archive
 
 
 class ActualBookTests(unittest.TestCase):
     def setUp(self):
         archive.configure_cpu()
-        self.doc = pymupdf.open(ROOT / "mathbank_data_ingestion/data/archive_books/arml/ARML-2015-2020.pdf")
-        self.output = ROOT / "mathbank_data_ingestion/logs/arml/test_native_contract"
+        self.doc = pymupdf.open(ROOT / "mathbank-data-ingestion/data/archive_books/arml/ARML-2015-2020.pdf")
+        self.output = ROOT / "mathbank-data-ingestion/logs/arml/test_native_contract"
         self.section = next(s for s in archive.plan(self.doc) if s["paper_external_code"] == "PAPER_ARML_2015_TEAM")
 
     def tearDown(self):

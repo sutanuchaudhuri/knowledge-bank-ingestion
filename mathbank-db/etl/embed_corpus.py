@@ -1,8 +1,8 @@
-"""Vector/search subsystem — Phase 1-3 of mathematics_tutor_db_plan_v2/vector/12_implementation_sequence.md.
+"""Vector/search subsystem — Phase 1-3 of documentation/copilot-instructions/mathematics-tutor-db-plan/vector/12_implementation_sequence.md.
 
 Pipeline: core.problem/core.solution -> search.representation -> search.chunk
 -> search.embedding (OpenAI), with pipeline.run / search.embedding_job
-tracking per mathematics_tutor_db_plan_v2/vector/06_embedding_pipeline_reembedding_and_versioning.md.
+tracking per documentation/copilot-instructions/mathematics-tutor-db-plan/vector/06_embedding_pipeline_reembedding_and_versioning.md.
 
 Loads OPENAI_API_KEY from project .env files, ignoring inherited shell keys.
 Never pass it on the command line or print it.
@@ -27,7 +27,7 @@ from openai import OpenAI
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from load_corpus import _load_env  # noqa: E402
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "mathbank-scripts"))
 from project_env import load_project_openai  # noqa: E402
 
 PROVIDER = "openai"

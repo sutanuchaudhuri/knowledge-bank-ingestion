@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "mathbank-scripts"))
 from power_geometry_evidence import POWER, power_structure
 
 SOURCE = "prasolov-package-v3"

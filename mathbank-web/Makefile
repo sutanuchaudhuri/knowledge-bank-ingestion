@@ -59,7 +59,7 @@ dev: sync-widgets                ## Start the Next.js dev server on :$(WEB_PORT)
 .PHONY: start
 start: sync-widgets              ## Start on :$(WEB_PORT), verify HTTP readiness, and report failures (never kills an occupied port)
 	@test -f node_modules/next/dist/bin/next || (echo "ERROR: Next.js is missing. Run make install in mathbank-web." >&2; exit 1)
-	@bash ../scripts/start-service.sh mathbank-web "$(WEB_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
+	@bash ../mathbank-scripts/start-service.sh mathbank-web "$(WEB_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
 	  "http://127.0.0.1:$(WEB_PORT)/login" node node_modules/next/dist/bin/next dev -p $(WEB_PORT)
 
 .PHONY: stop

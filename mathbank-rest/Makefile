@@ -32,7 +32,7 @@ venv:                           ## Create the virtual environment
 
 .PHONY: install
 install: venv                   ## Install runtime + dev dependencies
-	uv pip install --python $(BIN)/python -e ../geometry-scene-engine
+	uv pip install --python $(BIN)/python -e ../mathbank-geometry-engine
 	uv pip install --python $(BIN)/python -e ".[dev]"
 
 .PHONY: migrate-geometry-scenes
@@ -61,7 +61,7 @@ run:                            ## Start the FastAPI dev server on :$(PORT) in t
 
 .PHONY: start
 start:                          ## Start on :$(PORT), verify HTTP readiness, and report failures (never kills an occupied port)
-	@bash ../scripts/start-service.sh mathbank-rest "$(PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
+	@bash ../mathbank-scripts/start-service.sh mathbank-rest "$(PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
 	  "http://127.0.0.1:$(PORT)/docs" "$(BIN)/python" -m uvicorn mathbank_rest.main:app --app-dir src --port $(PORT)
 
 .PHONY: stop

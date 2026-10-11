@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "mathbank_data_ingestion/src"))
+sys.path.insert(0, str(REPO_ROOT / "mathbank-data-ingestion/src"))
 log = logging.getLogger(__name__)
 IMAGE_SOURCES = {
     "PDF": [

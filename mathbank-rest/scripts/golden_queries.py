@@ -3,11 +3,11 @@
 Ground truth here is *derived*, not hand-labeled: for each case, "relevant"
 means "any problem tagged with this concept/technique slug" per
 knowledge.problem_concept / problem_technique (i.e. whatever the
-classification pipeline in mathbank_data_ingestion produced). This makes the
+classification pipeline in mathbank-data-ingestion produced). This makes the
 set cheap to keep in sync as the corpus grows (no manual relevance judgments
 to maintain) at the cost of ground truth being only as good as the LLM
 classification step — see scripts/evaluate_retrieval.py's docstring and
-mathematics_tutor_db_plan/agent/16_observability_and_evaluation.md section 4
+documentation/copilot-instructions/mathematics-tutor-db-plan/agent/16_observability_and_evaluation.md section 4
 for the tradeoff and the path to hand-curated cases later.
 """
 from __future__ import annotations

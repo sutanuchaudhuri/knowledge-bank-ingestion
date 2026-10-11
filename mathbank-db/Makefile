@@ -245,7 +245,7 @@ project-pedagogy-remote:        ## Explicit remote Neon to AuraDB metadata proje
 .PHONY: migrate-pedagogy-review migrate-pedagogy-review-remote
 .PHONY: migrate-automatic-metadata-remote
 .PHONY: migrate-textbook-import-remote textbook-import-dry-run textbook-import-remote textbook-import-status-remote
-TEXTBOOK_ROOT     ?= $(CURDIR)/../math_tutor_new_requirements_copilot_pack_v2_expanded/GEOMETRY-TEXTBOOKS
+TEXTBOOK_ROOT     ?= $(CURDIR)/../documentation/copilot-instructions/new-requirements-pack-v2-expanded/GEOMETRY-TEXTBOOKS
 TEXTBOOK_PACKAGES ?= $(TEXTBOOK_ROOT)/Prasolov_Geometry_Corpus_Ch01_20 $(TEXTBOOK_ROOT)/Prasolov_Geometry_Corpus_Ch21_30
 TEXTBOOK_PYTHON   ?= $(CURDIR)/../mathbank-rest/.venv/bin/python
 TEXTBOOK_CHAPTER_ARGS = $(foreach c,$(CHAPTER),--chapter $(c))

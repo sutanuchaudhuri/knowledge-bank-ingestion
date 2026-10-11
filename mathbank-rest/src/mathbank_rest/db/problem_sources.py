@@ -10,7 +10,7 @@ from urllib.parse import quote, urlsplit
 from sqlalchemy import text
 
 log = logging.getLogger(__name__)
-PDF_ROOT = Path(__file__).resolve().parents[4] / "mathbank_data_ingestion/data/crawl_pdf"
+PDF_ROOT = Path(__file__).resolve().parents[4] / "mathbank-data-ingestion/data/crawl_pdf"
 
 
 def source_record(conn, code: str) -> dict | None:

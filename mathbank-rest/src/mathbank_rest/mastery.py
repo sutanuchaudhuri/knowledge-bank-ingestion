@@ -1,6 +1,6 @@
 """Mastery score computation — time-decayed, difficulty-weighted, hint-penalized accuracy.
 
-Formula per mathematics_tutor_db_plan/agent/18_future_student_profile_and_mastery.md
+Formula per documentation/copilot-instructions/mathematics-tutor-db-plan/agent/18_future_student_profile_and_mastery.md
 section 5, extended with a hint-count penalty (MST-09 — see
 requirements/10_AGENTIC_TUTOR_AND_STUDENT_MASTERY_REQUIREMENTS.md). Pure functions
 here are unit-tested directly (no DB); the recompute_* functions do the DB

@@ -8,7 +8,7 @@ from pathlib import Path
 from sqlalchemy import text
 
 AUDIT_VERSION = "topic-audit-v1"
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "mathbank-scripts"))
 from power_geometry_evidence import POWER, power_structure
 
 

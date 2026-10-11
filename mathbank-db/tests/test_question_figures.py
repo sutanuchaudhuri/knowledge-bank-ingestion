@@ -88,7 +88,7 @@ def test_dry_run_creates_no_files_and_apply_records_provenance(tmp_path):
 def test_real_smt_q6_figure_contains_only_its_labels():
     paper = (
         Path(__file__).resolve().parents[2]
-        / "mathbank_data_ingestion/data/crawl_pdf/smt/PAPER_SMT_2010_GEOM"
+        / "mathbank-data-ingestion/data/crawl_pdf/smt/PAPER_SMT_2010_GEOM"
     )
     if not (paper / "problem.pdf").is_file():
         pytest.skip("Downloaded SMT fixture unavailable")

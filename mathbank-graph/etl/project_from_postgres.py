@@ -1,6 +1,6 @@
 """Project the mathbank Postgres system of record into the Neo4j corpus graph.
 
-Per mathematics_tutor_db_plan/graph/03_postgres_to_graph_projection.md:
+Per documentation/copilot-instructions/mathematics-tutor-db-plan/graph/03_postgres_to_graph_projection.md:
 - idempotent (MERGE on canonical_id = the Postgres UUID)
 - records a pipeline.graph_projection row in Postgres for each run
 

@@ -1,6 +1,6 @@
 """Hybrid (semantic + lexical) retrieval over search.chunk / search.embedding.
 
-Per mathematics_tutor_db_plan_v2/vector/10_reference_sql_and_query_examples.md
+Per documentation/copilot-instructions/mathematics-tutor-db-plan/vector/10_reference_sql_and_query_examples.md
 (RRF fusion) and vector/11_rest_vector_search_contracts.md (task-oriented API
 — callers pass a query string and filters, never raw vectors/model UUIDs).
 """

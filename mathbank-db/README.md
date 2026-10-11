@@ -6,26 +6,26 @@ The user-approved remote replacement now runs PostgreSQL 18 on port 5433 with
 database `mathbank`. The Makefile defaults to version 18; the old PostgreSQL 16
 cluster is stopped and retained for rollback. Complete remote export, prior
 local backup, checksum and verified row counts are documented in
-[DATABASES.md](../DATABASES.md#postgresql-18-replacement-2026-10-08).
+[DATABASES.md](../documentation/DATABASES.md#postgresql-18-replacement-2026-10-08).
 This is a snapshot, not ongoing sync, and does not redirect REST/agent or start
 model calls.
 
 ## Complete schema and step-lifecycle reference
 
 The newer generic tutoring-route layer is documented in
-[requirement 39](../requirements/39_PRECOMPILED_TUTORING_ROUTES.md) and
+[requirement 39](../documentation/requirements/39_PRECOMPILED_TUTORING_ROUTES.md) and
 [migration 026](sql/026_tutoring_routes.sql). The approved full-corpus compiler
 preserves imported steps, stores versioned route snapshots and validates before
 operator-authorized bulk review. Review, student publication and graph refresh
 remain separate. The counts below describe the older 2026-10-07 observation.
 
-The [live catalog and access index](../requirements/reference/postgres/README.md)
+The [live catalog and access index](../documentation/requirements/reference/postgres/README.md)
 documents every observed non-system schema/table/view on the user-selected
 REST-configured PostgreSQL target: 20 schemas, 129 tables, 4 views.
 All 115 migration-declared project tables/column names were present on
 2026-10-07 UTC; ADK and Neon Auth ownership is documented separately.
 This metadata-only observation does not certify row quality or object-store
-acceptance. See the [complete step lifecycle/specification](../requirements/36_STEP_GENERATOR_AND_AUTHORING.md)
+acceptance. See the [complete step lifecycle/specification](../documentation/requirements/36_STEP_GENERATOR_AND_AUTHORING.md)
 for imported atomic moves, admin preview/edit limits, durable hints/attempts,
 source/widget/video boundaries and the proposed full generator/editor.
 
@@ -37,8 +37,8 @@ optimistic content versions and reviewed-text protection.
 `make -C ../mathbank-rest migrate-corpus-authoring` applies only this migration
 transactionally to **REST's configured database**, not an assumed local target.
 Review does not regenerate vectors or publish graphs.
-See [requirement 35](../requirements/35_CORPUS_REPAIR_AND_AUTHORING.md) and
-the indexed [210 read-only developer queries](../mathbank_data_ingestion/queries/README.md).
+See [requirement 35](../documentation/requirements/35_CORPUS_REPAIR_AND_AUTHORING.md) and
+the indexed [210 read-only developer queries](../mathbank-data-ingestion/queries/README.md).
 
 ## Learner relevance feedback (migration 023)
 
@@ -48,8 +48,8 @@ models, update vectors, publish graph edges or change mastery automatically.
 Operators review the source/solution-step evidence, correct/reject the specific
 mapping with revision checks, publish explicitly, then resolve the report with
 an evidence note. Exact repeated reports return their existing status.
-See the [schema](../requirements/reference/POSTGRES_SCHEMA.md) and
-[DML boundaries](../requirements/reference/POSTGRES_DML.md).
+See the [schema](../documentation/requirements/reference/POSTGRES_SCHEMA.md) and
+[DML boundaries](../documentation/requirements/reference/POSTGRES_DML.md).
 
 [`sql/024_feedback_evidence.sql`](sql/024_feedback_evidence.sql) adds server
 audit snapshots and explicit human relevance/error labels to the same report
@@ -108,10 +108,10 @@ mirror into it, project it into Neo4j, and embed it for hybrid RAG search.
 
 This directory owns the Postgres **schema** (`sql/*.sql`) and **load/embed
 pipelines** (`etl/*.py`); it does not serve traffic — that's `mathbank-rest`.
-See root [DATABASES.md](../DATABASES.md) for the full local-vs-remote
-(Neon/AuraDB) picture and [GOTCHAS.md](../GOTCHAS.md) for environment
+See root [DATABASES.md](../documentation/DATABASES.md) for the full local-vs-remote
+(Neon/AuraDB) picture and [GOTCHAS.md](../documentation/GOTCHAS.md) for environment
 troubleshooting. The source-derived composite schema, SQL behavior, and API
-contracts are in the [canonical implementation references](../requirements/reference/README.md);
+contracts are in the [canonical implementation references](../documentation/requirements/reference/README.md);
 the source inventory includes migrations 001-025. Selected-target live metadata
 is separately dated in the complete catalog; it is not an assertion about every
 database branch or a proof of full source/deployment DDL parity.
@@ -141,16 +141,16 @@ From the repository root:
 make -C mathbank-db repair-question-text-remote
 # REPORT paths are relative to mathbank-db, since make changes directory.
 make -C mathbank-db repair-question-text-remote \
-  REPORT=../mathbank_data_ingestion/data/question_text_gaps.json
+  REPORT=../mathbank-data-ingestion/data/question_text_gaps.json
 # After source access is available: bounded, non-AI crawl. Stops on publisher blocking.
-make -C mathbank_data_ingestion crawl-missing-text LEVEL=AIME LIMIT=20 DELAY=10
+make -C mathbank-data-ingestion crawl-missing-text LEVEL=AIME LIMIT=20 DELAY=10
 # Import validated local sources into Neon; no model calls or reclassification.
 make -C mathbank-db repair-question-text-apply-remote
 # Optional original-page bundle: JSON array of {code,url,status,html}.
 # Every entry must be in the selected inventory, have its exact recorded URL,
 # HTTP 200 and a nonempty Problem section; all entries are validated before writes.
 make -C mathbank-db repair-question-text-apply-remote \
-  SOURCE_BUNDLE=../mathbank_data_ingestion/data/source_text_batch.json
+  SOURCE_BUNDLE=../mathbank-data-ingestion/data/source_text_batch.json
 # Build search representations/chunks without paid embedding requests.
 make -C mathbank-db vector-build-remote PAPER=AIME_1983
 # Paid, explicitly scoped backfill. Refuses the request if its conservative
@@ -179,13 +179,13 @@ No graph publication, broad re-enrichment or schema migration is needed for this
 PDF diagrams must be cropped to the individual question's figure, not displayed
 as whole pages. The ingestion-owned shared cropper uses spatial question boundaries and keeps
 solution images separate. Ambiguous/incomplete layouts are logged, never
-assigned proportionally. See [requirements 31](../requirements/31_QUESTION_SPECIFIC_DIAGRAMS.md).
+assigned proportionally. See [requirements 31](../documentation/requirements/31_QUESTION_SPECIFIC_DIAGRAMS.md).
 
 ```sh
 # From the repository root; dry-run, no OCR/AI calls.
-make -C mathbank_data_ingestion repair-diagrams
+make -C mathbank-data-ingestion repair-diagrams
 # Repair artifacts and existing SQLite staging metadata before importing manifests:
-make -C mathbank_data_ingestion repair-diagrams-apply
+make -C mathbank-data-ingestion repair-diagrams-apply
 PG_ENV_FILE=mathbank-graph/remote.env mathbank-db/.venv/bin/python \
   mathbank-db/etl/backfill_question_figures.py --paper PAPER_SMT_2010_GEOM
 # Add --apply only after reviewing the selected source/crop.
@@ -202,7 +202,7 @@ provenance and solution/answer images. This does not certify every imported PDF
 layout or fill inaccessible downloads. No schema migration or model calls are involved.
 
 ```
-crawl-unmapped (mathbank_data_ingestion) → classify → export-classifications
+crawl-unmapped (mathbank-data-ingestion) → classify → export-classifications
   → etl-remote (this repo, Postgres core.*/knowledge.*)
   → project-remote (mathbank-graph, Neo4j TESTS/USES_TECHNIQUE/CONCEPT_RELATION)
   → vector-backfill-remote (this repo, Postgres search.* — representations/chunks/embeddings for hybrid RAG)
@@ -218,7 +218,7 @@ cd ../mathbank-db && make vector-backfill-remote   # Neon core.* -> search.* emb
 ```
 
 Full command reference and idempotency guarantees for every stage:
-[DATABASES.md § Full corpus pipeline](../DATABASES.md#full-corpus-pipeline-crawl--classify--export--etl--graph--vector).
+[DATABASES.md § Full corpus pipeline](../documentation/DATABASES.md#full-corpus-pipeline-crawl--classify--export--etl--graph--vector).
 
 ### Resumable SMT/HMMT paper batches
 
@@ -262,7 +262,7 @@ fidelity. Failed sources remain explicit failures, not successful empty papers.
 `pipeline.run` stores run UUID, original scope, heartbeat, completion/failure
 counts and log directory. `pipeline.work_item` stores per-paper stage, attempts,
 classification/graph status, warnings and errors. Detailed stage logs and
-source manifests are under `mathbank_data_ingestion/logs/paper_batches/`.
+source manifests are under `mathbank-data-ingestion/logs/paper_batches/`.
 The authenticated `/admin` dashboard refreshes every 15 seconds, has paper
 pagination, and exposes classification and graph completion separately from
 download/parse/ingest. `NOT_TRACKED` means no end-to-end batch evidence exists,
@@ -315,7 +315,7 @@ source of truth for whether the new corpus batch is now searchable.
 | `013_step_hints.sql` | `migrate-step-hints-remote` | `pedagogy.step_hint` — generated hint text cached per step, level (1–4) and prompt version |
 | `014_gap_diagnosis.sql` | `migrate-gap-diagnosis-remote` | `pedagogy.gap_diagnosis` and ranked `pedagogy.knowledge_gap` hypotheses (Phase 9); adds `GAP_DIAGNOSED` / `GAP_HYPOTHESIS_RESOLVED` to the `learner.event` type CHECK |
 | `015_recovery_runtime.sql` | `migrate-recovery-remote` | `pedagogy.recovery_plan` / `recovery_plan_item` (Phase 10 detours), `learning_item.approval_method`/`approved_at`, `gap_diagnosis.ai_rerank`, recovery FKs on `solve_attempt`/`runtime_state`, `RECOVERY_*` event types |
-| `016_agent_session_link.sql` | `migrate-agent-session-link-remote` | `learner.agent_session_link` — student ↔ ADK agent session mapping used to rebuild conversations ([22](../requirements/22_AGENT_SESSION_TRANSCRIPTS.md)); logical link into framework-owned `agent_sessions`, cascades on learner deletion |
+| `016_agent_session_link.sql` | `migrate-agent-session-link-remote` | `learner.agent_session_link` — student ↔ ADK agent session mapping used to rebuild conversations ([22](../documentation/requirements/22_AGENT_SESSION_TRANSCRIPTS.md)); logical link into framework-owned `agent_sessions`, cascades on learner deletion |
 | `021_attempt_media.sql` | `migrate-attempt-media-remote` | `attempt_media.*` private, versioned learner media/evidence/transcription/approval and assessment records; makes `learner.attempt.is_correct` nullable so unassessed approved work is excluded from mastery |
 | `022_artifact_runtime.sql` | `migrate-artifacts-remote` | `artifact_runtime.*` structured artifact requests/bundles, private asset metadata, validation/lineage, tags and explicit pgvector embeddings |
 
@@ -327,14 +327,14 @@ Migrations 021-025 are described in the schema reference; this command
 table is not evidence that they have run. The separately dated selected-target
 catalog records their observed relations/columns. Attempt media and generated artifact
 bytes use private object storage, independently configured from Neon Auth and
-the AI Gateway. See [schema](../requirements/reference/POSTGRES_SCHEMA.md),
-[DML behavior](../requirements/reference/POSTGRES_DML.md), and
-[REST contracts](../requirements/reference/REST_API.md).
+the AI Gateway. See [schema](../documentation/requirements/reference/POSTGRES_SCHEMA.md),
+[DML behavior](../documentation/requirements/reference/POSTGRES_DML.md), and
+[REST contracts](../documentation/requirements/reference/REST_API.md).
 
 ### Textbook package import (Prasolov geometry)
 
 `etl/import_textbook_package.py` imports the enriched `pedagogy_v3` packages under
-`math_tutor_new_requirements_copilot_pack_v2_expanded/GEOMETRY-TEXTBOOKS/`. It goes through
+`documentation/copilot-instructions/new-requirements-pack-v2-expanded/GEOMETRY-TEXTBOOKS/`. It goes through
 register → stage → validate → upsert → reconcile, and every step is idempotent. Source quirks are
 recorded in `ingest.import_conflict` and do not abort the import. Learning items import as
 `PENDING_REVIEW`; `make textbook-approve-learning-items-remote` auto-approves the structurally valid ones
@@ -359,8 +359,8 @@ make migrate-agent-session-link-remote     # student ↔ agent session link for 
 make textbook-approve-learning-items-remote  # auto-approve valid learning items (idempotent)
 ```
 
-Progress and verification SQL: `requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md`.
-Pitfalls (BOM, duplicate IDs, lock order, projection kinds): `requirements/19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md`.
+Progress and verification SQL: `documentation/requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md`.
+Pitfalls (BOM, duplicate IDs, lock order, projection kinds): `documentation/requirements/19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md`.
 
 ## Local vs. remote
 
@@ -368,7 +368,7 @@ Every pipeline/migration command has a local variant (runs against the
 Postgres cluster this repo manages on `$(PG_PORT)`) and a `-remote` variant
 (targets the Neon Postgres in `mathbank-graph/remote.env` via `PG_ENV_FILE`
 or `NEON_PG_*` env vars). Production/demo data lives on Neon — see
-[DATABASES.md](../DATABASES.md) for when each is appropriate.
+[DATABASES.md](../documentation/DATABASES.md) for when each is appropriate.
 # P0 pedagogy authoring (explicit rollout)
 
 Migration `sql/006_pedagogy.sql` adds `knowledge.skill`, `skill_concept`,
@@ -508,3 +508,82 @@ inside an **uncommitted, rolled-back** graph fixture, test SQL constraint
 rollback, and deliberately fail a graph replacement to verify atomic rollback.
 They never persist reviewed fixture assertions. Run only with explicit shared
 database authorization; ordinary tests skip them.
+
+## Architecture flow
+
+```mermaid
+flowchart TD
+    Dev["Developer / CI\n(make migrate-* / make etl / make vector-backfill)"]
+    Dev --> SQL["sql/NNN_*.sql\n(35 sequential, idempotent migrations)"]
+    SQL --> PG[("PostgreSQL 16 + pgvector\nNeon (remote) or local Homebrew install")]
+    Dev --> ETL["etl/*.py\n(pdf_pipeline, load_corpus, embed_corpus,\narml_archive, pdf_assets, ...)"]
+    ETL --> Ingestion["mathbank-data-ingestion/data/\n(crawled source JSON/PDF)"]
+    ETL --> PG
+    ETL --> ObjectStore["private object storage\n(images/diagrams)"]
+    PG --> REST["mathbank-rest\n(the only runtime reader/writer)"]
+    ETL --> Graph["mathbank-graph\n(projects PG rows into Neo4j)"]
+```
+
+This project never runs as a long-lived service — it's a schema-migration + ETL toolkit invoked
+on demand via `make`, read at runtime only by `mathbank-rest`.
+
+## Data model
+
+See the generated, authoritative reference:
+[documentation/requirements/reference/POSTGRES_SCHEMA.md](../documentation/requirements/reference/POSTGRES_SCHEMA.md)
+(every table/column/constraint/trigger) and
+[POSTGRES_DML.md](../documentation/requirements/reference/POSTGRES_DML.md) (read/write/conflict
+behavior) — this README does not duplicate that reference, since it drifts from a true schema
+reference the moment either one is hand-maintained separately.
+
+```mermaid
+erDiagram
+    CORE_PROBLEM ||--o| CORE_SOLUTION : "HAS_SOLUTION"
+    CORE_PROBLEM }o--o{ KNOWLEDGE_CONCEPT : "problem_concept"
+    KNOWLEDGE_CONCEPT ||--o{ KNOWLEDGE_CONCEPT : "concept_relation (HAS_SUBCONCEPT, ...)"
+    KNOWLEDGE_SKILL }o--o{ KNOWLEDGE_CONCEPT : "skill_concept"
+    PEDAGOGY_LEARNING_ITEM }o--|| CORE_PROBLEM : "source_problem_id"
+    PEDAGOGY_MICRO_COURSE ||--|{ PEDAGOGY_MICRO_COURSE_RELEASE : "immutable once published"
+    PIPELINE_RUN ||--o{ PIPELINE_WORK_ITEM : "tracked ETL stages"
+    PIPELINE_OUTBOX_EVENT }o--|| LEARNER_MICRO_COURSE_ENROLLMENT : "transactional outbox"
+```
+
+## Tests
+
+```bash
+make -C mathbank-db etl-venv                 # one-time: creates the ETL virtualenv
+mathbank-rest/.venv/bin/python -m pytest -q mathbank-db/tests   # 35 test_*.py files
+```
+
+Some tests (noted at the top of this README) require explicit shared-database authorization and
+run against a real, rolled-back transaction — they are not run by default.
+
+## Deployment strategy
+
+**Today:** this is a migration/ETL toolkit, not a deployed service — `make migrate-*-remote` and
+`make etl-remote` targets are run on demand (locally or from CI) against managed Neon Postgres.
+There is no local "mathbank-db server" to deploy; `make setup`/`make start` only stand up a local
+Postgres 16 + pgvector install for developers who want an offline copy.
+
+**Independence:** every migration/ETL script takes its connection details from this folder's own
+`.env` — no sibling-folder dependency for its *database* role. It does, however, read crawled
+source data from `mathbank-data-ingestion/data/` (see `INGESTION_ROOT` in `etl/pdf_pipeline.py`
+et al.) — this is a genuine, intentional cross-project data dependency (the whole point of this
+split is "ingestion crawls/parses, mathbank-db loads into Postgres"), not an accidental coupling.
+
+## Roadmap / TODO
+
+- See [documentation/requirements/20_NOT_YET_IMPLEMENTED.md](../documentation/requirements/20_NOT_YET_IMPLEMENTED.md)
+  for the authoritative, regularly-updated list of open v2-pack phases and gaps.
+- `documentation/requirements/45_REST_API_DOCUMENTATION_AND_ADMIN_CRUD_GAPS.md` (written this
+  session) documents several schema-adjacent gaps this project would need new migrations for if
+  implemented: alias tables for concept/technique/skill/misconception, an unenforced CHECK
+  constraint on `knowledge.concept.status`/`knowledge.technique.status`, and new
+  activate/deactivate columns on several tables.
+
+## Gotchas (mathbank-db-specific)
+
+See [documentation/GOTCHAS.md](../documentation/GOTCHAS.md) for the full, exhaustive catalog
+(BOM handling, duplicate IDs, lock ordering, projection-kind tagging, and more — this project is
+the single largest source of entries there). Don't duplicate that list here; read it before
+touching any ETL script.

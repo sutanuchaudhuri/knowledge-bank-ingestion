@@ -38,7 +38,7 @@ run:                             ## Serve the agent as a REST API on :$(AGENT_PO
 
 .PHONY: start
 start:                           ## Start on :$(AGENT_PORT), verify HTTP readiness, and report failures (never kills an occupied port)
-	@bash ../scripts/start-service.sh mathbank-agent "$(AGENT_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
+	@bash ../mathbank-scripts/start-service.sh mathbank-agent "$(AGENT_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
 	  "http://127.0.0.1:$(AGENT_PORT)/list-apps" "$(BIN)/python" server.py --port $(AGENT_PORT) $(AGENT_ALLOW_ORIGINS)
 
 .PHONY: stop

@@ -3,7 +3,7 @@
 Tools call mathbank-rest, which performs hybrid (semantic + lexical) RAG
 retrieval over Postgres (search.embedding / search.chunk) joined back to the
 canonical corpus tables (core.problem, knowledge.concept, ...). See
-mathematics_tutor_db_plan/agent/ for the full design and flow docs.
+documentation/copilot-instructions/mathematics-tutor-db-plan/agent/ for the full design and flow docs.
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ from .tools.step_runtime_tools import STEP_RUNTIME_TOOLS
 from .tools.widget_tools import WIDGET_TOOLS
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(SERVICE_ROOT.parent / "scripts"))
+sys.path.insert(0, str(SERVICE_ROOT.parent / "mathbank-scripts"))
 from project_env import load_project_openai
 
 load_dotenv(SERVICE_ROOT / ".env")

@@ -1,5 +1,5 @@
 """Agent-level eval — tool-selection accuracy + basic safety checks, per
-mathematics_tutor_db_plan/agent/16_observability_and_evaluation.md section 2
+documentation/copilot-instructions/mathematics-tutor-db-plan/agent/16_observability_and_evaluation.md section 2
 ("tool-selection accuracy") and section 3 ("golden evaluation set").
 
 Runs each golden case (scripts/golden_agent_cases.py) through the REAL ADK

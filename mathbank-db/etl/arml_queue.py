@@ -363,7 +363,7 @@ def run(conn, run_id, after, poll):
         conn.execute("UPDATE pipeline.run SET status='QUEUED',heartbeat_at=now() WHERE run_id=%s", (run_id,))
         print("ARML queued: Purple is not fully successful; no ARML stages released.", flush=True)
         time.sleep(poll)
-    sys.path.insert(0, str(ROOT / "scripts"))
+    sys.path.insert(0, str(ROOT / "mathbank-scripts"))
     from project_env import load_project_openai
     load_project_openai(INGESTION / ".env")
     conn.execute("UPDATE pipeline.run SET status='IN_PROGRESS',failed_items=0,completed_at=NULL,"

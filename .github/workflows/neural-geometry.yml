@@ -1,9 +1,9 @@
 name: Neural geometry compiler foundation
 on:
   push:
-    paths: ["neural-geometry-engine/**", "geometry-scene-engine/**", ".github/workflows/neural-geometry.yml"]
+    paths: ["mathbank-neural-geometry/**", "mathbank-geometry-engine/**", ".github/workflows/neural-geometry.yml"]
   pull_request:
-    paths: ["neural-geometry-engine/**", "geometry-scene-engine/**", ".github/workflows/neural-geometry.yml"]
+    paths: ["mathbank-neural-geometry/**", "mathbank-geometry-engine/**", ".github/workflows/neural-geometry.yml"]
 permissions:
   contents: read
 jobs:
@@ -14,12 +14,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e ./geometry-scene-engine -e "./neural-geometry-engine[dev]"
-      - run: pytest neural-geometry-engine/tests -q
-      - run: ruff check neural-geometry-engine/src neural-geometry-engine/tests
-      - run: mypy neural-geometry-engine/src --ignore-missing-imports
-      - run: python -m neural_geometry.cli gallery --output neural-geometry-engine/output/gallery
+      - run: pip install -e ./mathbank-geometry-engine -e "./mathbank-neural-geometry[dev]"
+      - run: pytest mathbank-neural-geometry/tests -q
+      - run: ruff check mathbank-neural-geometry/src mathbank-neural-geometry/tests
+      - run: mypy mathbank-neural-geometry/src --ignore-missing-imports
+      - run: python -m neural_geometry.cli gallery --output mathbank-neural-geometry/output/gallery
       - uses: actions/upload-artifact@v4
         with:
           name: neural-geometry-foundation-images-and-programs
-          path: neural-geometry-engine/output/gallery
+          path: mathbank-neural-geometry/output/gallery

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-INGESTION = ROOT / "mathbank_data_ingestion"
+INGESTION = ROOT / "mathbank-data-ingestion"
 VOLUMES = ("2015-2020", "2009-2014", "2004-2008", "1995-2003")
 BASE_URL = "https://arml3.com/wp-content/uploads/2026/03/"
 ANCHOR = re.compile(r"^(T|I|TB|R[A-Z0-9]*|SR)-([A-Z]|\d+)\.\s*")

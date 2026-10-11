@@ -1,10 +1,10 @@
 """Seed-catalog loader and read-service for the interaction template library
-(requirements/41_INTERACTION_TEMPLATE_LIBRARY.md). Idempotent: re-running the
+(documentation/requirements/41_INTERACTION_TEMPLATE_LIBRARY.md). Idempotent: re-running the
 loader only upserts rows by their natural key, never duplicates.
 
 The bundled seed JSON (data/interaction_catalog/*.json) establishes the
 *vocabulary* (which control/icon/animation/template keys exist) copied from
-the source INTERACTION_TEMPLATE_LIBRARY_COPILOT/seeds/ pack. It intentionally
+the source documentation/copilot-instructions/interaction-template-library/seeds/ pack. It intentionally
 does not yet carry full JSON-Schema bodies for config/accessibility/input
 schemas — those need per-template authoring and are placeholders here
 (explicitly non-empty markers, not silently blank) until designed.

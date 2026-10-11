@@ -26,7 +26,7 @@ Subcommands (safe, local-only — no network calls):
 
 Fetch subcommand (NOT run by `run` — triggers real network downloads):
     fetch       PENDING PDF rows: shell out to
-                mathbank_data_ingestion/scripts/crawl_pdf_papers.py (Docling,
+                mathbank-data-ingestion/scripts/crawl_pdf_papers.py (Docling,
                 needs that project's own .venv). PENDING HTML rows: fetch +
                 strip tags directly here (stdlib urllib/html.parser, no extra
                 deps) — see cmd_fetch_html.
@@ -56,7 +56,7 @@ from pathlib import Path
 import psycopg
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-INGESTION_ROOT = REPO_ROOT / "mathbank_data_ingestion"
+INGESTION_ROOT = REPO_ROOT / "mathbank-data-ingestion"
 CORPUS_DIR = INGESTION_ROOT / "src" / "mathbank" / "data" / "maths_corpus"
 PDF_CRAWL_DIR = INGESTION_ROOT / "data" / "crawl_pdf"
 

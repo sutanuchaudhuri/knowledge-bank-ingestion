@@ -1,4 +1,4 @@
-"""Load the mathbank_data_ingestion corpus (CSV index/taxonomy mirror + crawled
+"""Load the mathbank-data-ingestion corpus (CSV index/taxonomy mirror + crawled
 AoPS/PDF problem text) into the mathbank Postgres database.
 
 Idempotent: safe to re-run. Upserts use natural keys (external_code / slug /
@@ -20,7 +20,7 @@ from psycopg.types.json import Json
 from pdf_assets import paper_images, question_images, store_images
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-INGESTION_ROOT = REPO_ROOT / "mathbank_data_ingestion"
+INGESTION_ROOT = REPO_ROOT / "mathbank-data-ingestion"
 CORPUS_DIR = INGESTION_ROOT / "src" / "mathbank" / "data" / "maths_corpus"
 AOPS_CRAWL_DIR = INGESTION_ROOT / "data" / "crawl"
 PDF_CRAWL_DIR = INGESTION_ROOT / "data" / "crawl_pdf"
@@ -609,7 +609,7 @@ def main() -> None:
 
     with psycopg.connect(conninfo) as conn:
         with conn.cursor() as cur:
-            # Progress tracking — see pipeline.run (mathematics_tutor_db_plan's
+            # Progress tracking — see pipeline.run (documentation/copilot-instructions/mathematics-tutor-db-plan's
             # system-of-record for ingestion runs, previously unused by this
             # script). A row left stuck at RUNNING (no completed_at) means the
             # process crashed/was killed mid-run — check the log/error output

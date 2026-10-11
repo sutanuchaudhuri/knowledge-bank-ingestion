@@ -49,7 +49,7 @@ dev: sync-widgets               ## Run in the foreground on :$(LIVE_PORT)
 .PHONY: start
 start: sync-widgets             ## Start in background on :$(LIVE_PORT) and verify readiness
 	@test -f node_modules/next/dist/bin/next || (echo "ERROR: dependencies missing. Run make install in mathbank-live." >&2; exit 1)
-	@LIVE_PORT=$(LIVE_PORT) bash ../scripts/start-service.sh mathbank-live "$(LIVE_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
+	@LIVE_PORT=$(LIVE_PORT) bash ../mathbank-scripts/start-service.sh mathbank-live "$(LIVE_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
 	  "http://127.0.0.1:$(LIVE_PORT)/login" node server.mjs
 
 .PHONY: stop

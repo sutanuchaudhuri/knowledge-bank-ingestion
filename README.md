@@ -2,29 +2,67 @@
 
 A competition-math corpus (AMC/AIME/HMMT/SMT/PUMaC/CHMMC/CMM/Math Prize for
 Girls) with hybrid (semantic + lexical) RAG search, a knowledge graph, an
-agentic tutor, and a student-profile web UI — built from five independent
-services:
+agentic tutor, and a student-profile web UI — built from independent services,
+each with its own README, Makefile, tests, and `.github/skills/<name>/SKILL.md`
+quick-reference. **This section is the map** — start here, then follow a
+service's own README for its architecture/data-model diagrams, deployment
+notes, roadmap and gotchas.
 
-| Service | What it is | Port |
-|---|---|---|
-| `mathbank-db` | Postgres 16 + pgvector — `core.*`/`knowledge.*`/`search.*`/`learner.*`/`pipeline.*` schema + ETL/embedding pipelines | 5433 (local, **optional** — see below) |
-| `mathbank-graph` | Neo4j — knowledge graph projection (`TESTS`, `USES_TECHNIQUE`, `MASTERED`, ...) | 7474/7687 (local, **optional** — see below) |
-| `mathbank-rest` | FastAPI — the only service that talks to Postgres/Neo4j directly; hybrid search, learner auth/mastery, admin pipeline endpoints | 8000 |
-| `mathbank-agent` | Google ADK agent (OpenAI via LiteLLM) — calls `mathbank-rest` as tools, never touches the DBs directly | 8001 |
-| `mathbank-web` | Next.js — student chat/login/profile UI + admin ingestion UI, proxies to `mathbank-rest`/`mathbank-agent`/Neo4j server-side | 5173 |
-| `mathbank-live` | Next.js + Socket.IO — **separately deployable** realtime live classroom (instructor console + student classroom); relays the `mathbank-rest` live event log | 5174 |
-| `mathbank-widgets` | Shared React package (not a service) — WidgetHost renderer, MathComposer (LaTeX), ElevenLabs voice controls; copied into web and live | — |
+## Repository map
+
+```text
+knowledge-bank-ingestion/
+├── README.md                    you are here — start here, then follow a service's own README
+├── mathbank-rest/                FastAPI — the only direct Postgres/Neo4j boundary       :8000
+├── mathbank-web/                 Next.js — student/admin UI, proxies to rest/agent       :5173
+├── mathbank-live/                Next.js + Socket.IO — separately deployable live class  :5174
+├── mathbank-agent/                Google ADK + OpenAI tutoring agent, calls rest only     :8001
+├── mathbank-widgets/              shared React package (WidgetHost, MathComposer) — not a service
+├── mathbank-db/                   Postgres 16 + pgvector schema migrations + ETL
+├── mathbank-graph/                Neo4j projection ETL (derived, rebuildable graph)
+├── mathbank-data-ingestion/       crawl/classify/export corpus pipeline
+├── mathbank-geometry-engine/      deterministic geometry scene engine (Frame/solver/SVG)
+├── mathbank-neural-geometry/      neural-symbolic construction-program compiler
+│   └── mathbank-prasolov-dataset-audit/   nested dataset-audit tool (not the compiler itself)
+├── mathbank-scripts/              shared root-level dev/ops tooling (credential sync, start/stop)
+├── documentation/                 every markdown document in the repo, in one place
+│   ├── requirements/              the living, numbered specs (00_INDEX.md is the index) + reference/
+│   ├── copilot-instructions/      historical/scratch planning packs, preserved not deleted
+│   ├── presentation/              static HTML walkthrough for a mixed technical/business audience
+│   ├── GOTCHAS.md                 exhaustive environment/operational pitfall catalog
+│   └── DATABASES.md               local-vs-remote database picture + full corpus pipeline
+├── FASTMCP_INTELLITUTOR_COPILOT/   a not-yet-started MCP-Apps design pack (see documentation/requirements/49)
+├── archive/                        old artifacts, kept but not actively maintained
+└── scripts tests, CI (.github/workflows/, .github/skills/) ...
+```
+
+| Service | What it is | Port | README |
+|---|---|---|---|
+| `mathbank-db` | Postgres 16 + pgvector — `core.*`/`knowledge.*`/`search.*`/`learner.*`/`pipeline.*` schema + ETL/embedding pipelines | 5433 (local, **optional** — see below) | [mathbank-db/README.md](mathbank-db/README.md) |
+| `mathbank-graph` | Neo4j — knowledge graph projection (`TESTS`, `USES_TECHNIQUE`, `MASTERED`, ...) | 7474/7687 (local, **optional** — see below) | [mathbank-graph/README.md](mathbank-graph/README.md) |
+| `mathbank-rest` | FastAPI — the only service that talks to Postgres/Neo4j directly; hybrid search, learner auth/mastery, admin pipeline endpoints | 8000 | [mathbank-rest/README.md](mathbank-rest/README.md) |
+| `mathbank-agent` | Google ADK agent (OpenAI via LiteLLM) — calls `mathbank-rest` as tools, never touches the DBs directly | 8001 | [mathbank-agent/README.md](mathbank-agent/README.md) |
+| `mathbank-web` | Next.js — student chat/login/profile UI + admin ingestion UI, proxies to `mathbank-rest`/`mathbank-agent`/Neo4j server-side | 5173 | [mathbank-web/README.md](mathbank-web/README.md) |
+| `mathbank-live` | Next.js + Socket.IO — **separately deployable** realtime live classroom (instructor console + student classroom); relays the `mathbank-rest` live event log | 5174 | [mathbank-live/README.md](mathbank-live/README.md) |
+| `mathbank-widgets` | Shared React package (not a service) — WidgetHost renderer, MathComposer (LaTeX), ElevenLabs voice controls; copied into web and live | — | [mathbank-widgets/README.md](mathbank-widgets/README.md) |
+| `mathbank-data-ingestion` | Crawl/classify/export corpus pipeline feeding `mathbank-db` | — | [mathbank-data-ingestion/README.md](mathbank-data-ingestion/README.md) |
+| `mathbank-geometry-engine` | Independent deterministic geometry scene engine | — | [mathbank-geometry-engine/README.md](mathbank-geometry-engine/README.md) |
+| `mathbank-neural-geometry` | Independent neural-symbolic construction-program compiler (depends on `mathbank-geometry-engine`) | — | [mathbank-neural-geometry/README.md](mathbank-neural-geometry/README.md) |
+| `mathbank-scripts` | Shared root-level dev/ops tooling (not a service) | — | [mathbank-scripts/README.md](mathbank-scripts/README.md) |
 
 Production/demo data lives on managed cloud services (Neon Postgres + Neo4j
-AuraDB) — see [DATABASES.md](DATABASES.md) for the full local-vs-remote
+AuraDB) — see [documentation/DATABASES.md](documentation/DATABASES.md) for the full local-vs-remote
 picture and the end-to-end corpus pipeline (crawl → classify → ETL → graph →
-vector embeddings). See [GOTCHAS.md](GOTCHAS.md) for environment
+vector embeddings). See [documentation/GOTCHAS.md](documentation/GOTCHAS.md) for environment
 troubleshooting accumulated across this project's history.
 
 For the source-derived implementation reference, see
-[requirements/reference/](requirements/reference/): PostgreSQL DDL/DML,
+[documentation/requirements/reference/](documentation/requirements/reference/): PostgreSQL DDL/DML,
 Neo4j projection schema, FastAPI/Swagger OpenAPI, web proxy routes and
-agent-session ownership.
+agent-session ownership. The living, numbered requirements specs are indexed at
+[documentation/requirements/00_INDEX.md](documentation/requirements/00_INDEX.md); historical/scratch
+planning packs (preserved, not actively maintained) live under
+[documentation/copilot-instructions/](documentation/copilot-instructions/).
 
 ## Do I need local Postgres/Neo4j at all?
 
@@ -262,9 +300,9 @@ make check-eleven                # ElevenLabs key check, no audio generated
 them only deliberately. After editing `mathbank-widgets/`, run
 `make widgets-sync` (start/install also copy it) and restart web/live.
 Live-only lifecycle: `make live-install | live-run | live-start | live-stop |
-live-restart | live-status`. Requirements: [27 fluid widgets](requirements/27_FLUID_WIDGET_LAYER.md),
-[28 distributed live platform](requirements/28_DISTRIBUTED_LIVE_PLATFORM.md),
-[29 student input add-ons](requirements/29_STUDENT_INPUT_ADDONS.md).
+live-restart | live-status`. Requirements: [27 fluid widgets](documentation/requirements/27_FLUID_WIDGET_LAYER.md),
+[28 distributed live platform](documentation/requirements/28_DISTRIBUTED_LIVE_PLATFORM.md),
+[29 student input add-ons](documentation/requirements/29_STUDENT_INPUT_ADDONS.md).
 These service start targets now wait for HTTP readiness (up to 60 seconds,
 override with `START_TIMEOUT=120`) and fail if the process exits or never
 responds with HTTP 200. They do not kill an unrelated process holding a port.
@@ -328,7 +366,7 @@ API keys or passwords into an issue or chat.
 from the official [archive](https://purplecomet.org/answers), downloads valid PDFs
 and answer keys, registers Postgres sources and extracts numbered questions.
 Use `YEAR=2026` for a bounded pilot. Original PDFs, page renders, answer HTML/JSON
-and source manifests are retained under `mathbank_data_ingestion/data/crawl_pdf/purple_ms`
+and source manifests are retained under `mathbank-data-ingestion/data/crawl_pdf/purple_ms`
 and `purple_hs`. Student diagrams are tight figure crops inside verified spatial
 question boundaries, including continuation pages. Whole-page renders are audit
 evidence only, never question diagrams. Problem and solution assets have separate
@@ -358,8 +396,8 @@ Comet; this workflow does not grant redistribution rights.
 #### Repair existing source diagrams (no paid model calls)
 
 ```sh
-make -C mathbank_data_ingestion repair-diagrams       # local audit; no writes
-make -C mathbank_data_ingestion repair-diagrams-apply # artifacts + existing staging rows
+make -C mathbank-data-ingestion repair-diagrams       # local audit; no writes
+make -C mathbank-data-ingestion repair-diagrams-apply # artifacts + existing staging rows
 # Optional PAPER=PAPER_SMT_2010_GEOM or COMPETITION=smt
 # Optional DOWNLOAD_MISSING=1 explicitly fetches missing cached AoPS image URLs.
 
@@ -374,7 +412,7 @@ It does not create missing staging questions. Per-question `diagram_status.json`
 distinguishes extraction, verified absence of graphics, unverified PDFs, missing
 sources and missing AoPS downloads. Student routes reject solution/answer images,
 whole-page references and legacy assets with unknown provenance. See
-[requirements 31](requirements/31_QUESTION_SPECIFIC_DIAGRAMS.md) for results and gaps.
+[requirements 31](documentation/requirements/31_QUESTION_SPECIFIC_DIAGRAMS.md) for results and gaps.
 
 #### Automatic teaching metadata
 
@@ -388,7 +426,7 @@ Graph outages and missing historical timestamps are reported explicitly.
 Tutor search uses reviewed Neo4j graph evidence plus pgvector similarity and
 Postgres lexical retrieval, fused by distinct problem with per-source ranks.
 Retrieval warnings disclose unavailable graph evidence. For contracts see
-[requirements 16](requirements/16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md).
+[requirements 16](documentation/requirements/16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md).
 
 Existing PENDING and future generated corpus metadata are automatically
 approved, with `approval_method=automatic` to distinguish machine estimates
@@ -411,7 +449,7 @@ default to `gpt-4.1`, configurable with `RELATIONSHIP_MODEL` and
 bounded candidates do not guarantee exhaustive relationships. Jobs, evidence,
 errors and publication state are recorded in `knowledge.relationship_enrichment_job`.
 Admins can inspect and correct concept relations alongside skill relations.
-See the [relationship plan](requirements/15_RELATIONSHIP_ENRICHMENT.md).
+See the [relationship plan](documentation/requirements/15_RELATIONSHIP_ENRICHMENT.md).
 The worker reselects work between every problem and prioritizes failed jobs
 whose five-minute cooldown has elapsed, up to three job attempts. Non-watch
 `LIMIT=...` bounds generation attempts; watch mode continues without a total cap.
@@ -439,7 +477,7 @@ reclassification; explicitly publish corrections to update Neo4j.
 The running background backfill logs to
 `mathbank-rest/logs/automatic-enrichment.log`. Full corpus completion is not
 claimed until the remaining job count is zero and graph publication succeeds.
-See the [recovery plan](requirements/14_AUTOMATIC_ENRICHMENT_RECOVERY.md)
+See the [recovery plan](documentation/requirements/14_AUTOMATIC_ENRICHMENT_RECOVERY.md)
 for acceptance criteria and operational gotchas.
 
 #### Model-key synchronization details
@@ -570,11 +608,11 @@ transcription, review, approval and deterministic artifacts remain available.
 Restart the intended service after configuration
 changes; do not interrupt ingestion/enrichment workers.
 
-See [implementation and acceptance progress](requirements/32_MULTIMODAL_ATTEMPTS_AND_ARTIFACTS.md)
-and [architecture references](requirements/reference/README.md).
+See [implementation and acceptance progress](documentation/requirements/32_MULTIMODAL_ATTEMPTS_AND_ARTIFACTS.md)
+and [architecture references](documentation/requirements/reference/README.md).
 
 Terminology and exact score semantics are in the
-[domain and technical glossary](requirements/17_DOMAIN_AND_TECHNICAL_GLOSSARY.md).
+[domain and technical glossary](documentation/requirements/17_DOMAIN_AND_TECHNICAL_GLOSSARY.md).
 
 `sync-env.sh` backs up any existing per-service `.env` to
 `<file>.bak.<timestamp>` before overwriting it, and clearly flags any key
@@ -642,9 +680,9 @@ Streaming parser and event-mapping tests run with
 Browser regression (Playwright) runs against the running stack:
 `make -C mathbank-web e2e` (no paid calls) or `make -C mathbank-web e2e-llm`
 (includes small paid tutor/grader calls). First run `make -C mathbank-web e2e-install`.
-See [requirements/23_E2E_REGRESSION_SUITE.md](requirements/23_E2E_REGRESSION_SUITE.md).
+See [requirements/23_E2E_REGRESSION_SUITE.md](documentation/requirements/23_E2E_REGRESSION_SUITE.md).
 Agent conversations are rebuilt per student at `/learn/conversations` and for
-admins at `/admin/conversations` ([requirements/22](requirements/22_AGENT_SESSION_TRANSCRIPTS.md)).
+admins at `/admin/conversations` ([requirements/22](documentation/requirements/22_AGENT_SESSION_TRANSCRIPTS.md)).
 
 ### Student input add-ons and the live classroom
 
@@ -669,9 +707,9 @@ make -C mathbank-live smoke    # two-socket realtime smoke against the running s
 make -C mathbank-web sync-widgets   # after editing ../mathbank-widgets (also run for live)
 ```
 
-See [requirements/27](requirements/27_FLUID_WIDGET_LAYER.md),
-[28](requirements/28_DISTRIBUTED_LIVE_PLATFORM.md) and
-[29](requirements/29_STUDENT_INPUT_ADDONS.md).
+See [requirements/27](documentation/requirements/27_FLUID_WIDGET_LAYER.md),
+[28](documentation/requirements/28_DISTRIBUTED_LIVE_PLATFORM.md) and
+[29](documentation/requirements/29_STUDENT_INPUT_ADDONS.md).
 
 ### Guided pedagogical practice
 
@@ -708,7 +746,7 @@ detours at http://localhost:5173/admin/knowledge-gaps. Optional AI re-ranking of
 the diagnosis is off by default; set `DIAGNOSIS_LLM_RERANK=1` (model
 `DIAGNOSIS_RERANK_MODEL`, falling back to `STEP_TUTOR_MODEL`) to turn it on.
 Details and evidence are in
-[tracker 18](requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md).
+[tracker 18](documentation/requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md).
 
 The explicitly authorized 2026-10-04 Neon/Aura rollout is complete: migration
 006, 6 starter skills, 18 skill-related edges, 65 additional concept-hierarchy
@@ -725,7 +763,7 @@ immutable review history, and explicitly publish decisions to Neo4j. Review
 requires admin login and a rationale; stale changes and reviewed cycles are
 rejected. Approval and graph publication are separate operations.
 
-See [the pedagogical requirements and phased plan](requirements/13_PEDAGOGICAL_GRAPH_AND_TUTOR_REQUIREMENTS.md)
+See [the pedagogical requirements and phased plan](documentation/requirements/13_PEDAGOGICAL_GRAPH_AND_TUTOR_REQUIREMENTS.md)
 for the implemented P0 scope and planned P1 solution steps, hint ladders,
 misconceptions, and versioned courses. The additive migration, validated
 metadata import, and opt-in graph projection are explicit rollout steps
@@ -733,7 +771,7 @@ described in [mathbank-db/README.md](mathbank-db/README.md) and
 [mathbank-graph/README.md](mathbank-graph/README.md); they are not automatically
 applied to shared databases by app startup.
 
-The [pedagogical presentation](presentation/pedagogy.html) explains the
+The [pedagogical presentation](documentation/presentation/pedagogy.html) explains the
 diagnostic/micro-lesson/hint/return-to-problem flow and distinguishes deployed
 P0 metadata from P1/P2 plans. Runtime validation includes real model coaching,
 streamed ADK tool selection, browser hint gating, idempotent writes, and
@@ -764,7 +802,7 @@ Some configuration needs attention (see ⚠ above) before running: make up
 
 For a genuinely fresh clone with no `.venv`/`node_modules` anywhere yet,
 `make setup` creates every `.env` from its `.env.example`, builds every
-Python venv (`mathbank_data_ingestion`, `mathbank-db`, `mathbank-graph`,
+Python venv (`mathbank-data-ingestion`, `mathbank-db`, `mathbank-graph`,
 `mathbank-rest`, `mathbank-agent`), runs `npm install` for
 `mathbank-web` and `mathbank-live` (both copy the local `mathbank-widgets`
 package; it needs no install of its own), syncs the OpenAI/ElevenLabs keys
@@ -794,23 +832,23 @@ make e2e-llm     # adds @llm specs — small PAID OpenAI calls
 make -C mathbank-rest test   # REST pytest suite
 ```
 
-See [requirements/23_E2E_REGRESSION_SUITE.md](requirements/23_E2E_REGRESSION_SUITE.md) for coverage and baselines.
+See [requirements/23_E2E_REGRESSION_SUITE.md](documentation/requirements/23_E2E_REGRESSION_SUITE.md) for coverage and baselines.
 
 ### Full corpus pipeline (new competition papers → searchable + graphed)
 
 ```bash
-cd mathbank_data_ingestion && make crawl-unmapped LIMIT=3200 && make classify LIMIT=3200 && make export-classifications
+cd mathbank-data-ingestion && make crawl-unmapped LIMIT=3200 && make classify LIMIT=3200 && make export-classifications
 cd ../mathbank-db          && make etl-remote
 cd ../mathbank-graph       && make project-remote
 cd ../mathbank-db          && make vector-backfill-remote   # needs OPENAI_API_KEY
 ```
 
 Full detail, idempotency guarantees, and the performance caveat on the
-embedding-backfill step: [DATABASES.md § Full corpus pipeline](DATABASES.md#full-corpus-pipeline-crawl--classify--export--etl--graph--vector).
+embedding-backfill step: [DATABASES.md § Full corpus pipeline](documentation/DATABASES.md#full-corpus-pipeline-crawl--classify--export--etl--graph--vector).
 
 ## Requirements & design docs
 
-- [requirements/00_INDEX.md](requirements/00_INDEX.md) — product/data-model/ingestion/RAG/API/infra/agentic-tutor/student-UI requirements, numbered and cross-referenced.
-- [requirements/reference/](requirements/reference/) — canonical source-derived PostgreSQL, graph, DML and REST/OpenAPI reference for the current implementation.
-- [mathematics_tutor_db_plan/](mathematics_tutor_db_plan/) — the detailed Postgres/Neo4j/vector/agent architecture these requirements are built from.
-- [presentation/](presentation/) — a static HTML walkthrough of the whole system (`index.html`) for a mixed technical/business audience, including real screenshots and live-captured data.
+- [requirements/00_INDEX.md](documentation/requirements/00_INDEX.md) — product/data-model/ingestion/RAG/API/infra/agentic-tutor/student-UI requirements, numbered and cross-referenced.
+- [requirements/reference/](documentation/requirements/reference/) — canonical source-derived PostgreSQL, graph, DML and REST/OpenAPI reference for the current implementation.
+- [documentation/copilot-instructions/mathematics-tutor-db-plan/](documentation/copilot-instructions/mathematics-tutor-db-plan/) — the detailed Postgres/Neo4j/vector/agent architecture these requirements are built from.
+- [presentation/](documentation/presentation/) — a static HTML walkthrough of the whole system (`index.html`) for a mixed technical/business audience, including real screenshots and live-captured data.

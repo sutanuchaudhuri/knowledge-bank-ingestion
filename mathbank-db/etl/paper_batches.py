@@ -632,7 +632,7 @@ def main() -> None:
         parser.error("batch-size must be 1..20 and limit must be positive")
     if not os.environ.get("PG_ENV_FILE") or not os.environ.get("GRAPH_ENV_FILE"):
         parser.error("Explicit PG_ENV_FILE and GRAPH_ENV_FILE are required")
-    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    sys.path.insert(0, str(REPO_ROOT / "mathbank-scripts"))
     from project_env import load_project_openai
     load_project_openai(INGESTION_ROOT / ".env")
     # Session advisory locks cannot protect a runner on a transaction pooler.

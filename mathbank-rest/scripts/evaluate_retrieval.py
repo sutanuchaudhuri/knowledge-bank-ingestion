@@ -10,7 +10,7 @@ problem_technique), optionally narrowed by competition.
 This is intentionally black-box and independent of the search implementation
 so it keeps working across `vector_search.py` rewrites (e.g. it caught the
 pre-filter-vs-post-filter regression class of bug described in
-mathematics_tutor_db_plan/agent/11_hybrid_rag_execution.md, had it existed then).
+documentation/copilot-instructions/mathematics-tutor-db-plan/agent/11_hybrid_rag_execution.md, had it existed then).
 
 Usage:
     mathbank-rest/.venv/bin/python scripts/evaluate_retrieval.py

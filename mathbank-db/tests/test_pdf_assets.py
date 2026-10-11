@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "etl"))
 sys.path.insert(
-    0, str(Path(__file__).resolve().parents[2] / "mathbank_data_ingestion/src")
+    0, str(Path(__file__).resolve().parents[2] / "mathbank-data-ingestion/src")
 )
 from mathbank.crawl.pdf_pages import question_page_numbers
 from pdf_assets import paper_images, question_images, store_images

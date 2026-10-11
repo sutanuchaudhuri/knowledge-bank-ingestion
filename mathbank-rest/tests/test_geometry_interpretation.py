@@ -13,7 +13,7 @@ from mathbank_rest.routers import geometry_interpretation as routes
 from mathbank_rest.routers.fluid import staff_or_student
 from mathbank_rest.routers.geometry_scenes import get_geometry_repository
 
-ROOT = Path(__file__).resolve().parents[2] / "geometry-scene-engine/fixtures"
+ROOT = Path(__file__).resolve().parents[2] / "mathbank-geometry-engine/fixtures"
 
 
 def frame():

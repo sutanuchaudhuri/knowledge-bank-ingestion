@@ -1,5 +1,5 @@
 """Golden evaluation cases for the mathbank_tutor agent (tool-selection accuracy),
-per mathematics_tutor_db_plan/agent/16_observability_and_evaluation.md section 3.
+per documentation/copilot-instructions/mathematics-tutor-db-plan/agent/16_observability_and_evaluation.md section 3.
 
 Each case specifies a natural-language prompt and which tool(s) count as a
 correct response to it. `expected_tools` is a tuple because for some prompts

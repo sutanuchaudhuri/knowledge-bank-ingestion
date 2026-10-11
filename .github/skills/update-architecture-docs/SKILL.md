@@ -38,11 +38,11 @@ Use these as navigation and context, not proof that their content is current:
   migration/ETL ownership and database operational guidance.
 - [Graph README](../../../mathbank-graph/README.md):
   projection behavior, node/edge properties, review filtering and dated audits.
-- [Database overview](../../../DATABASES.md): local/remote database boundaries.
-- [Requirements index](../../../requirements/00_INDEX.md),
-  [glossary](../../../requirements/17_DOMAIN_AND_TECHNICAL_GLOSSARY.md),
-  [pipeline/retrieval requirements](../../../requirements/16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md).
-- [Historical architecture plans](../../../mathematics_tutor_db_plan/README.md):
+- [Database overview](../../../documentation/DATABASES.md): local/remote database boundaries.
+- [Requirements index](../../../documentation/requirements/00_INDEX.md),
+  [glossary](../../../documentation/requirements/17_DOMAIN_AND_TECHNICAL_GLOSSARY.md),
+  [pipeline/retrieval requirements](../../../documentation/requirements/16_PIPELINE_JOB_CONSOLE_AND_HYBRID_RAG.md).
+- [Historical architecture plans](../../../documentation/copilot-instructions/mathematics-tutor-db-plan/README.md):
   useful design intent, but distinguish implemented, planned and historical.
 - FastAPI automatically serves `/docs`, `/redoc` and `/openapi.json`
   (normally at `http://127.0.0.1:8000`). These update with the **running
@@ -55,12 +55,12 @@ the first documentation-refresh invocation if absent:
 
 | Output | Contents |
 |---|---|
-| `requirements/reference/README.md` | Navigation, authoritative sources, generation procedure, evidence/version coverage and drift limitations. |
-| `requirements/reference/GRAPH_SCHEMA.md` | Every implemented label, node property, relationship type, endpoint pair, direction, edge property, constraint and projection rule. |
-| `requirements/reference/POSTGRES_SCHEMA.md` | All application tables, columns/types/defaults/nullability, keys, relationships, indexes, checks, triggers/functions/views and migration ownership. |
-| `requirements/reference/POSTGRES_DML.md` | Implemented reads/writes, conflict/idempotency rules, approval/audit effects, deletion behavior and safe parameterized examples. |
-| `requirements/reference/REST_API.md` | Complete endpoint/security/request/response/error inventory and Swagger/OpenAPI access/version guidance. |
-| `requirements/reference/openapi.json` | Deterministic source-generated OpenAPI snapshot, when generation succeeds without side effects. |
+| `documentation/requirements/reference/README.md` | Navigation, authoritative sources, generation procedure, evidence/version coverage and drift limitations. |
+| `documentation/requirements/reference/GRAPH_SCHEMA.md` | Every implemented label, node property, relationship type, endpoint pair, direction, edge property, constraint and projection rule. |
+| `documentation/requirements/reference/POSTGRES_SCHEMA.md` | All application tables, columns/types/defaults/nullability, keys, relationships, indexes, checks, triggers/functions/views and migration ownership. |
+| `documentation/requirements/reference/POSTGRES_DML.md` | Implemented reads/writes, conflict/idempotency rules, approval/audit effects, deletion behavior and safe parameterized examples. |
+| `documentation/requirements/reference/REST_API.md` | Complete endpoint/security/request/response/error inventory and Swagger/OpenAPI access/version guidance. |
+| `documentation/requirements/reference/openapi.json` | Deterministic source-generated OpenAPI snapshot, when generation succeeds without side effects. |
 
 Add concise links to relevant existing READMEs, the requirements index and
 glossary. Do not duplicate entire reference tables across several documents.
@@ -96,7 +96,7 @@ the current list is exhaustive:
 | Postgres DML | `mathbank-db/etl/`, ingestion importers, `mathbank-rest/src/mathbank_rest/db/`, teaching/review/mastery workers and actual query callers. |
 | Agent session schema | `mathbank-agent/session_config.py`, `server.py`, installed ADK/SQLAlchemy model definitions/version if needed. Clearly distinguish framework-owned tables from project migrations. |
 | Agent session link + transcripts | Project-owned `learner.agent_session_link` (`mathbank-db/sql/016_agent_session_link.sql`), `mathbank-rest/src/mathbank_rest/agent_transcripts.py`, `routers/agent_sessions.py`, web `app/api/agent/session/route.js`, `lib/agentIdentity.mjs`, `lib/conversationsProxy.mjs`, conversations pages. Document the logical (non-FK) link into `agent_sessions`, server-derived identity, ownership 404/409 rules, naive-UTC timestamp handling and student vs admin transcript visibility. |
-| Browser regression | `mathbank-web/playwright.config.mjs`, `mathbank-web/e2e/*.spec.mjs` ([23](../../../requirements/23_E2E_REGRESSION_SUITE.md)). Read to confirm documented page/proxy routes and response shapes; do not edit specs from this skill. |
+| Browser regression | `mathbank-web/playwright.config.mjs`, `mathbank-web/e2e/*.spec.mjs` ([23](../../../documentation/requirements/23_E2E_REGRESSION_SUITE.md)). Read to confirm documented page/proxy routes and response shapes; do not edit specs from this skill. |
 | Neo4j projection | `mathbank-graph/etl/project_from_postgres.py` and any other graph-writing code discovered in the workspace. |
 | Graph read/UI contract | REST graph/pedagogy queries, `mathbank-web/lib/graphConfig.js`, `graphMetadata.mjs`, graph API routes and views. |
 | REST contract | `mathbank-rest/src/mathbank_rest/main.py`, every registered router, Pydantic models/dependencies and endpoint implementation/tests. |

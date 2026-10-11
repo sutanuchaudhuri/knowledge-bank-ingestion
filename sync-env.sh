@@ -20,15 +20,15 @@
 #
 # After writing service settings, three key syncs run (values never printed;
 # only the root .env is used, shell keys are ignored):
-#   - scripts/sync-openai-key.mjs  OPENAI_API_KEY -> rest/agent/web .env
-#   - scripts/sync-eleven-key.mjs  ELEVEN_API_KEY -> mathbank-web/.env and
+#   - mathbank-scripts/sync-openai-key.mjs  OPENAI_API_KEY -> rest/agent/web .env
+#   - mathbank-scripts/sync-eleven-key.mjs  ELEVEN_API_KEY -> mathbank-web/.env and
 #                                  mathbank-live/.env (ElevenLabs voice add-on)
-#   - scripts/sync-live-env.mjs    writes mathbank-live/.env (realtime live
+#   - mathbank-scripts/sync-live-env.mjs    writes mathbank-live/.env (realtime live
 #                                  classroom, :5174) from MATHBANK_REST_BASE_URL,
 #                                  MATHBANK_ADMIN_API_KEY, ADMIN_LOGIN_USERNAME,
 #                                  ADMIN_LOGIN_PASSWORD, ADMIN_SESSION_SECRET,
 #                                  ELEVEN_API_KEY (+ optional LIVE_PORT)
-#   - scripts/sync-neon-env.mjs    Neon production S3 + AI Gateway server keys;
+#   - mathbank-scripts/sync-neon-env.mjs    Neon production S3 + AI Gateway server keys;
 #                                  agents receive gateway keys, not S3 master keys.
 # A missing ELEVEN_API_KEY or live key makes this script exit non-zero; the
 # same syncs run in `make up` / `make up-app` (target sync-keys), so set them
@@ -181,17 +181,17 @@ if [ "$MISSING" -eq 1 ]; then
   exit 1
 fi
 
-if ! node scripts/sync-openai-key.mjs; then
+if ! node mathbank-scripts/sync-openai-key.mjs; then
   exit 1
 fi
 # ElevenLabs voice key (mathbank-web + mathbank-live) and the realtime deployable's .env.
-if ! node scripts/sync-eleven-key.mjs; then
+if ! node mathbank-scripts/sync-eleven-key.mjs; then
   exit 1
 fi
-if ! node scripts/sync-live-env.mjs; then
+if ! node mathbank-scripts/sync-live-env.mjs; then
   exit 1
 fi
-if ! node scripts/sync-neon-env.mjs; then
+if ! node mathbank-scripts/sync-neon-env.mjs; then
   exit 1
 fi
 echo "Done. Every service .env is now in sync with the root .env."

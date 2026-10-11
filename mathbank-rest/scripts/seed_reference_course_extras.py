@@ -1,7 +1,7 @@
 """Extend the three reference micro-courses (seeded by seed_reference_courses.py)
 with a real, curated YouTube video state and PRE/INTERMEDIATE/POST quiz states,
 sourced from the human-curated reference packages under
-INTERACTION_TEMPLATE_LIBRARY_COPILOT/reference_zips/*_microcourse_v1/.
+documentation/copilot-instructions/interaction-template-library/reference_zips/*_microcourse_v1/.
 
 Why a new release rather than editing the published one: migration 033/034
 triggers make a PUBLISHED course's identity, states, and bound interactions
@@ -110,7 +110,7 @@ def ensure_activity(conn, *, prompt: str, activity_type: str, options: list[str]
                 "skill": target_skill,
                 "lineage": json.dumps({
                     "content_hash": content_hash,
-                    "source": "INTERACTION_TEMPLATE_LIBRARY_COPILOT/reference_zips",
+                    "source": "documentation/copilot-instructions/interaction-template-library/reference_zips",
                 }),
                 "author": SEED_AUTHOR,
             },

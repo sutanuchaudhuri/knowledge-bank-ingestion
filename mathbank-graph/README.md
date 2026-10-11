@@ -4,15 +4,15 @@ Local Neo4j Community server (data stored on the external APFS drive) holding th
 graph projection of the mathbank corpus. See the `Makefile` for lifecycle targets
 (`install`, `configure`, `set-password`, `start`, `stop`, `status`, `project`).
 The canonical source-derived inventory is the
-[graph schema reference](../requirements/reference/GRAPH_SCHEMA.md), linked
-from the [implementation-reference index](../requirements/reference/README.md).
+[graph schema reference](../documentation/requirements/reference/GRAPH_SCHEMA.md), linked
+from the [implementation-reference index](../documentation/requirements/reference/README.md).
 It describes projector support. The separately dated
-[live graph metadata appendix](../requirements/reference/GRAPH_LIVE_CATALOG.md)
+[live graph metadata appendix](../documentation/requirements/reference/GRAPH_LIVE_CATALOG.md)
 records 11 labels, 23 relationship types and 36 directed endpoint label-set
 combinations on the user's selected REST-configured target (2026-10-07 UTC),
 with every observed property/type, constraint and index. It is not a row-content
 or graph-publication acceptance check, nor necessarily this local server.
-See [step generation/authoring and attachments](../requirements/36_STEP_GENERATOR_AND_AUTHORING.md)
+See [step generation/authoring and attachments](../documentation/requirements/36_STEP_GENERATOR_AND_AUTHORING.md)
 for the SQL-to-graph lifecycle and implemented-versus-proposed boundaries.
 
 ## Connecting / viewing the graph
@@ -141,14 +141,14 @@ inference and a complete course model remain outside this graph contract.
 # Textbook solution-step layer (Graph Projection v2)
 
 `etl/project_textbook_steps.py` projects the imported textbook packages (migration 010;
-see `requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md`) as metadata-only nodes:
+see `documentation/requirements/18_PRASOLOV_IMPORT_AND_V2_RUNTIME_TRACKER.md`) as metadata-only nodes:
 `(Solution)-[:HAS_PART]->(SolutionPart)-[:HAS_STEP]->(SolutionStep)`. Steps link to
 `Skill` with `USES_SKILL`, to `Concept` with `USES_CONCEPT`, and to `Concept:Subconcept`
 with `USES_SUBCONCEPT`. Step-to-step `NEXT`/`DEPENDS_ON` edges carry confidence, source_type
 and review_status. Approved, student-visible learning items become
 `LearningItem` nodes with `DERIVED_FROM`/`ANCHORED_AT`/`ASSESSES` edges, plus
 `TARGETS_CONCEPT`/`TARGETS_SUBCONCEPT` to the item's target concept and subconcept
-(see `requirements/25_LEARNING_ITEM_CONCEPT_EDGES.md`).
+(see `documentation/requirements/25_LEARNING_ITEM_CONCEPT_EDGES.md`).
 
 Step text stays in PostgreSQL. Every write is tagged `projection_kind='solution_steps'`,
 so the `--pedagogy` replacement never removes it. Stale nodes and edges of that kind are
@@ -162,4 +162,87 @@ make -C mathbank-db textbook-graph-status-remote    # read-only reconciliation
 mathbank-rest/.venv/bin/python -m pytest -q mathbank-graph/tests
 ```
 
-Pitfalls: `requirements/19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md` (GOT-GR-*).
+Pitfalls: `documentation/requirements/19_GOTCHAS_AND_OPERATIONAL_PITFALLS.md` (GOT-GR-*).
+
+## Architecture flow
+
+```mermaid
+flowchart LR
+    CLI["make project / project_from_postgres.py\nmake -C mathbank-db textbook-graph-remote"]
+    CLI --> ENV["Load .env or GRAPH_ENV_FILE"]
+    ENV --> PG["PostgreSQL via psycopg\n(core.*, pedagogy.*, ingest.* — read-only)"]
+    ENV --> N4J["Neo4j via the neo4j driver"]
+    PG --> LOAD["Read competitions/papers/problems/solutions\n+ optional pedagogy/textbook-step rows"]
+    LOAD --> MERGE["Batch MERGE by canonical_id\n(idempotent, additive, prunes stale projection_kind rows)"]
+    MERGE --> N4J[("Neo4j\nderived, rebuildable")]
+    N4J --> LOG["pipeline.graph_projection row\n(reconciled counts back in Postgres)"]
+```
+
+`mathbank-rest`'s `db/graph.py` reads from the same Neo4j instance this project writes into, but
+never writes to it directly for structural projections — all writes to Neo4j go through this
+project's ETL scripts, keeping "who's allowed to mutate the graph" to one place.
+
+## Data model (projected entities)
+
+```mermaid
+erDiagram
+    COMPETITION ||--o{ PAPER : "HAS_PAPER"
+    PAPER ||--o{ PROBLEM : "HAS_PROBLEM"
+    PROBLEM ||--o| SOLUTION : "HAS_SOLUTION"
+    PROBLEM }o--o{ CONCEPT : "TESTS"
+    PROBLEM }o--o{ TECHNIQUE : "USES_TECHNIQUE"
+    SOLUTION ||--o{ SOLUTION_PART : "HAS_PART (textbook ETL)"
+    SOLUTION_PART ||--o{ SOLUTION_STEP : "HAS_STEP"
+    SOLUTION_STEP }o--o{ SKILL : "USES_SKILL"
+    SOLUTION_STEP ||--o{ SOLUTION_STEP : "NEXT / DEPENDS_ON"
+    LEARNING_ITEM }o--|| PROBLEM : "DERIVED_FROM"
+    LEARNING_ITEM }o--|| SOLUTION_STEP : "ANCHORED_AT"
+    LEARNING_ITEM }o--o{ SKILL : "ASSESSES"
+```
+
+Every node uses a PostgreSQL-sourced UUID as its Neo4j `canonical_id` — this is what makes the
+projection idempotent (re-running `project_from_postgres.py` MERGEs, never duplicates).
+
+## Tests
+
+```bash
+make test                                              # one-shot Neo4j connectivity check (not pytest)
+mathbank-rest/.venv/bin/python -m pytest -q mathbank-graph/tests   # the actual Python test (1 file today)
+```
+
+## Deployment strategy
+
+**Today:** this is a local/CI-run ETL tool, not a long-running service — there's no server process
+to deploy, only `make project`/`make project-remote` invocations run on demand (or on a schedule)
+against production Neon Postgres + AuraDB. The local Neo4j Community install (`make setup`) exists
+purely for local development/inspection, not production serving.
+
+**Independence:** the ETL scripts only need PostgreSQL read access and Neo4j write access via
+`.env`/`GRAPH_ENV_FILE` — no sibling-folder runtime dependency. It is naturally "independently
+deployable" already, in the sense that it's a standalone batch job with its own venv
+(`make etl-venv`), not something requiring colocation with `mathbank-rest` or any other service.
+
+## Roadmap / TODO
+
+- `SolutionStep-[:USES_TECHNIQUE]->Technique` is explicitly marked not-yet-implemented
+  (`NYI-3`, migration 017) in the textbook ETL.
+- `LearningItem-[:TARGETS_CONCEPT]`/`TARGETS_SUBCONCEPT` are marked `NYI-ATB-7`.
+- Learner-specific evidence, calibrated adaptive inference, and a complete course-graph model are
+  explicitly out of scope for this graph (and must stay out — see the normative correction in
+  [doc 44](../documentation/requirements/44_MICRO_COURSE_MOBILE_AI_ANALYTICS_PLATFORM.md): learner
+  misconception/mastery evidence is private PostgreSQL state and must never be projected here).
+
+## Gotchas (mathbank-graph-specific)
+
+See [documentation/GOTCHAS.md](../documentation/GOTCHAS.md) (GOT-GR-*) for the full catalog.
+Specific highlights:
+- Homebrew Neo4j upgrades/reinstalls regenerate `neo4j.conf` and reset the external-drive data
+  paths — rerun `make configure` after any Neo4j package upgrade.
+- Browser auth uses `bolt://localhost:7687`, not the HTTP Browser URL shown in a browser tab.
+- `make project --pedagogy` requires `mathbank-db/sql/006_pedagogy.sql` to already be applied.
+- The graph is a rebuildable projection, never the authoring store — if Postgres and Neo4j ever
+  disagree, Postgres wins and the graph should be re-projected, not hand-edited.
+- The pedagogy-layer replacement is atomic inside Neo4j, but the surrounding PostgreSQL run-log
+  write and the Neo4j write are **not** one cross-database transaction — a crash between them can
+  leave a `pipeline.graph_projection` row that doesn't yet match graph reality; `textbook-graph-status-remote`
+  is the read-only reconciliation check to run after any interrupted run.

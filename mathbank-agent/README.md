@@ -8,7 +8,7 @@ REST (`mathbank-rest`).
 The agent's corpus tools never query Postgres directly — corpus data access goes through
 `mathbank-rest`'s hybrid (semantic + lexical) search and lookup endpoints,
 keeping Postgres as the single source of truth and the REST API as the only
-read/write boundary (see `mathematics_tutor_db_plan/` for why).
+read/write boundary (see `documentation/copilot-instructions/mathematics-tutor-db-plan/` for why).
 ADK conversation sessions, events and state are stored directly in Postgres
 in the isolated `agent_sessions` schema, not in corpus tables.
 
@@ -59,7 +59,7 @@ User (anonymous or admin) ──chat──▶ mathbank-web (React)
                             core.* / knowledge.* / search.* (pgvector)
 ```
 
-Full design docs: [`mathematics_tutor_db_plan/agent/00_index.md`](../mathematics_tutor_db_plan/agent/00_index.md).
+Full design docs: [`documentation/copilot-instructions/mathematics-tutor-db-plan/agent/00_index.md`](../documentation/copilot-instructions/mathematics-tutor-db-plan/agent/00_index.md).
 
 ## Quick start
 
@@ -143,7 +143,7 @@ conflicts and withhold new canonical bridge tags; no bulk reimport/retagging was
 run. Missing signatures require human source review, not automatic rejection.
 The configured-model specialist adds normal inference cost; endpoint grounding,
 feedback and regression checks require no paid models.
-See [topic-first delivery and remaining limits](../requirements/33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md).
+See [topic-first delivery and remaining limits](../documentation/requirements/33_TOPIC_FIRST_TUTOR_AND_PRACTICE.md).
 
 ### Complete practice recommendations
 
@@ -164,7 +164,7 @@ uses the orchestrator; formal Prasolov step-runtime requests remain separate.
 `get_next_hint` also uses private REST references before generating one cue.
 Missing references/provider errors are explicit; no solution-backed evidence
 is invented. Generated plans/hints are not certified correctness. See
-[guided workspace contract](../requirements/34_GUIDED_PROBLEM_WORKSPACE.md).
+[guided workspace contract](../documentation/requirements/34_GUIDED_PROBLEM_WORKSPACE.md).
 
 For practice suggestions the tutor uses `search_practice_problems`, which checks
 up to five retrieved candidates and returns at most two eligible problems.
@@ -274,5 +274,73 @@ Every request is either `ANONYMOUS` or `ADMIN` (see
 `MATHBANK_AGENT_DEFAULT_ROLE` in `.env`) — both currently get identical,
 read-only access; there is no learner/student profile, attempt history, or
 mastery tracking yet (see
-[`mathematics_tutor_db_plan/agent/06_security_and_access_model.md`](../mathematics_tutor_db_plan/agent/06_security_and_access_model.md)
+[`documentation/copilot-instructions/mathematics-tutor-db-plan/agent/06_security_and_access_model.md`](../documentation/copilot-instructions/mathematics-tutor-db-plan/agent/06_security_and_access_model.md)
 for the planned extension).
+
+## Architecture flow
+
+```mermaid
+flowchart TD
+    User["Student (web chat) or operator (CLI/web)"]
+    User --> Server["server.mjs-equivalent: server.py\n(Google ADK FastAPI app, port 8001)"]
+    Server --> Agent["LlmAgent (agent.py)\nOpenAI model via LiteLlm connector"]
+    Agent --> Tools["Tool modules (agents/mathbank_tutor/tools/)"]
+    Tools --> RestTools["rest_tools.py\n(search, concepts, techniques, hints, improvement plan)"]
+    Tools --> StepRT["step_runtime_tools.py\n(attempt start/submit, hint, gap diagnosis, recovery)"]
+    Tools --> Widget["widget_tools.py\n(propose_widget — deterministic, whitelisted spec)"]
+    Tools --> Artifact["artifact_tools.py / attempt_media_tools.py\n(geometry diagrams, multimodal attempt review)"]
+    RestTools --> REST["mathbank-rest :8000\n(the only database boundary)"]
+    StepRT --> REST
+    Artifact --> REST
+    Agent --> Session["DatabaseSessionService\n(ADK session persistence, learner.agent_session_link)"]
+```
+
+The agent never touches Postgres/Neo4j directly — every tool call is a `mathbank-rest` HTTP
+request, consistent with this repo's one-database-boundary rule.
+
+## Data model
+
+The agent itself is stateless between requests except for ADK's own session store (conversation
+history, tool-call transcripts) — its "data model" is really the REST contract it consumes.
+`learner.agent_session_link` (in `mathbank-db`) is the one piece of MathBank-owned state: a
+student_id ↔ ADK session_id mapping used to rebuild conversation history
+(see [doc 22](../documentation/requirements/22_AGENT_SESSION_TRANSCRIPTS.md)).
+
+## Tests
+
+```bash
+make test        # pytest, agents/mathbank_tutor's own test suite
+make eval-agent   # scripts/evaluate_agent.py — golden-case tool-selection accuracy eval
+```
+
+## Deployment strategy
+
+**Today:** `make start`/`make stop`/`make status` run a background uvicorn-under-ADK process via
+`mathbank-scripts/start-service.sh`, same pattern as every other service, against the same `.env`-
+configured `mathbank-rest` base URL.
+
+**Independence:** this folder has no sibling-folder *runtime* dependency beyond calling
+`mathbank-rest` over HTTP (a network dependency, not a filesystem one) and the shared
+`mathbank-scripts/project_env.py` credential-loader convention. It can be deployed to any host that
+can reach a running `mathbank-rest` instance.
+
+## Roadmap / TODO
+
+- Per-learner identity/session scoping beyond the current `ANONYMOUS`/`ADMIN` role pair — see
+  "Access model today" above and the linked security-model design doc.
+- This session's [doc 49](../documentation/requirements/49_FASTMCP_INTELLITUTOR_MCP_APPS_INTEGRATION.md)
+  flags an open architectural question relevant to this project specifically: whether a proposed
+  FastMCP/MCP-Apps surface would replace, coexist with, or converge its tool layer with this
+  already-running, already-evaluated ADK agent. Not decided — read that doc before starting any
+  FastMCP work that would duplicate `rest_tools.py`/`step_runtime_tools.py`.
+
+## Gotchas (mathbank-agent-specific)
+
+See [documentation/GOTCHAS.md](../documentation/GOTCHAS.md) for repo-wide pitfalls (GOT-ENV-1
+there is specifically about this project's OpenAI credential loading — shell-exported
+`OPENAI_API_KEY` is always ignored in favor of the root `.env`). Specific to this agent:
+- `mathbank-rest` must already be running before this agent starts — tool calls fail loudly, not
+  silently, if it isn't.
+- `propose_widget` returns a **deterministic, validated, whitelisted** spec, never executable
+  code — this is a deliberate, safer alternative to letting a model generate arbitrary UI; don't
+  bypass it with a free-form rendering mechanism without reading doc 27 first.

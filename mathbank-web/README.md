@@ -38,7 +38,7 @@ Manual drafts are free; optional configured-provider AI generation requires
 explicit paid consent. Approval is separate and new practice is labelled
 synthetic/nonofficial with UNVERIFIED solutions. No graph/vector publication
 or source scraping happens automatically. See
-[requirement 35](../requirements/35_CORPUS_REPAIR_AND_AUTHORING.md).
+[requirement 35](../documentation/requirements/35_CORPUS_REPAIR_AND_AUTHORING.md).
 
 Students sign in at `/login` (httpOnly JWT cookie); admins at `/admin/login`.
 The ADK `user_id` is derived on the server (`/api/agent/session`): the student
@@ -46,7 +46,7 @@ UUID when signed in, otherwise `anonymous`; any client-supplied id is ignored.
 Signed-in chats are linked to the student in `learner.agent_session_link`, so
 the full conversation can be rebuilt at `/learn/conversations` (student) and
 `/admin/conversations` (admin, incl. tool calls). Anonymous chats stay
-unlinked. See [requirements/22](../requirements/22_AGENT_SESSION_TRANSCRIPTS.md).
+unlinked. See [requirements/22](../documentation/requirements/22_AGENT_SESSION_TRANSCRIPTS.md).
 
 Admins can browse the imported Prasolov corpus at `/admin/textbooks`:
 
@@ -54,7 +54,7 @@ Admins can browse the imported Prasolov corpus at `/admin/textbooks`:
 - Problems, transformations and taxonomy.
 - `/admin/textbooks/problems/{canonical_code}`, which shows solution steps, transformations, diagrams (including solution-hidden ones) and per-store status.
 
-See [requirements/24](../requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md).
+See [requirements/24](../documentation/requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md).
 
 ## Math and embedded source diagrams
 
@@ -155,7 +155,7 @@ lower-level practice are collapsed. MathComposer retains math/voice support;
 upload/paste opens the existing private, editable-transcription workflow with
 explicit approval/analysis. These browser drafts and journey choices are **not**
 a durable PedagogySession or a correctness/mastery assessment.
-See [requirement 34](../requirements/34_GUIDED_PROBLEM_WORKSPACE.md).
+See [requirement 34](../documentation/requirements/34_GUIDED_PROBLEM_WORKSPACE.md).
 
 Problem-linked chat now consults stored solutions privately before selecting
 a roadmap. Activity shows actual reference counts and verification status;
@@ -271,4 +271,60 @@ make e2e-report     # open the last HTML report
 ```
 
 `E2E_BASE_URL` overrides `http://localhost:5173`. See
-[requirements/23](../requirements/23_E2E_REGRESSION_SUITE.md).
+[requirements/23](../documentation/requirements/23_E2E_REGRESSION_SUITE.md).
+
+## Architecture flow
+
+```mermaid
+flowchart TD
+    Browser["Browser"] --> NextPages["app/ (Next.js App Router)\nlearn/*, admin/*, db/*, graph/*, profile, login"]
+    NextPages --> Proxy["app/api/rest/*\nsame-origin proxy routes"]
+    Proxy --> REST["mathbank-rest :8000\n(X-Admin-Api-Key injected server-side,\nnever exposed to the browser)"]
+    NextPages --> AgentProxy["app/api/agent/*"]
+    AgentProxy --> Agent["mathbank-agent :8001"]
+    NextPages --> Widgets["mathbank-widgets\n(WidgetHost, MathComposer — copied via sync-widgets)"]
+    NextPages --> Components["app/_components/ui.jsx\n(PageHeader, Pill, Callout, StatCard, ...\nthe shared design-token component set)"]
+```
+
+Every database credential (`ADMIN_API_KEY`, etc.) lives server-side in Next.js route handlers —
+the browser only ever talks to this app's own `/api/*` routes, never directly to `mathbank-rest`.
+
+## Data model
+
+This app owns no database rows of its own — it's a pure presentation/proxy layer. Its "model" is
+the JSON contracts documented in
+[documentation/requirements/reference/REST_API.md](../documentation/requirements/reference/REST_API.md)
+and, for the micro-course reader specifically,
+[documentation/requirements/42_MICRO_COURSE_STUDENT_NAVIGATION.md](../documentation/requirements/42_MICRO_COURSE_STUDENT_NAVIGATION.md).
+
+## Deployment strategy
+
+**Today:** `make start` runs `next build && next start` in the background via
+`mathbank-scripts/start-service.sh` (port 5173), configured entirely through this folder's own
+`.env` (REST/agent base URLs, admin key, ElevenLabs key).
+
+**Independence:** no sibling-folder dependency for the Next.js app itself beyond the one
+intentional shared package, `mathbank-widgets` (`make sync-widgets` copies it in — see that
+project's own README for why it's distributed this way rather than published to a registry).
+Everything else is reached over HTTP (`mathbank-rest`, `mathbank-agent`), not the filesystem.
+
+## Roadmap / TODO
+
+- [documentation/requirements/48_SITE_WIDE_UX_VISUAL_AUDIT.md](../documentation/requirements/48_SITE_WIDE_UX_VISUAL_AUDIT.md)
+  (written this session) is a page-by-page audit against the `modern-ui-design` skill's checklist —
+  the `db/*` and `graph/*` routes predate the design-token system and need a sweep; several pages
+  are missing structured loading/empty states.
+- [documentation/requirements/47_MICRO_COURSE_STUDENT_NAVIGATION_V2_AND_AI_ASSIST.md](../documentation/requirements/47_MICRO_COURSE_STUDENT_NAVIGATION_V2_AND_AI_ASSIST.md)
+  — per-item course-state decomposition and a scoped "Help me?"/"Give up" micro-chat are designed
+  but not implemented.
+
+## Gotchas (mathbank-web-specific)
+
+See [documentation/GOTCHAS.md](../documentation/GOTCHAS.md) for repo-wide pitfalls. Specific to
+this app:
+- `useSearchParams()` requires a `Suspense` boundary in the App Router — forgetting it breaks the
+  build in a way that only shows up at `next build` time, not `next dev`.
+- Server and client markup must match exactly — no `Date.now()`/`Math.random()`/locale-dependent
+  date formatting during the initial render; format dates client-side after mount.
+- The admin env var for the REST admin key is `MATHBANK_ADMIN_API_KEY` here, but plain
+  `ADMIN_API_KEY` in `mathbank-rest` itself — same value, different name, easy to typo.

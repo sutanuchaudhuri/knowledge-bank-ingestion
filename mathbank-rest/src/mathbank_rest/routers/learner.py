@@ -1,6 +1,6 @@
 """Student login + student state — register/login, attempts, mastery summary.
 
-Per mathematics_tutor_db_plan/agent/18_future_student_profile_and_mastery.md and
+Per documentation/copilot-instructions/mathematics-tutor-db-plan/agent/18_future_student_profile_and_mastery.md and
 requirements/10_AGENTIC_TUTOR_AND_STUDENT_MASTERY_REQUIREMENTS.md (MST-01..MST-08).
 """
 from __future__ import annotations

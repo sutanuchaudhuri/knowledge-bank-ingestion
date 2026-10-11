@@ -3,10 +3,10 @@ problem.md / solution.md / images — the same on-disk layout pdf_pipeline.py's
 `reconcile`/`ingest` stages already understand, so no new ingestion code is
 needed.
 
-MUST run with mathbank_data_ingestion's own venv (needs docling + pymupdf):
+MUST run with mathbank-data-ingestion's own venv (needs docling + pymupdf):
 
     cd mathbank-db
-    /Volumes/External/Developer/knowledge-bank-ingestion/mathbank_data_ingestion/.venv/bin/python \\
+    /Volumes/External/Developer/knowledge-bank-ingestion/mathbank-data-ingestion/.venv/bin/python \\
         etl/parse_mpg_pdfs.py --limit 5
 
 Purely filesystem-based — touches no database. After running, use
@@ -23,7 +23,7 @@ from pathlib import Path
 import pymupdf as fitz
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-INGESTION_ROOT = REPO_ROOT / "mathbank_data_ingestion"
+INGESTION_ROOT = REPO_ROOT / "mathbank-data-ingestion"
 PDF_CRAWL_DIR = INGESTION_ROOT / "data" / "crawl_pdf"
 
 sys.path.insert(0, str(INGESTION_ROOT / "src"))

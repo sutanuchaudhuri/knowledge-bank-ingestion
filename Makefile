@@ -51,27 +51,27 @@ sync-env:                        ## Distribute the shared root .env into every s
 
 .PHONY: sync-openai-key
 sync-openai-key:                  ## Copy OPENAI_API_KEY from root .env only to service env files, without printing it
-	@node scripts/sync-openai-key.mjs
+	@node mathbank-scripts/sync-openai-key.mjs
 
 .PHONY: check-openai
 check-openai:                     ## Check file-only OpenAI auth; CHAT=1 also makes a small paid LiteLLM model check
-	@mathbank-agent/.venv/bin/python scripts/check-openai.py $(if $(filter 1,$(CHAT)),--chat,)
+	@mathbank-agent/.venv/bin/python mathbank-scripts/check-openai.py $(if $(filter 1,$(CHAT)),--chat,)
 
 .PHONY: sync-eleven-key
 sync-eleven-key:                  ## Copy ELEVEN_API_KEY (ElevenLabs voice) from root .env only to mathbank-web/.env and mathbank-live/.env, hidden
-	@node scripts/sync-eleven-key.mjs
+	@node mathbank-scripts/sync-eleven-key.mjs
 
 .PHONY: check-eleven
 check-eleven:                     ## Check ElevenLabs auth (free models/voices); TTS=1 also synthesises one tiny paid phrase
-	@node scripts/check-eleven.mjs $(if $(filter 1,$(TTS)),--tts,)
+	@node mathbank-scripts/check-eleven.mjs $(if $(filter 1,$(TTS)),--tts,)
 
 .PHONY: sync-live-env
 sync-live-env:                    ## Write mathbank-live/.env (REST URL, admin key/login, session secret, ELEVEN key) from root .env only, hidden
-	@node scripts/sync-live-env.mjs
+	@node mathbank-scripts/sync-live-env.mjs
 
 .PHONY: sync-neon-env
 sync-neon-env:                   ## Copy Neon production S3 + AI Gateway settings from root .env to server env files, hidden
-	@node scripts/sync-neon-env.mjs
+	@node mathbank-scripts/sync-neon-env.mjs
 
 .PHONY: migrate-multimodal-remote
 migrate-multimodal-remote:       ## Apply multimodal evidence + instructional artifact migrations 021/022 to configured Neon
@@ -82,7 +82,7 @@ sync-keys: sync-openai-key sync-eleven-key sync-live-env sync-neon-env  ## Sync 
 
 .PHONY: setup
 setup:                           ## Check/create .env files, flag missing secrets (OPENAI_API_KEY etc.), install every venv/node_modules not already present
-	@bash scripts/setup.sh
+	@bash mathbank-scripts/setup.sh
 
 .PHONY: db-setup
 db-setup:                       ## Bootstrap Postgres on the external drive (install+init+start+create-db)
