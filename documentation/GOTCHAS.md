@@ -910,6 +910,34 @@ an internally-consistent-but-wrong convention won't fail until a *different*,
 pre-existing code path tries to read it, which can be much later and much harder to
 trace back to the actual mistake.
 
+## 39. GitHub's Mermaid renderer is stricter than this environment's local Mermaid preview — several patterns that preview fine locally fail to render on GitHub
+
+Hit live writing the README's Architecture and Data-model sequence diagrams. The local
+`mermaid-diagram-preview` tool rendered every one of these without complaint; GitHub's
+renderer rejected them with real parse errors once pushed. Three confirmed-fragile
+patterns so far, all specific to **unquoted, raw message/label text** in
+`sequenceDiagram` (not inside a quoted string, and not in diagram types like
+`C4Container` whose labels are always quoted strings):
+
+1. **Parentheses in a `participant`/`actor` alias**, e.g.
+   `participant WEB as mathbank-web (admin UI)`.
+2. **A literal `->` inside message text** (not as an arrow token), e.g.
+   `scene_spec -> APPROVED`.
+3. **Curly-brace pseudo-code placeholders in message text**, e.g.
+   `POST /v1/research-jobs {topic}`.
+4. **A semicolon inside `Note over X: ...` text**, e.g.
+   `Note over ETL,Neo: Rebuildable any time; zero diff on repeated runs` — GitHub's
+   parser error was a `NEWLINE`-expecting-an-arrow-token error pointing at the *next*
+   statement, because the `;` silently terminated the `Note` statement early and
+   merged the remainder with the following line. Fixed by replacing `;` with `,`.
+
+**Lesson:** local Mermaid preview success does not guarantee GitHub rendering success.
+Before relying on the local preview tool as a final check, scan unquoted
+`sequenceDiagram` message/note/alias text for `(`, `)`, `->`, `{`, `}` and `;` and
+rewrite around them (commas, "and", spelled-out words) — these are the specific
+characters GitHub's parser has repeatedly tripped on in this repo, even though they are
+individually harmless prose punctuation everywhere else in the same README.
+
 ## Single-command recreation
 
 ```bash

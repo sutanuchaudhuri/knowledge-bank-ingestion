@@ -8,6 +8,10 @@ quick-reference. **This section is the map** — start here, then follow a
 service's own README for its architecture/data-model diagrams, deployment
 notes, roadmap and gotchas.
 
+📖 **Explaining this to a non-technical stakeholder?** Skip the engineering map and
+start with [MathBank in action](documentation/BLOG_USE_CASES.md) — a business-audience
+walkthrough of what students and admins actually do, use case by use case.
+
 ## Repository map
 
 ```text
@@ -1479,3 +1483,4 @@ embedding-backfill step: [DATABASES.md § Full corpus pipeline](documentation/DA
 - [requirements/reference/](documentation/requirements/reference/) — canonical source-derived PostgreSQL, graph, DML and REST/OpenAPI reference for the current implementation.
 - [documentation/copilot-instructions/mathematics-tutor-db-plan/](documentation/copilot-instructions/mathematics-tutor-db-plan/) — the detailed Postgres/Neo4j/vector/agent architecture these requirements are built from.
 - [presentation/](documentation/presentation/) — a static HTML walkthrough of the whole system (`index.html`) for a mixed technical/business audience, including real screenshots and live-captured data.
+- [BLOG_USE_CASES.md](documentation/BLOG_USE_CASES.md) — "MathBank in action," a business-audience, use-case-by-use-case blog with storyboard diagrams and mock screens.
