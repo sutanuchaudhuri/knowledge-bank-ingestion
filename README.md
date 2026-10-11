@@ -263,7 +263,7 @@ sequenceDiagram
     participant W as mathbank-web
     participant A as mathbank-agent
     participant R as mathbank-rest
-    participant PG as Postgres (pgvector)
+    participant PG as Postgres
     participant N4 as Neo4j
     participant AI as OpenAI API
 
@@ -292,27 +292,27 @@ sequenceDiagram
     participant MCP as mathbank-mcp-competitions
     participant AI as OpenAI API
     participant RE as mathbank-rest
-    participant WEB as mathbank-web (admin UI)
+    participant WEB as mathbank-web
     participant PG as Postgres
     actor Stu as Student
 
     Admin->>WEB: Asks for an explainer video on a topic
-    WEB->>MS: POST /v1/research-jobs {topic}
+    WEB->>MS: POST /v1/research-jobs with a topic
     MS->>MCP: list_concepts / search_problems (ground the topic)
     MCP->>RE: GET /v1/concepts, /v1/search/problems
     RE-->>MCP: real corpus data
     MCP-->>MS: grounded facts
     MS->>AI: generate SceneSpec + explanation
     AI-->>MS: SceneSpec JSON (validated)
-    WEB->>MS: POST /v1/render-jobs {research_job_id}
+    WEB->>MS: POST /v1/render-jobs for the research job
     MS->>MS: compile SceneSpec to Manim source, render .mp4
-    WEB->>RE: POST .../scenes/promote {render_job_id}
+    WEB->>RE: POST .../scenes/promote for the render job
     RE->>MS: GET rendered video bytes
     RE->>PG: INSERT visual.asset + visual.scene_spec (DRAFT)
     Admin->>WEB: Reviews video, clicks Approve
-    WEB->>RE: POST .../scenes/{id}/approve
-    RE->>PG: scene_spec -> APPROVED, asset -> VALID
-    WEB->>RE: POST .../scenes/{id}/create-instance
+    WEB->>RE: POST .../scenes/[id]/approve
+    RE->>PG: scene_spec becomes APPROVED, asset becomes VALID
+    WEB->>RE: POST .../scenes/[id]/create-instance
     RE->>PG: INSERT visual.interaction_instance (VIDEO_EXPLAINER_V1)
     Admin->>WEB: Attaches instance to a course state, publishes
     RE->>PG: micro_course_state_interaction + release PUBLISHED
@@ -335,7 +335,7 @@ sequenceDiagram
 
     Agent->>MCP: spawn over stdio, list_tools()
     MCP-->>Agent: list_competitions, search_problems, get_problem, ...
-    Agent->>MCP: call_tool("search_problems", {query})
+    Agent->>MCP: call tool search_problems with a query
     MCP->>RE: POST /v1/search/problems
     RE->>PG: hybrid lexical+semantic+graph search
     RE-->>MCP: ranked results
@@ -351,7 +351,7 @@ sequenceDiagram
     autonumber
     actor T as Instructor
     actor S as Student
-    participant L as mathbank-live (Socket.IO)
+    participant L as mathbank-live
     participant R as mathbank-rest
 
     T->>L: Opens instructor console, starts a session
@@ -372,8 +372,8 @@ is implemented (currently scaffolded; see below).
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Nb as mathbank-ml-training (notebooks)
-    participant PG as Postgres (features, ml schema)
+    participant Nb as mathbank-ml-training
+    participant PG as Postgres
     participant Inf as mathbank-ml-inference
     participant Dash as mathbank-ml-frontend
     actor Admin
@@ -388,6 +388,260 @@ sequenceDiagram
     Inf-->>Dash: predictions/recommendations + mandatory explanation
     Dash-->>Admin: renders status, charts, and explanations
 ```
+
+## Data model
+
+Everything below was pulled live from the running databases (`information_schema` in
+Postgres, `CALL db.schema.visualization()`/`db.labels()`/`db.relationshipTypes()` in
+Neo4j), not copied from a migration file or a stale doc — the same "verify against the
+live system" standard the rest of this README holds itself to. For exhaustive DDL/DML
+(every column, type, index and constraint) see
+[`documentation/requirements/reference/POSTGRES_SCHEMA.md`](documentation/requirements/reference/POSTGRES_SCHEMA.md),
+[`POSTGRES_DML.md`](documentation/requirements/reference/POSTGRES_DML.md) and
+[`GRAPH_SCHEMA.md`](documentation/requirements/reference/GRAPH_SCHEMA.md) — this section
+is the orientation map, not the reference.
+
+### Postgres — 20 schemas, 207 tables
+
+One Postgres 16 + pgvector database (`mathbank-db`), owned exclusively by
+`mathbank-rest` — every other service reaches it only through the REST API.
+
+| Schema | Purpose | Tables |
+|---|---|---|
+| `core` | Competition corpus of record — competitions, papers, problems, solutions | 7 |
+| `knowledge` | Taxonomy — concepts, skills, techniques, misconceptions, and their relations | 21 |
+| `learner` | Student profiles, attempts, concept/technique mastery, course enrollment, event log | 15 |
+| `pedagogy` | By far the largest — micro-courses, solution routes/steps, feedback policies, knowledge-gap diagnosis, recovery plans, video transcripts/segments | 62 |
+| `visual` | Interaction-template/scene/asset catalog (the "Interaction Template Library") | 14 |
+| `studio` | `mathbank-manim-studio` job queue — scene-research and video-render jobs, 1-day TTL | 2 |
+| `search` | Hybrid retrieval — chunks, embeddings, embedding jobs/models, retrieval profiles | 7 |
+| `pipeline` | Background-job orchestration, including the Postgres→Neo4j graph projector | 7 |
+| `quiz` | AIME/HMMT-style question-paper generation — papers, questions, responses, solutions | 7 |
+| `artifact_runtime` | Compiled/runtime artifacts for solution routes and rendered widgets | 11 |
+| `attempt_media` | Photographed/handwritten attempt submissions — media, transcription, step assessment | 9 |
+| `agent_sessions` | `mathbank-agent` (Google ADK) session/event state | 5 |
+| `ingest` | Raw PDF/crawl ingestion staging — draft corpus rows awaiting admin review | 8 |
+| `live` | `mathbank-live` realtime classroom — sessions, participants, recommendations | 7 |
+| `neon_auth` | Neon-managed auth schema (not application-owned) | 9 |
+| `authoring` | Admin content-authoring chat/plan workflow | 5 |
+| `geometry_scene` | Deterministic geometry scene engine — scenes, versions, runs, receipts | 4 |
+| `activity` | Generic poll/activity definitions, instances and responses (used by `live`) | 3 |
+| `tutor` | Micro-course runtime/session state consumed by the tutoring agent | 2 |
+| `analytics` | Aggregate learner-activity reporting | 1 |
+| `audit` | Cross-schema action log | 1 |
+
+### Core entity model
+
+A deliberately curated subset — the ~23 tables that tell the "corpus → taxonomy →
+learner → course → interaction → video" story end to end. The `schema` row in each box
+is this diagram's own annotation (which Postgres schema the table lives in), not a real
+column.
+
+```mermaid
+erDiagram
+    COMPETITION {
+        string schema "core"
+    }
+    PAPER {
+        string schema "core"
+    }
+    PROBLEM {
+        string schema "core"
+    }
+    SOLUTION {
+        string schema "core"
+    }
+    CONCEPT {
+        string schema "knowledge"
+    }
+    SKILL {
+        string schema "knowledge"
+    }
+    TECHNIQUE {
+        string schema "knowledge"
+    }
+    MISCONCEPTION {
+        string schema "knowledge"
+    }
+    STUDENT_PROFILE {
+        string schema "learner"
+    }
+    ATTEMPT {
+        string schema "learner"
+    }
+    CONCEPT_MASTERY {
+        string schema "learner"
+    }
+    MICRO_COURSE_ENROLLMENT {
+        string schema "learner"
+    }
+    MICRO_COURSE {
+        string schema "pedagogy"
+    }
+    MICRO_COURSE_RELEASE {
+        string schema "pedagogy"
+    }
+    MICRO_COURSE_STATE {
+        string schema "pedagogy"
+    }
+    MICRO_COURSE_STATE_INTERACTION {
+        string schema "pedagogy"
+    }
+    INTERACTION_TEMPLATE {
+        string schema "visual"
+    }
+    INTERACTION_TEMPLATE_VERSION {
+        string schema "visual"
+    }
+    INTERACTION_INSTANCE {
+        string schema "visual"
+    }
+    SCENE_SPEC {
+        string schema "visual"
+    }
+    ASSET {
+        string schema "visual"
+    }
+    SCENE_RESEARCH_JOB {
+        string schema "studio"
+    }
+    VIDEO_RENDER_JOB {
+        string schema "studio"
+    }
+
+    COMPETITION ||--o{ PAPER : "has"
+    PAPER ||--o{ PROBLEM : "contains"
+    PROBLEM ||--o| SOLUTION : "has"
+    PROBLEM }o--o{ CONCEPT : "problem_concept"
+    PROBLEM }o--o{ SKILL : "problem_skill"
+    PROBLEM }o--o{ TECHNIQUE : "problem_technique"
+    CONCEPT }o--o{ MISCONCEPTION : "taxonomy link"
+    STUDENT_PROFILE ||--o{ ATTEMPT : "attempts"
+    STUDENT_PROFILE ||--o{ CONCEPT_MASTERY : "mastery of"
+    STUDENT_PROFILE ||--o{ MICRO_COURSE_ENROLLMENT : "enrolls in"
+    ATTEMPT }o--|| PROBLEM : "solves"
+    CONCEPT_MASTERY }o--|| CONCEPT : "measures"
+    MICRO_COURSE_ENROLLMENT }o--|| MICRO_COURSE : "enrolls in"
+    MICRO_COURSE ||--o{ MICRO_COURSE_RELEASE : "publishes"
+    MICRO_COURSE_RELEASE ||--o{ MICRO_COURSE_STATE : "contains"
+    MICRO_COURSE_STATE ||--o{ MICRO_COURSE_STATE_INTERACTION : "attaches"
+    MICRO_COURSE_STATE_INTERACTION }o--|| INTERACTION_INSTANCE : "renders"
+    INTERACTION_TEMPLATE ||--o{ INTERACTION_TEMPLATE_VERSION : "versions"
+    INTERACTION_TEMPLATE_VERSION ||--o{ INTERACTION_INSTANCE : "instantiates"
+    INTERACTION_INSTANCE |o--o| SCENE_SPEC : "optional video"
+    SCENE_SPEC |o--|| ASSET : "rendered as"
+    SCENE_RESEARCH_JOB |o--o| SCENE_SPEC : "promotes"
+    VIDEO_RENDER_JOB |o--o| ASSET : "promotes"
+```
+
+### Neo4j — 25 node labels, 34 relationship types
+
+`mathbank-graph` projects a derived, rebuildable copy of the `core`/`knowledge`/
+`pedagogy` schemas into Neo4j AuraDB; Neo4j is never written to directly by any other
+service. Live counts (sorted, most populous first):
+
+| Node label | Count | Node label | Count |
+|---|---|---|---|
+| `LearningItem` | 91,354 | `Skill` | 6,208 |
+| `RouteStep` | 80,168 | `Concept` | 2,936 |
+| `TheoryItem` | 80,168 | `SolutionPart` | 2,001 |
+| `Claim` | 80,168 | `Technique` | 1,484 |
+| `Misconception` | 69,954 | `Paper` | 1,391 |
+| `Solution` | 18,749 | `Subconcept` | 214 |
+| `RouteRelease` | 18,589 | `AnimationTemplate` | 29 |
+| `Problem` | 12,542 | `IconToken` | 25 |
+| `SolutionStep` | 7,814 | `InteractionTemplate` | 20 |
+| | | `Competition` | 15 |
+| | | `ControlTemplate` | 11 |
+
+`InteractionTemplateVersion`, `SceneSpec`, `InteractionInstance`, `FeedbackTemplate`,
+`FeedbackPolicy` and `EvidenceRule` are **seeded labels with zero nodes today** — the
+Interaction Template Library's catalog has been wired into Postgres/REST/the web app
+(see the Architecture section above) but its Neo4j projection is still a tracked gap,
+not yet a live graph. The 34 relationship types fall into three groups:
+
+| Group | Relationship types |
+|---|---|
+| Corpus structure | `HAS_PAPER`, `HAS_PROBLEM`, `HAS_SOLUTION`, `HAS_PART`, `HAS_STEP`, `HAS_ROUTE`, `NEXT` |
+| Taxonomy enrichment (densely many-to-many) | `CONCEPT_RELATION`, `PART_OF`, `PREREQUISITE_OF`, `SIMILAR_TO`, `BUILDS_ON`, `RELATES_TO` |
+| Diagnosis & pedagogy | `REQUIRES`, `TESTS`, `TESTS_MISCONCEPTION`, `USES_TECHNIQUE`, `USES_CONCEPT`, `USES_SKILL`, `USES_SUBCONCEPT`, `USES_CLAIM`, `PRODUCES`, `DEPENDS_ON`, `CAN_TRIGGER`, `CHECKED_BY`, `DIAGNOSED_BY`, `REMEDIATED_BY`, `EXPLAINED_BY`, `EXPLAINS`, `ANCHORED_AT`, `ASSESSES`, `DERIVED_FROM`, `PRACTICES`, `TARGETS_CONCEPT`, `TARGETS_SUBCONCEPT` |
+
+```mermaid
+flowchart LR
+    subgraph Corpus["Competition corpus"]
+        Competition --> Paper
+        Paper -->|HAS_PROBLEM| Problem
+        Problem -->|HAS_SOLUTION| Solution
+        Solution -->|HAS_PART| SolutionPart
+        SolutionPart -->|HAS_STEP| SolutionStep
+        Solution -->|HAS_ROUTE| RouteRelease
+        RouteRelease -->|HAS_STEP| RouteStep
+    end
+
+    subgraph Taxonomy["Knowledge taxonomy, densely cross-linked"]
+        Concept
+        Subconcept
+        Skill
+        Technique
+        Misconception
+        TheoryItem
+    end
+
+    subgraph Diagnosis["Diagnosis and remediation"]
+        LearningItem
+        Claim
+    end
+
+    Problem -->|PRACTICES, REQUIRES, TESTS, USES_TECHNIQUE| Taxonomy
+    SolutionStep -->|USES_CONCEPT, USES_SKILL, USES_TECHNIQUE| Taxonomy
+    RouteStep -->|REQUIRES, CAN_TRIGGER, EXPLAINED_BY| Taxonomy
+    RouteStep -->|PRODUCES, USES_CLAIM| Claim
+    LearningItem -->|PRACTICES, ASSESSES, TESTS_MISCONCEPTION| Taxonomy
+    LearningItem -->|DERIVED_FROM| Problem
+    Misconception -->|REMEDIATED_BY| TheoryItem
+    Misconception -->|DIAGNOSED_BY| LearningItem
+    TheoryItem -->|EXPLAINS| Taxonomy
+```
+
+### How Postgres and Neo4j are wired together
+
+Postgres is the single source of truth; Neo4j is a derived, disposable, rebuildable
+projection used for graph traversal (prerequisites, similar problems, misconception
+links) that `mathbank-rest` blends with Postgres full-text/pgvector search into one
+hybrid-RAG result set for the tutoring agent.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin
+    participant PG as Postgres core, knowledge, pedagogy
+    participant ETL as mathbank-graph projector
+    participant Neo as Neo4j AuraDB
+    actor Student
+    participant Rest as mathbank-rest
+    participant Agent as mathbank-agent
+
+    Admin->>PG: approve problem, concept, misconception, course content
+    Note over PG: Postgres is the single source of truth
+    ETL->>PG: read changed core, knowledge, pedagogy rows
+    ETL->>Neo: MERGE nodes and relationships, idempotent and additive
+    Note over ETL,Neo: Rebuildable any time, zero diff on repeated runs
+
+    Student->>Agent: asks a question
+    Agent->>Rest: forwards as a tool call
+    par Lexical and semantic search
+        Rest->>PG: full text search plus pgvector cosine search
+    and Graph expansion
+        Rest->>Neo: Cypher traversal for prerequisites, misconceptions, similar problems
+    end
+    Rest->>Rest: merge, rank and deduplicate results, hybrid RAG
+    Rest-->>Agent: ranked context plus citations
+    Agent-->>Student: grounded answer
+```
+
+Want literal motion instead of a sequence diagram? `mathbank-manim-studio` (see
+[Architecture](#architecture) above) can render any `SceneSpec` — including one
+describing this exact pipeline — into a real explainer video.
 
 ## Machine Learning (IntelliTutor ML/RL platform)
 
