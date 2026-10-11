@@ -17,6 +17,11 @@ walkthrough of what students and admins actually do, use case by use case.
 — every acronym (AIME, MCP, BKT, TTL, RAG, C4, ...) defined with its exact database
 representation, kept current with this README.
 
+🙏 **Where does the corpus come from?** See
+[Data sources and credits](documentation/CREDITS.md) — AoPS, MAA, Purple Comet, SUMO, the
+Advantage Testing Foundation (Math Prize for Girls), Caltech Math Meet/CHMMC, HMMT and
+PUMaC, with live-counted problems attributed to each.
+
 ## Repository map
 
 ```text
@@ -1490,3 +1495,4 @@ embedding-backfill step: [DATABASES.md § Full corpus pipeline](documentation/DA
 - [documentation/copilot-instructions/mathematics-tutor-db-plan/](documentation/copilot-instructions/mathematics-tutor-db-plan/) — the detailed Postgres/Neo4j/vector/agent architecture these requirements are built from.
 - [presentation/](documentation/presentation/) — a static HTML walkthrough of the whole system (`index.html`) for a mixed technical/business audience, including real screenshots and live-captured data.
 - [BLOG_USE_CASES.md](documentation/BLOG_USE_CASES.md) — "MathBank in action," a business-audience, use-case-by-use-case blog with storyboard diagrams and mock screens.
+- [CREDITS.md](documentation/CREDITS.md) — data sources and credits: every competition archive/organizer the corpus is built from, with live-counted problems attributed to each.
