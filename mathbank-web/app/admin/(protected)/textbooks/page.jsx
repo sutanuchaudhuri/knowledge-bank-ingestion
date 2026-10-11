@@ -1,6 +1,6 @@
 "use client";
 
-import { IconButton, PageHeader, Pill, TabBar } from "../../../_components/ui.jsx";
+import { IconButton, PageHeader, Pill, TabBar, formatDateTime } from "../../../_components/ui.jsx";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -143,7 +143,7 @@ function Coverage() {
                 <li className="list-group-item" key={p.content_package_id}>
                   <div className="fw-semibold">{p.package_name}</div>
                   <span className="badge text-bg-light border me-1">{p.status}</span>
-                  <span className="text-secondary">v{p.package_version} · {p.conflicts} conflicts · imported {p.imported_at ? new Date(p.imported_at).toLocaleString() : "—"}</span>
+                  <span className="text-secondary">v{p.package_version} · {p.conflicts} conflicts · imported {formatDateTime(p.imported_at)}</span>
                 </li>
               ))}
             </ul>
@@ -210,7 +210,7 @@ function Problems({ initialNode }) {
                   <tr key={p.canonical_code}>
                     <td className="text-nowrap"><Link href={`/admin/textbooks/problems/${p.canonical_code}`}>{p.source_problem_id}</Link></td>
                     <td className="text-nowrap">{p.chapter_number}.{p.section_number}</td>
-                    <td style={{ maxWidth: 480 }}>{p.statement_preview}</td>
+                    <td className="mb-cell-wrap">{p.statement_preview}</td>
                     <td><div>{p.concept_name}</div><div className="text-secondary">{p.subconcept_name}</div></td>
                     <td className={`text-end ${p.solutions ? "" : "text-danger"}`}>{p.solutions}</td>
                     <td className="text-end">{p.steps}</td><td className="text-end">{p.learning_items}</td>
@@ -263,7 +263,7 @@ function LearningItems() {
                   <tr key={i.learning_item_id}>
                     <td className="text-nowrap"><Link href={`/admin/textbooks/problems/${i.canonical_code}#items`}>{i.source_problem_id}</Link></td>
                     <td>{human(i.transformation_type)}</td><td>{human(i.transformed_form)}</td><td>{human(i.difficulty_direction)}</td>
-                    <td style={{ maxWidth: 520 }}>{i.question_preview}</td>
+                    <td className="mb-cell-wrap">{i.question_preview}</td>
                     <td><span className="badge text-bg-success">{i.review_status}</span>{i.student_visible ? "" : <span className="badge text-bg-secondary ms-1">hidden</span>}</td>
                   </tr>
                 ))}

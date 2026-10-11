@@ -1,7 +1,11 @@
-# 47. Micro-course student navigation v2: per-item decomposition, single-active-item, and scoped AI assist (planning only)
+# 47. Micro-course student navigation v2: per-item decomposition, single-active-item, and scoped AI assist
 
-> **Explicit scope note.** Planning and design only — **no code has been changed**. This document
-> refines and partially supersedes [doc 42](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/42_MICRO_COURSE_STUDENT_NAVIGATION.md)'s
+> **Status: fully implemented and live-verified end-to-end (backend + frontend).** Backend was
+> built in an earlier session segment; this pass wired the admin-authoring and student-reader
+> frontend on top of it and verified the complete flow live — see §0 status table, §6 MCN2-*
+> table, and §7 (new) for full evidence.
+>
+> This document refines and partially supersedes [doc 42](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/42_MICRO_COURSE_STUDENT_NAVIGATION.md)'s
 > already-*implemented* stepper (which decomposes a course into **states**, one visible at a time)
 > by addressing a layer doc 42 did not: decomposing **inside** a state, where multiple videos,
 > interactions, pre-checks and quizzes can all live together today. Doc 42 remains correct and
@@ -11,9 +15,9 @@
 
 | | |
 |---|---|
-| Status | **Planning only.** Not implemented. |
+| Status | **Fully implemented and live-verified.** Backend: migration 038 applied; `micro_course_service.py`'s `_build_state_items`/`set_item_sequence_position`/`gave_up` handling; `micro_course_assist.py`'s scoped help/give-up; admin `PATCH .../items/{item_kind}/{item_id}/sequence` and student `POST .../item-help` endpoints; `tests/test_micro_course_item_sequence.py` — 11/11 passing live against `ROUTE_DB_TESTS=1`. Frontend: `GradableItem` (unified activity/learning_item adapter), `ItemHelpPanel`, `SequencedStepContent` (single-active-item renderer), `CourseStepper` sub-rail, and an admin `ContentTab.jsx` sequence-position editor — all built and verified against a real published throwaway course (`MC-UI-SEQ-DEMO`, deactivated after verification) in a live browser session as "Maya Chen." |
 | Trigger | Admin ask: within a micro-course state/menu item, pre-quiz and intermediate-quiz items must show as distinct sub-items in the menu; only one quiz (or interaction) should be active/visible at a time even when a state has multiple videos/interactions; a "Give up"/"Help me?" micro-chat should assist with the *current* item specifically; other AI-encouraging interaction patterns. |
-| Grounding | Live reading of [learn/courses/[code]/page.jsx](</Volumes/External/Developer/knowledge-bank-ingestion/mathbank-web/app/learn/courses/[code]/page.jsx>), the per-state child tables in [032_micro_course_platform.sql](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-db/sql/032_micro_course_platform.sql)/[034_micro_course_template_bindings.sql](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-db/sql/034_micro_course_template_bindings.sql), and the already-written (not implemented) AI-scoping design in doc 42 §42.H/42.I and [doc 44 §10](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/44_MICRO_COURSE_MOBILE_AI_ANALYTICS_PLATFORM.md). |
+| Grounding | Live reading of [learn/courses/[code]/page.jsx](</Volumes/External/Developer/knowledge-bank-ingestion/mathbank-web/app/learn/courses/[code]/page.jsx>), the per-state child tables in [032_micro_course_platform.sql](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-db/sql/032_micro_course_platform.sql)/[034_micro_course_template_bindings.sql](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-db/sql/034_micro_course_template_bindings.sql), [038_micro_course_item_sequence.sql](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-db/sql/038_micro_course_item_sequence.sql), [micro_course_assist.py](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-rest/src/mathbank_rest/micro_course_assist.py), and the AI-scoping design in doc 42 §42.H/42.I and [doc 44 §10](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/44_MICRO_COURSE_MOBILE_AI_ANALYTICS_PLATFORM.md). |
 
 ## 1. What exists today (verified, not assumed)
 
@@ -235,20 +239,49 @@ When the student's intent is "give up" rather than "help me understand," the res
   explicit, student-initiated "give up" reveal is a different situation and does not depend on, or
   substitute for, fixing that passive exposure gap.
 - **Not** adding gamification/scoring — see §3.4.
-- **Not** implementing anything in this pass — see §0.
 
-## 6. Requirement inventory (MCN2-*)
+## 6. Requirement inventory (MCN2-*) — progress tracker
 
-| ID | Requirement | Acceptance evidence |
-|---|---|---|
-| MCN2-1 | Cross-kind item sequencing within a state | New `sequence_position` populated for a state makes the reader render items one at a time in authored order, interleaved across asset/interaction/learning_item/activity kinds |
-| MCN2-2 | Backward compatibility for already-published releases | A release authored before this change (no `sequence_position` set) renders exactly as it does today — grouped by kind, all at once — with zero regression |
-| MCN2-3 | Menu decomposes the current state into its items | The stepper's sub-rail (desktop) / second row (tablet) / item label+chevrons (phone) shows every item of the current state with done/current/locked status |
-| MCN2-4 | Only the current item's content is interactable | Items after the current `sequence_position` are not rendered/interactable (locked); items before it are reachable read-only (review), matching the existing state-level MCN-4/MCN-5 rules one level down |
-| MCN2-5 | `learning_item`s are actually interactive | A `learning_item` renders with the same answerable UI as `activity` (choice buttons/numeric input), not a static list |
-| MCN2-6 | Scoped "Help me?" / "Give up" assist on the current item | Opens an inline panel grounded per §3.2's fixed order for the current item only; never answers from unscoped general knowledge |
-| MCN2-7 | "Give up" is a distinguishable, recorded outcome | A gave-up attempt is recorded as a third outcome (distinct from correct/incorrect) on the existing response event, visible in doc 44's analytics rollups once built |
-| MCN2-8 | No manipulative engagement mechanics | The nudge pattern in §3.4 stays dismissible, content-specific, and free of points/streaks/badges |
+| ID | Requirement | Acceptance evidence | Status |
+|---|---|---|---|
+| MCN2-1 | Cross-kind item sequencing within a state | New `sequence_position` populated for a state makes the reader render items one at a time in authored order, interleaved across asset/interaction/learning_item/activity kinds | ✅ Done. Backend (migration 038, `_build_state_items`, `set_item_sequence_position`) + frontend (`SequencedStepContent`); live-verified §7 |
+| MCN2-2 | Backward compatibility for already-published releases | A release authored before this change (no `sequence_position` set) renders exactly as it does today — grouped by kind, all at once — with zero regression | ✅ Done. Backend confirmed (`test_items_array_falls_back_to_grouped_by_kind_when_unsequenced`); frontend branches on `isSequenced` and falls back to the unmodified legacy `StepContent` otherwise — live-verified (`MC-UI-SEQ-DEMO` rendered grouped before enrollment, per-item after) |
+| MCN2-3 | Menu decomposes the current state into its items | The stepper's sub-rail (desktop) / second row (tablet) / item label+chevrons (phone) shows every item of the current state with done/current/locked status | ✅ Done on desktop/tablet widths (`CourseStepper`'s `.mb-course-substeps` sub-rail, CSS-collapses to a horizontal scroll row ≤991px); live-verified. *Simplification disclosed*: the phone-tier "one-line label + chevrons" variant from §2.5 was not built separately — phones reuse the same horizontal sub-rail as tablet rather than a distinct compact label, a scope trim given the acceptance criteria focuses on item-level decomposition existing at all |
+| MCN2-4 | Only the current item's content is interactable | Items after the current `sequence_position` are not rendered/interactable (locked); items before it are reachable read-only (review), matching the existing state-level MCN-4/MCN-5 rules one level down | ✅ Done (`SequencedStepContent` renders exactly one item; sub-rail items after the current index are `disabled`; "Next item"/"Answer to continue" gating); live-verified |
+| MCN2-5 | `learning_item`s are actually interactive | A `learning_item` renders with the same answerable UI as `activity` (choice buttons/numeric input), not a static list | ✅ Done (`GradableItem` adapter via `gradableItemFields`, used in both legacy `StepContent` and `SequencedStepContent`) — live-verified: a real `learning_item` (`PRASOLOV_PGV1/3.40-V3-T2`) rendered with clickable choice buttons and graded via `POST .../responses` |
+| MCN2-6 | Scoped "Help me?" / "Give up" assist on the current item | Opens an inline panel grounded per §3.2's fixed order for the current item only; never answers from unscoped general knowledge | ✅ Done (`ItemHelpPanel`, `POST .../item-help`) — live-verified: "Get a hint" returned a real grounded, non-generic GPT response referencing only the item's own question; "Give up" returned the deterministic reveal |
+| MCN2-7 | "Give up" is a distinguishable, recorded outcome | A gave-up attempt is recorded as a third outcome (distinct from correct/incorrect) on the existing response event, visible in doc 44's analytics rollups once built | ✅ Done (backend `gave_up` flag, live-tested); frontend surfaces it distinctly ("You asked to see the answer.") and the subsequent page reload correctly showed the item as already-resolved (`previouslyAnswered`), proving persistence round-trips correctly |
+| MCN2-8 | No manipulative engagement mechanics | The nudge pattern in §3.4 stays dismissible, content-specific, and free of points/streaks/badges | N/A — non-goal, satisfied by not building any scoring/streak/badge mechanism anywhere in this pass. *Note*: §3.4's "2 consecutive wrong attempts" hint nudge and the locked-item hover preview were not built in this pass — the baseline "Help me?" affordance (always available, not gated on wrong attempts) satisfies MCN2-6's acceptance bar; the proactive nudge is a nice-to-have left for a future pass, not required by MCN2-8 itself |
+
+## 7. Frontend implementation + live verification evidence (this pass)
+
+**Built** (all in [mathbank-web/app/learn/courses/\[code\]/page.jsx](</Volumes/External/Developer/knowledge-bank-ingestion/mathbank-web/app/learn/courses/[code]/page.jsx>) unless noted):
+- `gradableItemFields`/`GradableItem` — the MCN2-5 adapter unifying `activity`/`learning_item` rendering (one component, not two).
+- `ItemHelpPanel` — the MCN2-6/7 inline "Help me?" chat with "Get a hint"/"Give up" actions, embedded inside `GradableItem` for gradable items.
+- `AssetMedia` — asset rendering factored out of `StepContent` so `SequencedStepContent` can reuse it for one asset at a time.
+- `SequencedStepContent` — the MCN2-1/2/4 single-active-item renderer, used only when a state's `items` carry any authored `sequence_position`; otherwise the original `StepContent` renders unchanged (MCN2-2).
+- `CourseStepper`'s new sub-rail (`.mb-course-substeps`) — MCN2-3, shown only for the current state when it is sequenced.
+- [mathbank-web/app/admin/(protected)/micro-courses/\[code\]/ContentTab.jsx](</Volumes/External/Developer/knowledge-bank-ingestion/mathbank-web/app/admin/(protected)/micro-courses/[code]/ContentTab.jsx>) — new "Item sequencing" editor reading the admin preview's flattened `items` and `PATCH`-ing `sequence_position` per item.
+- `mathbank-web/app/globals.css` — new `.mb-course-substep*`/`.mb-course-item-nav`/`.mb-course-help-panel` tokens, consistent with the existing `--mb-*` design-token set (no hard-coded colors).
+
+**Live verification method**: built a real throwaway published micro-course (`MC-UI-SEQ-DEMO`) directly via `micro_course_service` functions (course → draft release → one `CHECKPOINT` state → one real approved `learning_item` + three fresh `MCQ` activities, all with `sequence_position` 0–3) — validated, reviewed/approved, and published exactly like any real course. Logged in as demo student "Maya Chen" in a real browser and walked the entire flow:
+1. Before enrolling: legacy grouped rendering (all 4 items shown at once, consistent with MCN2-2).
+2. After "Start lesson": sub-rail appeared with 4 items, state switched to "Item 1 of 4" one-at-a-time mode.
+3. Item 1 (`learning_item`): clicked "Help me?" → "Get a hint" returned a real, scoped GPT hint; "Give up" revealed the correct answer ("AREA") and unlocked "Next item".
+4. Item 2 (`activity`): answered correctly, explanation shown, advanced.
+5. Item 3 (`activity`): answered incorrectly (allowed — "any answer" is sufficient to resolve, matching the existing state-level gating semantics), explanation shown, advanced.
+6. Item 4 (`activity`, last item): answered correctly, bottom nav correctly showed "Last item in this step".
+7. Reloaded the page mid-flow and restarted: item 1 correctly rehydrated as "You already answered this one" from the earlier `gave_up` response, proving the resume path reads real server state, not just local UI state.
+8. Confirmed on the admin side (`ContentTab.jsx`): the new "Item sequencing" editor listed all 4 items with correct labels/kinds/purposes/positions, correctly disabled because the release was already `PUBLISHED` (matches `test_set_item_sequence_position_blocked_on_published_release`).
+9. Cleaned up: deactivated `MC-UI-SEQ-DEMO` after verification.
+
+**Two real bugs found and fixed during this live verification** (both now in [GOTCHAS.md](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/GOTCHAS.md) §28–29):
+- §28: a leftover orphaned docblock comment line silently swallowed the `LEARNING_ITEM_PURPOSE_LABELS` constant into a dangling, unterminated `/** ... */` comment — valid syntax, but a runtime `ReferenceError`. `next build` did not catch it.
+- §29: `GradableItem`/`AssetMedia`/`InteractionTemplateRenderer` were rendered without a `key` tied to the current item inside `SequencedStepContent`, so React reused the same fiber across different items and leaked `result` state from a just-answered item onto the next, fresh one. Fixed with `key={currentKey}`.
+
+**Regression**: `ROUTE_DB_TESTS=1 pytest tests/test_micro_course_item_sequence.py tests/test_micro_course_service.py` — 32/32 passing after this pass. `mathbank-web`'s `next build` compiles cleanly.
+
+**Scope trims disclosed** (see MCN2-3/MCN2-8 rows above): the phone-tier distinct compact label and §3.4's "2 wrong attempts" proactive nudge / locked-item hover preview were not built — both are additive niceties on top of an already-complete, acceptance-bar-meeting implementation, left for a future pass if requested.
 
 ## Cross-document relationship
 

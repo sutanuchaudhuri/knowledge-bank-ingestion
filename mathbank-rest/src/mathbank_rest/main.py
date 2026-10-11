@@ -26,8 +26,60 @@ from mathbank_rest.routers.step_runtime import router as step_runtime_router
 from mathbank_rest.routers.tutor import router as tutor_router
 from mathbank_rest.routers.tutoring_routes import router as tutoring_routes_router
 from mathbank_rest.routers.v1 import router as v1_router
+from mathbank_rest.routers.admin_taxonomy import router as admin_taxonomy_router
+from mathbank_rest.routers.admin_activities import router as admin_activities_router
+from mathbank_rest.routers.admin_activities import binding_router as admin_activity_bindings_router
+from mathbank_rest.routers.quiz_runtime import router as quiz_runtime_router
+from mathbank_rest.routers.notifications import router as notifications_router
 
-app = FastAPI(title="mathbank-rest", version="0.1.0")
+# One line per tag actually used by any operation (doc 45 APID-2): what it covers + which auth
+# scheme applies. Admin-gated tags are prefixed `admin-`; everything else is anonymous or learner
+# JWT, named in the description below rather than inferred from the prefix.
+OPENAPI_TAGS = [
+    {"name": "ops", "description": "Health/connectivity checks. Anonymous."},
+    {"name": "corpus", "description": "Public read-only competitions/problems. Anonymous."},
+    {"name": "taxonomy", "description": "Public read-only concepts/techniques. Anonymous."},
+    {"name": "search", "description": "Public hybrid semantic/lexical/graph search. Anonymous."},
+    {"name": "analytics", "description": "Public cohort-level (no PII) analytics. Anonymous."},
+    {"name": "learner", "description": "Student auth, mastery, progress. Learner JWT."},
+    {"name": "agent-sessions", "description": "Agent conversation transcripts. Learner JWT; two admin-key-gated review endpoints."},
+    {"name": "pedagogy", "description": "Anonymous read-only teaching context and provisional coaching. Anonymous + optional learner JWT."},
+    {"name": "tutor", "description": "Scoped tutor Q&A/feedback. Learner JWT."},
+    {"name": "step-runtime", "description": "Guided step attempts, hints, recovery routes. Learner JWT."},
+    {"name": "tutoring-routes", "description": "Precompiled tutoring-route runtime. Learner JWT."},
+    {"name": "micro-courses", "description": "Published micro-course catalog and enrollment runtime. Anonymous (preview) or learner JWT (enrolled)."},
+    {"name": "geometry-agent", "description": "Geometry-scene interpretation for staff/student. Mixed staff-or-student auth."},
+    {"name": "geometry-scenes", "description": "Independent deterministic geometry scene engine, mounted as a sub-API. Mixed staff-or-student auth; debug evidence is staff-only."},
+    {"name": "fluid-widgets", "description": "Live-session widget proposals and activities. Session-scoped auth."},
+    {"name": "live-sessions", "description": "Live classroom session/event log relayed by mathbank-live. Session-scoped auth."},
+    {"name": "multimodal-attempts", "description": "Private multimodal student attempt review. Learner JWT."},
+    {"name": "artifacts", "description": "Generated diagram/artifact bundles. Learner JWT."},
+    {"name": "admin-pipeline", "description": "Register competitions/papers; pipeline run/job status. X-Admin-Api-Key."},
+    {"name": "admin-corpus", "description": "Reviewed corpus authoring (text/image drafts). X-Admin-Api-Key."},
+    {"name": "admin-imports", "description": "Admin solution-step import review/approval. X-Admin-Api-Key."},
+    {"name": "admin-textbooks", "description": "Admin textbook import dashboard. X-Admin-Api-Key."},
+    {"name": "admin-pedagogy", "description": "Revision-gated skill/concept/technique governance review/edit/publish workflow. X-Admin-Api-Key."},
+    {"name": "admin-interaction-templates", "description": "Interaction/animation/feedback template catalog authoring. X-Admin-Api-Key."},
+    {"name": "admin-micro-courses", "description": "Micro-course authoring, release lifecycle, activity, preview. X-Admin-Api-Key."},
+    {"name": "admin-taxonomy", "description": "Concept/technique/skill/misconception list, update, alias, activate/deactivate (doc 45). X-Admin-Api-Key."},
+    {"name": "admin-activities", "description": "Quiz/activity authoring bank (doc 46). X-Admin-Api-Key."},
+]
+
+app = FastAPI(
+    title="mathbank-rest",
+    version="0.1.0",
+    summary="The only direct PostgreSQL/Neo4j boundary in the MathBank platform.",
+    description=(
+        "FastAPI service backing mathbank-web, mathbank-live and mathbank-agent. Two auth "
+        "schemes: a shared `X-Admin-Api-Key` header (configured via `ADMIN_API_KEY`) for every "
+        "`/v1/admin/*` operation, and a learner `Authorization: Bearer` JWT (obtained from "
+        "`POST /v1/learner/login`) for student-owned operations. Most of `/v1` is anonymous "
+        "read access. See `documentation/requirements/reference/REST_API.md` for the prose "
+        "reference and `documentation/requirements/45_REST_API_DOCUMENTATION_AND_ADMIN_CRUD_GAPS.md` "
+        "for known documentation/CRUD gaps and their tracked fixes."
+    ),
+    openapi_tags=OPENAPI_TAGS,
+)
 app.include_router(v1_router)
 app.include_router(learner_router)
 app.include_router(admin_router)
@@ -45,13 +97,18 @@ app.include_router(live_router)
 app.include_router(attempt_media_router)
 app.include_router(artifacts_router)
 app.include_router(geometry_interpretation_router)
-app.include_router(geometry_scenes_router)
+app.include_router(geometry_scenes_router, tags=["geometry-scenes"])
 app.include_router(interaction_templates_router)
 app.include_router(micro_course_admin_router)
 app.include_router(micro_course_student_router)
+app.include_router(admin_taxonomy_router)
+app.include_router(admin_activities_router)
+app.include_router(admin_activity_bindings_router)
+app.include_router(quiz_runtime_router)
+app.include_router(notifications_router)
 
 
-@app.get("/health")
+@app.get("/health", tags=["ops"])
 def health(response: Response) -> dict:
     postgres = check_postgres()
     neo4j = check_neo4j()
@@ -60,7 +117,7 @@ def health(response: Response) -> dict:
     return {"postgres": postgres, "neo4j": neo4j}
 
 
-@app.get("/health/postgres")
+@app.get("/health/postgres", tags=["ops"])
 def health_postgres(response: Response) -> dict:
     result = check_postgres()
     if not result["ok"]:
@@ -68,7 +125,7 @@ def health_postgres(response: Response) -> dict:
     return result
 
 
-@app.get("/health/neo4j")
+@app.get("/health/neo4j", tags=["ops"])
 def health_neo4j(response: Response) -> dict:
     result = check_neo4j()
     if not result["ok"]:

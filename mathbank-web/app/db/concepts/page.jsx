@@ -2,10 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { table, th, td, rowStyle, masterDetail, panel, input } from "../dbStyles.js";
+import { table, masterDetail, panel, input } from "../dbStyles.js";
 import Pager from "../Pager.jsx";
+import { Callout, EmptyState, Pill } from "../../_components/ui.jsx";
 
 const LIMIT = 25;
+
+function LoadingState({ children }) {
+  return (
+    <div className="d-flex align-items-center gap-2 text-body-secondary" role="status">
+      <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+      <span>{children}</span>
+    </div>
+  );
+}
 
 export default function ConceptsPage() {
   const [domain, setDomain] = useState("");
@@ -35,8 +45,8 @@ export default function ConceptsPage() {
   }, [selected]);
 
   return (
-    <div>
-      <div style={{ marginBottom: 12 }}>
+    <div className="d-grid gap-3">
+      <div className="card shadow-sm p-3 p-lg-4">
         <input
           className={input} aria-label="Search concept name"
           placeholder="Search concept name…"
@@ -49,28 +59,30 @@ export default function ConceptsPage() {
         />
       </div>
 
-      {error && <p style={{ color: "#b91c1c" }}>Could not load concepts: {error}</p>}
+      {error && <Callout tone="danger" role="alert">Could not load concepts: {error}</Callout>}
 
       <div className={masterDetail}>
         <div className={panel}>
           {!page ? (
-            <p>Loading…</p>
+            error ? <EmptyState icon="diagram-3">Concepts are unavailable right now.</EmptyState> : <LoadingState>Loading concepts…</LoadingState>
+          ) : !page.items.length ? (
+            <EmptyState icon="diagram-3">No concepts match this search.</EmptyState>
           ) : (
             <>
               <div className="table-responsive"><table className={table}>
                 <thead>
                   <tr>
-                    <th style={th}>Slug</th>
-                    <th style={th}>Name</th>
-                    <th style={{ ...th, textAlign: "right" }}>Level</th>
+                    <th className="fw-semibold">Slug</th>
+                    <th className="fw-semibold">Name</th>
+                    <th className="fw-semibold text-end">Level</th>
                   </tr>
                 </thead>
                 <tbody>
                   {page.items.map((c) => (
-                    <tr key={c.slug} style={rowStyle(selected?.slug === c.slug)} onClick={() => setSelected(c)}>
-                      <td style={td}>{c.slug}</td>
-                      <td style={td}>{c.name}</td>
-                      <td style={{ ...td, textAlign: "right" }}>{c.level ?? "–"}</td>
+                    <tr key={c.slug} className={selected?.slug === c.slug ? "table-active" : ""} onClick={() => setSelected(c)}>
+                      <td>{c.slug}</td>
+                      <td>{c.name}</td>
+                      <td className="text-end mb-num">{c.level ?? "–"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -88,48 +100,61 @@ export default function ConceptsPage() {
 
         <div className={panel}>
           {!selected ? (
-            <p style={{ color: "#666" }}>Select a concept to see its problems and related concepts.</p>
+            <EmptyState icon="diagram-3">Select a concept to see linked problems and related ideas.</EmptyState>
           ) : !detail ? (
-            <p>Loading…</p>
+            <LoadingState>Loading linked problems and related concepts…</LoadingState>
           ) : (
-            <>
-              <h3 style={{ marginTop: 0, fontSize: 15 }}>{selected.name}</h3>
-              {selected.description && <p style={{ fontSize: 13, color: "#444" }}>{selected.description}</p>}
+            <div className="d-grid gap-3">
+              <div>
+                <h2 className="h5 fw-bold mb-1">{selected.name}</h2>
+                <div className="d-flex flex-wrap gap-2">
+                  <Pill tone="primary" icon="diagram-3">{selected.slug}</Pill>
+                  {selected.level != null && <Pill icon="layers">{selected.level}</Pill>}
+                </div>
+                {selected.description && <p className="small text-body-secondary mt-3 mb-0">{selected.description}</p>}
+              </div>
 
-              <p style={{ fontSize: 13 }}>
-                <strong>Problems (TESTS):</strong> {detail.problems.length}
-                {detail.problems.length > 0 && (
-                  <>
-                    {" · "}
-                    <Link href={`/db/problems?concept=${encodeURIComponent(selected.slug)}`} style={{ color: "#2563eb" }}>
+              <section className="d-grid gap-2">
+                <div className="d-flex flex-wrap align-items-center gap-2">
+                  <h3 className="h6 fw-bold mb-0">Linked problems</h3>
+                  <Pill tone="neutral" icon="file-earmark-text">{detail.problems.length}</Pill>
+                  {detail.problems.length > 0 && (
+                    <Link href={`/db/problems?concept=${encodeURIComponent(selected.slug)}`} className="btn btn-outline-primary btn-sm ms-sm-auto">
                       view all →
                     </Link>
-                  </>
+                  )}
+                </div>
+                {detail.problems.length ? (
+                  <ul className="small mb-0 ps-3">
+                    {detail.problems.slice(0, 8).map((p) => (
+                      <li key={p.canonical_code}>
+                        {p.canonical_code} ({p.competition} {p.year})
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <EmptyState icon="file-earmark-text">No linked problems are available for this concept yet.</EmptyState>
                 )}
-              </p>
-              <ul style={{ fontSize: 13 }}>
-                {detail.problems.slice(0, 8).map((p) => (
-                  <li key={p.canonical_code}>
-                    {p.canonical_code} ({p.competition} {p.year})
-                  </li>
-                ))}
-              </ul>
+              </section>
 
-              {detail.neighbors.length > 0 && (
-                <>
-                  <p style={{ fontSize: 13 }}>
-                    <strong>Related concepts (CONCEPT_RELATION):</strong>
-                  </p>
-                  <ul style={{ fontSize: 13 }}>
+              <section className="d-grid gap-2">
+                <div className="d-flex flex-wrap align-items-center gap-2">
+                  <h3 className="h6 fw-bold mb-0">Related concepts</h3>
+                  <Pill tone="neutral" icon="bezier2">{detail.neighbors.length}</Pill>
+                </div>
+                {detail.neighbors.length ? (
+                  <ul className="small mb-0 ps-3">
                     {detail.neighbors.map((n, i) => (
                       <li key={i}>
                         {n.direction === "outgoing" ? "→" : "←"} {n.name} ({n.relation_type})
                       </li>
                     ))}
                   </ul>
-                </>
-              )}
-            </>
+                ) : (
+                  <EmptyState icon="bezier2">No related concepts are recorded yet.</EmptyState>
+                )}
+              </section>
+            </div>
           )}
         </div>
       </div>

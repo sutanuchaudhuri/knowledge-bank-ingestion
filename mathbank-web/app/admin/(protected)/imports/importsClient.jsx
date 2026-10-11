@@ -2,6 +2,7 @@
 
 // Shared client helpers for /api/rest/admin/imports (admin import / reconciliation / DAG review).
 import { useCallback, useEffect, useState } from "react";
+import { Callout } from "../../../_components/ui.jsx";
 
 export const IMPORTS_API = "/api/rest/admin/imports";
 export const num = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString());
@@ -44,7 +45,7 @@ export function useImports(path, params) {
 }
 
 export function Status({ loading, error }) {
-  if (error) return <div className="alert alert-danger small">{error}</div>;
+  if (error) return <Callout tone="danger" role="alert" className="small">{error}</Callout>;
   if (loading) return <div className="spinner-border spinner-border-sm text-primary" role="status" aria-label="Loading" />;
   return null;
 }
@@ -109,7 +110,7 @@ export function DagReview({ code }) {
         <button type="button" className="btn btn-sm btn-outline-warning" disabled={busy}
           onClick={() => run("review-dag", { code, status: "NEEDS_REVISION" }, "Marked needs revision")}>Needs revision</button>
       </div>
-      {message && <div className={`alert alert-${message.tone} small py-2`} role="status">{message.text}</div>}
+      {message && <Callout tone={message.tone} role="status" className="small">{message.text}</Callout>}
 
       <h3 className="h6">Steps</h3>
       <div className="table-responsive mb-3">

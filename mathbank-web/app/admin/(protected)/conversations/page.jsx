@@ -1,6 +1,6 @@
 "use client";
 
-import { PageHeader, Pill } from "../../../_components/ui.jsx";
+import { Callout, EmptyState, PageHeader, Pill, formatDateTime } from "../../../_components/ui.jsx";
 
 import { useEffect, useState } from "react";
 import Transcript from "../../../_components/Transcript.jsx";
@@ -14,7 +14,7 @@ async function load(params) {
   return body;
 }
 
-const when = (ts) => (ts ? new Date(ts).toLocaleString() : "—");
+const when = formatDateTime;
 
 export default function AdminConversationsPage() {
   const [student, setStudent] = useState("");
@@ -40,7 +40,7 @@ export default function AdminConversationsPage() {
       <PageHeader icon="people" tone="success" title="Student tutor conversations"
         subtitle="Rebuilt from agent sessions linked to students, including the agent's thinking and tool calls."
         pills={data && <><Pill tone="success" icon="link-45deg">{data.linked.length} linked</Pill><Pill tone="neutral" icon="incognito" title="Anonymous agent sessions are not attributable to a student">{data.unlinked_count} anonymous</Pill></>} />
-      {error && <div role="alert" className="alert alert-danger">{error}</div>}
+      {error && <Callout tone="danger" role="alert" className="mb-3">{error}</Callout>}
       <form className="d-flex gap-2 mb-3" onSubmit={(e) => { e.preventDefault(); setQuery(student.trim()); }}>
         <input className="form-control" style={{ maxWidth: 420 }} placeholder="Filter by student e-mail or id"
           value={student} onChange={(e) => setStudent(e.target.value)} aria-label="Student filter" />
@@ -52,8 +52,12 @@ export default function AdminConversationsPage() {
             <table className="table table-hover align-middle mb-0" data-testid="admin-conversations">
               <thead className="table-light"><tr><th>Student</th><th>Started</th><th>Msgs</th><th>Surface</th></tr></thead>
               <tbody>
-                {data === null && <tr><td colSpan={4} className="text-secondary">Loading…</td></tr>}
-                {data?.linked.length === 0 && <tr><td colSpan={4} className="text-secondary">No linked conversations.</td></tr>}
+                {data === null && (
+                  <tr><td colSpan={4} className="text-secondary" role="status">
+                    <span className="spinner-border spinner-border-sm me-2" aria-hidden="true" />Loading conversations…
+                  </td></tr>
+                )}
+                {data?.linked.length === 0 && <tr><td colSpan={4}><EmptyState icon="people">No linked conversations.</EmptyState></td></tr>}
                 {data?.linked.map((s) => (
                   <tr key={s.agent_session_id} role="button" className={selected === s.agent_session_id ? "table-primary" : ""}
                     onClick={() => setSelected(s.agent_session_id)}>
@@ -70,11 +74,13 @@ export default function AdminConversationsPage() {
         <div className="col-12 col-xl-7">
           <section className="card border-0 shadow-sm">
             <div className="card-body">
-              {!selected && <p className="text-secondary mb-0">Select a conversation.</p>}
+              {!selected && <EmptyState icon="chat-left-text">Select a conversation to view its transcript.</EmptyState>}
               {transcript && (
                 <p className="small text-secondary">Session <code>{transcript.agent_session_id}</code> · {transcript.email} · agent user <code>{transcript.agent_user_id}</code></p>
               )}
-              {selected && !transcript && <p className="text-secondary mb-0">Loading…</p>}
+              {selected && !transcript && (
+                <p className="text-secondary mb-0" role="status"><span className="spinner-border spinner-border-sm me-2" aria-hidden="true" />Loading transcript…</p>
+              )}
               <Transcript transcript={transcript} />
             </div>
           </section>

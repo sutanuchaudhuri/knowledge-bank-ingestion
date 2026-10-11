@@ -362,6 +362,50 @@ def get_course_preview(conn, canonical_code: str, release_id: str | None = None)
     return _assemble_course_reader_payload(conn, course, approved_only=False)
 
 
+_ITEM_KIND_TO_LIST_KEY = {
+    "asset": "assets",
+    "interaction": "interactions",
+    "learning_item": "learning_items",
+    "activity": "activities",
+}
+_ITEM_KIND_ID_FIELD = {
+    "asset": "asset_id",
+    "interaction": "interaction_instance_id",
+    "learning_item": "learning_item_id",
+    "activity": "activity_id",
+}
+
+
+def _build_state_items(state: dict) -> list[dict]:
+    """Flatten a state's four independently-ordered per-kind arrays (asset/interaction/
+    learning_item/activity) into one cross-kind, authored-order `items` list
+    (requirements/47 §2.1, MCN2-1). When no item in the state has an authored
+    `sequence_position` — an already-published release predating this feature — this falls
+    back to the pre-existing grouped-by-kind order (asset, then interaction, then
+    learning_item, then activity, each by its own `ordinal`) so nothing regresses (MCN2-2)."""
+    entries: list[dict] = []
+    any_sequenced = False
+    for kind, list_key in _ITEM_KIND_TO_LIST_KEY.items():
+        id_field = _ITEM_KIND_ID_FIELD[kind]
+        for member in state.get(list_key, []):
+            sequence_position = member.get("sequence_position")
+            if sequence_position is not None:
+                any_sequenced = True
+            entry = {
+                "item_kind": kind,
+                "item_id": member[id_field],
+                "sequence_position": sequence_position,
+                "ordinal": member.get("ordinal"),
+                "required": member.get("required", True),
+            }
+            if member.get("purpose"):
+                entry["purpose"] = member["purpose"]
+            entries.append(entry)
+    if any_sequenced:
+        entries.sort(key=lambda e: (e["sequence_position"] is None, e["sequence_position"] or 0))
+    return entries
+
+
 def _assemble_course_reader_payload(conn, course, approved_only: bool = True) -> dict:
     """Shared assembly for the public reader shape — used by both the public
     `get_published_course` (always approved-only content) and the admin
@@ -443,7 +487,7 @@ def _assemble_course_reader_payload(conn, course, approved_only: bool = True) ->
                 text("""
                 SELECT a.asset_id, a.uri, a.asset_kind, a.title, a.source_url, a.mime_type,
                        a.object_size_bytes,
-                       sa.presentation_role, v.canonical_url AS video_url,
+                       sa.ordinal, sa.presentation_role, sa.sequence_position, v.canonical_url AS video_url,
                        v.duration_ms
                 FROM pedagogy.micro_course_state_asset sa
                 JOIN visual.asset a USING (asset_id)
@@ -477,7 +521,8 @@ def _assemble_course_reader_payload(conn, course, approved_only: bool = True) ->
             for row in conn.execute(
                 text(f"""
                 SELECT li.learning_item_id, li.question_text, li.choices,
-                       si.purpose, si.ordinal, si.required
+                       li.correct_answer, li.answer_or_solution_seed,
+                       si.purpose, si.ordinal, si.required, si.sequence_position
                 FROM pedagogy.micro_course_state_learning_item si
                 JOIN pedagogy.learning_item li USING (learning_item_id)
                 WHERE si.state_id=:id {learning_item_filter}
@@ -512,7 +557,7 @@ def _assemble_course_reader_payload(conn, course, approved_only: bool = True) ->
                        i.success_criteria, v.version AS template_version,
                        t.template_key, t.interaction_family, v.default_layout,
                        v.allowed_controls, v.allowed_icons, v.accessibility_policy,
-                       scene.scene_json
+                       scene.scene_json, scene.rendered_video_asset_id, si.ordinal, si.required, si.sequence_position
                 FROM pedagogy.micro_course_state_interaction si
                 JOIN visual.interaction_instance i USING (interaction_instance_id)
                 JOIN visual.interaction_template_version v USING (interaction_template_version_id)
@@ -530,12 +575,17 @@ def _assemble_course_reader_payload(conn, course, approved_only: bool = True) ->
             interaction["interaction_instance_id"] = str(
                 interaction["interaction_instance_id"]
             )
+            if interaction.get("rendered_video_asset_id"):
+                interaction["rendered_video_asset_id"] = str(
+                    interaction["rendered_video_asset_id"]
+                )
         state["activities"] = [
             dict(row)
             for row in conn.execute(
                 text("""
                 SELECT a.activity_id, a.activity_type, a.prompt, a.options,
-                       a.correctness_policy, sa.ordinal, sa.purpose, sa.required
+                       a.correctness_policy, sa.ordinal, sa.purpose, sa.required,
+                       sa.sequence_position
                 FROM pedagogy.micro_course_state_activity sa
                 JOIN activity.definition a USING (activity_id)
                 WHERE sa.state_id=:id
@@ -546,6 +596,7 @@ def _assemble_course_reader_payload(conn, course, approved_only: bool = True) ->
         ]
         for activity in state["activities"]:
             activity["activity_id"] = str(activity["activity_id"])
+        state["items"] = _build_state_items(state)
     result["transitions"] = [
         dict(row)
         for row in conn.execute(
@@ -702,7 +753,7 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
         for asset in conn.execute(
             text("""
             SELECT a.asset_id, a.uri, a.asset_kind, a.title, a.source_url, a.mime_type,
-                   a.object_size_bytes, sa.presentation_role,
+                   a.object_size_bytes, sa.ordinal, sa.presentation_role, sa.sequence_position,
                    v.canonical_url AS video_url, v.duration_ms
             FROM pedagogy.micro_course_state_asset sa
             JOIN visual.asset a USING (asset_id)
@@ -727,7 +778,7 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
                    i.success_criteria, v.version AS template_version,
                    t.template_key, t.interaction_family, v.default_layout,
                    v.allowed_controls, v.allowed_icons, v.accessibility_policy,
-                   scene.scene_json
+                   scene.scene_json, scene.rendered_video_asset_id, si.ordinal, si.required, si.sequence_position
             FROM pedagogy.micro_course_state_interaction si
             JOIN visual.interaction_instance i USING (interaction_instance_id)
             JOIN visual.interaction_template_version v USING (interaction_template_version_id)
@@ -743,12 +794,15 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
     ]
     for interaction in result["current_state"]["interactions"]:
         interaction["interaction_instance_id"] = str(interaction["interaction_instance_id"])
+        if interaction.get("rendered_video_asset_id"):
+            interaction["rendered_video_asset_id"] = str(interaction["rendered_video_asset_id"])
     result["current_state"]["activities"] = [
         dict(row)
         for row in conn.execute(
             text("""
             SELECT a.activity_id, a.activity_type, a.prompt, a.options,
-                   a.correctness_policy, sa.ordinal, sa.purpose, sa.required
+                   a.correctness_policy, sa.ordinal, sa.purpose, sa.required,
+                   sa.sequence_position
             FROM pedagogy.micro_course_state_activity sa
             JOIN activity.definition a USING (activity_id)
             WHERE sa.state_id=:state_id
@@ -781,7 +835,8 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
         for item in conn.execute(
             text("""
             SELECT li.learning_item_id, li.question_text, li.choices,
-                   si.purpose, si.ordinal, si.required
+                   li.correct_answer, li.answer_or_solution_seed,
+                   si.purpose, si.ordinal, si.required, si.sequence_position
             FROM pedagogy.micro_course_state_learning_item si
             JOIN pedagogy.learning_item li USING (learning_item_id)
             WHERE si.state_id=:state_id AND li.review_status='APPROVED'
@@ -796,18 +851,25 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
         for item in result["current_state"]["learning_items"]
         if item["required"]
     }
-    answered_item_ids = {
-        str(item_id)
-        for item_id in conn.execute(
+    answered_quiz_responses = {
+        row["learning_item_id"]: row["is_correct"]
+        for row in conn.execute(
             text("""
-            SELECT DISTINCT payload->>'learning_item_id'
+            SELECT DISTINCT ON (payload->>'learning_item_id')
+                   payload->>'learning_item_id' AS learning_item_id,
+                   (payload->>'is_correct')::boolean AS is_correct
             FROM learner.micro_course_state_event
             WHERE enrollment_id=:enrollment_id AND event_type='QUIZ_RESPONSE'
+            ORDER BY payload->>'learning_item_id', created_at DESC
         """),
             {"enrollment_id": str(result["enrollment_id"])},
-        ).scalars()
-        if item_id is not None
+        ).mappings()
+        if row["learning_item_id"] is not None
     }
+    answered_item_ids = set(answered_quiz_responses)
+    for item in result["current_state"]["learning_items"]:
+        if str(item["learning_item_id"]) in answered_quiz_responses:
+            item["answered_correctly"] = answered_quiz_responses[str(item["learning_item_id"])]
     result["current_state"]["answered_learning_item_ids"] = sorted(
         answered_item_ids & {
             str(item["learning_item_id"])
@@ -871,13 +933,18 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
     result["release_id"] = str(result["release_id"])
     result["enrollment_id"] = str(result["enrollment_id"])
     result["current_state"]["state_id"] = str(result["current_state"]["state_id"])
+    result["current_state"]["items"] = _build_state_items(result["current_state"])
     return result
 
 
 def submit_learning_item_response(
-    conn, enrollment_id: str, student_id: str, learning_item_id: str, choice_index: int
+    conn, enrollment_id: str, student_id: str, learning_item_id: str, choice_index: int | None,
+    *, gave_up: bool = False,
 ) -> dict:
-    """Grade a fixed, approved multiple-choice item attached to the active state."""
+    """Grade a fixed, approved multiple-choice item attached to the active state.
+    When `gave_up` is true (requirements/47 §3.3, MCN2-7), `choice_index` may be omitted —
+    the attempt is recorded as a distinct third outcome (not correct, not incorrect) and the
+    correct answer/explanation is revealed immediately, an explicit student-initiated reveal."""
     runtime = (
         conn.execute(
             text("""
@@ -915,9 +982,15 @@ def submit_learning_item_response(
     choices = item["choices"]
     if not isinstance(choices, list) or not item["correct_answer"]:
         raise MicroCourseConflict("learning item is not configured as a gradable multiple-choice question")
-    if choice_index < 0 or choice_index >= len(choices):
-        raise ValueError("choice_index is outside the available choices")
-    is_correct = choices[choice_index] == item["correct_answer"]
+    correct_index = next((index for index, choice in enumerate(choices) if choice == item["correct_answer"]), None)
+    if gave_up:
+        is_correct = False
+    else:
+        if choice_index is None:
+            raise ValueError("choice_index is required unless gave_up is true")
+        if choice_index < 0 or choice_index >= len(choices):
+            raise ValueError("choice_index is outside the available choices")
+        is_correct = choices[choice_index] == item["correct_answer"]
     conn.execute(
         text("""
         INSERT INTO learner.micro_course_state_event (enrollment_id, state_id, event_type, payload)
@@ -930,15 +1003,21 @@ def submit_learning_item_response(
                 "learning_item_id": str(item["learning_item_id"]),
                 "choice_index": choice_index,
                 "is_correct": is_correct,
+                "gave_up": gave_up,
             }),
         },
     )
-    return {
+    response = {
         "learning_item_id": str(item["learning_item_id"]),
         "choice_index": choice_index,
         "is_correct": is_correct,
+        "gave_up": gave_up,
         "explanation": item["answer_or_solution_seed"],
     }
+    if gave_up:
+        response["correct_choice_index"] = correct_index
+        response["correct_answer"] = item["correct_answer"]
+    return response
 
 
 def submit_activity_response(
@@ -949,13 +1028,17 @@ def submit_activity_response(
     *,
     choice_index: int | None = None,
     value: float | None = None,
+    gave_up: bool = False,
 ) -> dict:
     """Record (and self-grade) a response to a static preview-quiz activity
     (activity.definition, attached via attach_activity) anywhere in the student's
     enrolled release — not gated to the current state, since these questions are
     explicitly ungraded/optional and a learner may answer one after moving on.
     Unlike submit_learning_item_response, this never affects can_continue/mastery;
-    it exists purely so quiz attempts are recorded for the learner and reviewers."""
+    it exists purely so quiz attempts are recorded for the learner and reviewers.
+    When `gave_up` is true (requirements/47 §3.3, MCN2-7), `choice_index`/`value` may be
+    omitted — the attempt is a distinct third outcome and the correct answer/explanation
+    is revealed immediately."""
     runtime = (
         conn.execute(
             text("""
@@ -991,18 +1074,24 @@ def submit_activity_response(
         raise MicroCourseNotFound("quiz activity not found in this course release")
     policy = activity["correctness_policy"] or {}
     if activity["activity_type"] == "NUMERIC":
-        if value is None:
-            raise ValueError("value is required for a numeric quiz activity")
-        correct_value = policy.get("correct_value")
-        is_correct = correct_value is not None and abs(float(value) - float(correct_value)) < 1e-9
+        if gave_up:
+            is_correct = False
+        else:
+            if value is None:
+                raise ValueError("value is required unless gave_up is true")
+            correct_value = policy.get("correct_value")
+            is_correct = correct_value is not None and abs(float(value) - float(correct_value)) < 1e-9
         response_payload = {"value": value}
     else:
         options = activity["options"] or []
-        if choice_index is None:
-            raise ValueError("choice_index is required for a multiple-choice quiz activity")
-        if choice_index < 0 or choice_index >= len(options):
-            raise ValueError("choice_index is outside the available options")
-        is_correct = choice_index == policy.get("correct_index")
+        if gave_up:
+            is_correct = False
+        else:
+            if choice_index is None:
+                raise ValueError("choice_index is required unless gave_up is true")
+            if choice_index < 0 or choice_index >= len(options):
+                raise ValueError("choice_index is outside the available options")
+            is_correct = choice_index == policy.get("correct_index")
         response_payload = {"choice_index": choice_index}
     conn.execute(
         text("""
@@ -1012,14 +1101,22 @@ def submit_activity_response(
         {
             "enrollment_id": str(enrollment_id),
             "state_id": str(activity["state_id"]),
-            "payload": _json({"activity_id": str(activity_id), "is_correct": is_correct, **response_payload}),
+            "payload": _json({
+                "activity_id": str(activity_id), "is_correct": is_correct, "gave_up": gave_up,
+                **response_payload,
+            }),
         },
     )
-    return {
+    response = {
         "activity_id": str(activity_id),
         "is_correct": is_correct,
+        "gave_up": gave_up,
         "explanation": policy.get("explanation"),
     }
+    if gave_up:
+        response["correct_choice_index"] = policy.get("correct_index")
+        response["correct_value"] = policy.get("correct_value")
+    return response
 
 
 def record_interaction_event(
@@ -1396,7 +1493,8 @@ def get_release(conn, release_id: str) -> dict:
                 text("""
                 SELECT i.interaction_instance_id, i.canonical_code, i.title,
                        i.review_status, t.template_key, v.version AS template_version,
-                       v.status AS template_status, si.ordinal, si.required
+                       v.status AS template_status, si.ordinal, si.required,
+                       si.sequence_position
                 FROM pedagogy.micro_course_state_interaction si
                 JOIN visual.interaction_instance i USING (interaction_instance_id)
                 JOIN visual.interaction_template_version v USING (interaction_template_version_id)
@@ -1411,7 +1509,8 @@ def get_release(conn, release_id: str) -> dict:
             for row in conn.execute(
                 text("""
                 SELECT a.asset_id, a.title, a.mime_type, a.asset_kind, a.object_size_bytes,
-                       a.validation_status, sa.ordinal, sa.presentation_role
+                       a.validation_status, sa.ordinal, sa.presentation_role,
+                       sa.sequence_position
                 FROM pedagogy.micro_course_state_asset sa
                 JOIN visual.asset a USING (asset_id)
                 WHERE sa.state_id=:state_id ORDER BY sa.ordinal
@@ -1424,7 +1523,8 @@ def get_release(conn, release_id: str) -> dict:
             for row in conn.execute(
                 text("""
                 SELECT a.activity_id, a.activity_type, a.prompt, a.options,
-                       a.correctness_policy, sa.ordinal, sa.purpose, sa.required
+                       a.correctness_policy, sa.ordinal, sa.purpose, sa.required,
+                       sa.sequence_position
                 FROM pedagogy.micro_course_state_activity sa
                 JOIN activity.definition a USING (activity_id)
                 WHERE sa.state_id=:state_id ORDER BY sa.ordinal
@@ -2040,9 +2140,25 @@ def get_published_asset(conn, canonical_code: str, asset_id: str) -> dict:
         JOIN visual.asset a USING (asset_id)
         WHERE c.canonical_code=:code AND a.asset_id=:asset_id
           AND a.validation_status='VALID'
+        UNION ALL
+        -- requirements/60 §7: a Manim-rendered explainer video is reachable through an
+        -- *attached interaction's* scene_spec, not a direct micro_course_state_asset row
+        -- — the same published-course/VALID-asset guarantees apply, just via a second path.
+        SELECT a.uri, a.mime_type, a.content_hash, a.object_size_bytes
+        FROM pedagogy.micro_course c
+        JOIN pedagogy.micro_course_release r
+          ON r.micro_course_id=c.micro_course_id AND r.status='PUBLISHED'
+        JOIN pedagogy.micro_course_state s USING (release_id)
+        JOIN pedagogy.micro_course_state_interaction si USING (state_id)
+        JOIN visual.interaction_instance i USING (interaction_instance_id)
+        JOIN visual.scene_spec scene ON scene.scene_spec_id=i.scene_spec_id AND scene.status='APPROVED'
+        JOIN visual.asset a ON a.asset_id=scene.rendered_video_asset_id
+        WHERE c.canonical_code=:code AND a.asset_id=:asset_id
+          AND a.validation_status='VALID'
+        LIMIT 1
     """),
         {"code": _required_text(canonical_code, "canonical_code"), "asset_id": str(asset_id)},
-    ).mappings().one_or_none()
+    ).mappings().first()
     if asset is None:
         raise MicroCourseNotFound("published course asset not found")
     if not asset["uri"].startswith("object-store:"):
@@ -2219,7 +2335,7 @@ def attach_activity(
     activity = (
         conn.execute(
             text("""
-            SELECT source_type, persistence_mode FROM activity.definition WHERE activity_id=:id
+            SELECT source_type, persistence_mode, status FROM activity.definition WHERE activity_id=:id
         """),
             {"id": str(activity_id)},
         )
@@ -2232,6 +2348,8 @@ def attach_activity(
         raise ValueError("micro-course activities must be precompiled or instructor-created")
     if activity["persistence_mode"] != "STATIC":
         raise ValueError("micro-course activities must use STATIC persistence")
+    if activity["status"] != "ACTIVE":
+        raise ValueError("deactivated activities cannot be newly attached to a course state")
     conn.execute(
         text("""
         INSERT INTO pedagogy.micro_course_state_activity
@@ -2246,6 +2364,102 @@ def attach_activity(
             "required": required,
         },
     )
+
+
+def detach_activity(conn, state_id: str, activity_id: str) -> None:
+    """Detach a quiz from a state and compact remaining ordinals so no gap is left
+    (requirements/46 QZA-4)."""
+    state = conn.execute(
+        text("SELECT release_id FROM pedagogy.micro_course_state WHERE state_id=:id"),
+        {"id": str(state_id)},
+    ).scalar_one_or_none()
+    if state is None:
+        raise MicroCourseNotFound("micro-course state not found")
+    _editable_release(conn, str(state))
+    deleted = conn.execute(
+        text("DELETE FROM pedagogy.micro_course_state_activity WHERE state_id=:state_id AND activity_id=:activity_id "
+             "RETURNING ordinal"),
+        {"state_id": str(state_id), "activity_id": str(activity_id)},
+    ).scalar_one_or_none()
+    if deleted is None:
+        raise MicroCourseNotFound("activity is not attached to this state")
+    conn.execute(
+        text("UPDATE pedagogy.micro_course_state_activity SET ordinal = ordinal - 1 "
+             "WHERE state_id=:state_id AND ordinal > :deleted"),
+        {"state_id": str(state_id), "deleted": deleted},
+    )
+
+
+def update_activity_binding(
+    conn, state_id: str, activity_id: str, *, ordinal: int | None = None,
+    purpose: str | None = None, required: bool | None = None,
+) -> None:
+    """Change ordinal/purpose/required without detaching (requirements/46 QZA-4)."""
+    state = conn.execute(
+        text("SELECT release_id FROM pedagogy.micro_course_state WHERE state_id=:id"),
+        {"id": str(state_id)},
+    ).scalar_one_or_none()
+    if state is None:
+        raise MicroCourseNotFound("micro-course state not found")
+    _editable_release(conn, str(state))
+    sets = []
+    params: dict[str, Any] = {"state_id": str(state_id), "activity_id": str(activity_id)}
+    if ordinal is not None:
+        sets.append("ordinal=:ordinal")
+        params["ordinal"] = ordinal
+    if purpose is not None:
+        sets.append("purpose=:purpose")
+        params["purpose"] = _required_text(purpose, "purpose").upper()
+    if required is not None:
+        sets.append("required=:required")
+        params["required"] = required
+    if not sets:
+        raise ValueError("at least one of ordinal, purpose, required must be supplied")
+    updated = conn.execute(
+        text(f"UPDATE pedagogy.micro_course_state_activity SET {', '.join(sets)} "
+             "WHERE state_id=:state_id AND activity_id=:activity_id RETURNING activity_id"),
+        params,
+    ).scalar_one_or_none()
+    if updated is None:
+        raise MicroCourseNotFound("activity is not attached to this state")
+
+
+_SEQUENCE_TABLES = {
+    "asset": ("pedagogy.micro_course_state_asset", "asset_id"),
+    "interaction": ("pedagogy.micro_course_state_interaction", "interaction_instance_id"),
+    "learning_item": ("pedagogy.micro_course_state_learning_item", "learning_item_id"),
+    "activity": ("pedagogy.micro_course_state_activity", "activity_id"),
+}
+
+
+def set_item_sequence_position(
+    conn, state_id: str, item_kind: str, item_id: str, sequence_position: int | None
+) -> None:
+    """Author (or clear) one item's cross-kind `sequence_position` within its state
+    (requirements/47 §2.1, MCN2-1) — a single generic Tier-B endpoint covering all four
+    child kinds, rather than extending each `attach_*` function's own signature.
+    Additive: items left with `sequence_position=NULL` simply keep falling back to the
+    existing grouped-by-kind order relative to each other (see `_build_state_items`)."""
+    if item_kind not in _SEQUENCE_TABLES:
+        raise ValueError(f"unknown item_kind {item_kind!r}; expected one of {sorted(_SEQUENCE_TABLES)}")
+    release_id = conn.execute(
+        text("SELECT release_id FROM pedagogy.micro_course_state WHERE state_id=:id"),
+        {"id": str(state_id)},
+    ).scalar_one_or_none()
+    if release_id is None:
+        raise MicroCourseNotFound("micro-course state not found")
+    _editable_release(conn, str(release_id))
+    table, id_column = _SEQUENCE_TABLES[item_kind]
+    updated = conn.execute(
+        text(f"""
+        UPDATE {table} SET sequence_position=:position
+        WHERE state_id=:state_id AND {id_column}=:item_id
+        RETURNING {id_column}
+    """),
+        {"position": sequence_position, "state_id": str(state_id), "item_id": str(item_id)},
+    ).scalar_one_or_none()
+    if updated is None:
+        raise MicroCourseNotFound(f"{item_kind} is not attached to this state")
 
 
 def create_intervention(

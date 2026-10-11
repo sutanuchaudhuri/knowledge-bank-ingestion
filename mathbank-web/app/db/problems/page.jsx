@@ -9,6 +9,15 @@ import { Callout, EmptyState, Pill } from "../../_components/ui.jsx";
 
 const LIMIT = 20;
 
+function LoadingState({ children }) {
+  return (
+    <div className="d-flex align-items-center gap-2 text-body-secondary" role="status">
+      <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+      <span>{children}</span>
+    </div>
+  );
+}
+
 function ProblemsPageInner() {
   const searchParams = useSearchParams();
   const [competitions, setCompetitions] = useState([]);
@@ -56,7 +65,7 @@ function ProblemsPageInner() {
   }
 
   return (
-    <div>
+    <>
       <div className="app-filters card p-3 flex-row">
         <select className="form-select" aria-label="Competition" value={filters.competition} onChange={(e) => updateFilter("competition", e.target.value)}>
           <option value="">All competitions</option>
@@ -105,7 +114,7 @@ function ProblemsPageInner() {
       <div className="card p-3">
           {filters.competition && <div className="mb-3"><Pill tone="primary" icon="trophy">{filters.competition}</Pill></div>}
           {!page && !error ? (
-            <p role="status">Loading…</p>
+            <LoadingState>Loading matching problems…</LoadingState>
           ) : page ? (
             <>
               {page.items.length ? <div className="d-grid gap-3">
@@ -124,14 +133,16 @@ function ProblemsPageInner() {
             null
           )}
       </div>
-    </div>
+    </>
   );
 }
 
 export default function ProblemsPage() {
   return (
-    <Suspense fallback={<p>Loading…</p>}>
-      <ProblemsPageInner />
-    </Suspense>
+    <div className="d-grid gap-3">
+      <Suspense fallback={<div className="card shadow-sm p-3 p-lg-4"><LoadingState>Loading problem filters…</LoadingState></div>}>
+        <ProblemsPageInner />
+      </Suspense>
+    </div>
   );
 }

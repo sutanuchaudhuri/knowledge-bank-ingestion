@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { input, primaryButton } from "../db/dbStyles.js";
-import { Avatar, Callout, Icon } from "../_components/ui.jsx";
+import { Avatar, Callout, Icon, PageHeader } from "../_components/ui.jsx";
 
 const DEMO_ACCOUNTS = [
   { email: "maya.chen@example.com", label: "Maya Chen — strong" },
@@ -48,10 +48,9 @@ export default function LoginPage() {
 
   return (
     <div className="app-auth">
-      <div className="text-center mb-4">
-        <span className="mb-page-icon mb-tone-primary mx-auto mb-3"><Icon name="mortarboard" /></span>
-        <h1 className="mb-page-title">{mode === "login" ? "Student login" : "Create your student account"}</h1>
-        <p className="mb-page-sub">Save your conversations and track your progress.</p>
+      <div className="mb-4">
+        <PageHeader icon="mortarboard" title={mode === "login" ? "Student login" : "Create your student account"}
+          subtitle="Save your conversations and track your progress." centered />
       </div>
       <div className="mb-segment mb-3" role="group" aria-label="Account mode">
         <button type="button" className={mode === "login" ? "active" : ""} aria-pressed={mode === "login"} onClick={() => setMode("login")}>Log in</button>

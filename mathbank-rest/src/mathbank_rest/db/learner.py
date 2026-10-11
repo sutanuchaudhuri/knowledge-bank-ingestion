@@ -200,7 +200,18 @@ def get_attempts_for_concept(student_id: UUID, concept_id: UUID) -> list[dict]:
                 "JOIN core.problem p ON p.problem_id = a.problem_id "
                 "WHERE a.student_id = :student_id AND pc.concept_id = :concept_id "
                 "AND a.is_correct IS NOT NULL "
-                "ORDER BY a.attempted_at"
+                "UNION ALL "
+                # requirements/53 QZ-7: blend quiz-generated-question performance into the
+                # same mastery score as real-corpus attempts, not a parallel/disconnected
+                # number. Quizzes have no server-tracked hint ladder, so hint_count is 0.
+                "SELECT r.is_correct, r.submitted_at AS attempted_at, 0 AS hint_count, "
+                "qp.difficulty_band "
+                "FROM quiz.response r "
+                "JOIN quiz.question_concept qc ON qc.question_id = r.question_id "
+                "JOIN quiz.paper qp ON qp.quiz_id = r.quiz_id "
+                "WHERE r.student_id = :student_id AND qc.concept_id = :concept_id "
+                "AND r.is_correct IS NOT NULL "
+                "ORDER BY attempted_at"
             ),
             {"student_id": str(student_id), "concept_id": str(concept_id)},
         ).mappings()
@@ -217,7 +228,16 @@ def get_attempts_for_technique(student_id: UUID, technique_id: UUID) -> list[dic
                 "JOIN core.problem p ON p.problem_id = a.problem_id "
                 "WHERE a.student_id = :student_id AND pt.technique_id = :technique_id "
                 "AND a.is_correct IS NOT NULL "
-                "ORDER BY a.attempted_at"
+                "UNION ALL "
+                # Same blending as get_attempts_for_concept above, for technique_mastery.
+                "SELECT r.is_correct, r.submitted_at AS attempted_at, 0 AS hint_count, "
+                "qp.difficulty_band "
+                "FROM quiz.response r "
+                "JOIN quiz.question_technique qt ON qt.question_id = r.question_id "
+                "JOIN quiz.paper qp ON qp.quiz_id = r.quiz_id "
+                "WHERE r.student_id = :student_id AND qt.technique_id = :technique_id "
+                "AND r.is_correct IS NOT NULL "
+                "ORDER BY attempted_at"
             ),
             {"student_id": str(student_id), "technique_id": str(technique_id)},
         ).mappings()

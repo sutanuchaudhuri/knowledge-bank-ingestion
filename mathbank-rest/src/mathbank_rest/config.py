@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     # requirements/11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md).
     admin_api_key: str = INSECURE_DEFAULT_ADMIN_API_KEY
 
+    # requirements/60 §7 — the Manim Video Studio is a peer service, not a sibling
+    # Python package; promotion calls its REST API (list candidates, fetch the
+    # rendered video, mark-promoted) rather than reading its tables directly.
+    manim_studio_base_url: str = "http://localhost:8020"
+
     @property
     def postgres_dsn(self) -> str:
         dsn = (

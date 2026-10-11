@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from mathbank_rest import micro_course_assist as assist
 from mathbank_rest import micro_course_service as courses
 from mathbank_rest import object_store
 from mathbank_rest.db.postgres import engine
@@ -29,7 +30,7 @@ _ASSET_TYPES = {
 }
 admin_router = APIRouter(
     prefix="/v1/admin/micro-courses",
-    tags=["admin micro-courses"],
+    tags=["admin-micro-courses"],
     dependencies=[Depends(require_admin_api_key)],
 )
 student_router = APIRouter(prefix="/v1/micro-courses", tags=["micro-courses"])
@@ -141,7 +142,8 @@ class AdvanceEnrollment(BaseModel):
 class SubmitLearningItemResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     learning_item_id: str = Field(min_length=1, max_length=200)
-    choice_index: int = Field(ge=0)
+    choice_index: int | None = Field(default=None, ge=0)
+    gave_up: bool = False
 
 
 class SubmitActivityResponse(BaseModel):
@@ -149,6 +151,7 @@ class SubmitActivityResponse(BaseModel):
     activity_id: UUID
     choice_index: int | None = Field(default=None, ge=0)
     value: float | None = None
+    gave_up: bool = False
 
 
 class RecordInteractionEvent(BaseModel):
@@ -163,6 +166,14 @@ class RecordInteractionEvent(BaseModel):
     after_state: dict | None = None
 
 
+class ItemHelpRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    item_kind: Literal["asset", "interaction", "learning_item", "activity"]
+    item_id: str = Field(min_length=1, max_length=200)
+    intent: Literal["help", "give_up"] = "help"
+    student_message: str | None = Field(default=None, max_length=1000)
+
+
 def _call(operation, *args, **kwargs):
     try:
         with engine.begin() as conn:
@@ -171,6 +182,8 @@ def _call(operation, *args, **kwargs):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except courses.MicroCourseNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except assist.AssistUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except IntegrityError as exc:
@@ -517,6 +530,7 @@ def submit_response(
     return _call(
         courses.submit_learning_item_response,
         str(enrollment_id), str(student_id), body.learning_item_id, body.choice_index,
+        gave_up=body.gave_up,
     )
 
 
@@ -529,7 +543,7 @@ def submit_activity_response_endpoint(
     return _call(
         courses.submit_activity_response,
         str(enrollment_id), str(student_id), str(body.activity_id),
-        choice_index=body.choice_index, value=body.value,
+        choice_index=body.choice_index, value=body.value, gave_up=body.gave_up,
     )
 
 
@@ -548,3 +562,18 @@ def record_interaction_event_endpoint(
         after_state=body.after_state,
     )
     return {"interaction_event_id": event_id}
+
+
+@student_router.post("/enrollments/{enrollment_id}/item-help")
+def get_item_help(
+    enrollment_id: UUID,
+    body: ItemHelpRequest,
+    student_id: UUID = Depends(get_current_student_id),
+) -> dict:
+    """Scoped "Help me?" / "Give up" assist for the single current item of the
+    student's active state (requirements/47 §3, MCN2-6/MCN2-7)."""
+    return _call(
+        assist.get_item_assist,
+        str(enrollment_id), str(student_id), body.item_kind, body.item_id,
+        body.intent, body.student_message,
+    )

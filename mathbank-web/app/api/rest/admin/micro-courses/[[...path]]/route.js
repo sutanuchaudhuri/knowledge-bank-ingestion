@@ -69,3 +69,34 @@ export async function POST(request, context) {
     return errorResponse(error);
   }
 }
+
+export async function PATCH(request, context) {
+  if (!(await hasValidAdminSession())) {
+    return Response.json({ error: "not authorized" }, { status: 401 });
+  }
+  try {
+    const body = await request.json();
+    return Response.json(await restAdminSend("PATCH", await upstreamPath(context), body));
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function DELETE(request, context) {
+  if (!(await hasValidAdminSession())) {
+    return Response.json({ error: "not authorized" }, { status: 401 });
+  }
+  try {
+    const query = Object.fromEntries(new URL(request.url).searchParams);
+    const path = await upstreamPath(context);
+    const url = Object.keys(query).length
+      ? `${path}?${new URLSearchParams(query).toString()}`
+      : path;
+    await restAdminSend("DELETE", url, undefined);
+    // 200 + a JSON body (not a bare 204) so the shared `request()` client helper, which always
+    // calls response.json(), doesn't throw on an empty body.
+    return Response.json({ ok: true });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}

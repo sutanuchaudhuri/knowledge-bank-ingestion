@@ -6,6 +6,7 @@ export const NAV_GROUPS = [
     items: [
       { href: "/", label: "Tutor", icon: "chat-dots" },
       { href: "/learn", label: "Guided practice", icon: "signpost-split" },
+      { href: "/learn/quizzes", label: "Practice quizzes", icon: "patch-question" },
       { href: "/learn/courses", label: "Micro-courses", icon: "diagram-3" },
       { href: "/learn/attempt-media", label: "My submitted work", icon: "file-earmark-richtext" },
       { href: "/learn/conversations", label: "My conversations", icon: "chat-left-text" },
@@ -36,6 +37,7 @@ export const NAV_GROUPS = [
       { href: "/admin/conversations", label: "Conversations", icon: "people" },
       { href: "/admin/widgets", label: "Widgets", icon: "puzzle" },
       { href: "/admin/geometry-scenes", label: "Geometry diagnostics", icon: "activity" },
+      { href: "/admin/manim-studio", label: "Manim video studio", icon: "camera-reels" },
     ],
   },
 ];
@@ -59,8 +61,9 @@ const SEGMENT_LABELS = {
   "knowledge-gaps": "Knowledge gaps", imports: "Imports", widgets: "Widgets", login: "Sign in",
   "attempt-media": "My submitted work", artifacts: "Artifact library", corpus: "Corpus repair",
   "geometry-scenes": "Geometry diagnostics",
+  "manim-studio": "Manim video studio",
   courses: "Micro-courses", "micro-courses": "Micro-courses",
-  "tutoring-routes": "Teaching routes",
+  "tutoring-routes": "Teaching routes", quizzes: "Practice quizzes", quiz: "Quiz", review: "Review",
 };
 
 const titleCase = (s) => s.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());

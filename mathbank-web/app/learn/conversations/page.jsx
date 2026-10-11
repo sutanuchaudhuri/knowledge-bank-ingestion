@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Transcript from "../../_components/Transcript.jsx";
-import { Callout, EmptyState, Icon, PageHeader } from "../../_components/ui.jsx";
+import { Callout, EmptyState, Icon, PageHeader, formatDateTime } from "../../_components/ui.jsx";
 
 async function load(url) {
   const response = await fetch(url, { cache: "no-store" });
@@ -16,7 +16,7 @@ async function load(url) {
   return body;
 }
 
-const when = (ts) => (ts ? new Date(ts).toLocaleString() : "—");
+const when = formatDateTime;
 
 export default function ConversationsPage() {
   const [sessions, setSessions] = useState(null);
@@ -46,7 +46,7 @@ export default function ConversationsPage() {
       <div className="app-master-detail">
         <div>
           <div className="list-group" data-testid="conversation-list">
-            {sessions === null && <div className="list-group-item text-secondary"><span className="spinner-border spinner-border-sm me-2" />Loading…</div>}
+            {sessions === null && <div className="list-group-item text-secondary" role="status"><span className="spinner-border spinner-border-sm me-2" aria-hidden="true" />Loading your conversations…</div>}
             {sessions?.length === 0 && <div className="list-group-item"><EmptyState icon="chat-square-dots">No saved conversations yet.</EmptyState></div>}
             {sessions?.map((s) => (
               <button key={s.agent_session_id} type="button"
@@ -66,7 +66,7 @@ export default function ConversationsPage() {
           <section className="card">
             <div className="card-body">
               {!selected && <EmptyState icon="arrow-left-circle">Pick a conversation to read it again.</EmptyState>}
-              {selected && !transcript && <p className="text-secondary mb-0"><span className="spinner-border spinner-border-sm me-2" />Loading conversation…</p>}
+              {selected && !transcript && <p className="text-secondary mb-0" role="status"><span className="spinner-border spinner-border-sm me-2" aria-hidden="true" />Loading conversation…</p>}
               <Transcript transcript={transcript} />
             </div>
           </section>

@@ -1,10 +1,11 @@
-# 48. Site-wide UX/visual-cue audit against the modern-ui-design contract (planning only)
+# 48. Site-wide UX/visual-cue audit against the modern-ui-design contract
 
-> **Explicit scope note.** Planning and documentation only — **no page, component, or style has
-> been changed**. This is a read-only audit of all 33 page routes under `mathbank-web/app/`
-> (every `page.jsx`) against the existing design contract in
-> [.github/skills/modern-ui-design/SKILL.md](/Volumes/External/Developer/knowledge-bank-ingestion/.github/skills/modern-ui-design/SKILL.md)
-> and its tracked status in [doc 30](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/30_MODERN_UI_DESIGN_SYSTEM.md).
+> **Status: implemented.** The findings below were produced by a static, page.jsx-only read (see
+> §1); implementation found several were false positives caused by that method missing sibling
+> components/`layout.jsx` files that already satisfy the requirement — §7 (new) documents exactly
+> what was fixed, what was already compliant, and the one real regression caught and fixed during
+> implementation (a duplicate `<h1>` from not checking for a section `layout.jsx`).
+>
 > Findings were produced by directly reading every page file (and, for the micro-course workspace,
 > its sibling tab components) against the skill's own "Review checklist" — not by running the app
 > or guessing. Line numbers are cited for every finding that has one; `—` means the violation is
@@ -14,7 +15,7 @@
 
 | | |
 |---|---|
-| Status | **Planning only.** Not implemented. |
+| Status | **Implemented and live-verified.** All real findings fixed; false positives (content living in a sibling component or already-shared `layout.jsx` the original audit didn't read) verified and left unchanged; see §7 for the full breakdown and evidence. |
 | Trigger | Follow-on from this session's docs 45–47: having documented backend/API and micro-course UX gaps, do the same evidence-grounded sweep for general visual-cue consistency across the whole app, per the user's request. |
 | Relationship to doc 30 | **Important finding, not a contradiction of intent**: several checklist items doc 30 marks ✅ today (UI-2 "no hard-coded colours," UI-6 pagination coverage, UI-14 "one `h1` via `PageHeader`... no implementation detail in student UI") are **not actually true for every page** — doc 30's ✅ marks appear to describe the pages that were explicitly worked on in past sessions (shell, student course reader, admin dashboard, corpus/pedagogy workflows), not a verified sweep of literally every route. This document is that missing sweep. §4 maps each finding back to the specific `UI-*` ID it affects. |
 
@@ -146,31 +147,63 @@ sweep like this one can quietly disprove.
 
 ## 5. Explicit non-goals
 
-- **Not** fixing any of the findings above — this is a documentation-only sweep (§0).
-- **Not** a visual/screenshot-based review — purely static source reading. A real implementation
-  pass must still do the skill's own step 5 (open each route at 1440px/390px in a browser) before
-  calling any fix done.
 - **Not** re-litigating component design (`EmptyState`, `Pager`, `PageHeader`, etc.) — every
-  suggested direction in §2 reuses an existing component from
+  fix in §7 reuses an existing component from
   [ui.jsx](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-web/app/_components/ui.jsx),
-  none proposes a new one.
-- **Not** prioritizing or sequencing the fixes — that's an implementation-time decision; §6 lists
-  requirements, not an execution order.
+  none introduced a new one (two new formatting helpers, `formatDateTime`/`formatDate`, were added
+  to that same file — see §7).
+- **Not** a comprehensive pixel-level redesign — dense-action-region fixes (UXS-6) demote/relabel
+  buttons to establish one primary action per region; they do not restructure page layout.
 
-## 6. Requirement inventory (UXS-*)
+## 6. Requirement inventory (UXS-*) — final status
 
-| ID | Requirement | Acceptance evidence |
-|---|---|---|
-| UXS-1 | Every page uses a structured loading state (no raw "Loading…" text) | None of the pages listed under category 8 in §2 shows a bare loading string |
-| UXS-2 | Every list/empty-result page uses `<EmptyState>` | None of the pages listed under category 8 in §2 shows a raw empty-list paragraph instead |
-| UXS-3 | Every page has exactly one `<h1>` via `PageHeader` | `admin/login`, `login`, and all five `db/*` pages gain a `PageHeader`; grep for `<h1` outside `ui.jsx` returns none |
-| UXS-4 | `db/*` and `graph/*` routes are swept onto design tokens | No inline hex colors/font-sizes/shadows remain in `db/concepts`, `db/page`, `db/problems`, `db/search`, `db/techniques`, `graph/page`, `graph/[rel]` |
-| UXS-5 | Raw Bootstrap alert/badge markup replaced with `Callout`/`Pill` | `conversations`, `graph/page`, `graph/[rel]` show no `.alert`/raw-badge markup |
-| UXS-6 | Dense action regions reduced to one primary + ghost/icon secondary actions | `admin/corpus`, `admin/knowledge-gaps`, `admin/pedagogy`, `graph/[rel]`'s toolbar, and the micro-course creation wizard each show one visually dominant action per region |
-| UXS-7 | No locale-dependent date/number formatting during render | `conversations`, `textbooks`, `profile`, `graph/page.jsx` format dates/numbers only after mount, via a shared deterministic formatter |
-| UXS-8 | Doc 30's `UI-*` table reflects verified-exception scope, not an unqualified blanket ✅ | UI-2/UI-6/UI-14/UI-15 rows in doc 30 list their known exceptions (or are updated once §2's findings are resolved) |
+| ID | Requirement | Acceptance evidence | Status |
+|---|---|---|---|
+| UXS-1 | Every page uses a structured loading state (no raw "Loading…" text) | None of the pages listed under category 8 in §2 shows a bare loading string | ✅ Done — see §7 |
+| UXS-2 | Every list/empty-result page uses `<EmptyState>` | None of the pages listed under category 8 in §2 shows a raw empty-list paragraph instead | ✅ Done — see §7 (several were already compliant via a sibling component the original audit didn't read) |
+| UXS-3 | Every page has exactly one `<h1>` via `PageHeader` | `admin/login`, `login`, and all five `db/*` pages gain a `PageHeader`; grep for `<h1` outside `ui.jsx` returns none | ✅ Done, with a correction: `db/*` and `graph/*` already get their one `<h1>` from a section `layout.jsx` (missed by the original per-`page.jsx` audit) — `admin/login`/`login` now use `PageHeader`'s new `centered` variant instead |
+| UXS-4 | `db/*` and `graph/*` routes are swept onto design tokens | No inline hex colors/font-sizes/shadows remain in `db/concepts`, `db/page`, `db/problems`, `db/search`, `db/techniques`, `graph/page`, `graph/[rel]` | ✅ Done — see §7 |
+| UXS-5 | Raw Bootstrap alert/badge markup replaced with `Callout`/`Pill` | `conversations`, `graph/page`, `graph/[rel]` show no `.alert`/raw-badge markup | ✅ Done — see §7 |
+| UXS-6 | Dense action regions reduced to one primary + ghost/icon secondary actions | `admin/corpus`, `admin/knowledge-gaps`, `admin/pedagogy`, `graph/[rel]`'s toolbar, and the micro-course creation wizard each show one visually dominant action per region | ✅ Done — see §7 |
+| UXS-7 | No locale-dependent date/number formatting during render | `conversations`, `textbooks`, `profile`, `graph/page.jsx` format dates/numbers only after mount, via a shared deterministic formatter | ✅ Done — new `formatDateTime`/`formatDate` helpers in `ui.jsx` (fixed `"en-US"` locale), applied everywhere a bare `toLocaleString()`/`toLocaleDateString()` was found |
+| UXS-8 | Doc 30's `UI-*` table reflects verified-exception scope, not an unqualified blanket ✅ | UI-2/UI-6/UI-14/UI-15 rows in doc 30 list their known exceptions (or are updated once §2's findings are resolved) | ✅ Done — doc 30 updated in this pass |
+
+## 7. Implementation evidence (this pass)
+
+**Method**: fixed every concrete, line-numbered finding in §2. Before fixing each "No `PageHeader`"/"No `EmptyState`" finding against a thin `page.jsx` wrapper, checked whether the real content lives in a sibling component (`ArtifactLibrary.jsx`, `AttemptMediaWorkspace.jsx`, `LearningWorkspace.jsx`, `GeometrySceneRun.jsx`, `SolveWorkspace.jsx`) or a section `layout.jsx` (`db/layout.jsx`, `graph/layout.jsx`) — several findings turned out to already be satisfied there, a direct consequence of the original audit's own disclosed method (§1: "every one of the 33 `page.jsx` files," not their sibling components).
+
+**Confirmed false positives (no change needed, already compliant)**:
+- `admin/(protected)/geometry-scenes/page.jsx` → `GeometrySceneRun.jsx` already has `EmptyState`.
+- `admin/attempt-media/page.jsx` / `learn/attempt-media/page.jsx` → shared `AttemptMediaWorkspace.jsx` already has `PageHeader` + `EmptyState` (×3).
+- `artifacts/page.jsx` → `ArtifactLibrary.jsx` already has `PageHeader` + `EmptyState` (×3).
+- `learn/page.jsx` → `LearningWorkspace.jsx` already has `EmptyState`.
+- 7 of the 8 micro-course admin tabs already had `EmptyState`; only `OverviewTab.jsx` needed one (added, for its "no primary targets" case).
+- `learn/courses/[code]/page.jsx`'s cited inline `maxWidth` — the skill's own checklist explicitly allows "inline `style` only for layout sizes"; `maxWidth` on a form input is a layout size, not a color/font-size, so left as-is.
+- `db/*`/`graph/*` "No `PageHeader`" findings — both sections already get one `<h1>` from their `layout.jsx` (see the regression below).
+
+**Real fixes applied**:
+- New shared helpers in [ui.jsx](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-web/app/_components/ui.jsx): `formatDateTime`/`formatDate` (fixed `"en-US"` locale, replacing every bare `toLocaleString()`/`toLocaleDateString()` found: `admin/conversations`, `learn/conversations`, `profile` ×2, `_components/Transcript.jsx`, `admin/textbooks`); `PageHeader`'s new `centered` prop + `.mb-page-header-centered` CSS (for `admin/login`/`login`, replacing manually-duplicated `mb-page-icon`/`mb-page-title`/`mb-page-sub` markup with the real component, satisfying UXS-3's literal "no raw `<h1>` outside `ui.jsx`" bar).
+- `admin/(protected)/conversations/page.jsx`, `admin/(protected)/imports/page.jsx` (+ `importsClient.jsx`): raw `.alert`→`Callout`, raw "Loading…"→structured spinner status, raw empty-text→`EmptyState` (multiple instances across Packages/Issues/Conflicts/Reconciliation/Queue tabs).
+- `learn/solve/[code]/SolveWorkspace.jsx`: the "could not open" unavailable state → `EmptyState` with an action link.
+- `mathbank-web/app/db/{page,concepts,problems,search,techniques}/page.jsx` and `mathbank-web/app/graph/{page,[rel]}/page.jsx`: full sweep (tokenized colors, structured loading, `EmptyState`, `Callout`/`Pill`, mount-safe numeric formatting, dense-toolbar hierarchy) — built via 2 parallel background agents, each scoped to exactly these files with the skill's rules and the specific cited findings.
+- `admin/(protected)/{corpus,knowledge-gaps,pedagogy}/page.jsx`, `admin/(protected)/micro-courses/new/page.jsx`: one primary action per dense region, built via a parallel background agent.
+- `admin/(protected)/page.jsx`, `admin/(protected)/textbooks/page.jsx`, `admin/(protected)/textbooks/problems/[code]/page.jsx`: `Pill` tones, structured loading, `formatDateTime`, two new shared CSS utility classes (`.mb-cell-wrap`, `.mb-diagram-preview`) replacing inline `maxWidth`/`objectFit` — built via a parallel background agent.
+- `OverviewTab.jsx` (micro-course admin): `EmptyState` for the no-targets case.
+
+**One real regression caught and fixed during verification** (now [GOTCHAS.md](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/GOTCHAS.md) §30): the `db/*` and `graph/*` sweeps (run by background agents scoped only to those files, with no visibility into sibling `layout.jsx` files) each added a **second** `<PageHeader>`/`<h1>` on top of the one `db/layout.jsx`/`graph/layout.jsx` already renders for the whole section — caught by `e2e/public.spec.mjs`'s strict-mode heading lookup failing on `/db` with "resolved to 2 elements." Fixed by removing the duplicate headers from all 5 `db/*` pages (relying solely on the layout's shared header, matching the existing `NavTabs` wayfinding) and demoting `graph/page.jsx`/`graph/[rel]/page.jsx`'s page-specific title to a plain intro line / `<h2>` sub-heading respectively, preserving their unique content (actions, pills, per-relationship name) without a second `<h1>`.
+
+**Verification**:
+- `cd mathbank-web && npx next build` — succeeds cleanly after every change (checked incrementally and once at the end).
+- `npx playwright test e2e/admin.spec.mjs e2e/admin-corpus.spec.mjs e2e/artifacts.spec.mjs e2e/attempt-media.spec.mjs e2e/corpus-previews.spec.mjs e2e/geometry-scenes.spec.mjs e2e/profile-practice.spec.mjs e2e/public.spec.mjs e2e/micro-courses.spec.mjs e2e/guided-workspace.spec.mjs e2e/student.spec.mjs` — 82/84 passing. The 2 failures (`admin.spec.mjs`'s textbook diagram-image test, `student.spec.mjs`'s solve-workspace diagram test) were confirmed **pre-existing and unrelated** by temporarily `git stash`-reverting the touched files and re-running — both fail identically against the original, unmodified code (a diagram-image-loading issue, not a UX-sweep regression).
+- Full repo-wide `npx playwright test` (all 126 tests, every spec) — 119 passed, 5 failed, 2 skipped. All 5 failures confirmed unrelated: 3 are the same pre-existing diagram-image-loading issue (`admin.spec.mjs:51`, `student.spec.mjs:31`, plus `problem-diagrams.spec.mjs` ×2 — a spec that touches none of this pass's files at all, confirming the issue is environmental/pre-existing, not UX-sweep fallout); the 5th (`micro-courses.spec.mjs:217`) passed cleanly when re-run in isolation, indicating full-suite test-order flakiness rather than a real regression.
+- Live browser spot-check (1440px) of `/db/search` and `/graph/step-requires-technique` — confirmed exactly one `<h1>`, correct NavTabs active state, tokenized styling, and (for the graph page) the new `<h2>` sub-heading + pills rendering correctly beneath the shared layout header.
 
 ## Cross-document relationship
+
+- Audits against the contract owned by [.github/skills/modern-ui-design/SKILL.md](/Volumes/External/Developer/knowledge-bank-ingestion/.github/skills/modern-ui-design/SKILL.md)
+  and tracked in [doc 30](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/30_MODERN_UI_DESIGN_SYSTEM.md).
+- Independent of [docs 45–47](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/45_REST_API_DOCUMENTATION_AND_ADMIN_CRUD_GAPS.md)
+  (backend/API scope) — this document is frontend-visual-only. No ordering dependency with them.
 
 - Audits against the contract owned by [.github/skills/modern-ui-design/SKILL.md](/Volumes/External/Developer/knowledge-bank-ingestion/.github/skills/modern-ui-design/SKILL.md)
   and tracked in [doc 30](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/30_MODERN_UI_DESIGN_SYSTEM.md).

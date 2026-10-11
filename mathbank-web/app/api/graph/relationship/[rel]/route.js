@@ -26,10 +26,20 @@ export async function GET(request, context) {
   const where = reviewedOnly ? "WHERE r.review_status = 'REVIEWED' AND (NOT a:Skill OR a.review_status = 'REVIEWED') AND (NOT b:Skill OR b.review_status = 'REVIEWED')" : "";
 
   try {
-    const data = await withCache(`graph:rel:v2:${rel}:${limit}:${Boolean(reviewedOnly)}`, TTL_MS, async () => {
+    // v3: bumped cache key so stale non-randomized v2 samples (requirements/50 BUG-1) expire
+    // immediately instead of being served for up to TTL_MS after this fix deploys.
+    const data = await withCache(`graph:rel:v3:${rel}:${limit}:${Boolean(reviewedOnly)}`, TTL_MS, async () => {
+      // BUG-1 fix (requirements/50): a plain `LIMIT` with no ORDER BY returns whatever
+      // arbitrary order Neo4j's scan happens to produce, which in practice is far from a
+      // representative sample (confirmed live: a `TESTS` sample of 1000 edges showed only
+      // 1 of 619 real distinct concepts). Ordering by a per-row random value before LIMIT
+      // gives an unbiased sample across the whole match set at the cost of visiting every
+      // matching row once — the same cost the paired `count(*)` query already pays, so this
+      // is not a new full-scan, just an additional cheap computation on an existing one.
       const [records, countRows] = await Promise.all([
         runQuery(
-          `MATCH (a:${config.from})-[r:${config.type}]->(b:${config.to}) ${where} RETURN a, b, r LIMIT $limit`,
+          `MATCH (a:${config.from})-[r:${config.type}]->(b:${config.to}) ${where} ` +
+            `WITH a, b, r, rand() AS _sample_order ORDER BY _sample_order LIMIT $limit RETURN a, b, r`,
           { limit: neo4j.int(limit) }
         ),
         runQuery(`MATCH (a:${config.from})-[r:${config.type}]->(b:${config.to}) ${where} RETURN count(*) AS total`),

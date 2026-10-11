@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import MathText from "../../../_components/MathText.jsx";
 import { ProblemPreviewCard } from "../../../_components/ProblemPreview.jsx";
-import { Callout, EmptyState, Icon, PageHeader, Pager, Pill } from "../../../_components/ui.jsx";
+import { Callout, EmptyState, Icon, IconButton, PageHeader, Pager, Pill } from "../../../_components/ui.jsx";
 
 const API = "/api/rest/admin/corpus";
 const blank = { statement: "", solution: "", answer: "", diagram_required: false, note: "" };
@@ -122,7 +122,13 @@ export default function CorpusAuthoring() {
         <button key={id} role="tab" aria-selected={tab === id} className={`btn rounded-pill ${tab === id ? "btn-primary" : "btn-outline-secondary"}`}
           onClick={() => { setTab(id); setError(""); if (id === "new") { setForm(blank); setEditing(null); } }}><Icon name={icon} />{label}</button>)}
     </div>
-    {error && <Callout tone="danger" role="alert">{error}<button className="btn btn-sm btn-outline-secondary ms-2" onClick={() => { setError(""); setRefresh((n) => n + 1); }}>Retry</button></Callout>}
+    {error && <Callout tone="danger" role="alert">
+      <div className="d-flex align-items-start justify-content-between gap-2">
+        <span className="flex-grow-1">{error}</span>
+        <IconButton icon="arrow-clockwise" label="Retry" variant="outline-secondary" size="sm"
+          onClick={() => { setError(""); setRefresh((n) => n + 1); }} />
+      </div>
+    </Callout>}
     {notice && <Callout tone="success" role="status">{notice}</Callout>}
     {tab === "repair" && <div className="row g-4">
       <section className="col-12 col-xl-6">
@@ -146,7 +152,7 @@ export default function CorpusAuthoring() {
               {!item.diagram_required && !item.diagram_count && <Pill>Requirement unknown</Pill>}
             </div>
             <ProblemPreviewCard item={item} revealSolutions={false} />
-            <button className="btn btn-outline-primary btn-sm mt-3" disabled={busy} onClick={() => choose(item)}>Edit or upload source</button>
+            <button className="btn btn-outline-secondary btn-sm mt-3" disabled={busy} onClick={() => choose(item)}>Edit or upload source</button>
           </div>)}
         <Pager offset={offset} limit={20} count={result?.items.length || 0} hasMore={result?.hasMore}
           loading={busy || !result} onPrev={() => setOffset(offset - 20)} onNext={() => setOffset(offset + 20)} />
@@ -171,7 +177,7 @@ export default function CorpusAuthoring() {
               <input className="form-control mt-1" type="file" accept="image/png,image/jpeg" required onChange={(e) => setFile(e.target.files?.[0] || null)} /></label>
             <label className="form-check my-3"><input type="checkbox" className="form-check-input" required checked={rights} onChange={(e) => setRights(e.target.checked)} />
               <span className="form-check-label">I have permission to use this source image.</span></label>
-            <button className="btn btn-outline-primary" disabled={busy || !rights || !form.note.trim()}>Upload private image draft</button>
+            <button className="btn btn-outline-secondary" disabled={busy || !rights || !form.note.trim()}>Upload private image draft</button>
           </form>
         </div>}
       </section>
@@ -195,7 +201,7 @@ export default function CorpusAuthoring() {
         <Callout tone="warning">This explicitly calls the configured paid model. No original contest problem is replaced, and no generated draft is published automatically.</Callout>
         <label className="form-check my-3"><input className="form-check-input" type="checkbox" required checked={paid} onChange={(e) => setPaid(e.target.checked)} />
           <span className="form-check-label">I authorize this paid generation request.</span></label>
-        <button className="btn btn-outline-primary" disabled={busy || !paid}>{busy ? "Working…" : "Generate private draft"}</button>
+        <button className="btn btn-outline-secondary" disabled={busy || !paid}>{busy ? "Working…" : "Generate private draft"}</button>
       </form><details className="card card-body mt-3"><summary>Formatted question preview</summary><MathText>{form.statement}</MathText></details></section>
     </div>}
     {tab === "review" && <section>

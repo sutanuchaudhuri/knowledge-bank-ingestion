@@ -212,7 +212,7 @@ function DiagramsTab({ d }) {
           <div className="card shadow-sm border-0 h-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={`${API}/diagrams/${encodeURIComponent(g.source_diagram_id)}/image`} alt={g.source_caption || g.source_diagram_id}
-              className="card-img-top p-2 bg-white" style={{ objectFit: "contain", maxHeight: 360 }} data-testid="diagram-image" />
+              className="card-img-top p-2 bg-white mb-diagram-preview" data-testid="diagram-image" />
             <div className="card-body small">
               <span className={`badge text-bg-${g.visibility === "STUDENT_PROBLEM" ? "primary" : "secondary"} me-1`}>{human(g.visibility)}</span>
               <span className="badge text-bg-light border me-1">{human(g.usage)}</span>

@@ -10,6 +10,7 @@ const INTERACTION_LABELS = {
   POLYNOMIAL_ROOT_COEFFICIENT_EXPLORER_V1: "Roots and coefficients",
   SLIDER_COMPARE_V1: "Compare values",
   FUNCTION_GRAPH_EXPLORER_V1: "Function explorer",
+  VIDEO_EXPLAINER_V1: "Explainer video",
 };
 function numeric(value, fallback) {
   const parsed = Number(value);
@@ -238,6 +239,37 @@ function SliderControls({ definitions, values, update }) {
   );
 }
 
+function VideoExplainer({ interaction, courseCode, onRecordInteractionEvent }) {
+  const [watched, setWatched] = useState(false);
+  if (!interaction.rendered_video_asset_id) {
+    return <Callout tone="warning">This explainer video is not yet available.</Callout>;
+  }
+  const src = `/api/rest/micro-courses/${encodeURIComponent(courseCode)}/assets/${encodeURIComponent(interaction.rendered_video_asset_id)}/content`;
+  return (
+    <div className="mb-3">
+      <video
+        className="w-100 rounded-3" controls preload="metadata"
+        onEnded={() => {
+          if (watched) return;
+          setWatched(true);
+          onRecordInteractionEvent?.({
+            interactionInstanceId: interaction.interaction_instance_id,
+            eventType: "VIDEO_WATCHED",
+            semanticAction: "WATCH_COMPLETE",
+            actionPayload: { watched: true },
+          });
+        }}
+      >
+        <source src={src} type="video/mp4" />
+        Your browser does not support embedded video.
+      </video>
+      {watched && (
+        <Callout tone="success" icon="check2-circle" className="mt-2">Watched</Callout>
+      )}
+    </div>
+  );
+}
+
 function Calculations({ interaction, config, values }) {
   const key = interaction.template_key;
   if (key === "POLYNOMIAL_ROOT_COEFFICIENT_EXPLORER_V1") {
@@ -305,7 +337,7 @@ function Calculations({ interaction, config, values }) {
   return null;
 }
 
-export default function InteractionTemplateRenderer({ interaction, onRecordInteractionEvent }) {
+export default function InteractionTemplateRenderer({ interaction, courseCode, onRecordInteractionEvent }) {
   const config = configuration(interaction);
   const definitions = sliderDefinitions(config, interaction.initial_state);
   const [values, setValues] = useState(() => Object.fromEntries(
@@ -343,6 +375,7 @@ export default function InteractionTemplateRenderer({ interaction, onRecordInter
     "POLYNOMIAL_ROOT_COEFFICIENT_EXPLORER_V1",
     "SLIDER_COMPARE_V1",
     "FUNCTION_GRAPH_EXPLORER_V1",
+    "VIDEO_EXPLAINER_V1",
   ]);
 
   return (
@@ -357,11 +390,18 @@ export default function InteractionTemplateRenderer({ interaction, onRecordInter
       {interaction.learning_objective && (
         <p className="small text-secondary mb-course-reading">{interaction.learning_objective}</p>
       )}
-      <SliderControls definitions={definitions} values={values} update={update} />
-      {interaction.template_key === "STATE_GRAPH_EXPLORER_V1" && <StateGraph config={config} instanceId={interaction.interaction_instance_id} />}
-      {interaction.template_key === "RECURRENCE_EXPLORER_V1" && <Recurrence config={config} />}
-      {interaction.template_key === "TRANSITION_MATRIX_EDITOR_V1" && <TransitionMatrix config={config} values={values} update={update} />}
-      <Calculations interaction={interaction} config={config} values={values} />
+      {interaction.template_key === "VIDEO_EXPLAINER_V1" ? (
+        <VideoExplainer interaction={interaction} courseCode={courseCode}
+          onRecordInteractionEvent={onRecordInteractionEvent} />
+      ) : (
+        <>
+          <SliderControls definitions={definitions} values={values} update={update} />
+          {interaction.template_key === "STATE_GRAPH_EXPLORER_V1" && <StateGraph config={config} instanceId={interaction.interaction_instance_id} />}
+          {interaction.template_key === "RECURRENCE_EXPLORER_V1" && <Recurrence config={config} />}
+          {interaction.template_key === "TRANSITION_MATRIX_EDITOR_V1" && <TransitionMatrix config={config} values={values} update={update} />}
+          <Calculations interaction={interaction} config={config} values={values} />
+        </>
+      )}
       {!known.has(interaction.template_key) && (
         <Callout tone="hint">This approved interaction is available as an instructor-authored lesson resource.</Callout>
       )}

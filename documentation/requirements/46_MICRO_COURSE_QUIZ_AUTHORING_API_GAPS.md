@@ -1,22 +1,48 @@
-# 46. Micro-course quiz/activity admin authoring API gaps (planning only)
+# 46. Micro-course quiz/activity admin authoring API gaps — IMPLEMENTED
 
-> **Explicit scope note.** Planning and design only — **no code, schema, or endpoint has been
-> changed** while producing this document. Every finding is grounded in the real schema
-> ([020_live_fluid_platform.sql](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-db/sql/020_live_fluid_platform.sql),
-> [032_micro_course_platform.sql](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-db/sql/032_micro_course_platform.sql)),
-> the real service layer ([micro_course_service.py](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-rest/src/mathbank_rest/micro_course_service.py)),
-> the real router ([micro_courses.py](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-rest/src/mathbank_rest/routers/micro_courses.py)),
-> and the admin UI's own documented gap note in
-> [QuizzesTab.jsx](</Volumes/External/Developer/knowledge-bank-ingestion/mathbank-web/app/admin/(protected)/micro-courses/[code]/QuizzesTab.jsx>)
-> and [doc 43 §3.2.4/§7.1](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/43_ADMIN_MICRO_COURSE_AUTHORING_UI.md).
+> **Status update.** Originally planning-only; implemented live against the real database in this
+> session. See §0 below for the per-requirement (QZA-*) status table. The analysis/evidence
+> sections (§1-§5) are left unchanged as the grounding record; only §0 reflects implementation.
 
 ## 0. Status and scope
 
 | | |
 |---|---|
-| Status | **Planning only.** Not implemented. |
+| Status | **Implemented** (migration 037, `quiz_service.py`, `admin_activities.py`, Tier B additions to `micro_course_service.py`, `QuizzesTab.jsx` wired up), live-tested against the real Postgres database and via Playwright. See per-requirement table below. |
 | Trigger | Admin ask: "add quiz"/"add quizzes," "updateQuiz," "map quiz to source or skill," "deactivate quiz," and other quiz-related admin functionality for micro-courses. |
 | Relationship to other docs | Extends [doc 45](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/45_REST_API_DOCUMENTATION_AND_ADMIN_CRUD_GAPS.md)'s CRUD-gap methodology, applied specifically to quiz content; closes the exact gap [doc 43 §3.2.4](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/requirements/43_ADMIN_MICRO_COURSE_AUTHORING_UI.md) already flagged as "not yet available" when the Quizzes tab was built. |
+
+### Implementation status (QZA-*)
+
+| ID | Requirement | Status | Evidence |
+|---|---|---|---|
+| QZA-1 | Create a new instructor-authored quiz question | ✅ | Live-tested `POST /v1/admin/activities`; real row created with `source_type='INSTRUCTOR_CREATED'`, `persistence_mode='STATIC'`. |
+| QZA-2 | List/search the activity bank, including inactive items | ✅ | Live-tested `GET /v1/admin/activities?status=ALL`. |
+| QZA-3 | Update an instructor-authored quiz's content | ✅ | Live-tested `PATCH /v1/admin/activities/{id}`; 409 confirmed for a `PRECOMPILED` row via rollback test. |
+| QZA-4 | Bind/unbind/reorder a quiz within a course state via REST | ✅ | Tier B endpoints wired to the pre-existing, already-validated `attach_activity`; new `detach_activity`/`update_activity_binding` service functions; 13 rollback-tested cases incl. the deactivated-activity attach rejection. |
+| QZA-5 | Map a quiz to the canonical skill it measures | ✅ | Live-tested `PATCH .../skill-mapping` against a real `knowledge.skill` row. |
+| QZA-6 | Map a quiz to its originating problem | ✅ | Live-tested `PATCH .../source-mapping` against a real `core.problem` row (`AIME_1983_Q01`). |
+| QZA-7 | Deactivate/reactivate with audit trail + publish-immutability guard | ✅ | Live-tested round trip; rollback-tested the guard by forcing a release to `PUBLISHED` and confirming 409. |
+| QZA-8 | Literal-typed, consistent `purpose` on both quiz-binding tables | ✅ | Migration 037 added the same CHECK constraint `micro_course_state_learning_item` already had; confirmed live data (`ENTRY_CHECK`/`COMPREHENSION`/`TRANSFER`) needed no backfill. |
+
+**Admin UI (§3) also implemented:** `QuizzesTab.jsx`'s "not yet available" notice is now a real
+add-question form (prompt/type/options or numeric value/purpose/estimated seconds) plus
+detach/deactivate controls per question, calling the endpoints above. New Next.js proxy routes:
+`/api/rest/admin/activities/[[...path]]` (Tier A) and `PATCH`/`DELETE` support added to the
+existing `/api/rest/admin/micro-courses/[[...path]]` proxy (Tier B — no new proxy file needed,
+since `/v1/admin/micro-courses/states/...` already falls under that catch-all's path prefix).
+Verified via a new Playwright test and 3 repeated stability runs (6/6 passing each time).
+
+**Discovered and fixed during implementation (not pre-planned):** the migration's original
+`purpose` backfill `UPDATE` would have violated the existing `guard_published_state_child()`
+immutability trigger against this session's real published reference courses — fixed by
+confirming existing data already conformed and dropping the backfill step entirely (ALTER TABLE
+ADD CONSTRAINT validates via an internal scan, not a per-row UPDATE, so it doesn't trip the
+trigger). Also found and fixed: the shared `request()` frontend helper always calls
+`response.json()`, so the new DELETE proxy route needed to return `{ok:true}` with 200 rather than
+a bare 204, and a Playwright assertion race was found and fixed (a controlled `<textarea>`'s typed
+value is matched by `getByText`, so the test had to wait for the attach response and the form's
+closure before asserting on the read-only quiz list).
 
 ## 1. What exists today (verified, not assumed)
 

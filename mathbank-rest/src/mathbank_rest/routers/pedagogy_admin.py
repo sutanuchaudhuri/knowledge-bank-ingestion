@@ -31,7 +31,7 @@ Kind = Literal[
 Status = Literal["PENDING", "REVIEWED", "REJECTED"]
 router = APIRouter(
     prefix="/v1/admin/pedagogy",
-    tags=["admin pedagogy"],
+    tags=["admin-pedagogy"],
     dependencies=[Depends(require_admin_api_key)],
 )
 

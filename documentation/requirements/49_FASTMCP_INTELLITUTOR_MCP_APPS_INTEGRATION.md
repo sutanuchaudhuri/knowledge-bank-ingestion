@@ -1,6 +1,17 @@
-# 49. FastMCP + Prefab IntelliTutor: MCP Apps integration and cross-document impact map (planning only)
+# 49. FastMCP + Prefab IntelliTutor: MCP Apps integration and cross-document impact map (planning + first implementation)
 
-> **Explicit scope note.** Planning and documentation only — **no code has been changed**. This
+> **Status update (this pass).** §0 below is current. A **first, narrow, fully-implemented and
+> live-tested slice** now exists — a standalone FastMCP server exposing MathBank's public
+> competition/problem/concept/technique corpus (read-only, no pedagogy/hints/courses/quizzes) — in
+> the sibling project
+> [mathbank-mcp-competitions/](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-mcp-competitions).
+> See §7 for full evidence. Everything else in this document (the pedagogy/hint-ladder/
+> micro-course/quiz-authoring FastMCP tools covered by FMI-2 through FMI-7) remains planning-only;
+> this pass deliberately scoped to the corpus-only slice that needed no new auth/service logic and
+> no reconciliation of hint-ladder/evidence-engine duplication risk.
+
+> **Explicit scope note (original).** Planning and documentation only — **no code has been
+> changed**. This
 > document does not duplicate the detailed FastMCP implementation design; that design already
 > exists, in full, in
 > [documentation/copilot-instructions/fastmcp-intellitutor/](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/copilot-instructions/fastmcp-intellitutor)
@@ -15,7 +26,7 @@
 
 | | |
 |---|---|
-| Status | **Planning only.** Not implemented. Nothing in `documentation/copilot-instructions/fastmcp-intellitutor/` has been wired into `mathbank-rest`, `mathbank-agent`, or any app. `grep`-confirmed: no `fastmcp`/`FastMCP`/`MCP Apps` reference exists anywhere else in the repository outside that folder. |
+| Status | **Partially implemented.** The pedagogy/hint-ladder/micro-course/quiz-authoring FastMCP tools this document maps (FMI-2 through FMI-7) remain planning-only; nothing from `mathbank-agent`'s domain has been wired into FastMCP. **A separate, narrower slice — a standalone read-only competition/problem/concept/technique corpus server — has been built, live-tested, and is evidenced in §7**, as its own sibling project ([mathbank-mcp-competitions/](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-mcp-competitions)), not inside `mathbank-rest` or `mathbank-agent`. |
 | What this is | MathBank/IntelliTutor exposed as a **FastMCP server** so an MCP-Apps-capable host (e.g. an MCP-compatible chat client) can open rich, interactive learner/admin UI ("Prefab" components, or hand-built HTML for cases Prefab can't express) directly inside a conversation, while all grading, gating, canonical content and publication rules stay server-authoritative in the existing MathBank service layer. |
 | Source of truth for mechanics | [documentation/copilot-instructions/fastmcp-intellitutor/](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/copilot-instructions/fastmcp-intellitutor) — read `13_SOURCE_MAP.md` first if you need to know what is an actual FastMCP/Prefab framework fact (cited to `gofastmcp.com`) versus a MathBank-specific design decision layered on top. |
 | Source of truth for impact | This document (§2–§4). |
@@ -138,10 +149,74 @@ capability.
 | FMI-7 | Admin-key auth hardening (doc 45 APID-3) treated as a co-requisite, not an independent nice-to-have | Before any FastMCP admin tool ships, the admin API key is registered as a real, enforced security scheme — not left as the currently-misreported-as-optional header |
 | FMI-8 | Visual-consistency scope is explicit | Doc 30 states plainly whether Prefab/Custom-HTML surfaces are in or out of its scope, rather than leaving an implicit gap |
 
+## 7. First implementation: `mathbank-mcp-competitions` (corpus-only slice, fully tested)
+
+This directly answers the user's own escalating request in this session — *"a parallel mcp
+server for other agents to fetch competition specific data"*, then *"do as a full - MCP server and
+an agent with prefab client rendered in html."* It is deliberately the **narrowest possible slice**
+of this document's scope: read-only corpus data (competitions/problems/concepts/techniques), with
+zero pedagogy, hint-ladder, micro-course, quiz-authoring, or interaction/evidence logic — so none
+of FMI-2 through FMI-5 (duplicated hint/course/quiz/evidence logic) are at risk, and FMI-7 (admin
+auth hardening) doesn't apply because every endpoint it wraps is `mathbank-rest`'s existing public,
+no-auth corpus surface.
+
+| Open question this resolves | Resolution |
+|---|---|
+| §2 replace / coexist / converge | **Coexist as distinct products**, the option §2 itself recommends. `mathbank-mcp-competitions` is its own project — own `pyproject.toml`, own `.venv`, own tests — with zero shared code, imports, or process with `mathbank-agent`. It reads through `mathbank-rest`'s existing REST layer, so the "underlying tool layer" is shared (per §2 option 3's spirit) even though the agent orchestration is not. |
+| §1's four app patterns | Only two are used: plain `@mcp.tool()` data-fetch functions, and one `FastMCPApp` with a Prefab `.ui()` entry point (an app-only backend tool + a Prefab explorer view). Generative UI and Custom HTML were not needed for a read-only data-browsing use case — consistent with FMI-6 (Generative UI stays non-default) without even needing the flag, since it was never invoked. |
+
+**What was built** (full detail in the project's own
+[README.md](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-mcp-competitions/README.md)):
+
+- 6 plain MCP tools (`list_competitions`, `list_problems`, `get_problem`, `search_problems`,
+  `list_concepts`, `list_techniques`), each a thin `httpx` wrapper around `mathbank-rest`'s existing
+  public `/v1/*` endpoints — no new SQL, no duplicated retrieval logic.
+- 1 `FastMCPApp("mathbank-competitions-explorer")` — a Prefab UI competition explorer (competition
+  picker + searchable/paginated problem table), backed by one app-only tool
+  (`load_competition_problems`).
+- A standalone, independent OpenAI-function-calling demo agent (`agent_demo/agent.py`) — **not**
+  `mathbank-agent`, a different framework entirely — that spawns the MCP server as a real
+  subprocess over stdio and drives a tool-calling loop, proving the "other agents" story concretely.
+
+**Evidence (all live, against real data, not scaffolded-only):**
+
+- 9 tests in `tests/test_server.py` exercise the real MCP protocol path
+  (`fastmcp.Client(mcp).call_tool(...)`) against the live `mathbank-rest` dev server, including an
+  assertion on the full nested Prefab component tree. All 9 passing.
+- 3 tests in `tests/test_agent_demo.py`: 2 always-on (subprocess-spawn-over-stdio tool listing, and
+  the MCP→OpenAI tool-schema adapter shape), 1 opt-in live-LLM test
+  (`AGENT_DEMO_LIVE_LLM=1`) that asks a real question and asserts the answer contains the correct
+  canonical problem code. All 3 passing when run with the opt-in flag.
+- Manual live runs of the demo agent, e.g. *"Find a real AMC10 geometry problem about triangle area
+  and tell me its canonical code and official answer"* → correctly returned `AMC10_2009A_Q10` /
+  `(B) 7√3`, matching what `mathbank-rest`'s own search endpoint independently returns for the same
+  query — proving the tool-calling loop is grounded in real data, not hallucinated.
+- Two real framework gotchas found and resolved while building this (not anticipated by the
+  fastmcp-intellitutor design pack's illustrative examples): `FastMCPApp` must be fully constructed
+  and decorated *before* `FastMCP(..., providers=[app])`; and `Select.value` does not accept a
+  reactive `Rx` binding (fixed with `name=` + per-option `selected=` instead). Both documented in
+  the project's own README "Design notes / gotchas" section and in `GOTCHAS.md`.
+
+**What this does not cover** (tracked separately, still open in this document): FMI-1 (the
+agent-architecture decision is resolved only for this corpus-only slice, not for
+pedagogy/hint-ladder tools generally), FMI-2 through FMI-5 (no hint-ladder, micro-course,
+quiz-authoring, or interaction/geometry FastMCP tools exist yet), FMI-8 (doc 30 still hasn't stated
+Prefab/Custom-HTML in/out of its scope).
+
+**Update — FMI-7 is no longer moot.** Requirements/60 §7 added four admin-scoped tools to this
+same server (`list_promotable_scenes`, `promote_scene_to_catalog`, `validate_scene_in_catalog`,
+`approve_scene_in_catalog`), each requiring an explicit `admin_api_key` argument that
+`mathbank-rest` itself validates (the MCP server never checks the key, consistent with "visibility
+is not security"). This satisfies FMI-7's letter (the admin key *is* a real, enforced check, not a
+misreported-as-optional header) but not its full intent (a per-agent/per-caller key, audit logging
+of which MCP client promoted what) — those remain open if this tool category grows beyond the
+current four scene-promotion actions.
+
 ## Cross-document relationship
 
 This document is the single point from which every other requirement doc listed in §4 should be
 read when FastMCP/MCP Apps work is picked up; it does not replace, duplicate, or restate those
 documents' own content, and it does not replace
 [documentation/copilot-instructions/fastmcp-intellitutor/](/Volumes/External/Developer/knowledge-bank-ingestion/documentation/copilot-instructions/fastmcp-intellitutor)'s
-own, already-complete, 13-document implementation design.
+own, already-complete, 13-document implementation design. Requirements/60 §7 is the first
+admin-scoped (write-capable) extension of this server; its evidence lives in doc 60, not here.

@@ -6,19 +6,27 @@ import PipelineJobs from "./PipelineJobs.jsx";
 import { Icon, IconButton, PageHeader, Pager, Pill } from "../../_components/ui.jsx";
 import { panel, table, th, td, input, button, primaryButton } from "../../db/dbStyles.js";
 
-const STATUS_COLOUR = {
-  PENDING: "#92400e",
-  DOWNLOADED: "#1d4ed8",
-  PARSED: "#1d4ed8",
-  INGESTED: "#15803d",
-  FAILED: "#b91c1c",
-  COMPLETED: "#15803d",
-  IN_PROGRESS: "#1d4ed8",
+const STATUS_TONE = {
+  PENDING: "warning",
+  DOWNLOADED: "info",
+  PARSED: "info",
+  INGESTED: "success",
+  FAILED: "danger",
+  COMPLETED: "success",
+  IN_PROGRESS: "info",
+  NOT_TRACKED: "neutral",
 };
 
 function StatusBadge({ label }) {
+  return <Pill tone={STATUS_TONE[label] || "neutral"}>{label}</Pill>;
+}
+
+function LoadingState({ children }) {
   return (
-    <span className="badge rounded-pill bg-light border" style={{ color: STATUS_COLOUR[label] || "#555" }}>{label}</span>
+    <p className="text-secondary mb-0" role="status">
+      <span className="spinner-border spinner-border-sm me-2" aria-hidden="true" />
+      {children}
+    </p>
   );
 }
 
@@ -142,7 +150,7 @@ function PipelineRuns({ refreshToken }) {
   }, [refreshToken]);
 
   if (error) return <p style={{ color: "#b91c1c", fontSize: 13 }}>Could not load pipeline runs: {error}</p>;
-  if (!data) return <p style={{ fontSize: 13 }}>Loading…</p>;
+  if (!data) return <LoadingState>Loading stage log…</LoadingState>;
 
   return (
     <div>
@@ -211,7 +219,7 @@ function PapersDashboard({ refreshToken, onRetried }) {
       <Pager offset={offset} limit={pageSize} count={items?.length || 0} hasMore={Boolean(items && items.length >= pageSize)}
         onPrev={() => setOffset((n) => Math.max(0, n - pageSize))} onNext={() => setOffset((n) => n + pageSize)} />
       {!items ? (
-        <p style={{ fontSize: 13 }}>Loading…</p>
+        <LoadingState>Loading paper sources…</LoadingState>
       ) : items.length === 0 ? (
         <p style={{ fontSize: 13, color: "#666" }}>No papers tracked yet.</p>
       ) : (

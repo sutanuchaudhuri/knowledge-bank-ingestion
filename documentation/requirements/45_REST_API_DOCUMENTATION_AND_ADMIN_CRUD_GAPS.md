@@ -1,20 +1,50 @@
-# 45. REST API documentation and admin CRUD/lookup gap analysis (planning only)
+# 45. REST API documentation and admin CRUD/lookup gap analysis — IMPLEMENTED
 
-> **Explicit scope note.** This document is **analysis and a requirements/design plan only**.
-> No code, schema, router, or documentation file described below has been changed as part of
-> producing this document. Every finding below was verified against the live running service
-> (`mathbank-rest`, `http://localhost:8000/openapi.json`, 268 operations across 256 paths at the
-> time of writing) and the real router/db source, not guessed. Implementation is tracked as
-> future work (see §12) and must be picked up explicitly, task by task.
+> **Status update.** Originally planning-only; implemented live against the real database in this
+> session. See §0 below for the per-requirement (APID-*) status table. The analysis/evidence
+> sections (§1-§9) are left unchanged as the grounding record; only §0 reflects implementation.
 
 ## 0. Status and scope
 
 | | |
 |---|---|
-| Status | **Planning only.** Not implemented. |
+| Status | **Implemented** (migration 036, `taxonomy_service.py`, `admin_taxonomy.py`), live-tested against the real Postgres database. See per-requirement table below. |
 | Trigger | Admin-facing complaint: Swagger documentation is thin, several taxonomy admin operations (strategy/technique lookup, updating a skill's description, adding an alias) don't exist as REST endpoints, APIs aren't grouped sensibly, and fields that have a bounded set of valid values are documented as free text instead of pointing at an enum or a lookup endpoint. |
 | Grounding | Live `GET /openapi.json` (268 ops), every router file under [mathbank-rest/src/mathbank_rest/routers/](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-rest/src/mathbank_rest/routers), the taxonomy schema in [001_schema.sql](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-db/sql/001_schema.sql) and [006_pedagogy.sql](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-db/sql/006_pedagogy.sql), and the governance workflow in [pedagogy_admin.py](/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-rest/src/mathbank_rest/routers/pedagogy_admin.py). |
 | Terminology note | The admin ask used the word **"strategies."** There is no `strategy` table or concept anywhere in the schema or code. The closest, and almost certainly intended, entity is `knowledge.technique` — competition problem-solving techniques (e.g. "Pigeonhole", "AM-GM") are colloquially called "strategies" in math-olympiad teaching. This document treats **strategy = technique** throughout and flags the assumption here for correction if wrong. |
+
+### Implementation status (APID-*)
+
+| ID | Requirement | Status | Evidence |
+|---|---|---|---|
+| APID-1 | Hyphenated, admin-prefixed tag convention | ✅ | `admin.py`→`admin-pipeline`, `interaction_templates.py`→`admin-interaction-templates`, `micro_courses.py` admin router→`admin-micro-courses`, `pedagogy_admin.py`→`admin-pedagogy`; `v1.py` split into `corpus`/`taxonomy`/`search`/`analytics`; `/health*` tagged `ops`. Zero untagged operations confirmed live. |
+| APID-2 | App-level description/summary + `openapi_tags` | ✅ | `main.py` `FastAPI(description=..., summary=..., openapi_tags=OPENAPI_TAGS)`, one entry per tag in use. |
+| APID-3 | Admin key as a real OpenAPI security scheme | ✅ | `security.py` now uses `APIKeyHeader` + `Security(...)`; confirmed live: `components.securitySchemes.APIKeyHeader` registered, operations show `"security":[{"APIKeyHeader":[]}]`, no more stray `x-admin-api-key` header parameter. |
+| APID-4 | Non-empty docstring on every handler | ⚠️ partial | All new `admin_taxonomy.py` handlers documented; the pre-existing 205-operation backlog across the rest of the codebase was not swept (explicitly out of scope per §6 — "which operations get a docstring first is an implementation-time call," not mandated to be exhaustive in one pass). |
+| APID-5 | `source_kind`/papers `status=` as real enums | ✅ | `admin.py`: `SourceKind`/`PaperStatus` `Literal` types; confirmed live via `/openapi.json` — both now render `"enum": [...]`, not a description-only string. |
+| APID-6 | `GET /v1/admin/taxonomy/{concepts,techniques,skills,misconceptions}` | ✅ | Live-tested: skills/misconceptions listing endpoints work for the first time ever; `q=` search includes alias matches. |
+| APID-7 | Concept/technique update via REST | ✅ | Live-tested `PATCH /v1/admin/taxonomy/techniques/{slug}` changes `description`, confirmed on next `GET`. |
+| APID-8 | Skill update via REST (no raw SQL) | ✅ | Implemented via the same lightweight `PATCH`, not the heavier `pedagogy_admin.py` governance `Kind` extension doc 45 §5.2 recommended as option (a) — see §5.2 note below for why; live-tested against `knowledge.skill.objective`. |
+| APID-9 | Alias CRUD + search participation | ✅ | Live-tested: add/list/remove alias; `q=` on both the new admin endpoints **and** the public `GET /v1/concepts`/`GET /v1/techniques` now match aliases (the latter two were extended beyond the doc's literal text to fully close this requirement). |
+| APID-10 | Deactivate/reactivate with audit + catalog filtering | ✅ | Live-tested full round trip; deactivated entity disappears from public `/v1/concepts`/`/v1/techniques` (a gap found and fixed during implementation — the public endpoints had no `status='ACTIVE'` filter at all before this), reappears on reactivate, one `audit.action_log` row per transition. |
+| APID-11 | Publish-immutability guard | ✅ | Live-tested against a real published course (`MC-MARKOV-STREAKS` v2): attempting to deactivate its primary-target concept returns 409 naming the blocking release. |
+
+**Deviation from the plan, disclosed:** §5.2 recommended extending `pedagogy_admin.py`'s governance
+`Kind` literal for skill/misconception updates (option (a)). Implemented instead with the same
+lightweight `PATCH` used for concept/technique (option (b)) for all four kinds, to avoid entangling
+this additive CRUD gap with the governance module's publish-to-graph semantics without a full,
+separate review of that much larger, already-complex pipeline. Acceptance criteria (APID-8) is
+still met — "through a REST call... without going through raw SQL" does not mandate the heavier
+workflow specifically.
+
+**Also fixed during implementation (not pre-planned):** three stale editable-install `.pth` files
+left over from this session's earlier folder-rename work (`mathbank-rest`, `mathbank-geometry-engine`,
+and `mathbank-neural-geometry`'s own venvs all pointed at pre-rename paths for the
+`mathbank-geometry-engine`/`mathbank-neural-geometry` packages) were discovered while verifying this
+doc's OpenAPI changes load correctly, and fixed (`mathbank-geometry-engine`/`mathbank-neural-geometry`
+venvs fully recreated; `mathbank-rest`'s stale `.pth` removed and the dependency reinstalled). All
+three now import and test cleanly (72 + 38 tests passing respectively).
+
 
 ## 1. Why this document exists — the concrete evidence
 

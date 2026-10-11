@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Callout, Pill } from "../../../../_components/ui.jsx";
+import { Callout, EmptyState, Pill } from "../../../../_components/ui.jsx";
 
 /** Metadata, targets and learning objectives — editable only while the identity is not yet
  * locked by a PUBLISHED/SUPERSEDED/RETIRED release (requirements/43 §3.2.1). */
@@ -67,12 +67,13 @@ export default function OverviewTab({ course, refresh }) {
       <section className="col-lg-5">
         <div className="card border-0 shadow-sm p-3 p-lg-4">
           <h3 className="h6 mb-3">Primary targets</h3>
-          <div className="d-flex flex-wrap gap-2">
-            {course.targets?.map((target, index) => (
-              <Pill key={index} tone="primary">{target.target_type}</Pill>
-            ))}
-            {!course.targets?.length && <Pill tone="neutral">No targets</Pill>}
-          </div>
+          {course.targets?.length ? (
+            <div className="d-flex flex-wrap gap-2">
+              {course.targets.map((target, index) => (
+                <Pill key={index} tone="primary">{target.target_type}</Pill>
+              ))}
+            </div>
+          ) : <EmptyState icon="bullseye">No primary targets bound yet.</EmptyState>}
         </div>
       </section>
     </div>

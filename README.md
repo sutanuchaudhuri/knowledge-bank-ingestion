@@ -24,6 +24,11 @@ knowledge-bank-ingestion/
 ├── mathbank-geometry-engine/      deterministic geometry scene engine (Frame/solver/SVG)
 ├── mathbank-neural-geometry/      neural-symbolic construction-program compiler
 │   └── mathbank-prasolov-dataset-audit/   nested dataset-audit tool (not the compiler itself)
+├── mathbank-mcp-competitions/      standalone FastMCP server — competition corpus for any MCP agent
+├── mathbank-manim-studio/          research + video-render agents over the SceneSpec contract   :8020
+├── mathbank-ml-training/           offline ML/RL feature/label/model notebooks (scaffolded)
+├── mathbank-ml-inference/          ML prediction/recommendation FastAPI service (scaffolded)     :8010
+├── mathbank-ml-frontend/           ML-ops dashboard, separate from the student/admin UI (scaffolded) :5175
 ├── mathbank-scripts/              shared root-level dev/ops tooling (credential sync, start/stop)
 ├── documentation/                 every markdown document in the repo, in one place
 │   ├── requirements/              the living, numbered specs (00_INDEX.md is the index) + reference/
@@ -31,7 +36,6 @@ knowledge-bank-ingestion/
 │   ├── presentation/              static HTML walkthrough for a mixed technical/business audience
 │   ├── GOTCHAS.md                 exhaustive environment/operational pitfall catalog
 │   └── DATABASES.md               local-vs-remote database picture + full corpus pipeline
-├── FASTMCP_INTELLITUTOR_COPILOT/   a not-yet-started MCP-Apps design pack (see documentation/requirements/49)
 ├── archive/                        old artifacts, kept but not actively maintained
 └── scripts tests, CI (.github/workflows/, .github/skills/) ...
 ```
@@ -48,6 +52,11 @@ knowledge-bank-ingestion/
 | `mathbank-data-ingestion` | Crawl/classify/export corpus pipeline feeding `mathbank-db` | — | [mathbank-data-ingestion/README.md](mathbank-data-ingestion/README.md) |
 | `mathbank-geometry-engine` | Independent deterministic geometry scene engine | — | [mathbank-geometry-engine/README.md](mathbank-geometry-engine/README.md) |
 | `mathbank-neural-geometry` | Independent neural-symbolic construction-program compiler (depends on `mathbank-geometry-engine`) | — | [mathbank-neural-geometry/README.md](mathbank-neural-geometry/README.md) |
+| `mathbank-mcp-competitions` | Standalone **FastMCP server** exposing the competition/problem/concept/technique corpus to any MCP-capable agent (not just `mathbank-agent`), plus admin-scoped scene-promotion tools | stdio (no fixed port) | [mathbank-mcp-competitions/README.md](mathbank-mcp-competitions/README.md) |
+| `mathbank-manim-studio` | Two long-running agents over the SceneSpec contract — a research agent (topic → grounded SceneSpec + explanation) and a video-render agent (SceneSpec → real `.mp4` via a deterministic Manim compiler); 1-day-TTL ephemeral job queue, with an admin workflow to promote a video into the permanent course catalog | 8020 | [mathbank-manim-studio/README.md](mathbank-manim-studio/README.md) |
+| `mathbank-ml-training` | **Scaffolded.** Offline feature/label/dataset building and model training notebooks (mastery BKT/EWMA, recommendation ranking) for the IntelliTutor ML/RL platform | — | [mathbank-ml-training/README.md](mathbank-ml-training/README.md) |
+| `mathbank-ml-inference` | **Scaffolded.** FastAPI service for every student/admin ML prediction/recommendation endpoint, each with a mandatory `Explanation` field; currently returns structured `501`s until real models are trained | 8010 | [mathbank-ml-inference/README.md](mathbank-ml-inference/README.md) |
+| `mathbank-ml-frontend` | **Scaffolded.** A separate, minimal ML-ops dashboard (model status, cohorts, data readiness) — intentionally not merged into `mathbank-web` | 5175 | [mathbank-ml-frontend/README.md](mathbank-ml-frontend/README.md) |
 | `mathbank-scripts` | Shared root-level dev/ops tooling (not a service) | — | [mathbank-scripts/README.md](mathbank-scripts/README.md) |
 
 Production/demo data lives on managed cloud services (Neon Postgres + Neo4j
@@ -63,6 +72,353 @@ agent-session ownership. The living, numbered requirements specs are indexed at
 [documentation/requirements/00_INDEX.md](documentation/requirements/00_INDEX.md); historical/scratch
 planning packs (preserved, not actively maintained) live under
 [documentation/copilot-instructions/](documentation/copilot-instructions/).
+
+## Architecture
+
+This section is the fast path to "what talks to what" for a developer who has never
+opened this repository before. Every diagram below is real **Mermaid** (renders directly
+on GitHub and in VS Code's Markdown preview — no extra plugin). Mermaid's `C4Context`/
+`C4Container` diagram types use the same element/relationship vocabulary as
+[C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) (`Person`, `System`,
+`Container`, `Rel`, ...), so the C1/C2 diagrams below read the same way whether you know
+the C4 model from PlantUML or from Mermaid. Each sub-project's own README has a deeper,
+component-level diagram for its internals — this page stops at the container level.
+
+### At a glance (flowchart)
+
+```mermaid
+flowchart TB
+    subgraph Clients
+        Stu([Student])
+        Adm([Admin / Instructor])
+        MCPAgent([Any MCP agent])
+    end
+
+    subgraph CoreUI["Core UI"]
+        Web[mathbank-web :5173]
+        Live[mathbank-live :5174]
+        Widgets[[mathbank-widgets shared package]]
+    end
+
+    subgraph CoreServices["Core services"]
+        Agent[mathbank-agent :8001]
+        Rest[mathbank-rest :8000]
+    end
+
+    subgraph VideoPipeline["Explainer video pipeline"]
+        Mcp[mathbank-mcp-competitions]
+        Manim[mathbank-manim-studio :8020]
+    end
+
+    subgraph MLPlatform["ML/RL platform (scaffolded)"]
+        MlTrain[mathbank-ml-training]
+        MlInfer[mathbank-ml-inference :8010]
+        MlFront[mathbank-ml-frontend :5175]
+    end
+
+    subgraph Data["Data layer"]
+        Db[(mathbank-db
+Postgres + pgvector)]
+        Graph[(mathbank-graph
+Neo4j)]
+    end
+
+    OpenAI{{OpenAI API}}
+
+    Stu --> Web
+    Stu --> Live
+    Adm --> Web
+    Web --> Widgets
+    Live --> Widgets
+    Web --> Agent
+    Web --> Rest
+    Live --> Rest
+    Agent --> Rest
+    Agent --> OpenAI
+    Rest --> Db
+    Rest --> Graph
+
+    MCPAgent --> Mcp
+    Mcp --> Rest
+    Manim --> Mcp
+    Manim --> OpenAI
+    Manim --> Rest
+
+    MlTrain --> Db
+    MlInfer --> Db
+    MlFront --> MlInfer
+    Web -.planned.-> MlInfer
+
+    classDef scaffolded stroke-dasharray: 5 5
+    class MlTrain,MlInfer,MlFront scaffolded
+```
+
+Dashed boxes = the ML/RL platform (docs 54–58), **scaffolded only**: every endpoint
+exists and responds correctly, but no model has been trained yet (see
+[Machine Learning](#machine-learning-intellitutor-mlrl-platform) below).
+
+### C1 — System context
+
+Who uses MathBank, and which external systems does it depend on.
+
+```mermaid
+C4Context
+    title C1 - System Context: MathBank Platform
+
+    Person(student, "Student", "Practices problems, chats with the tutor, watches explainer videos, joins live classes")
+    Person(admin, "Admin / Instructor", "Authors courses, reviews corpus content, approves AI-generated videos, runs the live classroom")
+
+    System_Boundary(mathbank, "MathBank Platform") {
+        System(platform, "MathBank", "Competition-math corpus, hybrid RAG search, knowledge graph, agentic tutor, micro-courses, live classroom, ML recommendations")
+    }
+
+    System_Ext(openai, "OpenAI API", "Chat completions, embeddings - the only LLM provider")
+    SystemDb_Ext(neon, "Neon Postgres", "Managed Postgres 16 plus pgvector")
+    SystemDb_Ext(aura, "Neo4j AuraDB", "Managed graph - derived, rebuildable projection of the Postgres corpus")
+    System_Ext(eleven, "ElevenLabs", "Optional text-to-speech/speech-to-text for voice input")
+    System_Ext(mcpclient, "Any MCP-capable agent", "Claude Desktop, a custom agent, etc.")
+
+    Rel(student, platform, "Uses", "HTTPS")
+    Rel(admin, platform, "Authors and reviews", "HTTPS")
+    Rel(platform, openai, "Calls", "HTTPS/REST")
+    Rel(platform, neon, "Reads/writes", "libpq")
+    Rel(platform, aura, "Reads/writes", "Bolt")
+    Rel(platform, eleven, "Calls (optional)", "HTTPS")
+    Rel(mcpclient, platform, "Queries the competition corpus", "MCP/stdio")
+
+    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+```
+
+### C2 — Containers
+
+Every independently-runnable piece, grouped by the product area it belongs to.
+
+```mermaid
+C4Container
+    title C2 - Containers: MathBank Platform
+
+    Person(student, "Student")
+    Person(admin, "Admin / Instructor")
+    System_Ext(openai, "OpenAI API")
+    System_Ext(eleven, "ElevenLabs")
+    System_Ext(mcpclient, "Any MCP-capable agent")
+
+    Container_Boundary(core, "Core tutoring platform") {
+        Container(web, "mathbank-web", "Next.js :5173", "Student chat/profile/courses UI and admin dashboard; proxies every call server-side")
+        Container(live, "mathbank-live", "Next.js + Socket.IO :5174", "Separately deployable realtime live classroom (instructor console plus student view)")
+        Container(widgets, "mathbank-widgets", "shared npm package", "WidgetHost, MathComposer, voice controls - built into web and live, not its own process")
+        Container(agent, "mathbank-agent", "Google ADK + OpenAI :8001", "Tutoring agent - calls mathbank-rest as tools only, never touches a database directly")
+        Container(rest, "mathbank-rest", "FastAPI :8000", "The only service with direct Postgres/Neo4j access - corpus, search, learner auth, pedagogy, admin APIs")
+    }
+
+    Container_Boundary(video, "Explainer video pipeline") {
+        Container(mcp, "mathbank-mcp-competitions", "FastMCP, stdio", "Standalone MCP server exposing the competition corpus to any MCP agent, plus admin scene-promotion tools")
+        Container(manim, "mathbank-manim-studio", "FastAPI :8020", "Research agent (topic to SceneSpec via OpenAI+MCP) and video-render agent (SceneSpec to real manim .mp4), job queue with 1-day TTL")
+    }
+
+    Container_Boundary(mlplatform, "ML/RL platform (scaffolded)") {
+        Container(mltraining, "mathbank-ml-training", "notebooks", "Offline feature/label/dataset building and model training")
+        Container(mlinference, "mathbank-ml-inference", "FastAPI :8010", "Serves mastery/recommendation predictions with mandatory explanations")
+        Container(mlfrontend, "mathbank-ml-frontend", "Next.js :5175", "ML-ops dashboard - model status, cohorts, data readiness")
+    }
+
+    ContainerDb(db, "mathbank-db", "Postgres 16 + pgvector", "core/knowledge/learner/pedagogy/visual/studio/ml schemas - the single source of truth")
+    ContainerDb(graph, "mathbank-graph", "Neo4j", "Derived, rebuildable knowledge-graph projection of the Postgres corpus")
+
+    Rel(student, web, "Uses", "HTTPS")
+    Rel(student, live, "Joins class", "HTTPS/WebSocket")
+    Rel(admin, web, "Authors and reviews", "HTTPS")
+    Rel(web, rest, "Calls", "HTTPS/REST")
+    Rel(web, agent, "Chats via", "HTTPS/REST")
+    Rel(live, rest, "Relays events to", "HTTPS/REST")
+    Rel(agent, rest, "Calls as tools", "HTTPS/REST")
+    Rel(agent, openai, "Calls", "HTTPS")
+    Rel(rest, db, "Reads/writes", "libpq")
+    Rel(rest, graph, "Reads/writes", "Bolt")
+    Rel(rest, eleven, "Calls (optional)", "HTTPS")
+    Rel(mcpclient, mcp, "Calls tools", "MCP/stdio")
+    Rel(mcp, rest, "Calls public REST", "HTTPS")
+    Rel(manim, mcp, "Grounds research in corpus data", "MCP/stdio")
+    Rel(manim, openai, "Calls", "HTTPS")
+    Rel(manim, rest, "Promotes approved scenes to", "HTTPS")
+    Rel(rest, db, "Stores ML features/predictions", "libpq")
+    Rel(mltraining, db, "Reads features, writes model registry rows", "libpq")
+    Rel(mlinference, db, "Reads registry/features", "libpq")
+    Rel(mlfrontend, mlinference, "Calls", "HTTPS/REST")
+    Rel(web, mlinference, "Calls (planned)", "HTTPS/REST")
+
+    UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="2")
+```
+
+### Key flows (sequence diagrams)
+
+Five flows that between them touch every container above.
+
+**1. Student asks the tutor a question** — the core RAG + agent loop.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor S as Student
+    participant W as mathbank-web
+    participant A as mathbank-agent
+    participant R as mathbank-rest
+    participant PG as Postgres (pgvector)
+    participant N4 as Neo4j
+    participant AI as OpenAI API
+
+    S->>W: Asks a question in the tutor chat
+    W->>A: POST chat message
+    A->>R: GET learner mastery / context (tool call)
+    R->>PG: hybrid lexical+semantic search
+    R->>N4: concept/technique neighbors
+    R-->>A: ranked problems, concepts, misconceptions
+    A->>AI: chat completion with tool results as context
+    AI-->>A: grounded answer + next-step suggestion
+    A-->>W: streamed response
+    W-->>S: renders answer, hints, and a suggested next problem
+    A->>R: record interaction/mastery evidence (async)
+    R->>PG: append learner.interaction_event / mastery update
+```
+
+**2. Admin generates and publishes an explainer video** — the full
+`mathbank-manim-studio` → canonical-catalog → published-course pipeline (requirements/60).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin
+    participant MS as mathbank-manim-studio
+    participant MCP as mathbank-mcp-competitions
+    participant AI as OpenAI API
+    participant RE as mathbank-rest
+    participant WEB as mathbank-web (admin UI)
+    participant PG as Postgres
+    actor Stu as Student
+
+    Admin->>WEB: Asks for an explainer video on a topic
+    WEB->>MS: POST /v1/research-jobs {topic}
+    MS->>MCP: list_concepts / search_problems (ground the topic)
+    MCP->>RE: GET /v1/concepts, /v1/search/problems
+    RE-->>MCP: real corpus data
+    MCP-->>MS: grounded facts
+    MS->>AI: generate SceneSpec + explanation
+    AI-->>MS: SceneSpec JSON (validated)
+    WEB->>MS: POST /v1/render-jobs {research_job_id}
+    MS->>MS: compile SceneSpec to Manim source, render .mp4
+    WEB->>RE: POST .../scenes/promote {render_job_id}
+    RE->>MS: GET rendered video bytes
+    RE->>PG: INSERT visual.asset + visual.scene_spec (DRAFT)
+    Admin->>WEB: Reviews video, clicks Approve
+    WEB->>RE: POST .../scenes/{id}/approve
+    RE->>PG: scene_spec -> APPROVED, asset -> VALID
+    WEB->>RE: POST .../scenes/{id}/create-instance
+    RE->>PG: INSERT visual.interaction_instance (VIDEO_EXPLAINER_V1)
+    Admin->>WEB: Attaches instance to a course state, publishes
+    RE->>PG: micro_course_state_interaction + release PUBLISHED
+    Stu->>WEB: Opens the published course
+    WEB->>RE: GET course + GET asset content
+    RE-->>WEB: course JSON + streamed .mp4
+    WEB-->>Stu: plays the explainer video in the lesson
+```
+
+**3. An external agent queries the competition corpus** — proof `mathbank-mcp-competitions`
+works for *any* MCP client, not just this repo's own agent.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Agent as Any MCP-capable agent
+    participant MCP as mathbank-mcp-competitions
+    participant RE as mathbank-rest
+    participant PG as Postgres
+
+    Agent->>MCP: spawn over stdio, list_tools()
+    MCP-->>Agent: list_competitions, search_problems, get_problem, ...
+    Agent->>MCP: call_tool("search_problems", {query})
+    MCP->>RE: POST /v1/search/problems
+    RE->>PG: hybrid lexical+semantic+graph search
+    RE-->>MCP: ranked results
+    MCP-->>Agent: structured tool result
+    Agent->>Agent: LLM reasons over grounded tool results
+    Agent-->>Agent: final answer cites a real canonical_code
+```
+
+**4. Live classroom session** — `mathbank-live`'s realtime relay.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor T as Instructor
+    actor S as Student
+    participant L as mathbank-live (Socket.IO)
+    participant R as mathbank-rest
+
+    T->>L: Opens instructor console, starts a session
+    L->>R: POST live session created (event log)
+    S->>L: Joins the classroom room
+    L-->>S: current widget/activity state
+    T->>L: Proposes a widget/poll/activity
+    L->>R: POST activity/widget event (durable log)
+    L-->>S: broadcast activity over the socket
+    S->>L: Submits a response
+    L->>R: POST response event (durable log)
+    L-->>T: live aggregated results
+```
+
+**5. ML training → inference → dashboard** — the intended flow once the ML/RL platform
+is implemented (currently scaffolded; see below).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Nb as mathbank-ml-training (notebooks)
+    participant PG as Postgres (features, ml schema)
+    participant Inf as mathbank-ml-inference
+    participant Dash as mathbank-ml-frontend
+    actor Admin
+
+    Note over Nb,PG: Offline, scheduled (not yet wired to a live trigger - requirements/54-58, scaffolded)
+    Nb->>PG: read learner/attempt/mastery features
+    Nb->>Nb: train BKT/EWMA mastery and ranking models
+    Nb->>PG: write model registry row + versioned artifact pointer
+    Admin->>Dash: opens the ML ops dashboard
+    Dash->>Inf: GET model status / cohorts / data readiness
+    Inf->>PG: read registry + latest feature snapshot
+    Inf-->>Dash: predictions/recommendations + mandatory explanation
+    Dash-->>Admin: renders status, charts, and explanations
+```
+
+## Machine Learning (IntelliTutor ML/RL platform)
+
+A deliberately **separate** product area from the core tutor above — three independent
+sub-projects, scaffolded from the 16-document `intellitutor-ml-rl` design pack
+(requirements/54–58). "Scaffolded" means: every endpoint, page, and pipeline stage
+exists, is wired together, and has been live-verified to boot/route/render correctly —
+but no model has been trained on real data yet, so predictions are not yet real.
+
+| Project | Role | Status |
+|---|---|---|
+| [mathbank-ml-training](mathbank-ml-training/README.md) | SageMaker-style offline notebooks: extract features/labels from the existing Postgres corpus, build datasets, train mastery (BKT/EWMA) and recommendation-ranking models, register versioned artifacts | Scaffolded — every function is a typed stub citing its design-doc section |
+| [mathbank-ml-inference](mathbank-ml-inference/README.md) | FastAPI service serving every student/admin prediction/recommendation endpoint from the design pack, each with a **mandatory `Explanation` field** (no black-box answers) | Scaffolded — endpoints return structured `501 MLUnavailable`, live-verified end to end |
+| [mathbank-ml-frontend](mathbank-ml-frontend/README.md) | A separate, minimal ML-ops dashboard — model status, cohort views, data-readiness checks — intentionally **not** merged into `mathbank-web`'s student/admin UI | Scaffolded — live-verified rendering through its proxy to `mathbank-ml-inference` in a real browser |
+
+Why separate from `mathbank-web`/`mathbank-rest` rather than folded in: the ML/RL
+platform has its own deployment cadence (model retraining, not every API change), its own
+operator audience (ML engineers, not students/teachers), and — per
+requirements/54 §2 — is explicitly **not** where event-driven, non-ML infrastructure
+belongs (see `documentation/requirements/59_STUDENT_ADMIN_NOTIFICATIONS_PLATFORM.md`,
+which lives inside `mathbank-rest` instead, for exactly that reason).
+
+```bash
+make ml-training-install && make ml-training-notebook   # Jupyter Lab over the notebooks
+make ml-inference-install && make ml-inference-start     # FastAPI service on :8010
+make ml-frontend-install && make ml-frontend-start       # dashboard on :5175
+make status-extra                                        # are they running?
+```
+
+See each project's own README for its full endpoint/notebook inventory and the design
+pack's own architecture rationale.
 
 ## Do I need local Postgres/Neo4j at all?
 
@@ -822,6 +1178,22 @@ See each service's own `Makefile`/`README.md` for the full command
 reference (`mathbank-db/README.md`, `mathbank-agent/README.md`,
 `mathbank-graph/README.md`, `mathbank-web/README.md`; `mathbank-live/Makefile`).
 
+**Extra/parallel services** (see [Architecture](#architecture) and
+[Machine Learning](#machine-learning-intellitutor-mlrl-platform) above for what each one is)
+follow the same per-service pattern, aggregated under `make up-extra | down-extra |
+status-extra | access-extra`:
+
+```bash
+make mcp-install | mcp-test | mcp-demo                                    # mathbank-mcp-competitions (stdio, no daemon)
+make manim-install | manim-start | manim-stop | manim-restart | manim-status | manim-test
+make ml-training-install | ml-training-notebook                            # mathbank-ml-training (notebooks, no daemon)
+make ml-inference-install | ml-inference-start | ml-inference-stop | ml-inference-restart | ml-inference-status
+make ml-frontend-install | ml-frontend-start | ml-frontend-stop | ml-frontend-restart | ml-frontend-status
+make geometry-install | geometry-test                                      # mathbank-geometry-engine (library only)
+make neural-geom-install | neural-geom-test                                # mathbank-neural-geometry (library only)
+make ingestion-install | ingestion-test                                    # mathbank-data-ingestion (CLI pipeline only)
+```
+
 ### Tests from the root
 
 ```bash
@@ -830,6 +1202,7 @@ make smoke       # live-classroom two-socket smoke against running REST + live
 make e2e         # Playwright regression (needs the stack up; skips live if :5174 is down or E2E_SKIP_LIVE=1)
 make e2e-llm     # adds @llm specs — small PAID OpenAI calls
 make -C mathbank-rest test   # REST pytest suite
+make mcp-test manim-test geometry-test neural-geom-test ingestion-test   # extra/parallel services
 ```
 
 See [requirements/23_E2E_REGRESSION_SUITE.md](documentation/requirements/23_E2E_REGRESSION_SUITE.md) for coverage and baselines.

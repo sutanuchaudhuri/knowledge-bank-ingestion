@@ -105,7 +105,7 @@ export default function NewCourseWizard() {
               <input id="new-author" className="form-control" value={createdBy}
                 onChange={event => setCreatedBy(event.target.value)} />
             </div>
-            <button type="button" className="btn btn-primary" disabled={!canAdvanceFromIdentity} onClick={() => setStep(1)}>
+            <button type="button" className="btn btn-outline-primary" disabled={!canAdvanceFromIdentity} onClick={() => setStep(1)}>
               Next: Target <Icon name="arrow-right" />
             </button>
           </>
@@ -137,7 +137,7 @@ export default function NewCourseWizard() {
             {target && <div className="mb-3"><Pill tone="primary">{target.name} · {target.slug}</Pill></div>}
             <div className="d-flex gap-2">
               <button type="button" className="btn btn-outline-secondary" onClick={() => setStep(0)}><Icon name="arrow-left" /> Back</button>
-              <button type="button" className="btn btn-primary" disabled={!target} onClick={() => setStep(2)}>
+              <button type="button" className="btn btn-outline-primary" disabled={!target} onClick={() => setStep(2)}>
                 Next: Starting point <Icon name="arrow-right" />
               </button>
             </div>

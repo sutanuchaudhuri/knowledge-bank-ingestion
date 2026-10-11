@@ -6,19 +6,22 @@ The working contract for agents is the skill
 [`.github/skills/modern-ui-design/SKILL.md`](../../.github/skills/modern-ui-design/SKILL.md). This document holds the
 requirements and records progress.
 
-> **Audit note (planning only, not yet actioned).** [48_SITE_WIDE_UX_VISUAL_AUDIT.md](48_SITE_WIDE_UX_VISUAL_AUDIT.md)
-> is a page-by-page re-sweep of every route against this document's checklist. It found real,
+> **Audit note — resolved.** [48_SITE_WIDE_UX_VISUAL_AUDIT.md](48_SITE_WIDE_UX_VISUAL_AUDIT.md)
+> was a page-by-page re-sweep of every route against this document's checklist; it found real,
 > cited exceptions to the UI-2/UI-6/UI-14/UI-15 ✅ marks below — mainly on the `db/*` and `graph/*`
-> routes, which predate this system and were never swept — plus inconsistent loading/empty-state
-> treatment across many pages. See that document's §4 for the exact mapping; nothing below has
-> been changed to reflect it yet, since §48 is documentation-only.
+> routes, which predated this system and had never been swept — plus inconsistent loading/empty-
+> state treatment across many pages. All real findings from that sweep were implemented and
+> live-verified (see doc 48 §7); the ✅ marks below now reflect that fixed state. Two `db/*`/
+> `graph/*` findings turned out to be false positives (those sections already get their one `h1`
+> from a shared `layout.jsx` the original per-`page.jsx` audit didn't read) — see doc 48 §7 and
+> [GOTCHAS.md](../GOTCHAS.md) §30.
 
 ## 1. Requirements
 
 | ID | Requirement | Status |
 |---|---|---|
 | UI-1 | **Wide layout:** full-width content beside a sidebar; no fixed `max-width` page columns. | ✅ |
-| UI-2 | **One theme:** colours, radii and shadows come from CSS tokens (`--mb-*` in `app/globals.css`) that override Bootstrap 5 variables; no hard-coded colours in pages. | ✅ (shell, student, admin and section headers) |
+| UI-2 | **One theme:** colours, radii and shadows come from CSS tokens (`--mb-*` in `app/globals.css`) that override Bootstrap 5 variables; no hard-coded colours in pages. | ✅ (shell, student, admin and section headers; `db/*`/`graph/*` swept onto tokens per doc 48) |
 | UI-3 | **Student-friendly font:** Inter Variable (`@fontsource-variable/inter`, self-hosted, no network font fetch); KaTeX keeps its own fonts. | ✅ |
 | UI-4 | **Icons and pills instead of text:** Bootstrap Icons (`bootstrap-icons`) used from one vocabulary; status, counts and metadata shown as `Pill`. Icon-only controls have `aria-label` and `title`. | ✅ |
 | UI-5 | **Explanation highlights:** micro-lessons, hints, feedback and "why" notes use `Callout` (insight, hint, warning, success, danger, neutral). | ✅ |
@@ -28,10 +31,10 @@ requirements and records progress.
 | UI-9 | **Menu:** one sidebar from `NAV_GROUPS` (Learn / Explore / Admin). It collapses to an icon rail (remembered in `localStorage`) and becomes off-canvas on phones. Outside `/admin` the Admin group shows a single link. | ✅ |
 | UI-10 | **Avatars:** deterministic initials and colour (`avatarFor`) for students, a tutor avatar in chat and a shield avatar for the admin menu. | ✅ |
 | UI-11 | **Analytics dashboards:** `StatCard` and `Bar` on the student profile (attempts, accuracy, hints, solid skills) and the admin dashboard (papers, textbook problems with import progress, open gaps, conversations, coverage per entity, gap outcomes). | ✅ |
-| UI-12 | **Fewer buttons:** at most one primary button per region; secondary actions are `IconButton`s; rarely used admin forms and logs sit in collapsible `<details>`; logout lives only in the avatar menu. | ✅ |
+| UI-12 | **Fewer buttons:** at most one primary button per region; secondary actions are `IconButton`s; rarely used admin forms and logs sit in collapsible `<details>`; logout lives only in the avatar menu. | ✅ (incl. `admin/corpus`, `admin/knowledge-gaps`, `admin/pedagogy`, `graph/[rel]`'s toolbar and the micro-course creation wizard, reduced to one primary action per region per doc 48) |
 | UI-13 | **Natural-language input:** in `MathComposer` the mic and Send/Stop sit **inside** the input field (right); the Σ / $ / ✨ format tools are ghost icons inside it (left). Stop replaces Send while streaming. Starter suggestions are pills that appear only at the greeting. | ✅ web chat, solve workspace, live console |
-| UI-14 | **No repetition:** each page has one `h1` via `PageHeader`; section titles are not echoed by their items; no duplicate "back" links (breadcrumbs replace them); no implementation detail in student UI. | ✅ student and admin; ⏳ see §3 |
-| UI-15 | **Accessibility and stability:** visible focus states, usable at 390 px, no hydration mismatches (client-only data such as `/learner/me`, `localStorage` and dates is read after mount). | ✅ |
+| UI-14 | **No repetition:** each page has one `h1` via `PageHeader`; section titles are not echoed by their items; no duplicate "back" links (breadcrumbs replace them); no implementation detail in student UI. | ✅ student and admin, including `admin/login`/`login` (via `PageHeader`'s new `centered` variant) and `db/*`/`graph/*` (one `h1` from each section's `layout.jsx`, confirmed by `e2e/public.spec.mjs`'s strict-mode heading check) |
+| UI-15 | **Accessibility and stability:** visible focus states, usable at 390 px, no hydration mismatches (client-only data such as `/learner/me`, `localStorage` and dates is read after mount). | ✅ — date/number formatting now goes through `formatDateTime`/`formatDate` (`ui.jsx`, fixed `"en-US"` locale) everywhere a bare `toLocaleString()`/`toLocaleDateString()` was found (doc 48) |
 | UI-16 | **Interactive corpus exploration:** competition coverage cards, lazy collapsed question previews with source figures and concept/technique pills, collapsed related candidates and a problem-bound tutor link. Answers and solutions remain explicitly opt-in. | ✅ |
 | UI-17 | **Guided problem workspace:** Tutor + My work, short journey controls, collapsed source, orientation radio checks, step-bound feedback, optional construction frames and upload/paste entry. | Delivered for the bounded behavior in [34](34_GUIDED_PROBLEM_WORKSPACE.md); durable/adaptive workspace sessions remain planned. |
 | UI-18 | **Step-aligned geometry:** visual intents require the current prompt's objects/relations; progressive frames never default to a generic sketch. Every element has a definition, and small second-level constructions have an explicitly independently magnified panel. | Delivered for Q31; unsupported semantics fail visibly. See [34](34_GUIDED_PROBLEM_WORKSPACE.md). |
@@ -77,7 +80,7 @@ browser cases now pass at desktop/mobile sizes.
 |---|---|---|
 | Student | `/` (tutor chat + agent activity timeline), `/learn`, `/learn/solve/[code]`, `/learn/conversations`, `/profile`, `/login` | ✅ revamped |
 | Admin | `/admin` (analytics dashboard), `/admin/textbooks`, `/admin/textbooks/problems/[code]`, `/admin/imports`, `/admin/knowledge-gaps`, `/admin/conversations`, `/admin/pedagogy`, `/admin/widgets`, `/admin/login` | ✅ headers, tabs, pagination, menu; inner tables keep Bootstrap styling |
-| Explore | `/db/*`, `/graph/*` | ✅ section headers, route tabs, competition coverage and collapsed problem cards; shared problem detail uses preview/tag components. ⏳ concept/technique/search tables and graph inner bodies retain some older styles |
+| Explore | `/db/*`, `/graph/*` | ✅ section headers, route tabs, competition coverage and collapsed problem cards; shared problem detail uses preview/tag components. Concept/technique/search tables and graph inner bodies swept onto design tokens in doc 48 (hard-coded colors, structured loading/empty states, `Callout`/`Pill` instead of raw alerts/badges). |
 | Live | `mathbank-live` console and classroom | ✅ shares the new composer; ⏳ its page chrome is not yet on the kit |
 
 ## 4. Verification

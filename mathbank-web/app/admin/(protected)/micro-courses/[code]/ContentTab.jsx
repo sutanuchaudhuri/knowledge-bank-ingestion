@@ -26,6 +26,19 @@ const SAFE_AGENT_POLICY = {
 const STATE_TYPES = ["ORIENTATION", "EXPLANATION", "SLIDE", "VIDEO", "READING", "VISUAL", "EXAMPLE",
   "CHECKPOINT", "QUIZ", "DIAGNOSTIC", "REMEDIATION", "PRACTICE", "SUMMARY", "TRANSFER"];
 
+/** Reads a state's item content (from the admin preview payload, which — unlike the
+ * lighter-weight `release` shape — includes `learning_items` and the flattened `items`
+ * cross-kind order) and returns a short label for one item entry. */
+function previewItemLabel(previewState, entry) {
+  if (!previewState) return `${entry.item_kind} · ${entry.item_id}`;
+  const bucket = { asset: "assets", interaction: "interactions", learning_item: "learning_items", activity: "activities" }[entry.item_kind];
+  const idField = { asset: "asset_id", interaction: "interaction_instance_id", learning_item: "learning_item_id", activity: "activity_id" }[entry.item_kind];
+  const match = (previewState[bucket] || []).find(item => String(item[idField]) === String(entry.item_id));
+  if (!match) return `${entry.item_kind} · ${entry.item_id}`;
+  const text = match.title || match.template_key || match.question_text || match.prompt || match.asset_kind || entry.item_kind;
+  return typeof text === "string" ? text.slice(0, 60) : entry.item_kind;
+}
+
 export default function ContentTab({ release, refresh }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -46,6 +59,11 @@ export default function ContentTab({ release, refresh }) {
   const [interactionStateId, setInteractionStateId] = useState("");
   const [interactionInstanceId, setInteractionInstanceId] = useState("");
 
+  // Keyed by state_id -> the admin-preview-shaped state (requirements/47 §2.1, MCN2-1):
+  // used only to source item labels + the flattened cross-kind `items` order for the
+  // sequencing editor below, not for any other authoring form on this tab.
+  const [previewStates, setPreviewStates] = useState({});
+
   useEffect(() => {
     const controller = new AbortController();
     const query = new URLSearchParams({ target_type: bindingType, q: bindingQuery, limit: "20" });
@@ -62,6 +80,35 @@ export default function ContentTab({ release, refresh }) {
       .catch(err => { if (err.name !== "AbortError") setError(err.message); });
     return () => controller.abort();
   }, []);
+
+  function reloadPreview() {
+    if (!release) return;
+    const controller = new AbortController();
+    request(`${endpoint}/${encodeURIComponent(release.canonical_code)}/preview?release_id=${release.release_id}`, { signal: controller.signal })
+      .then(data => setPreviewStates(Object.fromEntries((data.states || []).map(state => [state.state_id, state]))))
+      .catch(err => { if (err.name !== "AbortError") setError(err.message); });
+    return () => controller.abort();
+  }
+
+  useEffect(reloadPreview, [release?.release_id]);
+
+  async function saveSequencePosition(stateId, itemKind, itemId, rawValue) {
+    const sequence_position = rawValue === "" ? null : Number(rawValue);
+    setBusy(true);
+    setError("");
+    try {
+      await request(`${endpoint}/states/${stateId}/items/${itemKind}/${itemId}/sequence`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sequence_position }),
+      });
+      setNotice("Item sequence position saved.");
+      reloadPreview();
+      refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!release?.states?.length) return;
@@ -174,6 +221,50 @@ export default function ContentTab({ release, refresh }) {
           </ol>
         )}
       </div>
+
+      {release.states.length > 0 && (
+        <div className="card border-0 shadow-sm p-3 mb-4">
+          <SectionTitle icon="sort-numeric-down">Item sequencing (cross-kind order within a state)</SectionTitle>
+          <p className="small text-secondary">
+            Set a shared position across every video/interaction/quiz/pre-check item in a state so
+            the student reader shows them one at a time in the order you intend (requirements/47,
+            MCN2-1). Leave unset for any item to keep the legacy grouped-by-kind rendering — this
+            is additive and does not regress already-published releases.
+          </p>
+          {release.states.map(state => {
+            const previewState = previewStates[state.state_id];
+            const items = previewState?.items || [];
+            return (
+              <details key={state.state_id} className="mb-2">
+                <summary className="fw-semibold">{state.title} <span className="text-secondary small">({items.length} items)</span></summary>
+                {items.length === 0 ? (
+                  <p className="small text-secondary mt-2">No assets, interactions, learning items or activities attached yet.</p>
+                ) : (
+                  <ol className="list-group list-group-flush mt-2">
+                    {items.map(item => (
+                      <li key={`${item.item_kind}-${item.item_id}`} className="list-group-item d-flex align-items-center gap-2">
+                        <Pill tone="neutral">{item.item_kind}</Pill>
+                        <span className="flex-grow-1">{previewItemLabel(previewState, item)}</span>
+                        {item.purpose && <Pill tone="info">{item.purpose}</Pill>}
+                        <label className="visually-hidden" htmlFor={`seq-${state.state_id}-${item.item_kind}-${item.item_id}`}>
+                          Sequence position for {previewItemLabel(previewState, item)}
+                        </label>
+                        <input id={`seq-${state.state_id}-${item.item_kind}-${item.item_id}`} type="number" min={0} max={32767}
+                          className="form-control form-control-sm" style={{ maxWidth: "6rem" }}
+                          defaultValue={item.sequence_position ?? ""} disabled={!editable || busy}
+                          onBlur={event => {
+                            if (event.target.value === String(item.sequence_position ?? "")) return;
+                            saveSequencePosition(state.state_id, item.item_kind, item.item_id, event.target.value);
+                          }} />
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </details>
+            );
+          })}
+        </div>
+      )}
 
       {editable && (
         <div className="row g-3 mb-4">

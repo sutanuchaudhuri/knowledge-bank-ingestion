@@ -12,6 +12,11 @@ const TONES = {
   ACTIVE: "primary", SUSPENDED: "secondary", COMPLETED: "success", EXHAUSTED: "warning", ABORTED: "light", SUPERSEDED: "light",
   PASSED: "success", FAILED: "danger", PRESENTED: "primary", PENDING: "light", SKIPPED: "light",
 };
+const PILL_TONES = {
+  UNRESOLVED: "warning", CONFIRMED: "danger", RESOLVED: "success", REJECTED: "neutral",
+  ACTIVE: "primary", SUSPENDED: "neutral", COMPLETED: "success", EXHAUSTED: "warning", ABORTED: "neutral", SUPERSEDED: "neutral",
+  PASSED: "success", FAILED: "danger", PRESENTED: "primary", PENDING: "neutral", SKIPPED: "neutral",
+};
 
 async function load(params, signal) {
   const response = await fetch(`${endpoint}?${new URLSearchParams(params)}`, { signal, cache: "no-store" });
@@ -24,7 +29,11 @@ const when = (ts) => (ts ? new Date(ts).toLocaleString() : "—");
 const human = (s) => (s ? String(s).replaceAll("_", " ").toLowerCase() : "—");
 
 function StatusBadge({ status }) {
-  return <span className={`badge text-bg-${TONES[status] || "secondary"}${TONES[status] === "light" ? " border" : ""}`}>{status || "—"}</span>;
+  return (
+    <Pill tone={PILL_TONES[status] || "neutral"} outline={PILL_TONES[status] === "neutral"}>
+      {status || "—"}
+    </Pill>
+  );
 }
 
 function PlanDetail({ id, onClose }) {
@@ -142,7 +151,7 @@ export default function KnowledgeGapsPage() {
               </select>
               <form className="d-flex gap-1" onSubmit={(e) => { e.preventDefault(); setQuery(student.trim()); }}>
                 <input className="form-control form-control-sm" placeholder="Student e-mail" value={student} onChange={(e) => setStudent(e.target.value)} />
-                <button className="btn btn-sm btn-outline-primary" type="submit">Search</button>
+                <button className="btn btn-sm btn-primary" type="submit">Search</button>
               </form>
             </div>
             <div className="table-responsive">
@@ -213,7 +222,7 @@ export default function KnowledgeGapsPage() {
                     <td>{p.target_label}{p.parent_recovery_plan_id && <span className="badge text-bg-warning ms-1">branch</span>}</td>
                     <td>{human(p.trigger)}</td><td><StatusBadge status={p.status} /></td><td>{p.items}</td>
                     <td>{p.passed} / {p.failed}</td><td>{p.adapted}</td><td className="text-nowrap">{when(p.ended_at)}</td>
-                    <td><button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setSelected(p.recovery_plan_id)}>Details</button></td>
+                    <td><button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setSelected(p.recovery_plan_id)}>Details</button></td>
                   </tr>
                 ))}
               </tbody>

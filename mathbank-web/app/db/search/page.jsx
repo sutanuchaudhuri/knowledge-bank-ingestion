@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { table, th, td, rowStyle, masterDetail, panel, input, primaryButton } from "../dbStyles.js";
+import { table, masterDetail, panel, input, primaryButton } from "../dbStyles.js";
 import ProblemDetail from "../ProblemDetail.jsx";
+import { Callout, EmptyState } from "../../_components/ui.jsx";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -45,7 +46,7 @@ export default function SearchPage() {
   }
 
   return (
-    <div>
+    <div className="d-grid gap-3">
       <form onSubmit={runSearch} className="app-filters card p-3 flex-row">
         <input
           className={`${input} app-search-query`} aria-label="Find similar questions"
@@ -61,31 +62,33 @@ export default function SearchPage() {
         </button>
       </form>
 
-      {error && <p style={{ color: "#b91c1c" }}>Search failed: {error}</p>}
+      {error && <Callout tone="danger" role="alert">Search failed: {error}</Callout>}
 
       <div className={masterDetail}>
         <div className={panel}>
           {!results ? (
-            <p style={{ color: "#666" }}>Hybrid semantic + lexical search over problem statements (pgvector + full-text, RRF-fused).</p>
+            <Callout tone="insight" title="Hybrid ranking">
+              Search over problem statements with semantic and lexical signals combined into one ranked list.
+            </Callout>
           ) : results.length === 0 ? (
-            <p style={{ color: "#666" }}>No matching problems.</p>
+            <EmptyState icon="search">No matching problems.</EmptyState>
           ) : (
             <div className="table-responsive"><table className={table}>
               <thead>
                 <tr>
-                  <th style={th}>Code</th>
-                  <th style={th}>Competition</th>
-                  <th style={th}>Year</th>
-                  <th style={{ ...th, textAlign: "right" }}>Score</th>
+                  <th className="fw-semibold">Code</th>
+                  <th className="fw-semibold">Competition</th>
+                  <th className="fw-semibold">Year</th>
+                  <th className="fw-semibold text-end">Score</th>
                 </tr>
               </thead>
               <tbody>
                 {results.map((r) => (
-                  <tr key={r.canonical_code} style={rowStyle(selectedCode === r.canonical_code)} onClick={() => setSelectedCode(r.canonical_code)}>
-                    <td style={td}>{r.canonical_code}</td>
-                    <td style={td}>{r.competition}</td>
-                    <td style={td}>{r.year}</td>
-                    <td style={{ ...td, textAlign: "right" }}>{Number(r.rrf_score).toFixed(4)}</td>
+                  <tr key={r.canonical_code} className={selectedCode === r.canonical_code ? "table-active" : ""} onClick={() => setSelectedCode(r.canonical_code)}>
+                    <td>{r.canonical_code}</td>
+                    <td>{r.competition}</td>
+                    <td>{r.year}</td>
+                    <td className="text-end mb-num">{Number(r.rrf_score).toFixed(4)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -93,7 +96,7 @@ export default function SearchPage() {
           )}
         </div>
 
-        {selectedCode ? <ProblemDetail code={selectedCode} /> : <div className={panel}><p className="text-secondary mb-0">Select a result to see the full problem.</p></div>}
+        {selectedCode ? <ProblemDetail code={selectedCode} /> : <div className={panel}><EmptyState icon="file-earmark-text">Select a result to see the full problem.</EmptyState></div>}
       </div>
     </div>
   );

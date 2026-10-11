@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import MathText from "../../../_components/MathText.jsx";
-import { Callout, Icon, IconButton, PageHeader, Pill } from "../../../_components/ui.jsx";
+import { Callout, EmptyState, Icon, IconButton, PageHeader, Pill } from "../../../_components/ui.jsx";
 import { MathComposer, SpeakButton } from "mathbank-widgets";
 import ProblemDiagrams from "../../../_components/ProblemDiagrams.jsx";
 
@@ -476,10 +476,9 @@ export default function SolveWorkspace({ code }) {
 
   if (error && !runtime) {
     return (
-      <div className="alert alert-warning">
+      <EmptyState icon="exclamation-triangle" action={<Link className="btn btn-sm btn-primary" href={`/learn?problem=${enc(code)}`}>Open guided practice</Link>}>
         <div className="fw-semibold mb-1">Could not open {code}</div>{error}
-        <div className="mt-2"><Link href={`/learn?problem=${enc(code)}`}>Open guided practice</Link></div>
-      </div>
+      </EmptyState>
     );
   }
   if (!runtime) return <div className="d-flex align-items-center gap-2" role="status"><span className="spinner-border spinner-border-sm" /> Opening your session…</div>;

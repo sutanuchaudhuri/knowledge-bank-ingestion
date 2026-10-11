@@ -1,8 +1,9 @@
 "use client";
 
 import MathText from "./MathText.jsx";
+import { formatDateTime } from "./ui.jsx";
 
-const when = (ts) => (ts ? new Date(ts.endsWith("Z") || ts.includes("+") ? ts : `${ts}Z`).toLocaleString() : "");
+const when = (ts) => (ts ? formatDateTime(ts.endsWith("Z") || ts.includes("+") ? ts : `${ts}Z`) : "");
 const KIND_LABEL = { thinking: "Thinking", tool_call: "Tool call", tool_result: "Tool result", error: "Error" };
 
 // Renders a rebuilt agent conversation (requirements/22). Students get text only; the admin view

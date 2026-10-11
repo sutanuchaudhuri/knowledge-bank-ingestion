@@ -10,6 +10,20 @@
 # and refuses ports held by any other process. make up = remote Neon/AuraDB only.
 # Tests:                         make test-unit | make smoke | make e2e | make e2e-llm (paid)
 # New pieces from scratch:       make sync-env && make setup && make migrate-live-fluid-remote && make up
+#
+# ── Extra/parallel services (independent of the core 4 above; see README.md for what
+#    each one is and how it fits) ──────────────────────────────────────────────────
+#   mcp            mathbank-mcp-competitions  — standalone FastMCP server (stdio), no daemon
+#   manim          mathbank-manim-studio      — research + video-render agents, :8020
+#   ml-training    mathbank-ml-training       — offline notebooks, no daemon (make ml-training-notebook)
+#   ml-inference   mathbank-ml-inference      — FastAPI ML service, :8010
+#   ml-frontend    mathbank-ml-frontend       — ML-ops dashboard, :5175
+#   geometry       mathbank-geometry-engine   — deterministic geometry compiler, library only
+#   neural-geom    mathbank-neural-geometry   — neural-symbolic compiler on top of geometry, library only
+#   ingestion      mathbank-data-ingestion    — corpus crawl/classify/export pipeline, CLI only
+# Same per-service pattern as the core 4: make <svc>-install | <svc>-start | <svc>-stop |
+#   <svc>-restart | <svc>-status (daemon-backed services only) | <svc>-test (where real tests exist)
+# Aggregate:                     make up-extra | make down-extra | make status-extra | make access-extra
 
 .DEFAULT_GOAL := help
 
@@ -216,6 +230,143 @@ live-restart:                     ## Restart mathbank-live
 live-status:                      ## Show whether mathbank-live is running
 	$(MAKE) -C mathbank-live status
 
+
+# ── Extra/parallel services (see README.md for the role of each) ───────────────────
+
+.PHONY: mcp-install
+mcp-install:                      ## Install mathbank-mcp-competitions (standalone FastMCP server)
+	$(MAKE) -C mathbank-mcp-competitions install
+
+.PHONY: mcp-test
+mcp-test:                         ## Run mathbank-mcp-competitions's test suite
+	$(MAKE) -C mathbank-mcp-competitions test
+
+.PHONY: mcp-demo
+mcp-demo:                         ## Run the bundled OpenAI agent demo against the MCP server
+	$(MAKE) -C mathbank-mcp-competitions demo
+
+.PHONY: manim-install
+manim-install:                     ## Install mathbank-manim-studio (research + video-render agents)
+	$(MAKE) -C mathbank-manim-studio install
+
+.PHONY: manim-start
+manim-start:                       ## Start mathbank-manim-studio on :8020 and verify HTTP readiness
+	$(MAKE) -C mathbank-manim-studio start
+
+.PHONY: manim-stop
+manim-stop:                        ## Stop the mathbank-manim-studio background daemon
+	$(MAKE) -C mathbank-manim-studio stop
+
+.PHONY: manim-restart
+manim-restart:                     ## Restart the mathbank-manim-studio background daemon
+	$(MAKE) -C mathbank-manim-studio restart
+
+.PHONY: manim-status
+manim-status:                      ## Show whether mathbank-manim-studio is running
+	$(MAKE) -C mathbank-manim-studio status
+
+.PHONY: manim-test
+manim-test:                        ## Run mathbank-manim-studio's test suite (real OpenAI + manim render, ~30s)
+	$(MAKE) -C mathbank-manim-studio test
+
+.PHONY: ml-training-install
+ml-training-install:               ## Install mathbank-ml-training (offline notebooks; scaffolded, requirements/54-55)
+	$(MAKE) -C mathbank-ml-training install
+
+.PHONY: ml-training-notebook
+ml-training-notebook:              ## Launch Jupyter Lab over mathbank-ml-training's notebooks
+	$(MAKE) -C mathbank-ml-training notebook
+
+.PHONY: ml-inference-install
+ml-inference-install:              ## Install mathbank-ml-inference (ML prediction/recommendation FastAPI service)
+	$(MAKE) -C mathbank-ml-inference install
+
+.PHONY: ml-inference-start
+ml-inference-start:                ## Start mathbank-ml-inference on :8010 and verify HTTP readiness
+	$(MAKE) -C mathbank-ml-inference start
+
+.PHONY: ml-inference-stop
+ml-inference-stop:                 ## Stop the mathbank-ml-inference background daemon
+	$(MAKE) -C mathbank-ml-inference stop
+
+.PHONY: ml-inference-restart
+ml-inference-restart:              ## Restart the mathbank-ml-inference background daemon
+	$(MAKE) -C mathbank-ml-inference restart
+
+.PHONY: ml-inference-status
+ml-inference-status:               ## Show whether mathbank-ml-inference is running
+	$(MAKE) -C mathbank-ml-inference status
+
+.PHONY: ml-frontend-install
+ml-frontend-install:               ## Install mathbank-ml-frontend (ML-ops dashboard)
+	$(MAKE) -C mathbank-ml-frontend install
+
+.PHONY: ml-frontend-start
+ml-frontend-start:                 ## Start mathbank-ml-frontend on :5175 and verify HTTP readiness
+	$(MAKE) -C mathbank-ml-frontend start
+
+.PHONY: ml-frontend-stop
+ml-frontend-stop:                  ## Stop the mathbank-ml-frontend background daemon
+	$(MAKE) -C mathbank-ml-frontend stop
+
+.PHONY: ml-frontend-restart
+ml-frontend-restart:               ## Restart the mathbank-ml-frontend background daemon
+	$(MAKE) -C mathbank-ml-frontend restart
+
+.PHONY: ml-frontend-status
+ml-frontend-status:                ## Show whether mathbank-ml-frontend is running
+	$(MAKE) -C mathbank-ml-frontend status
+
+.PHONY: geometry-install
+geometry-install:                  ## Install mathbank-geometry-engine (deterministic geometry scene compiler, library only)
+	$(MAKE) -C mathbank-geometry-engine install
+
+.PHONY: geometry-test
+geometry-test:                     ## Run mathbank-geometry-engine's test suite
+	$(MAKE) -C mathbank-geometry-engine test
+
+.PHONY: neural-geom-install
+neural-geom-install:               ## Install mathbank-neural-geometry (neural-symbolic compiler, library only)
+	$(MAKE) -C mathbank-neural-geometry install
+
+.PHONY: neural-geom-test
+neural-geom-test:                  ## Run mathbank-neural-geometry's test suite
+	$(MAKE) -C mathbank-neural-geometry test
+
+.PHONY: ingestion-install
+ingestion-install:                 ## Install mathbank-data-ingestion (corpus crawl/classify/export pipeline, CLI only)
+	$(MAKE) -C mathbank-data-ingestion install
+
+.PHONY: ingestion-test
+ingestion-test:                    ## Run mathbank-data-ingestion's test suite
+	$(MAKE) -C mathbank-data-ingestion test
+
+.PHONY: up-extra
+up-extra: manim-start ml-inference-start ml-frontend-start  ## Start the extra standalone HTTP services (manim-studio, ml-inference, ml-frontend)
+	@$(MAKE) --no-print-directory access-extra
+
+.PHONY: down-extra
+down-extra:                        ## Stop the extra standalone HTTP services
+	-$(MAKE) -C mathbank-manim-studio stop
+	-$(MAKE) -C mathbank-ml-inference stop
+	-$(MAKE) -C mathbank-ml-frontend stop
+
+.PHONY: status-extra
+status-extra:                      ## Show status of the extra standalone HTTP services
+	-$(MAKE) -C mathbank-manim-studio status
+	-$(MAKE) -C mathbank-ml-inference status
+	-$(MAKE) -C mathbank-ml-frontend status
+
+.PHONY: access-extra
+access-extra:                      ## Show URLs for the extra standalone HTTP services
+	@printf '\nExtra/parallel services\n\n'
+	@$(MAKE) --no-print-directory -s -C mathbank-manim-studio access
+	@$(MAKE) --no-print-directory -s -C mathbank-ml-inference access
+	@$(MAKE) --no-print-directory -s -C mathbank-ml-frontend access
+	@$(MAKE) --no-print-directory -s -C mathbank-mcp-competitions access
+	@printf '\n'
+
+
 .PHONY: migrate-live-fluid-remote
 migrate-live-fluid-remote:        ## Apply migration 020 (live sessions, activities, widget specs, authoring plans) to Neon; idempotent
 	$(MAKE) -C mathbank-db migrate-live-fluid-remote
@@ -279,7 +430,8 @@ access:                           ## Show web/API URLs and the remote Neon/AuraD
 	@$(MAKE) --no-print-directory -s -C mathbank-rest access
 	@$(MAKE) --no-print-directory -s -C mathbank-agent access
 	@$(MAKE) --no-print-directory -s access-remote
-	@printf '\n  Passwords are never displayed. Status: make status | Again: make access\n\n'
+	@printf '\n  Passwords are never displayed. Status: make status | Again: make access\n'
+	@printf '  Extra/parallel services (manim-studio, ml-*, mcp): make access-extra\n\n'
 
 .PHONY: access-remote
 access-remote:                    ## Show remote Neon Postgres / Neo4j AuraDB endpoints from mathbank-graph/remote.env (no passwords)

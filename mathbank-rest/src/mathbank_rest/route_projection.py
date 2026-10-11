@@ -28,6 +28,38 @@ TAXONOMY_LABELS = {
 PROJECTION_BATCH_SIZE = 500
 
 
+def _display_properties(kind: str, asset: dict) -> dict:
+    """Rich, human-readable properties for a route_asset-derived node (requirements/51
+    ENR-7). `asset` is the asset's full `content` JSONB — title/description (and, for
+    MISCONCEPTION, symptom/why_wrong/correct_model) already exist on it at generation
+    time; this was simply never copied into the projected Neo4j node before. LEARNING_ITEM's
+    own `description` field is a hardcoded literal ("Check the current step's
+    misconception."), not real content — its actual content lives in question/
+    expected_answer instead, so it is deliberately excluded here."""
+    if kind == "LEARNING_ITEM":
+        return {
+            "title": asset.get("title"),
+            "question": asset.get("question"),
+            "expected_answer": asset.get("expected_answer"),
+        }
+    if kind == "CLAIM":
+        return {
+            "title": asset.get("title"),
+            "description": asset.get("description"),
+            "canonical_expression": asset.get("canonical_expression"),
+        }
+    if kind == "MISCONCEPTION":
+        return {
+            "title": asset.get("title"),
+            "description": asset.get("description"),
+            "symptom": asset.get("symptom"),
+            "why_wrong": asset.get("why_wrong"),
+            "correct_model": asset.get("correct_model"),
+        }
+    # THEORY and anything else.
+    return {"title": asset.get("title"), "description": asset.get("description")}
+
+
 def _chunks(items: list, size: int):
     for start in range(0, len(items), size):
         yield items[start : start + size]
@@ -89,6 +121,55 @@ def metadata(conn) -> dict:
                     }
                 )
         return target | {"label": label}
+
+    # ENR-1/ENR-4 (requirements/51): resolve each per-checkpoint MISCONCEPTION
+    # route_asset to its canonical `knowledge.misconception` row instead of projecting
+    # it as its own isolated node. Before this, every one of the ~80k generated
+    # misconceptions got a fresh Neo4j node even when textually identical to another
+    # (confirmed live: 80,168 nodes, 100% flat 1:1 fan-in on every edge touching them),
+    # which is exactly why step-misconceptions/misconception-remediation/
+    # misconception-diagnosis/item-misconceptions all rendered as disconnected pairs
+    # with zero real graph structure. `knowledge.route_asset_misconception_link`
+    # (built by scripts/backfill_misconception_catalog.py) resolves 100% of these
+    # (80,242/80,242, confirmed live) to one of 70,018 canonical rows.
+    misconception_canonical_by_asset = {
+        row["asset_id"]: row["misconception_id"]
+        for row in conn.execute(
+            text("SELECT asset_id::text AS asset_id, misconception_id::text AS misconception_id "
+                 "FROM knowledge.route_asset_misconception_link")
+        ).mappings()
+    }
+    canonical_misconceptions = {
+        row["misconception_id"]: dict(row)
+        for row in conn.execute(
+            text("SELECT misconception_id::text AS misconception_id, canonical_code, name, "
+                 "description, symptom, why_wrong, correct_model "
+                 "FROM knowledge.misconception")
+        ).mappings()
+    }
+    misconception_taxonomy_targets: dict[str, list[str]] = {}
+    for row in conn.execute(
+        text("SELECT misconception_id::text AS misconception_id, taxonomy_node_id "
+             "FROM knowledge.misconception_taxonomy_link")
+    ).mappings():
+        misconception_taxonomy_targets.setdefault(row["misconception_id"], []).append(
+            row["taxonomy_node_id"]
+        )
+
+    def resolved_asset_id(key: str, assets: dict, asset_ids: dict) -> str:
+        """Every Misconception-labeled graph edge must use the canonical id (never the
+        per-route_asset id) so that the many route_asset instances sharing one real
+        misconception collapse onto a single node instead of staying permanently
+        disconnected siblings."""
+        raw = asset_ids[key]
+        if assets[key]["kind"] == "MISCONCEPTION":
+            return misconception_canonical_by_asset.get(raw, raw)
+        return raw
+
+    # Gates both: (1) only append a canonical Misconception node once, no matter how
+    # many per-checkpoint route_asset instances resolve to it, and (2) only emit its
+    # RELATES_TO edges once (first-seen point in the per-asset loop below).
+    projected_misconception_ids: set[str] = set()
 
     if not releases:
         return {"releases": releases, "nodes": nodes, "edges": edges}
@@ -170,24 +251,51 @@ def metadata(conn) -> dict:
         asset_ids = {row["content"]["key"]: row["asset_id"] for row in asset_rows}
         assets = {row["content"]["key"]: row["content"] for row in asset_rows}
         for asset in assets.values():
-            aid = asset_ids[asset["key"]]
-            nodes.append(
-                {
-                    "id": aid,
-                    "label": LABELS[asset["kind"]],
-                    "properties": {
-                        "canonical_id": aid,
-                        "route_release_id": rid,
-                        "asset_key": asset["key"],
-                        "purpose": asset["purpose"],
-                        "review_status": "REVIEWED",
-                    },
+            aid = resolved_asset_id(asset["key"], assets, asset_ids)
+            if asset["kind"] == "MISCONCEPTION":
+                canon = canonical_misconceptions.get(aid)
+                # A canonical node is shared by many per-checkpoint instances, so a
+                # single route_release_id/asset_key would misleadingly imply 1:1
+                # ownership; use the catalog's own identity instead (ENR-1/ENR-4).
+                display_props = (
+                    {
+                        "title": canon["name"],
+                        "description": canon["description"],
+                        "symptom": canon["symptom"],
+                        "why_wrong": canon["why_wrong"],
+                        "correct_model": canon["correct_model"],
+                        "canonical_code": canon["canonical_code"],
+                    }
+                    if canon
+                    else _display_properties("MISCONCEPTION", asset)
+                )
+                node_properties = {
+                    "canonical_id": aid,
+                    "purpose": asset["purpose"],
+                    "review_status": "REVIEWED",
+                    **display_props,
                 }
-            )
+            else:
+                node_properties = {
+                    "canonical_id": aid,
+                    "route_release_id": rid,
+                    "asset_key": asset["key"],
+                    "purpose": asset["purpose"],
+                    "review_status": "REVIEWED",
+                    **_display_properties(asset["kind"], asset),
+                }
+            # Many different route_asset instances resolve to the same canonical
+            # Misconception id (that's the whole point); only append its node entry
+            # once — repeat appends would use identical canonical-sourced properties
+            # (harmless to MERGE) but would also inflate `len(data["nodes"])` past the
+            # actual distinct-node count Neo4j ends up with, breaking the reconciliation
+            # check below.
+            if asset["kind"] != "MISCONCEPTION" or aid not in projected_misconception_ids:
+                nodes.append({"id": aid, "label": LABELS[asset["kind"]], "properties": node_properties})
             for key in asset["remediates"]:
                 edges.append(
                     {
-                        "from": asset_ids[key],
+                        "from": resolved_asset_id(key, assets, asset_ids),
                         "from_label": "Misconception",
                         "to": aid,
                         "to_label": "TheoryItem",
@@ -198,7 +306,7 @@ def metadata(conn) -> dict:
             for key in asset["diagnoses"]:
                 edges.append(
                     {
-                        "from": asset_ids[key],
+                        "from": resolved_asset_id(key, assets, asset_ids),
                         "from_label": "Misconception",
                         "to": aid,
                         "to_label": "LearningItem",
@@ -210,26 +318,53 @@ def metadata(conn) -> dict:
                     {
                         "from": aid,
                         "from_label": "LearningItem",
-                        "to": asset_ids[key],
+                        "to": resolved_asset_id(key, assets, asset_ids),
                         "to_label": "Misconception",
                         "type": "TESTS_MISCONCEPTION",
                         "properties": {},
                     }
                 )
+            # ENR-4 (requirements/51): THEORY/LEARNING_ITEM assets' own taxonomy_node_ids
+            # used to only wire up TECHNIQUE-type targets (silently dropping ~88% of
+            # references — CONCEPT/SKILL/SUBCONCEPT, confirmed live) which is why
+            # theory-techniques/item-techniques looked sparse/disconnected despite a
+            # real fan-in stat: the vast majority of TheoryItem/LearningItem nodes had
+            # no taxonomy edge projected at all. Project every target type now.
             for key in asset["taxonomy_node_ids"]:
                 target = taxonomy_target(key)
-                if target["node_type"] == "TECHNIQUE" and asset["kind"] in {
-                    "THEORY",
-                    "LEARNING_ITEM",
-                }:
+                if asset["kind"] in {"THEORY", "LEARNING_ITEM"}:
                     edges.append(
                         {
                             "from": aid,
                             "from_label": LABELS[asset["kind"]],
                             "to": target["id"],
-                            "to_label": "Technique",
+                            "to_label": target["label"],
                             "type": "EXPLAINS" if asset["kind"] == "THEORY" else "PRACTICES",
                             "properties": {},
+                        }
+                    )
+            # ENR-1/ENR-4: project RELATES_TO directly from the canonical catalog's own
+            # junction table instead of the derived RouteStep.REQUIRES-join workaround
+            # (etl/project_misconception_relations.py) — that script's edges carry
+            # projection_kind='misconception_relations' but attach to nodes carrying
+            # projection_kind='tutoring_routes', so this atomic rebuild's node-level
+            # DETACH DELETE (see below) silently wiped them on every re-run; folding the
+            # projection in here makes it immune to that and keeps the canonical
+            # catalog, not a derived join, as the single source of truth.
+            if asset["kind"] == "MISCONCEPTION" and aid not in projected_misconception_ids:
+                projected_misconception_ids.add(aid)
+                for tnid in misconception_taxonomy_targets.get(aid, []):
+                    if tnid not in taxonomy:
+                        continue
+                    target = taxonomy_target(tnid)
+                    edges.append(
+                        {
+                            "from": aid,
+                            "from_label": "Misconception",
+                            "to": target["id"],
+                            "to_label": target["label"],
+                            "type": "RELATES_TO",
+                            "properties": {"derived_via": "knowledge.misconception_taxonomy_link"},
                         }
                     )
         for row in step_rows:
@@ -288,7 +423,11 @@ def metadata(conn) -> dict:
                     {
                         "from": sid,
                         "from_label": "RouteStep",
-                        "to": asset_ids[link["asset_key"]],
+                        # CAN_TRIGGER targets a Misconception — resolve to its canonical
+                        # id (see resolved_asset_id above) so multiple RouteSteps that
+                        # happen to trigger the same real misconception converge on one
+                        # node instead of staying permanently disconnected 1:1 pairs.
+                        "to": resolved_asset_id(link["asset_key"], assets, asset_ids),
                         "to_label": LABELS[assets[link["asset_key"]]["kind"]],
                         "type": link["role"],
                         "properties": {},
@@ -328,6 +467,60 @@ def metadata(conn) -> dict:
                             "properties": {},
                         }
                     )
+
+    # ENR-2 (requirements/51): project precomputed embedding-similarity pairs as
+    # SIMILAR_TO edges — the direct fix for "no similarity search happening in the graph
+    # at all". Scoped to node ids already projected above (never introduces a node whose
+    # only edge is a similarity link) and folded directly into this same atomic rebuild,
+    # not a separate companion script, per the BUG-5/GOTCHAS.md §24 lesson.
+    for row in conn.execute(
+        text("SELECT misconception_id_a::text AS a, misconception_id_b::text AS b, "
+             "similarity FROM knowledge.misconception_similarity")
+    ).mappings():
+        if row["a"] in projected_misconception_ids and row["b"] in projected_misconception_ids:
+            edges.append(
+                {
+                    "from": row["a"],
+                    "from_label": "Misconception",
+                    "to": row["b"],
+                    "to_label": "Misconception",
+                    "type": "SIMILAR_TO",
+                    "properties": {"similarity": row["similarity"]},
+                }
+            )
+    def taxonomy_node_available(key: str) -> bool:
+        """A taxonomy_node_id is safe to target with a new edge if it either resolves to
+        a curated knowledge.concept/skill/technique row (guaranteed to already exist via
+        the prerequisite corpus/taxonomy projection, the same assumption every REQUIRES
+        edge above already relies on) or was itself referenced by a published release in
+        this run (tracked in projected_taxonomy_ids). Auto-generated nodes with neither
+        are correctly excluded — nothing else in the graph references them either."""
+        entry = taxonomy.get(key)
+        return bool(entry) and (bool(entry["id"]) or key in projected_taxonomy_ids)
+
+    for row in conn.execute(
+        text("SELECT taxonomy_node_id_a AS a, taxonomy_node_id_b AS b, similarity "
+             "FROM pedagogy.taxonomy_node_similarity")
+    ).mappings():
+        if taxonomy_node_available(row["a"]) and taxonomy_node_available(row["b"]):
+            label = TAXONOMY_LABELS[taxonomy[row["a"]]["node_type"]]
+            # taxonomy_target() rewrites the graph id to the curated knowledge.* id when
+            # one exists (coalesce(technique_id,skill_id,concept_id)) — resolve through it
+            # so SIMILAR_TO points at the same node identity every other edge type uses,
+            # not always the raw taxonomy_node_id.
+            id_a = taxonomy_target(row["a"])["id"]
+            id_b = taxonomy_target(row["b"])["id"]
+            edges.append(
+                {
+                    "from": id_a,
+                    "from_label": label,
+                    "to": id_b,
+                    "to_label": label,
+                    "type": "SIMILAR_TO",
+                    "properties": {"similarity": row["similarity"]},
+                }
+            )
+
     return {"releases": releases, "nodes": nodes, "edges": edges}
 
 
@@ -391,16 +584,28 @@ def _project() -> dict:
         # atomicity for actually being able to run at this scale — an interrupted
         # run can leave a partially-replaced graph, which a subsequent project()
         # call fully repairs (delete-then-recreate is idempotent per entity).
-        session.execute_write(
-            lambda tx: tx.run(
-                "MATCH ()-[r]->() WHERE r.projection_kind=$kind DELETE r", kind=KIND
-            ).consume()
-        )
-        session.execute_write(
-            lambda tx: tx.run(
-                "MATCH (n) WHERE n.projection_kind=$kind DETACH DELETE n", kind=KIND
-            ).consume()
-        )
+        #
+        # The relationship/node DELETE themselves must ALSO be batched (not just the
+        # writes below): confirmed live that a single unbatched `DELETE` statement over
+        # the whole `tutoring_routes` layer raises
+        # `Neo.TransientError.General.MemoryPoolOutOfMemoryError` once that layer passes
+        # roughly 1M relationships (GOTCHAS.md §23) — ENR-2's new SIMILAR_TO edges pushed
+        # this run well past that threshold (1.55M total). `CALL (...) { ... } IN
+        # TRANSACTIONS OF N ROWS` (Neo4j 5's native batched-subquery construct, already
+        # used elsewhere in this codebase) commits per batch internally, so it fits the
+        # same memory budget as the batched node/edge writes below. Confirmed this
+        # specific failure mode rolls back the *unbatched* attempt cleanly (node/edge
+        # counts unchanged) before switching to this batched form.
+        session.run(
+            "MATCH ()-[r]->() WHERE r.projection_kind=$kind "
+            "CALL (r) { DELETE r } IN TRANSACTIONS OF 5000 ROWS",
+            kind=KIND,
+        ).consume()
+        session.run(
+            "MATCH (n) WHERE n.projection_kind=$kind "
+            "CALL (n) { DETACH DELETE n } IN TRANSACTIONS OF 2000 ROWS",
+            kind=KIND,
+        ).consume()
 
         nodes_by_label: dict[str, list[dict]] = {}
         for node in data["nodes"]:

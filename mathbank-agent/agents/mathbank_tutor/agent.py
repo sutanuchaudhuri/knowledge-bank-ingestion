@@ -62,6 +62,7 @@ from .pedagogy_agent import (
     report_pedagogy_feedback,
     route_topic_before_model,
 )
+from .quiz_agent import quiz_agent_tool
 from .retrieval_audit_agent import retrieval_audit_tool
 from .problem_guidance import prepare_problem_guidance
 from .timed_questions import (
@@ -298,6 +299,13 @@ Guidelines:
   Specialists can call LaTeX, SVG, overlay/frame, annotation and validation agents.
   Relay supplied learner-safe context only: never tokens, private state or hidden answers.
   You keep conversational control; copy validated preview markdown unchanged.
+- For a personalized AIME/HMMT/proof/topic/skill-based practice quiz (MCQ, free-text or
+  proof questions), delegate to quiz_generator_agent — a real ADK specialist, not an
+  inline tool. It generates fresh, original questions inspired by real corpus problems
+  (never copied), includes diagrams automatically where relevant, and withholds every
+  solution until the learner's own response is recorded. Relay its questions/feedback/
+  solutions verbatim; never grade or reveal an answer yourself. Only forward an answer the
+  learner actually typed, never one you infer or guess on their behalf.
 """
 
 root_agent = Agent(
@@ -345,5 +353,6 @@ root_agent = Agent(
         get_topic_lesson,
         retrieval_audit_tool(MODEL),
         *WIDGET_TOOLS,
+        quiz_agent_tool(MODEL),
     ],
 )

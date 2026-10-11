@@ -7,8 +7,13 @@ const NODE_FIELDS = [
   "problem_page_images", "solution_page_images",
   "route_release_id", "release_version", "step_index", "asset_key", "purpose",
   "difficulty_level", "conceptual_load", "insight_load", "projection_kind",
+  // requirements/51 ENR-7: rich display content for route_asset-derived nodes
+  // (Claim/Misconception/TheoryItem/diagnostic LearningItem), previously limited to
+  // the generic asset_key.
+  "title", "symptom", "why_wrong", "correct_model", "canonical_expression",
+  "question", "expected_answer",
 ];
-const EDGE_FIELDS = ["role", "required_level", "importance", "confidence", "source", "assertion_source", "review_status", "approval_method", "relation_type", "strength"];
+const EDGE_FIELDS = ["role", "required_level", "importance", "confidence", "source", "assertion_source", "review_status", "approval_method", "relation_type", "strength", "similarity"];
 
 function pick(properties, fields) {
   const result = {};

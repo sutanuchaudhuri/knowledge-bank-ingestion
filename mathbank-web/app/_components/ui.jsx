@@ -8,9 +8,27 @@ export function Icon({ name, label, className = "" }) {
     : <i className={`bi bi-${name} ${className}`} aria-hidden="true" />;
 }
 
-export function PageHeader({ icon, title, subtitle, pills, actions, tone = "primary" }) {
+/** Deterministic date/time formatting (requirements/48 UXS-7) — always uses a fixed
+ * locale instead of the visiting browser's default, so the same timestamp renders
+ * identically everywhere (no hydration-risk locale drift, stable e2e output). Prefer
+ * this over a bare `toLocaleString()`/`toLocaleDateString()` call anywhere in the app. */
+export function formatDateTime(ts) {
+  if (!ts) return "—";
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+}
+
+export function formatDate(ts) {
+  if (!ts) return "—";
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-US", { dateStyle: "medium" });
+}
+
+export function PageHeader({ icon, title, subtitle, pills, actions, tone = "primary", centered = false }) {
   return (
-    <header className="mb-page-header">
+    <header className={`mb-page-header${centered ? " mb-page-header-centered" : ""}`}>
       {icon && <span className={`mb-page-icon mb-tone-${tone}`}><Icon name={icon} /></span>}
       <div className="min-w-0">
         <h1 className="mb-page-title">{title}</h1>

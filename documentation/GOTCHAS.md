@@ -570,6 +570,345 @@ the exact same depth (e.g. `attempts/route.js` and `mastery/route.js` next to
 `me/route.js`) are the fastest sanity check — if they already import `lib/`
 correctly, copy their exact `../` count rather than recounting from scratch.
 
+## 23. Interrupting `route_projection.project()` mid-run leaves the graph partially rebuilt, not safely rolled back
+
+`mathbank_rest.route_projection._project()` does **not** wrap its delete-then-recreate
+cycle in one transaction — it commits per batch (one `session.execute_write()` call per
+~500-row chunk, iterating node labels then `edges_by_shape.items()` one relationship-type
+shape at a time). Confirmed live: stopping the process partway through (Ctrl-C / `stop_bash`
+on its PID) left the graph with the full DELETE already committed, several relationship
+types already re-created (whichever `edges_by_shape` entries were reached first in dict
+iteration order), and the rest still at zero — nodes stayed intact throughout (node
+recreation finishes before edges start), but several `/graph/*` tabs (`EXPLAINS`,
+`CAN_TRIGGER`, `USES_CLAIM`, partial `DEPENDS_ON`) silently showed "No relationships found"
+for roughly 40 minutes until the same `project()` call was re-run **to completion without
+interruption** (confirmed via live Neo4j relationship counts before/after, see
+[requirements/50](requirements/50_NEO4J_KNOWLEDGE_GRAPH_QUALITY_BUGS.md)). **Lesson: once
+`project()` is started against the live AuraDB instance, let it run to completion — launch
+it as a fully detached/`nohup` background process up front (not a foreground `read_bash`
+loop you might `stop_bash`) specifically so an impatient interruption can't happen.** ~~A
+derived/companion layer with a *different* `projection_kind` tag (e.g. this session's new
+`misconception_relations` / `RELATES_TO` edges) is unaffected by `project()`'s own
+delete-filter, but can still go stale if it depends on relationship types `project()`
+temporarily zeroed out mid-run — re-run the companion script once `project()` is fully
+done, don't assume it's still consistent.~~ **Correction (see §24): this claim was wrong.**
+A companion layer's relationship-level `projection_kind` tag does not protect it — see §24
+for why, and for the fix (projecting it from inside `_project()` itself instead of as a
+separate companion script). Separately: the AuraDB free-tier instance can
+raise `Neo.TransientError.General.MemoryPoolOutOfMemoryError` on `project()`'s single
+unbatched bulk `DELETE` statement once the `tutoring_routes` layer passes roughly 1M
+relationships; that specific error mode *does* roll back cleanly (confirmed: node/edge
+counts were unchanged after it), unlike a deliberate mid-run interruption once the recreate
+loop has started. **Fixed in a later pass (requirements/51 ENR-2): see §25** — this is no
+longer a live limitation, the unbatched DELETE itself was rewritten to batch internally.
+
+## 24. A companion projector's edges are NOT safe from `route_projection.project()`'s node-level DETACH DELETE, even with a different `projection_kind`
+
+§23 claimed a companion script's edges (tagged with their own distinct `projection_kind`,
+e.g. `misconception_relations`) survive `project()`'s rebuild because the rebuild's
+relationship-delete query filters `WHERE r.projection_kind=$kind`. **This is false, and it
+was proven false live, the hard way**: a routine, fully-uninterrupted re-run of `project()`
+(launched specifically to propagate unrelated taxonomy-label changes, requirements/51 ENR-8)
+silently zeroed `misconception-concepts`/`misconception-skills`/`misconception-techniques`
+from 82,019 edges to **0**, with no error, no warning, and no connection to anything the
+run was actually trying to do.
+
+**Root cause:** `_project()`'s rebuild does two separate delete statements:
+```python
+session.run("MATCH ()-[r]->() WHERE r.projection_kind=$kind DELETE r", kind=KIND)
+session.run("MATCH (n) WHERE n.projection_kind=$kind DETACH DELETE n", kind=KIND)
+```
+The first line is scoped correctly (only deletes `tutoring_routes`-tagged relationships).
+The second line is **not** relationship-scoped at all — `DETACH DELETE` on a *node* removes
+**every relationship attached to that node, regardless of the relationship's own
+`projection_kind`**. Since `Misconception` (and every other label `project()` manages) is
+tagged `projection_kind='tutoring_routes'` at the *node* level, the second statement wipes
+out any edge any other script ever attached to it, no matter what tag that edge itself
+carries. A relationship's `projection_kind` only protects it from the *first* line, never
+from the second.
+
+**Fix applied (requirements/51 ENR-1/ENR-4):** stop treating the taxonomy-link edges as an
+out-of-band companion projection at all. Fold them into `_project()`'s own node/edge
+generation inside `route_projection.py` itself, so they are recreated by the very same
+rebuild that could otherwise destroy them, every single time, atomically. The retired
+companion script (`mathbank-graph/etl/project_misconception_relations.py`) is kept only for
+historical reference with a `DEPRECATED` docstring — it must not be run again; its
+RouteStep-join-derived edges have been fully superseded by a direct projection from the
+canonical `knowledge.misconception_taxonomy_link` table.
+
+**General lesson for this codebase: there is no such thing as a safely-isolated companion
+graph projection against the `tutoring_routes` layer.** Any relationship that touches a node
+`project()` manages will be destroyed on every rebuild unless `project()` itself is the one
+recreating it. Before adding a new "derived edge" script against any node label this
+projector owns, fold the projection into `route_projection.py` directly instead.
+
+## 25. `route_projection.py`'s unbatched DELETE/DETACH DELETE needed batching once the graph passed ~1.5M edges — fixed with Neo4j 5's native `CALL (...) { ... } IN TRANSACTIONS`
+
+§23 documented `MemoryPoolOutOfMemoryError` on `project()`'s bulk relationship `DELETE` as a
+known, cleanly-rolling-back failure mode once the `tutoring_routes` layer passed roughly 1M
+relationships — but left it as a known limitation, not a fix. Confirmed live that adding
+requirements/51 ENR-2's ~310K new `SIMILAR_TO` edges (pushing total edges to 1.55M) reliably
+triggered it on every attempt, not just occasionally:
+```
+Neo.TransientError.General.MemoryPoolOutOfMemoryError: The allocation of an extra 2.0 MiB
+would use more than the limit 1.3 GiB. Currently using 1.3 GiB.
+```
+Confirmed first (via `pipeline.graph_projection` + a direct Neo4j node/edge count) that this
+failure mode still rolls back cleanly — no partial damage, same lesson as §23 — before fixing
+the actual root cause: the two delete statements were each a single unbatched Cypher `DELETE`/
+`DETACH DELETE` over potentially millions of rows, unlike every node/edge *write* in the same
+function, which was already correctly batched at `PROJECTION_BATCH_SIZE` (500) per transaction.
+
+**Fix:** rewrite both deletes using Neo4j 5's native `CALL (var) { ... } IN TRANSACTIONS OF N
+ROWS` construct (already used elsewhere in this codebase, e.g.
+`project_misconception_relations.py`'s `RELATES_TO` MERGE), which commits internally in
+batches rather than requiring one giant transaction:
+```cypher
+MATCH ()-[r]->() WHERE r.projection_kind=$kind
+CALL (r) { DELETE r } IN TRANSACTIONS OF 5000 ROWS
+```
+Called via plain `session.run()`, **not** `session.execute_write()` — `IN TRANSACTIONS`
+manages its own transaction boundaries internally and cannot be nested inside an explicit
+managed-transaction function; wrapping it in one raises a Cypher syntax/semantic error, not a
+runtime one, so this is worth getting right before a live run, not discovering it mid-rebuild.
+Verified live: re-run completed successfully (`pipeline.graph_projection` status
+`COMPLETED`, 415,682 nodes / 1,551,106 edges) with no further memory errors. **This threshold
+will be hit again as the graph keeps growing — if a future addition pushes well past 1.55M
+edges and this batched form somehow still errors, raise the `ROWS` batch size down (not up)
+before assuming the whole approach needs rethinking.**
+
+## 26. `mathbank-web`'s `MathText` component renders a `<div>` root — wrapping it in a `<p>` causes a React hydration error
+
+Confirmed live (requirements/53, building the new quiz UI): `<MathText>` (`app/_components/MathText.jsx`)
+renders `<div className="markdown-body">...</div>` at its root, because the markdown it renders
+internally can itself contain block-level elements (paragraphs, display math, code blocks). Any
+caller that writes `<p><MathText>{...}</MathText></p>` produces an invalid `<div>`-inside-`<p>`
+DOM nesting. The browser silently "fixes" this by closing the `<p>` early, which differs from
+what React's virtual DOM expects, and throws exactly this error in the console at hydration time:
+```
+In HTML, %s cannot be a descendant of <%s>. This will cause a hydration error. <p>
+```
+**Fix:** always wrap `<MathText>` in a `<div>` (or nothing, if the parent is already a `<div>`),
+never a `<p>`. The same rule applies to `<span>` (an inline element) wrapping `<MathText>` — also
+invalid HTML, use a `<div>` there too even if the visual intent is an inline-looking label (use
+flex layout on the div instead, e.g. `<div className="d-flex gap-1">`).
+
+## 27. A long-running `mathbank-rest` dev server started without `--reload` will not pick up new routers/migrations — restart via `make stop && make start`
+
+Confirmed live (requirements/53): a `mathbank-rest` dev server left running from an earlier
+session (started as a plain `uvicorn mathbank_rest.main:app --app-dir src --port 8000`, no
+`--reload` flag — not matching the Makefile's own `make run` target, which does include
+`--reload`) silently 404'd every new endpoint added in this session (`/v1/quiz/*`) until
+explicitly restarted. Before concluding a new endpoint/router registration is broken, check
+whether the currently-running dev server process actually has `--reload` in its command line
+(`ps aux | grep uvicorn`) — if not, `make stop && make start` (or `make run` in the foreground)
+picks up the change immediately. This is not specific to the quiz feature; it will recur for
+any future new router/model-reload-sensitive change made while an old, non-reloading server
+instance is still running.
+
+
+## 28. A leading JSDoc comment line left over from a block replacement can silently swallow the *next* `const`/function declaration into a dangling, unterminated `/** ... */` comment
+
+Hit live while implementing requirements/47's `GradableItem` adapter in
+`mathbank-web/app/learn/courses/[code]/page.jsx`: an `edit` replaced the old `QuizActivity`
+function body but left its original one-line docblock opener (`/** Interactive preview quiz
+question (MCQ/NUMERIC). Grades locally against the`) directly above the *new*
+`LEARNING_ITEM_PURPOSE_LABELS` constant, with no matching `*/` anywhere before it. JS/JSX
+comments don't nest — the parser kept consuming source (including the entire `const
+LEARNING_ITEM_PURPOSE_LABELS = {...}` object and the next function's own opening docblock
+line) until it hit the *first* real `*/` several lines later, which happened to belong to a
+different, later docblock. The swallowed `const` never executed, producing a runtime-only
+`ReferenceError: LEARNING_ITEM_PURPOSE_LABELS is not defined` the moment the component using it
+rendered — `next build` and the dev server's own compile step both stayed silent because the
+result was still syntactically valid JS (an oversized comment, not a parse error). **Lesson:**
+after any edit that removes a block preceded by its own `/** ... */` docblock, explicitly check
+the one or two lines immediately above the edit for an orphaned opener line with no closing
+`*/` — `grep -n '/\*\*\|\*/' <file>` and eyeball that every `/**` has a `*/` before the next
+`/**` is a fast way to catch this; a clean `next build` is **not** sufficient evidence the
+comment structure is intact, since a dangling comment is valid syntax, not a build error.
+
+## 29. An unkeyed stateful component rendered at the same JSX position for *different* data items leaks state across items — use `key={itemId}` to force a remount
+
+Hit live in the same requirements/47 work: `SequencedStepContent` renders one `GradableItem`
+(or `AssetMedia`/`InteractionTemplateRenderer`) per current sequenced item, swapped in place as
+`itemIndex` changes — but without a `key` prop, React treats it as the *same* component
+instance across renders (same type, same JSX position) and keeps its internal state (`result`,
+`selectedIndex`, `numericValue`) instead of resetting it. Confirmed live: after giving up on
+item 1 (a `learning_item`), clicking "Next item" to item 2 (an unrelated `activity`) rendered
+item 2's own fresh MCQ options as already-disabled, because `result` from item 1 was still set
+on the reused fiber. **Fix:** always pass `key={<stable item/content id>}` on any per-item
+child component whose own `useState` must reset when the "current item" changes — matches the
+existing pattern already used one level up for `SequencedStepContent` itself
+(`key={activeState.state_id}`) to reset progress when the *state* changes.
+
+## 30. A section's `layout.jsx` can already render the one shared `<PageHeader>`/`<h1>` for every page beneath it — a per-page "add a missing PageHeader" fix can silently create a duplicate heading
+
+Hit live while implementing requirements/48 (site-wide UX audit) across `mathbank-web/app/db/*`
+and `mathbank-web/app/graph/*`: both sections have a `layout.jsx` (`app/db/layout.jsx`,
+`app/graph/layout.jsx`) that already renders one `<PageHeader>` for the whole section (plus a
+`NavTabs` sub-nav), confirmed by a static audit that only read individual `page.jsx` files was
+genuinely missing: the audit correctly saw no `PageHeader` import in `db/concepts/page.jsx` (for
+example) but had no visibility into the sibling `layout.jsx` that actually supplies the section's
+single `<h1>`. Delegated fix work that followed the audit's literal "add a PageHeader here"
+instruction added a **second** `<PageHeader>` (and therefore a second `<h1>`) on five `db/*`
+pages and two `graph/*` pages — caught only by `e2e/public.spec.mjs`'s strict-mode
+`getByRole("heading", { level: 1 })` lookup failing with "resolved to 2 elements," and would have
+shipped silently on the `graph/*` pages (whose heading text isn't asserted by any e2e spec).
+**Lesson:** before adding a `PageHeader`/`<h1>` to any `page.jsx`, check for a `layout.jsx` in the
+same directory (and any parent directory) that might already render one for the whole route
+group — `find app -iname layout.jsx | xargs grep -l PageHeader` is a one-line way to see every
+section that already owns a shared header. If a page's own title is still worth surfacing
+distinctly (e.g. `graph/[rel]/page.jsx`'s per-relationship name), demote it to an `<h2>`
+sub-heading or plain text instead of a second `PageHeader`/`<h1>`, and re-run `e2e/public.spec.mjs`
+(or at minimum manually grep the rendered page for more than one `<h1`) before considering the
+change done — a clean `next build` does not catch a duplicate-heading regression.
+
+## 31. `FastMCPApp` must be fully constructed and decorated *before* `FastMCP(..., providers=[...])` is built — there is no `.mount()` path for a `Provider`
+
+Hit live while building `mathbank-mcp-competitions` (requirements/49's first implementation). The
+intuitive pattern — build `mcp = FastMCP("name")` first, then attach Prefab UI apps to it the way
+you'd mount a sub-server — does not exist for `FastMCPApp`. `FastMCP.mount()` is for composing two
+full `FastMCP` server instances together (e.g. a gateway aggregating several MCP servers); a
+`FastMCPApp` is a `Provider`, and the only way to attach one is to pass it at construction time via
+`FastMCP(name, providers=[app])`. Since a `FastMCPApp`'s `@app.tool()`/`@app.ui()` decorators mutate
+the app object in place, the app must be fully built — every tool and `.ui()` entry point already
+decorated onto it — *before* that `FastMCP(...)` call, not after. This drove `server.py`'s file
+layout: the `FastMCPApp` and all its decorated functions come first, `mcp = FastMCP(...,
+providers=[competitions_app])` is constructed next, and only then do the plain `@mcp.tool()`
+functions get defined (order doesn't matter for those, since they decorate the already-built `mcp`
+object directly). **Lesson:** when adding a `FastMCPApp`/Prefab `.ui()` surface to an existing
+`FastMCP` server, check whether the server object is already constructed elsewhere in the file —
+if so, the app must be moved above that construction line, not just decorated wherever is
+convenient.
+
+## 32. Prefab `Select`'s `value` field does not accept a reactive `Rx` binding — use `name=` + per-`SelectOption(selected=...)` instead; and never debug a Prefab component tree via a bare `.model_dump()`
+
+Two related `prefab_ui` (0.20.2) gotchas found while building the same competition-explorer Prefab
+UI:
+
+1. Most Prefab fields that look reactive — `DataTableColumn.rows`, `Badge.label`,
+   `SelectOption.value`/`.label` — genuinely do accept an `Rx(...)` binding. `Select.value` is the
+   exception: it's typed `str | None`, a plain form-field value, not a reactive prop. Passing
+   `Select(value=Rx(STATE.competition))` fails type validation. The correct pattern (confirmed by
+   grepping `prefab_ui`'s own bundled `field.py`/`form.py`, which never bind `value=Rx(...)` on a
+   `Select`) is `Select(name="competition")` plus computing `selected=(code == competition)` on each
+   `SelectOption` server-side at render time — the form's `name` is what ties the selected value
+   back to state on submit, not a live reactive binding on the widget itself.
+2. Calling `.model_dump()` directly on a returned `PrefabApp`/`Column` Python object in a quick
+   debug script can make the component tree look broken — nested children appear to show only
+   `id`/`css_class`/`on_mount` with no `type`, as if they collapsed to base `Component` placeholders.
+   This is **not a real bug**; it's an artifact of pydantic's default polymorphic-list serialization
+   not resolving subclass fields without `prefab_ui`'s own custom serializer path. The actual
+   wire-format output — what any real MCP host or test actually receives — is correct and complete;
+   confirmed by calling through `fastmcp.Client.call_tool(...).structured_content`, which showed the
+   full, correctly nested tree. **Lesson:** always verify a Prefab component tree via a real
+   `fastmcp.Client` call, never via a bare `.model_dump()` on the Python object in a REPL/debug
+   script — the latter is not representative of the real protocol output and will send you chasing
+   a bug that doesn't exist.
+
+## 33. An LLM asked to author a SceneSpec will use plausible-but-wrong field names (`"text"` instead of `"label"`) and leak LaTeX into plain-text fields — a loose, future-proof JSON Schema cannot catch this; a second, stricter layer must
+
+Hit live while building `mathbank-manim-studio`'s research agent (requirements/60). The
+SceneSpec JSON Schema (`scene_spec.schema.json`) is deliberately loose —
+`additionalProperties` unconstrained on objects/timeline entries — so it can grow to
+ITL-4's full future object/action vocabulary without a schema migration every time. That
+looseness means a model-generated SceneSpec that uses `"text"` where the compiler expects
+`"label"` (or vice versa) passes the schema cleanly and silently renders as empty text,
+not an error. Separately, the same model put raw `\(...\)` LaTeX delimiters inside a
+plain `TEXT` object's label (which renders via `Text(...)`, not `MathTex(...)`) — again
+schema-valid, again silently wrong (garbled literal backslashes on screen, not a crash).
+**Lesson:** when an LLM authors a payload against a deliberately loose, extensible
+schema, layer a second, stricter, *implementation-specific* validator on top that checks
+exactly what the current renderer/compiler actually consumes (required field names per
+type, and content-shape heuristics like "a backslash command does not belong in a
+plain-text field") — and wire real validation failures back into an automatic one-shot
+repair turn, not just a one-time check. Caught by rendering the model's actual output and
+visually inspecting an extracted frame, not by unit-testing the JSON Schema check alone.
+
+## 34. `subprocess.run(["manim", ...])` resolves against the invoking shell's `PATH`, not the active project's `.venv` — spawn `[sys.executable, "-m", "manim", ...]` instead
+
+Hit live in the same project: a bare `"manim"` argv0 raised `FileNotFoundError` the
+moment the render function was called from a process whose `PATH` didn't happen to
+include the venv's `bin/` (true for almost any real caller — a different shell, a test
+runner, `uvicorn` started by a Makefile target). Spawning
+`[sys.executable, "-m", "manim", ...]` instead always resolves against the same
+interpreter the calling code is already running under, regardless of `PATH` or which
+shell launched the parent process — the same fix category as GOTCHAS.md's general
+"don't assume a bare binary name on PATH" lesson, concretely encountered here for manim.
+
+## 35. A service-layer function with keyword-only parameters (`def f(conn, *, a, b)`) silently breaks a generic `_call(fn, *args)` router wrapper — pass a lambda, not positional args
+
+Hit live while wiring `mathbank-rest`'s scene-catalog-promotion endpoints
+(requirements/60 §7): `interaction_templates.py`'s existing `_call(operation, *args)`
+helper (`return operation(conn, *args)`) has always worked for every prior service
+function in that file because they all took purely positional arguments after `conn`.
+`scene_spec_promotion.promote_render_job(conn, *, render_job_id, canonical_code,
+created_by)` was deliberately written with keyword-only parameters (to make call sites
+self-documenting), which raised `TypeError: promote_render_job() takes 1 positional
+argument but 4 were given` the moment the router tried `_call(promote_render_job,
+request.render_job_id, request.canonical_code, request.created_by)` — caught immediately
+by a live end-to-end test (not a type checker, since `_call`'s signature is generically
+typed as `*args`). **Fix:** wrap the call in a lambda —
+`_call(lambda conn: promote_render_job(conn, render_job_id=..., canonical_code=...,
+created_by=...))` — whenever the target function uses keyword-only parameters; a
+positional-args-forwarding wrapper like `_call` can never support them directly.
+
+## 36. This environment's FastAPI build lazily wraps `include_router()` results as `_IncludedRouter`, not flattened `APIRoute` objects — `app.routes` introspection in a plain Python REPL undercounts real routes; always verify via the live OpenAPI schema or a running server instead
+
+Hit live while confirming new scene-promotion routes were registered: a quick
+`from mathbank_rest.main import app; [r.path for r in app.routes]` sanity check showed
+only 7 routes (just `/health`/`/docs`/etc.) even though `main.py` correctly calls
+`app.include_router(...)` 26 times and the router objects themselves had the expected
+routes when inspected directly. `Counter(type(r).__name__ for r in app.routes)` revealed
+the real shape: 26 `_IncludedRouter` wrapper objects (not standard Starlette/FastAPI
+`APIRoute`s), meaning this environment's installed FastAPI build defers resolving
+included-router paths until ASGI dispatch/startup, not at `include_router()` call time.
+**This is not a bug in application code** — it is specific to this sandbox's FastAPI
+build and does not reflect how a real deployed FastAPI app behaves. **Lesson:** don't
+debug "are my routes registered?" via bare `app.routes` introspection in a throwaway
+script in this environment — restart the real server and check `curl .../openapi.json`
+(or hit the endpoint directly), which is authoritative regardless of how a given FastAPI
+build internally represents routers before first dispatch.
+
+## 37. Two services sharing one physical Postgres instance still cannot see each other's *uncommitted* writes — a cross-service callback that depends on a just-inserted row needs the local transaction committed *before* firing, not just before returning
+
+Hit live while wiring promoted scenes into `interaction_instance` (requirements/60 §7):
+`scene_spec_promotion.promote_render_job` inserted a new `visual.scene_spec` row, then
+(while still inside the same, not-yet-committed `conn`) called
+`mathbank-manim-studio`'s `POST /v1/render-jobs/{id}/mark-promoted` endpoint — which
+writes `promoted_scene_spec_id` into *its own* `studio.video_render_job` row, guarded by
+a real foreign key into `visual.scene_spec` (migration 045). That FK check runs on
+manim-studio's own, separate database connection, which — exactly as Postgres MVCC
+guarantees — cannot see mathbank-rest's just-inserted row until mathbank-rest's
+transaction actually commits. The result was a silent, swallowed failure (caught by a
+deliberately permissive `except httpx.HTTPError: pass`, since the peer service's own flag
+was designed to be best-effort) — `promoted_scene_spec_id` stayed `NULL` even though the
+promotion otherwise fully succeeded. Caught by explicitly asserting the peer service's
+state after the call completed, not just asserting the local 200 OK. **Fix:** restructured
+`promote_render_job` to own its own `engine.begin()` block for the local INSERT work,
+so the `with` block's normal exit commits *before* the cross-service HTTP call fires,
+rather than accepting an externally-managed `conn` whose commit timing the function
+doesn't control. **Lesson:** whenever a function's job is "write locally, then tell
+another service about it," the local write must be verifiably committed (not merely
+`execute()`'d) before the cross-service call — "same physical database" does not mean
+"same transaction," and an uncommitted row is invisible outside its own transaction no
+matter how physically close the two connections are.
+
+## 38. A locally-invented object-storage URI scheme (`object://key`) will silently diverge from the one the rest of the codebase already uses (`object-store:key`) — grep for the real prefix before inventing a new one
+
+Hit live in the same feature: `scene_spec_promotion.py` wrote `visual.asset.uri` as
+`f"object://{key}"`, which *looked* like a reasonable URI scheme and worked fine for the
+admin-only read path this feature wrote first (both the writer and that one reader used
+the same self-consistent, if non-standard, prefix). It silently broke the moment a
+different, pre-existing function (`micro_course_service.get_published_asset`, the
+student-facing asset-serving path) checked `asset["uri"].startswith("object-store:")` —
+a single-colon, no-double-slash convention used everywhere else in `mathbank-rest`
+(`corpus_authoring.py`, `micro_course_service.py`, `step_runtime.py`). **Lesson:** before
+writing a new `visual.asset.uri`/similar convention-bearing value, `grep -rn
+"object-store:"` (or whatever the established prefix is) across the codebase first —
+an internally-consistent-but-wrong convention won't fail until a *different*,
+pre-existing code path tries to read it, which can be much later and much harder to
+trace back to the actual mistake.
 
 ## Single-command recreation
 

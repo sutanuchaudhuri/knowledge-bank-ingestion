@@ -104,12 +104,26 @@ html, body { background: var(--mb-bg); }
 .mb-course-step-dot { width: 1.7rem; height: 1.7rem; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--mb-neutral-soft); font-size: .78rem; font-weight: 700; }
 .mb-course-step-label { min-width: 0; font-size: .875rem; font-weight: 600; line-height: 1.25; }
 .mb-course-content { min-width: 0; }
+/* Per-item sub-rail (requirements/47 §2.2, MCN2-3): a decomposition one level below the
+   existing state stepper, showing the current state's own sequenced items. */
+.mb-course-substeps { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px 2.35rem; }
+.mb-course-substep { display: flex; align-items: center; gap: .5rem; padding: .3rem .6rem; border-radius: var(--mb-radius-sm); border: 0; background: transparent; text-align: left; width: 100%; font-size: .8rem; color: var(--mb-text); }
+.mb-course-substep:hover:not(:disabled) { background: var(--mb-neutral-soft); }
+.mb-course-substep.is-current { background: var(--mb-primary-soft); color: var(--mb-primary-ink); font-weight: 600; }
+.mb-course-substep:disabled { color: var(--mb-muted); cursor: not-allowed; opacity: .6; }
+.mb-course-substep-dot { width: 1.1rem; height: 1.1rem; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--mb-neutral-soft); font-size: .65rem; }
+.mb-course-substep.is-done .mb-course-substep-dot { background: var(--mb-success); color: #fff; }
+.mb-course-substep.is-current .mb-course-substep-dot { background: var(--mb-primary); color: #fff; }
+.mb-course-item-nav { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.mb-course-help-panel { background: var(--mb-neutral-soft); border-color: var(--mb-border) !important; }
 @media (max-width: 991.98px) {
   .mb-course-workspace { grid-template-columns: minmax(0, 1fr); }
   .mb-course-stepper { position: static; flex-direction: row; overflow-x: auto; gap: .5rem; padding-bottom: .35rem; }
   .mb-course-step { flex: none; width: auto; white-space: nowrap; }
   .mb-course-step-label { display: none; }
   .mb-course-step.is-current .mb-course-step-label { display: block; }
+  .mb-course-substeps { flex-direction: row; overflow-x: auto; margin: 2px 0 6px; gap: .35rem; }
+  .mb-course-substep { flex: none; width: auto; white-space: nowrap; }
 }
 body {
   font-family: var(--mb-font);
@@ -257,6 +271,8 @@ details > summary { cursor: pointer; }
 
 /* ---------- UI kit ---------- */
 .mb-page-header { display: flex; flex-wrap: wrap; align-items: center; gap: .9rem 1.25rem; margin-bottom: 1.5rem; }
+.mb-page-header-centered { flex-direction: column; text-align: center; align-items: center; }
+.mb-page-header-centered .mb-page-icon { margin: 0 auto; }
 .mb-page-icon { width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; font-size: 1.35rem; background: var(--mb-primary-soft); color: var(--mb-primary); flex: none; }
 .mb-page-title { font-size: clamp(1.35rem, 1.1rem + .8vw, 1.75rem); margin: 0; font-weight: 700; }
 .mb-page-sub { color: var(--mb-muted); margin: .15rem 0 0; font-size: .95rem; }
@@ -320,6 +336,8 @@ a.mb-stat:hover { border-color: #c7d2fe; transform: translateY(-1px); color: inh
 .mb-section-title { font-size: 1rem; font-weight: 650; margin: 0; display: flex; align-items: center; gap: .5rem; }
 .mb-section-title .bi { color: var(--mb-primary); }
 .mb-reading { max-width: 80ch; }
+.mb-cell-wrap { max-width: 32rem; white-space: normal; overflow-wrap: anywhere; }
+.mb-diagram-preview { display: block; width: 100%; max-height: 22.5rem; height: auto; object-fit: contain; }
 
 /* ---------- Layout helpers (kept from earlier pages) ---------- */
 .app-shell .app-auth { max-width: 460px; margin: 2rem auto; }
@@ -423,7 +441,6 @@ a.mb-stat:hover { border-color: #c7d2fe; transform: translateY(-1px); color: inh
 .mb-segment { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 4px; border-radius: 12px; background: #eef0f6; }
 .mb-segment > button { border: 0; background: transparent; border-radius: 9px; padding: .45rem .75rem; font-weight: 600; font-size: .9rem; color: var(--mb-muted); }
 .mb-segment > button.active { background: var(--mb-surface); color: var(--mb-ink); box-shadow: 0 1px 3px rgba(15, 23, 42, .08); }
-.mb-page-icon.mx-auto { display: grid; }
 .mb-tabs-label { min-width: 80px; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; }
 .mb-tabs.mb-0 { margin-bottom: 0; }
 .mb-tab-count { font-size: .72rem; font-weight: 700; padding: 0 .4rem; border-radius: 999px; background: var(--mb-neutral-soft, #f1f5f9); color: var(--mb-neutral-ink); }

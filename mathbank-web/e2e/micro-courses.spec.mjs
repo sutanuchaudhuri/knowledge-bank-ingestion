@@ -265,3 +265,74 @@ test("admin course workspace widgets, versions, activity and json tabs render", 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   watch.assertClean();
 });
+
+test("admin Quizzes tab adds a question via the new quiz-authoring endpoints (requirements/46)", async ({ page }) => {
+  const quizStateId = "00000000-0000-4000-8000-000000000003";
+  const quizRelease = {
+    ...release,
+    states: [{
+      ...release.states[0],
+      state_id: quizStateId,
+      state_type: "QUIZ",
+      activities: [],
+    }],
+  };
+  let createdActivityId = null;
+  let attachedBody = null;
+
+  await loginAdmin(page);
+  const watch = watchPageErrors(page);
+  await page.route("**/api/rest/admin/micro-courses**", async route => {
+    const url = new URL(route.request().url());
+    const pathname = url.pathname;
+    if (pathname.endsWith("/interactions")) return route.fulfill({ json: [] });
+    if (pathname.endsWith("/targets")) return route.fulfill({ json: [] });
+    if (pathname.includes(`/states/${quizStateId}/activities`) && route.request().method() === "POST") {
+      attachedBody = route.request().postDataJSON();
+      return route.fulfill({ json: { state_id: quizStateId, activity_id: attachedBody.activity_id } });
+    }
+    if (pathname.endsWith(`/releases/${releaseId}`)) {
+      // Once the question has actually been attached, the next refresh() re-fetch behaves like
+      // the real backend and reflects it — this is what proves the full round trip worked,
+      // since the transient success notice is cleared by this same refresh (page.jsx sets
+      // loading=true during every refresh, unmounting and remounting the tab tree).
+      const stateWithActivity = attachedBody
+        ? { ...quizRelease.states[0], activities: [{ activity_id: attachedBody.activity_id, activity_type: "MCQ", prompt: "What is 6*7?", options: ["40", "41", "42"], purpose: attachedBody.purpose }] }
+        : quizRelease.states[0];
+      return route.fulfill({ json: { ...quizRelease, states: [stateWithActivity] } });
+    }
+    if (pathname.endsWith("/MC-REFERENCE")) return route.fulfill({ json: course });
+    return route.fulfill({ json: [{ ...course, status: "DRAFT", state_count: 1, primary_targets: [] }] });
+  });
+  await page.route("**/api/rest/admin/activities", async route => {
+    if (route.request().method() === "POST") {
+      createdActivityId = "activity-created-1";
+      return route.fulfill({ status: 201, json: { activity_id: createdActivityId, prompt: route.request().postDataJSON().prompt } });
+    }
+    return route.continue();
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/micro-courses/MC-REFERENCE?tab=quizzes");
+  await expect(page.getByRole("tab", { name: "Quizzes" })).toHaveAttribute("aria-selected", "true");
+
+  await page.getByRole("button", { name: "Add question" }).click();
+  await page.getByLabel("Prompt").fill("What is 6*7?");
+  await page.getByLabel("Options (one per line)").fill("40\n41\n42");
+  await page.getByLabel("Correct option (0-based index)").fill("2");
+  const attachResponse = page.waitForResponse(resp =>
+    resp.url().includes(`/states/${quizStateId}/activities`) && resp.request().method() === "POST");
+  await page.getByRole("button", { name: "Save question" }).click();
+  await attachResponse;
+  // The form (an open <textarea> with the typed prompt as its own value, which getByText can
+  // also match) closes once addQuestion() finishes — wait for it to be gone before asserting on
+  // the read-only quiz list, so the assertion can only match the newly attached question there.
+  await expect(page.getByLabel("Prompt")).toBeHidden();
+
+  await expect(page.getByText("What is 6*7?")).toBeVisible();
+  expect(createdActivityId).toBe("activity-created-1");
+  expect(attachedBody?.activity_id).toBe("activity-created-1");
+  expect(attachedBody?.purpose).toBe("ENTRY_CHECK");
+  watch.assertClean();
+});
+

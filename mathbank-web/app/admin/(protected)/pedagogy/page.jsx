@@ -1,6 +1,6 @@
 "use client";
 
-import { Callout, PageHeader, Pill } from "../../../_components/ui.jsx";
+import { Callout, IconButton, PageHeader, Pill } from "../../../_components/ui.jsx";
 
 import { useEffect, useRef, useState } from "react";
 import MathText from "../../../_components/MathText.jsx";
@@ -31,7 +31,8 @@ async function request(body, signal) {
 }
 
 function Badge({ status, method }) {
-  return <span className={`badge text-bg-${status === "REVIEWED" ? "success" : status === "REJECTED" ? "danger" : "warning"}`}>{method === "automatic" && status === "REVIEWED" ? "AUTO-APPROVED" : status}</span>;
+  const tone = status === "REVIEWED" ? "success" : status === "REJECTED" ? "danger" : "warning";
+  return <Pill tone={tone}>{method === "automatic" && status === "REVIEWED" ? "AUTO-APPROVED" : status}</Pill>;
 }
 
 const EDITABLE = {
@@ -207,14 +208,14 @@ export default function PedagogyReviewPage() {
         Approve skills first, then their mappings and relations. Approval records your review of the displayed assertion, not automatic approval of related rows.
         Generated content and confidence are not expert validation. Publishing preserves each row&apos;s status; it never approves pending rows.
       </Callout>
-      {error && <div role="alert" className="alert alert-danger">{error}</div>}
-      {notice && <div role="status" className="alert alert-success">{notice}</div>}
+      {error && <Callout tone="danger" role="alert">{error}</Callout>}
+      {notice && <Callout tone="success" role="status">{notice}</Callout>}
       <section className="card border-0 shadow-sm mb-4">
         <div className="card-body">
           <h2 className="h5">Bulk review</h2>
           <p className="small text-secondary">Select assertions in the queue for one atomic decision, or approve all pending rows in the versioned counting starter manifest.
             The starter action includes skills and dependent links in dependency order, not the 65 legacy concept-hierarchy assertions or other corpus tags.</p>
-          {data?.starter_warning && <p role="status" className="text-warning-emphasis">{data.starter_warning}</p>}
+          {data?.starter_warning && <Callout tone="warning" role="status" className="mb-3">{data.starter_warning}</Callout>}
           <label htmlFor="bulk-note" className="form-label">Bulk review rationale (10-2,000 characters)</label>
           <textarea id="bulk-note" className="form-control mb-3" rows={2} maxLength={2000} value={bulkNote} disabled={busy}
             onChange={event => setBulkNote(event.target.value)} />
@@ -262,11 +263,13 @@ export default function PedagogyReviewPage() {
           <div className="card border-0 shadow-sm">
             <div className="card-body">
               <h2 className="h5">Review queue</h2>
-              <div className="alert alert-info small">Automatic approvals are usable immediately but are not human verification. Admin edits and rejections are protected from automated replacement.</div>
+              <Callout tone="insight" className="mb-3">
+                Automatic approvals are usable immediately but are not human verification. Admin edits and rejections are protected from automated replacement.
+              </Callout>
               <label className="form-label" htmlFor="reclassify-code">Regenerate teaching metadata</label>
               <input id="reclassify-code" className="form-control mb-2" value={reclassifyCode}
                 onChange={event => setReclassifyCode(event.target.value)} placeholder="AIME_1983_Q01" disabled={busy} />
-              <button className="btn btn-outline-primary mb-3" disabled={busy || !reclassifyCode.trim()}
+              <button className="btn btn-primary mb-3" disabled={busy || !reclassifyCode.trim()}
                 onClick={() => correctMetadata("reclassify")}>Reclassify automatically</button>
               <div className="row g-2 mb-3">
                 <div className="col-sm-7">
@@ -284,19 +287,24 @@ export default function PedagogyReviewPage() {
                   </select>
                 </div>
               </div>
-              <button className="btn btn-sm btn-outline-secondary mb-3" disabled={busy} onClick={() => setReload(value => value + 1)}>Reload queue</button>
+              <div className="mb-3">
+                <IconButton icon="arrow-clockwise" label="Reload queue" variant="outline-secondary" size="sm"
+                  disabled={busy} onClick={() => setReload(value => value + 1)} />
+              </div>
               {data && <p className="small text-secondary">
                 This type: {data.counts[kind]?.PENDING || 0} pending · {data.counts[kind]?.REVIEWED || 0} approved (human or automatic) · {data.counts[kind]?.REJECTED || 0} rejected
               </p>}
               {data && <p className="small text-secondary">
                 Corpus enrichment: {data.unenriched_problems ?? "Unknown"} questions remaining · {data.enrichment_counts?.IN_PROGRESS || 0} active · {data.enrichment_counts?.FAILED || 0} failed jobs
               </p>}
-              {(data?.enrichment_errors || []).map(job => <div key={job.canonical_code} className="alert alert-warning small">
-                <strong>{job.canonical_code}</strong> · {job.attempts} attempts
-                <p className="mb-1">{job.last_error}</p>
-                <button className="btn btn-sm btn-outline-secondary" disabled={busy}
-                  onClick={() => setReclassifyCode(job.canonical_code)}>Select for retry</button>
-              </div>)}
+              {(data?.enrichment_errors || []).map(job => <Callout key={job.canonical_code} tone="warning" className="mb-3">
+                <div className="small">
+                  <strong>{job.canonical_code}</strong> · {job.attempts} attempts
+                  <p className="mb-1">{job.last_error}</p>
+                  <button className="btn btn-sm btn-outline-secondary" disabled={busy}
+                    onClick={() => setReclassifyCode(job.canonical_code)}>Select for retry</button>
+                </div>
+              </Callout>)}
               {data && <p className="small text-secondary">
                 Relationship enrichment: {data.relationship_enrichment_counts?.COMPLETED || 0} completed · {data.relationship_enrichment_counts?.IN_PROGRESS || 0} active · {data.relationship_enrichment_counts?.FAILED || 0} failed
               </p>}
@@ -325,9 +333,9 @@ export default function PedagogyReviewPage() {
               </button></div>)}
               {data && !data.items.length && <p>No assertions match this filter.</p>}
               {data && <div className="d-flex align-items-center justify-content-between mt-3">
-                <button className="btn btn-sm btn-outline-primary" disabled={!offset || busy} onClick={() => setOffset(value => Math.max(0, value - PAGE_SIZE))}>Previous</button>
+                <button className="btn btn-sm btn-outline-secondary" disabled={!offset || busy} onClick={() => setOffset(value => Math.max(0, value - PAGE_SIZE))}>Previous</button>
                 <span className="small">{data.total ? offset + 1 : 0}-{Math.min(offset + PAGE_SIZE, data.total)} of {data.total}</span>
-                <button className="btn btn-sm btn-outline-primary" disabled={offset + PAGE_SIZE >= data.total || busy} onClick={() => setOffset(value => value + PAGE_SIZE)}>Next</button>
+                <button className="btn btn-sm btn-outline-secondary" disabled={offset + PAGE_SIZE >= data.total || busy} onClick={() => setOffset(value => value + PAGE_SIZE)}>Next</button>
               </div>}
             </div>
           </div>

@@ -48,12 +48,12 @@ class ConceptSearchRequest(BaseModel):
     limit: int = Field(default=10, ge=1, le=50)
 
 
-@router.get("/competitions")
+@router.get("/competitions", tags=["corpus"])
 def get_competitions() -> list[dict]:
     return queries.list_competitions()
 
 
-@router.get("/problems")
+@router.get("/problems", tags=["corpus"])
 def get_problems(
     competition: str | None = None,
     year_min: int | None = None,
@@ -74,7 +74,7 @@ def get_problems(
     )
 
 
-@router.get("/problems/by-code/{canonical_code}")
+@router.get("/problems/by-code/{canonical_code}", tags=["corpus"])
 def get_problem(canonical_code: str) -> dict:
     problem = queries.get_problem_by_code(canonical_code)
     if problem is None:
@@ -82,7 +82,7 @@ def get_problem(canonical_code: str) -> dict:
     return problem
 
 
-@router.get("/concepts")
+@router.get("/concepts", tags=["taxonomy"])
 def get_concepts(
     domain: str | None = None,
     limit: int = Query(50, le=200),
@@ -91,36 +91,40 @@ def get_concepts(
     return queries.list_concepts(domain=domain, limit=limit, offset=offset)
 
 
-@router.get("/concepts/{slug}/problems")
+@router.get("/concepts/{slug}/problems", tags=["taxonomy"])
 def get_concept_problems(
     slug: str, limit: int = Query(25, le=200), offset: int = Query(0, ge=0)
 ) -> list[dict]:
     return queries.get_concept_problems(slug, limit=limit, offset=offset)
 
 
-@router.get("/concepts/{slug}/neighbors")
+@router.get("/concepts/{slug}/neighbors", tags=["taxonomy"])
 def get_concept_neighbors(slug: str) -> list[dict]:
     return queries.get_concept_neighbors(slug)
 
 
-@router.get("/techniques")
-def get_techniques(limit: int = Query(50, le=200), offset: int = Query(0, ge=0)) -> list[dict]:
-    return queries.list_techniques(limit=limit, offset=offset)
+@router.get("/techniques", tags=["taxonomy"])
+def get_techniques(
+    q: str | None = Query(default=None, max_length=200),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0, ge=0),
+) -> list[dict]:
+    return queries.list_techniques(q=q, limit=limit, offset=offset)
 
 
-@router.get("/techniques/{slug}/problems")
+@router.get("/techniques/{slug}/problems", tags=["taxonomy"])
 def get_technique_problems(
     slug: str, limit: int = Query(25, le=200), offset: int = Query(0, ge=0)
 ) -> list[dict]:
     return queries.get_technique_problems(slug, limit=limit, offset=offset)
 
 
-@router.get("/corpus/coverage")
+@router.get("/corpus/coverage", tags=["analytics"])
 def get_corpus_coverage() -> list[dict]:
     return queries.corpus_coverage()
 
 
-@router.get("/analytics/weak-concepts")
+@router.get("/analytics/weak-concepts", tags=["analytics"])
 def get_weak_concepts(
     min_students: int = Query(1, ge=1), limit: int = Query(20, le=100)
 ) -> list[dict]:
@@ -131,7 +135,7 @@ def get_weak_concepts(
     return learner_db.get_cohort_weak_concepts(min_students=min_students, limit=limit)
 
 
-@router.post("/search/concepts")
+@router.post("/search/concepts", tags=["search"])
 def search_concepts(body: ConceptSearchRequest) -> dict:
     """Concept-level hybrid search over the embedded taxonomy (TAXONOMY_NODE vectors).
 
@@ -168,7 +172,7 @@ def search_concepts(body: ConceptSearchRequest) -> dict:
     }
 
 
-@router.post("/search/problems")
+@router.post("/search/problems", tags=["search"])
 def search_problems(body: ProblemSearchRequest) -> dict:
     if not body.query.strip():
         raise HTTPException(status_code=422, detail="query must contain non-whitespace text")

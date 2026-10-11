@@ -11,12 +11,18 @@ from typing import Annotated
 
 import bcrypt
 import jwt
-from fastapi import Depends, Header, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, HTTPException, Security, status
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 
 from mathbank_rest.config import settings
 
 _bearer_scheme = HTTPBearer(auto_error=False)
+_admin_api_key_scheme = APIKeyHeader(
+    name="X-Admin-Api-Key",
+    auto_error=False,
+    description="Shared admin key configured in ADMIN_API_KEY (root .env). Required on every "
+    "/v1/admin/* operation; there is no per-admin-user account yet.",
+)
 
 
 def hash_password(plain_password: str) -> str:
@@ -75,7 +81,9 @@ def get_optional_student_id(
     return get_current_student_id(credentials) if credentials is not None else None
 
 
-def require_admin_api_key(x_admin_api_key: str | None = Header(default=None)) -> None:
+def require_admin_api_key(
+    x_admin_api_key: Annotated[str | None, Security(_admin_api_key_scheme)] = None,
+) -> None:
     """FastAPI dependency guarding /v1/admin/* — single shared key, not a per-user
     role system (see routers/admin.py module docstring for the follow-up plan).
     """

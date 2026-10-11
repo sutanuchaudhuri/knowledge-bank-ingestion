@@ -173,12 +173,17 @@ def get_problem_by_code(canonical_code: str) -> dict | None:
 
 
 def list_concepts(*, domain: str | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
-    clause = "WHERE c.name ILIKE :domain" if domain else ""
+    domain_clause = (
+        "AND (c.name ILIKE :domain OR EXISTS ("
+        "SELECT 1 FROM knowledge.entity_alias a WHERE a.entity_kind='CONCEPT' "
+        "AND a.entity_id=c.concept_id AND a.alias ILIKE :domain))"
+        if domain else ""
+    )
     query = text(
         f"""
         SELECT c.slug, c.name, c.level, c.description
         FROM knowledge.concept c
-        {clause}
+        WHERE c.status = 'ACTIVE' {domain_clause}
         ORDER BY c.level NULLS LAST, c.name
         LIMIT :limit OFFSET :offset
         """
@@ -255,17 +260,27 @@ def get_concept_neighbors(slug: str) -> list[dict]:
         return [dict(r) for r in rows]
 
 
-def list_techniques(*, limit: int = 50, offset: int = 0) -> list[dict]:
+def list_techniques(*, q: str | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
+    q_clause = (
+        "AND (name ILIKE :q OR slug ILIKE :q OR EXISTS ("
+        "SELECT 1 FROM knowledge.entity_alias a WHERE a.entity_kind='TECHNIQUE' "
+        "AND a.entity_id=knowledge.technique.technique_id AND a.alias ILIKE :q))"
+        if q else ""
+    )
     query = text(
-        """
+        f"""
         SELECT slug, name, description
         FROM knowledge.technique
+        WHERE status = 'ACTIVE' {q_clause}
         ORDER BY name
         LIMIT :limit OFFSET :offset
         """
     )
+    params: dict = {"limit": limit, "offset": offset}
+    if q:
+        params["q"] = f"%{q}%"
     with engine.connect() as conn:
-        rows = conn.execute(query, {"limit": limit, "offset": offset}).mappings()
+        rows = conn.execute(query, params).mappings()
         return [dict(r) for r in rows]
 
 

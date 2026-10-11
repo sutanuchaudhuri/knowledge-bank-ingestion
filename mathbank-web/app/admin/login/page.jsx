@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { input, primaryButton } from "../../db/dbStyles.js";
-import { Callout, Icon } from "../../_components/ui.jsx";
+import { Callout, Icon, PageHeader } from "../../_components/ui.jsx";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -30,10 +30,8 @@ export default function AdminLoginPage() {
 
   return (
     <div className="app-auth">
-      <div className="text-center mb-4">
-        <span className="mb-page-icon mb-tone-warning mx-auto mb-3"><Icon name="shield-lock" /></span>
-        <h1 className="mb-page-title">Admin login</h1>
-        <p className="mb-page-sub">Single predefined admin account until OAuth lands.</p>
+      <div className="mb-4">
+        <PageHeader icon="shield-lock" title="Admin login" subtitle="Single predefined admin account until OAuth lands." tone="warning" centered />
       </div>
       <form onSubmit={submit} className="card p-4 d-grid gap-3">
         <label className="form-label mb-0">Username

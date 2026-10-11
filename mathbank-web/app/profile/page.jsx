@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Avatar, Callout, EmptyState, IconButton, PageHeader, Pager, Pill, SectionTitle, StatCard } from "../_components/ui.jsx";
+import { Avatar, Callout, EmptyState, IconButton, PageHeader, Pager, Pill, SectionTitle, StatCard, formatDate, formatDateTime } from "../_components/ui.jsx";
 import { assessedAccuracy, attemptResult } from "../../lib/attemptHistory.mjs";
 import PracticeThemes from "./PracticeThemes.jsx";
 
@@ -41,7 +41,7 @@ function AttemptsTable({ attempts }) {
               <td><Pill tone={attemptResult(a.is_correct).tone} icon={attemptResult(a.is_correct).icon}>{attemptResult(a.is_correct).label}</Pill></td>
               <td className="text-end mb-num">{a.hint_count}</td>
               <td className="text-end mb-num">{a.time_spent_seconds ? `${a.time_spent_seconds}s` : "—"}</td>
-              <td className="text-secondary small">{new Date(a.attempted_at).toLocaleString()}</td>
+              <td className="text-secondary small">{formatDateTime(a.attempted_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -185,7 +185,7 @@ export default function ProfilePage() {
             pills={<>
               <Pill tone="neutral" icon="person-badge" title={`Student ID ${profile.student_id}`}>{String(profile.student_id).slice(0, 8)}</Pill>
               {awaiting > 0 && <Pill tone="warning" icon="hourglass-split">{awaiting} awaiting assessment</Pill>}
-              {profile.last_login_at && <Pill tone="neutral" icon="clock-history">{new Date(profile.last_login_at).toLocaleDateString()}</Pill>}
+              {profile.last_login_at && <Pill tone="neutral" icon="clock-history">{formatDate(profile.last_login_at)}</Pill>}
             </>}
             actions={<IconButton icon="box-arrow-right" label="Log out" variant="outline-secondary" onClick={logout} />} />
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { IconButton, PageHeader, Pill, TabBar } from "../../../_components/ui.jsx";
+import { Callout, EmptyState, IconButton, PageHeader, Pill, TabBar } from "../../../_components/ui.jsx";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -71,7 +71,7 @@ function Issues({ packageId }) {
               <td><span className={`badge text-bg-${r.validation_status === "REJECTED" ? "danger" : "warning"}`}>{r.validation_status}</span></td>
               <td><code className="small">{JSON.stringify([...(r.validation_errors || []), ...(r.validation_warnings || [])]).slice(0, 300)}</code></td></tr>
           ))}</tbody></table>
-          {data.items.length === 0 && <p className="text-secondary small">No issues of this kind.</p>}
+          {data.items.length === 0 && <EmptyState icon="check2-circle">No issues of this kind.</EmptyState>}
         </div>
       )}
     </>
@@ -96,7 +96,7 @@ function Conflicts({ packageId }) {
         </select>
         {data && <Pager total={data.total} limit={25} offset={offset} onChange={setOffset} />}
       </div>
-      {msg && <div className={`alert alert-${msg.tone} small py-2`}>{msg.text}</div>}
+      {msg && <Callout tone={msg.tone} className="small py-2">{msg.text}</Callout>}
       <p className="small text-secondary">Decisions are recorded and audited; accept-incoming / merge-manually take effect on the next package re-import or a DAG edit.</p>
       {!data ? <Status loading={loading} error={error} /> : (
         <div className="table-responsive"><table className="table table-sm small align-middle" data-testid="import-conflicts">
@@ -114,7 +114,7 @@ function Conflicts({ packageId }) {
                 </div>)}</td>
             </tr>
           ))}</tbody></table>
-          {data.items.length === 0 && <p className="text-secondary small">No conflicts with this status.</p>}
+          {data.items.length === 0 && <EmptyState icon="check2-circle">No conflicts with this status.</EmptyState>}
         </div>
       )}
     </>
@@ -185,13 +185,13 @@ function Reconciliation() {
         <input className="form-check-input" type="checkbox" id="rec-graph" checked={graph} onChange={(e) => setGraph(e.target.checked)} />
         <label className="form-check-label small" htmlFor="rec-graph">Count Neo4j (slower)</label>
       </div>
-      {msg && <div className={`alert alert-${msg.tone} small py-2`}>{msg.text}</div>}
+      {msg && <Callout tone={msg.tone} className="small py-2">{msg.text}</Callout>}
       {!data ? <Status loading={loading} error={error} /> : (
         <div className="row g-4">
           <div className="col-xl-6">
             <div className="d-flex align-items-center mb-2"><h3 className="h6 mb-0">Graph</h3>
               <button type="button" className="btn btn-sm btn-outline-primary ms-auto" onClick={() => reproject("GRAPH_TEXTBOOK_STEPS")}>Reproject missing</button></div>
-            {!data.graph_ok && <div className="alert alert-warning small py-2">Graph not counted{data.graph_error ? `: ${data.graph_error}` : ""}</div>}
+            {!data.graph_ok && <Callout tone="warning" className="small py-2">Graph not counted{data.graph_error ? `: ${data.graph_error}` : ""}</Callout>}
             <table className="table table-sm small"><thead><tr><th>Entity</th><th className="text-end">Expected</th><th className="text-end">Actual</th><th className="text-end">Missing</th><th className="text-end">Extra / stale</th></tr></thead>
               <tbody>{data.graph.map((r) => <tr key={r.entity} className={r.missing ? "table-warning" : ""}><td>{human(r.entity)}</td><td className="text-end">{num(r.expected)}</td><td className="text-end">{num(r.actual)}</td><td className="text-end">{num(r.missing)}</td><td className="text-end">{num(r.extra_or_stale)}</td></tr>)}</tbody></table>
           </div>
@@ -228,7 +228,7 @@ function Queue() {
         <table className="table table-sm small" data-testid="projection-queue"><thead><tr><th>Target</th><th>Scope</th><th>Reason</th><th>Status</th><th>Requested</th><th>Completed</th></tr></thead>
           <tbody>{data.map((r) => <tr key={r.projection_request_id}><td>{r.target}</td><td>{r.scope_type} {r.scope_id}</td><td>{r.reason}</td><td>{r.status}</td>
             <td>{when(r.requested_at)} {r.requested_by && <span className="text-secondary">by {r.requested_by}</span>}</td><td>{when(r.completed_at)} {r.completed_by && <span className="text-secondary">{r.completed_by}</span>}</td></tr>)}
-            {data.length === 0 && <tr><td colSpan={6} className="text-secondary">No requests.</td></tr>}</tbody></table>
+            {data.length === 0 && <tr><td colSpan={6}><EmptyState icon="hourglass">No requests.</EmptyState></td></tr>}</tbody></table>
       )}
     </>
   );

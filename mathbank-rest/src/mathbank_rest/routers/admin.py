@@ -18,6 +18,7 @@ usage and avoids building a role system against a guess at future requirements.
 from __future__ import annotations
 
 import re
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -26,10 +27,11 @@ from mathbank_rest.db import admin as admin_db
 from mathbank_rest.db import pipeline_jobs
 from mathbank_rest.security import require_admin_api_key
 
-router = APIRouter(prefix="/v1/admin", tags=["admin"], dependencies=[Depends(require_admin_api_key)])
+router = APIRouter(prefix="/v1/admin", tags=["admin-pipeline"], dependencies=[Depends(require_admin_api_key)])
 
 _PAPER_CODE_RE = re.compile(r"^[A-Z0-9_]+$")
-SOURCE_KINDS = {"PDF", "HTML"}
+SourceKind = Literal["PDF", "HTML"]
+PaperStatus = Literal["PENDING", "DOWNLOADED", "PARSED", "INGESTED", "FAILED"]
 
 
 class CompetitionRequest(BaseModel):
@@ -46,7 +48,7 @@ class PaperRequest(BaseModel):
     year: int = Field(ge=1900, le=2200)
     problem_url: str
     solution_url: str | None = None
-    source_kind: str = Field(default="PDF", description="PDF | HTML")
+    source_kind: SourceKind = Field(default="PDF")
     link_scope: str | None = None
 
 
@@ -71,16 +73,13 @@ def _register_one(body: PaperRequest) -> dict:
             status_code=422,
             detail="paper_external_code must be upper-case alphanumeric/underscore (e.g. PAPER_SMT_2027_TEAM)",
         )
-    source_kind = body.source_kind.upper()
-    if source_kind not in SOURCE_KINDS:
-        raise HTTPException(status_code=422, detail=f"source_kind must be one of {sorted(SOURCE_KINDS)}")
     return admin_db.register_paper(
         paper_external_code=body.paper_external_code,
         competition_external_code=body.competition_external_code,
         crawl_dir=body.competition_external_code.lower(),
         problem_url=body.problem_url,
         solution_url=body.solution_url,
-        source_kind=source_kind,
+        source_kind=body.source_kind,
         link_scope=body.link_scope,
     )
 
@@ -98,7 +97,7 @@ def register_papers_batch(body: PapersBatchRequest) -> dict:
 @router.get("/papers")
 def list_papers(
     competition: str | None = None,
-    status: str | None = Query(default=None, description="PENDING | DOWNLOADED | PARSED | INGESTED | FAILED"),
+    status: PaperStatus | None = None,
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[dict]:
