@@ -896,6 +896,16 @@ For a machine using Neon/AuraDB, prefer `make up-app`: it starts only
 REST, agent, web and the live classroom, without trying to start local
 Postgres/Neo4j.
 
+**Prefer a separate terminal window per service?** `make up-windows` (macOS only)
+opens one real Terminal.app window per core service, each running its foreground
+dev command (`make run`/`make dev`, with hot-reload) — no PID files, no daemon, no
+background log file to tail; Ctrl-C in any one window stops only that service.
+`make up-windows-all` does the same plus `mathbank-manim-studio`/`mathbank-ml-inference`/
+`mathbank-ml-frontend`. This is a genuine alternative to `make up`/`make down`, not a
+wrapper around them — don't mix the two for the same service at the same time (starting
+one window's service while its daemon-mode twin is already bound to the same port will
+fail with "port already occupied", exactly like running `make up` twice).
+
 ### Bringing up the new pieces (live classroom, widgets, voice)
 
 The fluid widgets, the separately deployable Socket.IO live classroom

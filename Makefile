@@ -420,6 +420,14 @@ up-app: sync-keys                 ## Sync keys and start REST/agent/web/live onl
 	$(MAKE) -C mathbank-live start
 	@$(MAKE) --no-print-directory access
 
+.PHONY: up-windows
+up-windows: sync-keys              ## Open one real Terminal.app window per core service (foreground, live logs; macOS only)
+	@bash mathbank-scripts/open-terminal-windows.sh
+
+.PHONY: up-windows-all
+up-windows-all: sync-keys          ## Same as up-windows, plus manim-studio/ml-inference/ml-frontend in their own windows
+	@bash mathbank-scripts/open-terminal-windows.sh --all
+
 REMOTE_ENV := mathbank-graph/remote.env
 
 .PHONY: access
