@@ -1,0 +1,49 @@
+{
+  "artifact_set": "POLYNOMIAL-LAB-V1",
+  "artifacts": [
+    {
+      "id": "ART-VIETA-ROOT-COEFF",
+      "module": "Vieta",
+      "teaches": [
+        "ALG_VIETA",
+        "VIETA_SYMSUM"
+      ],
+      "file": "polynomial_lab.html#Vieta"
+    },
+    {
+      "id": "ART-QUAD-DISCRIM",
+      "module": "Quadratic",
+      "teaches": [
+        "ALG_QUAD"
+      ],
+      "file": "polynomial_lab.html#Quadratic"
+    },
+    {
+      "id": "ART-CUBIC-TRANSFORM",
+      "module": "Cubic",
+      "teaches": [
+        "ALG_VIETA",
+        "VIETA_CONSTRUCT"
+      ],
+      "file": "polynomial_lab.html#Cubic"
+    },
+    {
+      "id": "ART-BIQUAD-SUB",
+      "module": "Biquadratic / Quartic",
+      "teaches": [
+        "ALG_POLY",
+        "ALG_QUAD"
+      ],
+      "file": "polynomial_lab.html#Biquadratic"
+    },
+    {
+      "id": "ART-NEWTON",
+      "module": "Higher Polynomial",
+      "teaches": [
+        "VIETA_POWER",
+        "VIETA_SYMSUM"
+      ],
+      "file": "polynomial_lab.html#Higher-degree"
+    }
+  ]
+}

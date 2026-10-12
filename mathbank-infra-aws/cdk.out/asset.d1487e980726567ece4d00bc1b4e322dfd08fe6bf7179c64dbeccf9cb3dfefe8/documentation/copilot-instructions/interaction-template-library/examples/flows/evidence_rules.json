@@ -1,0 +1,46 @@
+{
+  "rules": [
+    {
+      "rule_key": "RULE-MARKOV-ROW-SUM-01",
+      "misconception_id": "MC-M05",
+      "semantic_action": "SET_TRANSITION_ROW",
+      "error_signature": "ROW_SUM_INVALID",
+      "predicate": {
+        "expression": "abs(row_sum-1)>0.001"
+      },
+      "evidence_weight": 0.35,
+      "requires_probe": true,
+      "diagnostic_learning_item_id": "LI-MARKOV-ROW-SUM-PROBE-01",
+      "feedback_template_key": "FB-MARKOV-ROW-SUM-NEUTRAL",
+      "intervention_code": "INT-MARKOV-ROW-SUM-01"
+    },
+    {
+      "rule_key": "RULE-VIETA-SIGN-01",
+      "misconception_id": "VIETA-M01",
+      "semantic_action": "BUILD_COEFFICIENT_PATTERN",
+      "error_signature": "VIETA_ALTERNATING_SIGN_ERROR",
+      "predicate": {
+        "expression": "sign_pattern != expected"
+      },
+      "evidence_weight": 0.35,
+      "requires_probe": true,
+      "diagnostic_learning_item_id": "LI-VIETA-SIGN-PROBE-01",
+      "feedback_template_key": "FB-VIETA-SIGN-NEUTRAL",
+      "intervention_code": "INT-VIETA-SIGN-01"
+    },
+    {
+      "rule_key": "RULE-JENSEN-DIR-01",
+      "misconception_id": "MIS-JENSEN-01",
+      "semantic_action": "CHOOSE_JENSEN_DIRECTION",
+      "error_signature": "JENSEN_CONVEX_DIRECTION_REVERSED",
+      "predicate": {
+        "expression": "convex && chosen == '>='"
+      },
+      "evidence_weight": 0.35,
+      "requires_probe": true,
+      "diagnostic_learning_item_id": "LI-JENSEN-DIRECTION-PROBE-01",
+      "feedback_template_key": "FB-JENSEN-DIRECTION-NEUTRAL",
+      "intervention_code": "INT-JENSEN-CONVEX-CHORD-01"
+    }
+  ]
+}

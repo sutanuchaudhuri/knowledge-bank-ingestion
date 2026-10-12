@@ -1,0 +1,38 @@
+{
+  "version": "54.0.0",
+  "files": {
+    "4dc9d0139b2738b750baa7d9c86849fd769494fb30760bad89a878c9b40d1acd": {
+      "displayName": "MathBankRestStack Template",
+      "source": {
+        "path": "MathBankRestStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "848941468793-us-east-2-1c2ea144": {
+          "bucketName": "cdk-hnb659fds-assets-848941468793-us-east-2",
+          "objectKey": "4dc9d0139b2738b750baa7d9c86849fd769494fb30760bad89a878c9b40d1acd.json",
+          "region": "us-east-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-file-publishing-role-848941468793-us-east-2"
+        }
+      }
+    }
+  },
+  "dockerImages": {
+    "d1487e980726567ece4d00bc1b4e322dfd08fe6bf7179c64dbeccf9cb3dfefe8": {
+      "displayName": "RestFunction/AssetImage",
+      "source": {
+        "directory": "asset.d1487e980726567ece4d00bc1b4e322dfd08fe6bf7179c64dbeccf9cb3dfefe8",
+        "dockerFile": "mathbank-rest/Dockerfile.lambda",
+        "platform": "linux/arm64"
+      },
+      "destinations": {
+        "848941468793-us-east-2-6eaac2d6": {
+          "repositoryName": "cdk-hnb659fds-container-assets-848941468793-us-east-2",
+          "imageTag": "d1487e980726567ece4d00bc1b4e322dfd08fe6bf7179c64dbeccf9cb3dfefe8",
+          "region": "us-east-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-image-publishing-role-848941468793-us-east-2"
+        }
+      }
+    }
+  }
+}

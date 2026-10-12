@@ -1,0 +1,118 @@
+[
+  {
+    "animation_key": "ANIM_SHOW",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_HIDE",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_HIGHLIGHT",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_MOVE",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_REVEAL_TERM",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_EQUATION_MORPH",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_SUBSTITUTE_VALUE",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_COMPARE_QUANTITIES",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_ERROR_HIGHLIGHT",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_CORRECTIVE_REPLAY",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_DRAW_TRANSITION",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_MOVE_TOKEN",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_COLLAPSE_EQUIVALENT_STATES",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_EXPAND_STATE",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_PROBABILITY_FLOW",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_TWO_STEP_PATH_EXPANSION",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_GRAPH_TO_MATRIX",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_MATRIX_TO_GRAPH",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_MATRIX_MULTIPLY_STEP",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_ROOTS_TO_COEFFICIENTS",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_DISCRIMINANT_BRANCH",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_SUBSTITUTION_REDUCTION",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_SYMMETRIC_SUM_BUILD",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_NEWTON_IDENTITY_STEP",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_EQUALIZATION",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_WEIGHT_TO_EXPONENT",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_VECTOR_PROJECTION",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_CHORD_CONVEXITY",
+    "reduced_motion_required": true
+  },
+  {
+    "animation_key": "ANIM_MAJORISATION_PARTIAL_SUM",
+    "reduced_motion_required": true
+  }
+]

@@ -23,6 +23,13 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
 ]
+# AWS Lambda-only (requirements/63, mirrors mathbank-rest's own `lambda` extras group) —
+# boto3 (S3 object storage) and mangum (ASGI-to-Lambda) are never installed into the
+# local dev venv, since local dev always uses the filesystem object-store backend.
+lambda = [
+    "mangum>=0.17",
+    "boto3>=1.35",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

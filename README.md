@@ -72,6 +72,7 @@ knowledge-bank-ingestion/
 | `mathbank-ml-inference` | **Scaffolded.** FastAPI service for every student/admin ML prediction/recommendation endpoint, each with a mandatory `Explanation` field; currently returns structured `501`s until real models are trained | 8010 | [mathbank-ml-inference/README.md](mathbank-ml-inference/README.md) |
 | `mathbank-ml-frontend` | **Scaffolded.** A separate, minimal ML-ops dashboard (model status, cohorts, data readiness) — intentionally not merged into `mathbank-web` | 5175 | [mathbank-ml-frontend/README.md](mathbank-ml-frontend/README.md) |
 | `mathbank-scripts` | Shared root-level dev/ops tooling (not a service) | — | [mathbank-scripts/README.md](mathbank-scripts/README.md) |
+| `mathbank-infra-aws` | AWS CDK deployment project — hosts the app layer on Lambda/Amplify/Fargate while keeping Neon Postgres/AuraDB unchanged (not a running service; a deployment tool) | — | [mathbank-infra-aws/README.md](mathbank-infra-aws/README.md) |
 
 Production/demo data lives on managed cloud services (Neon Postgres + Neo4j
 AuraDB) — see [documentation/DATABASES.md](documentation/DATABASES.md) for the full local-vs-remote

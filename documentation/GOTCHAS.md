@@ -938,6 +938,264 @@ rewrite around them (commas, "and", spelled-out words) — these are the specifi
 characters GitHub's parser has repeatedly tripped on in this repo, even though they are
 individually harmless prose punctuation everywhere else in the same README.
 
+## 40. A `sys.path.insert(0, Path(__file__).resolve().parents[N] / "sibling-dir")` import trick only works for an *editable* (`pip install -e .`) checkout — a real (non-editable) install, like a Lambda container image, resolves `parents[N]` to somewhere inside the Python installation, not the monorepo
+
+Hit live deploying `mathbank-rest` to a Lambda container image (requirements/62-63).
+Two modules used this exact pattern to reach a sibling `mathbank-scripts/*.py` file
+that isn't an installed package: `project_credentials.py` (`configure_openai`, reaching
+`project_env.py`) and `db/retrieval_audit.py` (reaching `power_geometry_evidence.py`).
+Both work perfectly in every local dev/test run, because `make install` always installs
+`mathbank-rest` editable (`pip install -e .`), which preserves the real source-tree
+depth that `Path(__file__).resolve().parents[N]` assumes. A genuine `pip install .`
+(non-editable — required for any container image, and for any deployment outside this
+specific monorepo checkout) installs the package into `site-packages` at a completely
+different depth, so `parents[N]` silently resolves to a nonsensical path and the import
+fails with a plain `ModuleNotFoundError`, not a path-related error that would hint at
+the real cause.
+
+**Fixes applied** (two different shapes, matched to what each case actually needed):
+- `configure_openai()`: the goal was *credentials*, and deployed environments already
+  provide `OPENAI_API_KEY` as a real process environment variable — added an
+  env-var-first short-circuit, falling back to the existing sibling-import trick
+  unchanged (still exercised by every local dev/test run, since a bare env var isn't
+  normally set locally).
+- `retrieval_audit.py`: the goal was *application logic* (regex constants, zero external
+  deps), not a secret — added a `try: <existing sibling import> except ImportError:
+  <fall back to a small vendored copy inside mathbank_rest/_vendor/>`, keeping the real
+  monorepo source as the editable-dev source of truth and the vendored copy as a
+  manually-synced fallback for installed/non-monorepo deployments.
+
+**Lesson:** any `sys.path.insert` keyed off a hardcoded `parents[N]` depth is implicitly
+asserting "this package is always installed editable, from this exact checkout" — grep
+for this pattern (`parents\[\d\]`) before any non-editable packaging/deployment attempt,
+not after it fails.
+
+## 41. `httpx` was declared only under a package's `dev` extras, even though production route code imports it directly — invisible locally because `make install` always installs `.[dev]` too
+
+Hit live in the same Lambda deployment: `mathbank-rest/pyproject.toml` had
+`httpx>=0.27` listed under `[project.optional-dependencies] dev`, alongside `pytest`/
+`ruff`/`mypy` — but `routers/interaction_templates.py`, `route_batch.py`,
+`route_ollama.py` and `scene_spec_promotion.py` all `import httpx` directly in
+non-test, non-dev production code. A Lambda container image installs only
+`dependencies` (the base/runtime group), not `.[dev]` — so this was a real, pre-existing
+packaging bug, not a Lambda-specific quirk; it just had never been exercised before
+because `mathbank-rest/Makefile`'s `install` target always runs `uv pip install -e
+".[dev]"`, so every local dev venv and every CI/test run had `httpx` present by
+accident. **Fix:** moved `httpx` into the base `dependencies` list. **Lesson:** a
+dependency installed only via `dev`/test extras but imported by non-test production code
+is latent breakage waiting for the first deployment path that doesn't install those
+extras — grep each heavy/optional-looking import (`httpx`, `pytest`, mocking libraries)
+against where it's actually imported *from*, not just whether `pip install -e ".[dev]"`
+happens to make it available today.
+
+## 42. CloudFormation rejects an `{{resolve:ssm-secure:...}}` dynamic reference inside `AWS::Lambda::Function`'s `Environment.Variables` — confirmed live via CDK's own template-validation warning (rule E1027)
+
+Hit live wiring secrets (`POSTGRES_PASSWORD`, `OPENAI_API_KEY`, etc.) into the
+`mathbank-rest` Lambda stack (requirements/62-63). The natural-looking CDK pattern —
+`aws_cdk.aws_ssm.StringParameter.value_for_secure_string_parameter(...)` (or the newer
+`SecretValue.ssm_secure(...)`) passed straight into a `DockerImageFunction`'s
+`environment={...}` dict — synths without error, but `cdk deploy` surfaces a template-
+validation warning: *"Dynamic reference '{{resolve:ssm-secure:/...}}' to SSM secure
+strings can only be used in resource properties"* (rule `E1027`). This is a real,
+documented CloudFormation constraint: `ssm-secure` dynamic references are supported in
+specific resource properties (e.g. an RDS `MasterUserPassword`, an ECS task
+definition's `secrets` list) but **not** in a plain Lambda environment-variable value —
+deploying anyway risks the Lambda actually receiving the literal, unresolved
+`{{resolve:...}}` string rather than the real secret, silently breaking the app instead
+of failing loudly.
+
+**Fix:** the standard AWS pattern for this exact situation — fetch secrets from SSM
+*inside the Lambda function itself*, once at cold start, before importing the real
+application module (`lambda_handler.py`'s `_load_secrets_from_ssm()`, called before
+`from mathbank_rest.main import app`), using only plain (non-secret) environment
+variables to tell it *which* parameters to fetch and *where* to put them
+(`MATHBANK_SSM_PREFIX`, `MATHBANK_SECRET_MAP`), with the function's execution role
+granted `ssm:GetParameter` on exactly those parameter ARNs (least privilege, via CDK's
+`add_to_role_policy`). **Lesson:** a CDK pattern that synths cleanly can still fail at
+`cdk deploy` with a CloudFormation-specific resource-property constraint that CDK's own
+type system doesn't prevent — always run a real `cdk deploy` (not just `cdk synth`)
+against a scratch/dev stack before assuming a secrets-wiring pattern works, and read
+`cdk deploy`'s own template-validation warnings, not just its final success/failure line.
+
+## 43. A whole-directory `COPY <service-dir> ${LAMBDA_TASK_ROOT}/` in a Lambda Dockerfile bakes the real local `.env` (secrets and all) into the pushed container image, unless explicitly excluded
+
+Hit live deploying `mathbank-agent` to Lambda (requirements/62-63): unlike
+`mathbank-rest` (which does a scoped `pip install` of just its Python package —
+`.env` was never part of the install), `mathbank-agent` has no installable package
+structure, so its `Dockerfile.lambda` did `COPY mathbank-agent ${LAMBDA_TASK_ROOT}/` —
+a literal whole-directory copy. The repo root's `.dockerignore` existed but did **not**
+list `.env`, so the real `mathbank-agent/.env` (actual `POSTGRES_PASSWORD`,
+`OPENAI_API_KEY`, etc.) was copied straight into the image, pushed to ECR, and
+deployed. The immediate symptom was a crash, not a quiet leak: the file kept its host
+permissions (`-rw-------`, 0600, owner-only) through the `COPY`, and the Lambda
+runtime's execution user couldn't read it, so `session_config.py`'s
+`dotenv_values(ROOT / ".env")` raised `PermissionError: [Errno 13] Permission denied`
+at cold-start module-import time — but had the permissions merely been more permissive,
+the real secrets would have been silently baked in and successfully read, with no
+crash at all to notice.
+
+**Fix:** exclude `.env`/`.env.*` (keeping `.env.example`) in the root `.dockerignore`
+globally — `**/.env`, `**/.env.*`, `!**/.env.example` — so this is impossible for
+*every* service's Dockerfile, not just the one that happened to crash. **Lesson:** a
+whole-directory `COPY` is categorically riskier than a scoped package install for
+secret hygiene; if a service's Dockerfile must use whole-directory `COPY` (no
+installable package structure), treat `.dockerignore` coverage of `.env*` as
+load-bearing, not optional — and don't assume "no crash" means "no leak": verify
+directly with `docker run --entrypoint sh <image> -c "ls /var/task/.env*"` on every new
+image, and if a non-compromised digest already exists with the fix, delete the
+compromised digest from ECR (`aws ecr batch-delete-image`) rather than just letting the
+Lambda's pointer move on — the old image blob persists in the registry until deleted.
+
+## 44. `DockerImageCode.from_image_asset(directory=REPO_ROOT, ...)` does not reliably honour the root `.dockerignore` for its own asset-staging copy — pass `exclude=[...]` explicitly, especially to exclude `cdk.out` itself
+
+Hit live redeploying after fixing gotcha #43 above: `cdk deploy` failed with
+`ENAMETOOLONG: name too long, mkdir '.../cdk.out/asset.<hash>/mathbank-infra-aws/
+cdk.out/asset.<hash>/mathbank-infra-aws/cdk.out/...'` — a self-nesting, exponentially
+deepening directory structure. This happens because CDK's `from_image_asset()` stages
+a copy of the Docker build context (here, the whole repo root) into
+`mathbank-infra-aws/cdk.out/asset.<hash>/` *before* invoking `docker build` — and if
+`cdk.out` (which lives inside the build context, under `mathbank-infra-aws/`) is not
+excluded from that staging copy, the walk visits the very directory it is currently
+writing into, re-copying it into itself. Deleting `cdk.out/` entirely and re-running
+`cdk deploy` did **not** fix it — the recursion reproduced within a single fresh synth,
+proving the root `.dockerignore` (which did list `**/cdk.out/`) was not being applied
+to this particular staging-copy step at all, regardless of CDK version/ignore-mode
+defaults.
+
+Passing `exclude=[...]` explicitly to `from_image_asset()` (even with `/**`-suffixed
+recursive patterns like `"**/cdk.out/**"`) reduced but did **not** eliminate the bug: a
+`cdk synth` against a freshly-emptied `cdk.out/` succeeded, but the very next
+`cdk deploy` — which internally re-runs `app.py` and, because multiple stacks each call
+`from_image_asset(directory=REPO_ROOT, ...)` in the same process, starts its *second*
+internal synth pass with the *first* stack's own just-written `cdk.out/asset.<hash>/`
+already on disk — still recursed. The exclude patterns were not reliably protecting
+against this self-referential copy regardless of how they were written.
+
+**Real fix:** don't fight it — stop giving `from_image_asset()` a `directory` that
+contains `cdk.out` at all, wherever the service doesn't actually need the repo root
+(e.g. `mathbank-agent` has no sibling-package dependency, so its stack now points
+`directory` at `mathbank-agent/` itself, with its own small `.dockerignore`, never
+touching `mathbank-infra-aws/cdk.out`). For the one service that *does* need repo-root
+context for a real sibling dependency (`mathbank-rest`, reaching
+`mathbank-geometry-engine`), make `rm -rf cdk.out` an unconditional prerequisite of
+`make synth`/`make deploy`/`make diff` (a `clean-cdk-out` Makefile target), so that
+directory genuinely never has prior content to recurse over. **Lesson:** when a CDK
+app's own `cdk.out` lives inside the same tree used as a Docker build context, treat
+`exclude` patterns as a secondary defense, not the primary fix — the primary fix is
+to keep `cdk.out` out of the build context's reach in the first place (scope the
+`directory` to the smallest real dependency boundary per service) and to never run a
+synth/deploy against a `cdk.out` that might already contain output from an earlier,
+same-run stack construction.
+
+## 45. A FastMCP server's `.run(transport="http")` blocks forever running its own Uvicorn — use `.http_app(stateless_http=True)` for an ASGI app Mangum can wrap, and force `Mangum(app, lifespan="on")`
+
+Hit live deploying `mathbank-mcp-competitions` to Lambda (requirements/62 §4.5,
+requirements/63). The service's existing local-dev HTTP entrypoint
+(`__main__.py`: `mcp.run(transport="http", port=...)`) is not usable in a Lambda
+handler — it's a blocking call that starts and owns its own Uvicorn server loop, never
+returning an importable ASGI app. `FastMCP.http_app(...)` is the correct call instead:
+it returns a plain `Starlette` ASGI app, usable exactly like any other ASGI app.
+
+Two non-obvious settings are required, not just the call itself:
+- `stateless_http=True` — the MCP streamable-HTTP transport's *default* mode is
+  stateful (a client is expected to resend an `Mcp-Session-Id` header and reconnect to
+  the *same* server process across a tool-call sequence), but Lambda offers no such
+  process affinity across requests — a second request may hit a different warm
+  execution environment, or a cold one. Stateless mode creates a fresh in-memory
+  session per request, the only mode compatible with Lambda's request model.
+- `Mangum(app, lifespan="on")`, not Mangum's default `lifespan="auto"` — FastMCP's
+  Starlette app relies on its ASGI lifespan (startup/shutdown) to initialise its
+  session-manager task group; Mangum's `"auto"` heuristic does not reliably detect this
+  need for Function-URL-sourced events (it is tuned around API Gateway's event shapes),
+  so lifespan handling must be forced on explicitly or the server silently never
+  finishes initialising its session machinery.
+
+**Verified live:** a real `curl` `initialize` JSON-RPC call against the deployed
+Function URL returned a correct MCP handshake response (`protocolVersion`,
+`capabilities`, `serverInfo`), and a real `tools/call` for `list_competitions`
+round-tripped through to the already-deployed `mathbank-rest` Lambda and back.
+**Separate, expected (not a bug) observation:** the very first such call, with both
+Lambdas simultaneously cold, hit the downstream `httpx` client's 15s timeout
+(`rest_client.py`) — a cold-calling-cold chain across two Lambdas can exceed a
+conservative per-call timeout that was tuned assuming an always-warm REST backend;
+retrying (second Lambda now warm) succeeded immediately. Worth widening that timeout
+or accepting occasional cold-chain retries in a low-traffic dev environment, but not
+something to "fix" by changing the MCP/Lambda wiring itself.
+
+## 46. colima's VM disk defaults to `~/.colima` on the *internal* disk and will not surface its own root cause when the host fills up — it silently corrupts containerd's content-addressed blob store instead of erroring cleanly
+
+Hit live mid-build of `mathbank-manim-studio` (requirements/63): a `docker build` step
+failed with a plain "disk I/O error", and a subsequent `docker info`/`docker images`
+failed with `failed to retrieve image list: ... blob sha256:... expected at
+/var/lib/containerd/.../blobs/sha256/...: input/output error`. The error message
+points at containerd's content store, not at "your Mac is almost out of disk" — the
+actual root cause (confirmed via `diskutil apfs list` / `df -h`) was the host's
+internal "Data" APFS volume sitting at ~117–132MB free out of 228GB, mostly consumed
+by unrelated Xcode iOS/watchOS Simulator runtime disk images (~43–55GB, each its own
+APFS container layered on a disk-image file) that had nothing to do with this project.
+Once a write to colima's qcow-backed containerd blob store failed partway through
+(disk full), the blob was left truncated/corrupt on-disk permanently — restarting
+colima did **not** self-heal it; the only fix was deleting the VM's data entirely.
+
+**Fix applied, not just a one-time recovery:** rather than only deleting and
+recreating `~/.colima` (which puts the VM disk right back on the already-tight
+internal volume), relocate colima's entire VM data directory to the external disk via
+the `COLIMA_HOME` environment variable (persisted in `~/.zshrc`):
+```bash
+export COLIMA_HOME="/Volumes/External/colima-home"
+colima stop        # old instance, if still salvageable
+rm -rf ~/.colima    # discard the corrupted VM disk from the internal volume
+colima start --cpu 4 --memory 8 --disk 60 --vm-type=vz --mount-type=virtiofs
+```
+`colima start` recreates `$COLIMA_HOME/default/{docker,containerd}.sock` and the VM
+disk image under the new location on first run — no other config file needed. This is
+the same project-data-belongs-on-the-external-disk principle already applied to the
+repo itself; a Docker VM disk that can grow to tens of GB building multiple Lambda
+container images (Cairo/Pango/TeX Live in particular) should never share the
+already-constrained internal volume. **Verified live:** `docker run --rm hello-world`
+succeeded immediately after the relocated restart, and `/Volumes/External/colima-home`
+began accumulating image-layer data while `df -h /System/Volumes/Data` stayed flat.
+
+## 47. A local dev server left running against the SAME shared production database as a newly-deployed Lambda will silently steal and mis-process its job queue — "it's DONE in the DB" does not mean "it ran where you think it ran"
+
+Hit live deploying `mathbank-manim-studio`'s worker Lambda (requirements/60,
+requirements/63): a render job created via the live Function URL reached `status: DONE`
+with a plausible `video_object_key` and `video_duration_ms` within ~90 seconds, yet
+fetching the video returned `500 Internal Server Error`, and `boto3.head_object` against
+the real S3-compatible bucket confirmed the key genuinely did not exist — not an
+eventual-consistency delay (re-checked 15+ minutes later, still absent). `aws logs
+filter-log-events` against the *exact* timestamp window the job completed in showed only
+17-24ms worker Lambda invocations in that window — nowhere near long enough to run a real
+Manim + LaTeX + ffmpeg render (empirically 1.6s-47s depending on scene complexity) — yet
+the row was indisputably marked `DONE`.
+
+Root cause: `ps aux` found a **local `uvicorn mathbank_manim_studio.main:app`
+process from an earlier session still running** on the dev machine. `main.py`'s FastAPI
+`lifespan` starts an in-process `asyncio` polling loop (`worker.run_worker_loop`,
+`worker_poll_seconds: float = 2.0`) exactly as designed for local dev — but this
+project's `.env` points at the **same shared production Neon Postgres** the deployed
+Lambda uses (no separate local/dev database), and that local process's own `.env` still
+has the default `MATHBANK_OBJECT_BACKEND=filesystem`. Polling every 2 seconds, this
+stale local process claimed the job (`FOR UPDATE SKIP LOCKED`) *faster than the
+EventBridge-scheduled Lambda worker's 1-minute cadence could*, rendered it for real —
+just on the local machine, not in Lambda — wrote the video to the **local filesystem
+object store**, and marked the row `DONE` in the shared database, all correctly from the
+local process's own point of view. Nothing in Lambda was ever broken; the deployed
+worker simply never got a chance to claim that row.
+
+**Fix:** `kill <pid>` the stale local process; re-tested the identical scene end-to-end
+through the Function URL alone and it completed correctly (confirmed via `aws logs tail`
+showing a real multi-second `REPORT` duration for that invocation, and a real `200 OK` +
+valid `ftypisom` MP4 magic bytes on fetch). **General lesson, not manim-studio-specific:**
+any service whose local dev loop is a *singleton polling/claim consumer* (not a
+stateless request/response API) is unsafe to leave running locally once that same
+service is also deployed against the same shared database — the two will race for the
+same rows, and the deployed copy will look silently, totally idle while the local one
+absorbs all the work. Plain REST services (`mathbank-rest`, `mathbank-ml-inference`)
+don't have this failure mode — concurrent local + deployed instances just serve
+independent reads/writes, they don't compete to "claim" anything — so this is specific
+to queue/worker-shaped services.
+
 ## Single-command recreation
 
 ```bash

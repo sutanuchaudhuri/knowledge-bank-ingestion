@@ -12,11 +12,17 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+# Local dev/test (editable, monorepo-checkout install): the real, single-source-of-truth
+# ITL-4 schema file. An installed/Lambda deployment (requirements/63) does not have this
+# monorepo-relative path available — `_load_schema()` falls back to a vendored copy
+# bundled in the package (`_vendor/scene_spec.schema.json`), same pattern as
+# mathbank-rest's `db/retrieval_audit.py` (GOTCHAS.md #40).
 _SCHEMA_PATH = (
     Path(__file__).resolve().parents[3]
     / "documentation" / "copilot-instructions" / "interaction-template-library"
     / "schemas" / "scene_spec.schema.json"
 )
+_VENDORED_SCHEMA_PATH = Path(__file__).resolve().parent / "_vendor" / "scene_spec.schema.json"
 
 # The v1 object/action vocabulary this project's compiler actually implements
 # (requirements/60 §3) — a real, documented *subset* of ITL-4's full 18-object/23-action
@@ -56,7 +62,8 @@ _LATEX_LIKE = re.compile(r"\\\(|\\\[|\\[A-Za-z]{2,}")
 
 
 def _load_schema() -> dict:
-    return json.loads(_SCHEMA_PATH.read_text())
+    path = _SCHEMA_PATH if _SCHEMA_PATH.is_file() else _VENDORED_SCHEMA_PATH
+    return json.loads(path.read_text())
 
 
 def validate_scene_spec_dict(scene_json: dict, *, require_supported_vocabulary: bool = True

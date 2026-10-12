@@ -1,0 +1,19 @@
+{
+  "case_id":"07_parallel_extension",
+  "initial":{
+    "problem_text":"AB is parallel to CD; later extend AB beyond B to E.",
+    "objects":{"A":{},"B":{},"C":{},"D":{}},
+    "positions":{"A":[100,170],"B":[340,170],"C":[160,330],"D":[450,330]},
+    "relations":[{"id":"parallel","type":"PARALLEL","args":["A","B","C","D"],"status":"GIVEN"}],
+    "entities":[{"id":"segment_AB","type":"SEGMENT","refs":["A","B"]},{"id":"segment_CD","type":"SEGMENT","refs":["C","D"]}]
+  },
+  "expected":[
+    {"entities":["segment_AB","segment_CD","mark_parallel"],"absent":["point_E","extension_BE"]},
+    {"entities":["extension_BE","point_E"],"dashed":["extension_BE"]},
+    {"highlight":["segment_AB","extension_BE"],"dashed":["extension_BE"]}
+  ],
+  "steps":[
+    {"expected_version":0,"add_objects":{"E":{}},"add_relations":[{"id":"extension","type":"EXTENSION","args":["E","A","B"],"status":"ASSUMED_FOR_CONSTRUCTION"}]},
+    {"expected_version":1,"visual":{"highlight":["segment_AB","extension_BE"]}}
+  ]
+}

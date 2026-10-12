@@ -1,0 +1,39 @@
+{
+  "course": {
+    "canonical_code": "MC-INEQ-FOUNDATIONS-01",
+    "title": "Olympiad Inequalities Foundations",
+    "targets": [
+      {
+        "type": "TECHNIQUE",
+        "canonical_id": "MAP_EXISTING_AM_GM_TECHNIQUE_ID"
+      },
+      {
+        "type": "TECHNIQUE",
+        "canonical_id": "MAP_EXISTING_WEIGHTED_AM_GM_TECHNIQUE_ID"
+      },
+      {
+        "type": "TECHNIQUE",
+        "canonical_id": "MAP_EXISTING_CAUCHY_SCHWARZ_TECHNIQUE_ID"
+      },
+      {
+        "type": "TECHNIQUE",
+        "canonical_id": "MAP_EXISTING_JENSEN_TECHNIQUE_ID"
+      },
+      {
+        "type": "TECHNIQUE",
+        "canonical_id": "MAP_EXISTING_MUIRHEAD_TECHNIQUE_ID"
+      }
+    ]
+  },
+  "release": {
+    "version": 1,
+    "status": "DRAFT",
+    "must_resolve_before_publish": [
+      "all MAP_EXISTING_* IDs",
+      "actual approved YouTube transcript segments",
+      "approved misconception IDs",
+      "learning-item/activity IDs for fixed quizzes",
+      "visual.asset IDs for artifacts/Manim outputs"
+    ]
+  }
+}

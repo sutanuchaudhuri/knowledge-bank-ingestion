@@ -1,0 +1,147 @@
+{
+  "scenes": [
+    {
+      "scene_key": "SCENE-MARKOV-AMC-2019-01",
+      "scene_version": 1,
+      "objects": [
+        {
+          "id": "state_A",
+          "type": "STATE_NODE",
+          "label": "(1,1,1)",
+          "semantic_tags": [
+            "PROB_MARKOV"
+          ]
+        },
+        {
+          "id": "state_B",
+          "type": "STATE_NODE",
+          "label": "(2,1,0) type",
+          "semantic_tags": [
+            "PROB_MARKOV",
+            "TECH_STATE_GRAPH"
+          ]
+        }
+      ],
+      "timeline": [
+        {
+          "at_ms": 0,
+          "action": "SHOW",
+          "targets": [
+            "state_A",
+            "state_B"
+          ]
+        },
+        {
+          "at_ms": 1800,
+          "action": "DRAW_TRANSITION",
+          "from": "state_A",
+          "to": "state_B",
+          "label": "3/4"
+        },
+        {
+          "at_ms": 3000,
+          "action": "DRAW_TRANSITION",
+          "from": "state_B",
+          "to": "state_A",
+          "label": "1/4"
+        },
+        {
+          "at_ms": 4500,
+          "action": "HIGHLIGHT",
+          "targets": [
+            "state_A",
+            "state_B"
+          ],
+          "semantic_event": "STATE_MODEL_COMPLETED"
+        }
+      ]
+    },
+    {
+      "scene_key": "SCENE-VIETA-ROOTS-TO-COEFF-01",
+      "scene_version": 1,
+      "objects": [
+        {
+          "id": "factor",
+          "type": "LATEX",
+          "label": "(x-r1)(x-r2)(x-r3)",
+          "semantic_tags": [
+            "ALG_VIETA"
+          ]
+        },
+        {
+          "id": "coeff",
+          "type": "LATEX",
+          "label": "x^3-e1 x^2+e2 x-e3",
+          "semantic_tags": [
+            "VIETA_SYMSUM"
+          ]
+        }
+      ],
+      "timeline": [
+        {
+          "at_ms": 0,
+          "action": "SHOW",
+          "targets": [
+            "factor"
+          ]
+        },
+        {
+          "at_ms": 1800,
+          "action": "EQUATION_MORPH",
+          "targets": [
+            "factor",
+            "coeff"
+          ],
+          "semantic_event": "EQUATION_DERIVED"
+        }
+      ]
+    },
+    {
+      "scene_key": "SCENE-JENSEN-CONVEX-CHORD-01",
+      "scene_version": 1,
+      "objects": [
+        {
+          "id": "curve",
+          "type": "FUNCTION_GRAPH",
+          "label": "f(x)=x^2",
+          "semantic_tags": [
+            "MAP_EXISTING_JENSEN_ID"
+          ]
+        },
+        {
+          "id": "chord",
+          "type": "LINE",
+          "label": "chord",
+          "semantic_tags": [
+            "MAP_EXISTING_JENSEN_ID"
+          ]
+        }
+      ],
+      "timeline": [
+        {
+          "at_ms": 0,
+          "action": "SHOW",
+          "targets": [
+            "curve"
+          ]
+        },
+        {
+          "at_ms": 1500,
+          "action": "DRAW",
+          "targets": [
+            "chord"
+          ]
+        },
+        {
+          "at_ms": 3000,
+          "action": "HIGHLIGHT",
+          "targets": [
+            "curve",
+            "chord"
+          ],
+          "semantic_event": "MISCONCEPTION_COUNTEREXAMPLE_SHOWN"
+        }
+      ]
+    }
+  ]
+}

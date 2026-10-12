@@ -1,0 +1,75 @@
+{
+  "canonical_code": "MC-POLY-VIETA-FOUNDATIONS-01",
+  "title": "Vieta, Quadratics, Cubics, Biquadratics and Higher Polynomials",
+  "version": 1,
+  "status": "DRAFT",
+  "canonical_mapping_policy": {
+    "Vieta": [
+      "ALG_VIETA",
+      "VIETA_SUM",
+      "VIETA_PRODUCT",
+      "VIETA_SYMSUM",
+      "VIETA_CONSTRUCT",
+      "VIETA_RECIP",
+      "VIETA_POWER",
+      "VIETA_JUMP",
+      "VIETA_DIRECT"
+    ],
+    "Quadratic": [
+      "ALG_QUAD",
+      "ALG_VIETA",
+      "ALG_POLY"
+    ],
+    "Cubic": [
+      "ALG_POLY",
+      "ALG_VIETA",
+      "VIETA_SYMSUM",
+      "VIETA_CONSTRUCT"
+    ],
+    "Biquadratic_Quartic": [
+      "ALG_POLY",
+      "ALG_QUAD"
+    ],
+    "Higher_Polynomial": [
+      "ALG_POLY",
+      "ALG_VIETA",
+      "VIETA_SYMSUM",
+      "VIETA_POWER",
+      "VIETA_CONSTRUCT",
+      "VIETA_RECIP"
+    ]
+  },
+  "note": "Cubic, quartic and biquadratic are course-module labels; no new canonical IDs are invented.",
+  "modules": [
+    {
+      "key": "M1",
+      "title": "Vieta's formulas",
+      "topic_file": "topics/vieta.md",
+      "quiz": "QUIZ-VIETA"
+    },
+    {
+      "key": "M2",
+      "title": "Quadratic equations",
+      "topic_file": "topics/quadratics.md",
+      "quiz": "QUIZ-QUAD"
+    },
+    {
+      "key": "M3",
+      "title": "Cubic polynomials",
+      "topic_file": "topics/cubics.md",
+      "quiz": "QUIZ-CUBIC"
+    },
+    {
+      "key": "M4",
+      "title": "Biquadratic and quartic structure",
+      "topic_file": "topics/biquadratic_quartic.md",
+      "quiz": "QUIZ-BIQUAD"
+    },
+    {
+      "key": "M5",
+      "title": "Higher-degree polynomials",
+      "topic_file": "topics/higher_polynomials.md",
+      "quiz": "QUIZ-HPOLY"
+    }
+  ]
+}

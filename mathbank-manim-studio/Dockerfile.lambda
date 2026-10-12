@@ -1,0 +1,73 @@
+# syntax=docker/dockerfile:1
+# Lambda container image for mathbank-manim-studio (requirements/60, requirements/62 §4,
+# requirements/63). Two Lambda functions share this one image (built twice, with only
+# the final CMD differing — CDK's `cmd` override on `from_image_asset`) via api_handler
+# vs worker_handler (lambda_handler.py).
+#
+# Build context is this service's OWN directory (unlike mathbank-rest's Dockerfile.lambda,
+# which needs REPO_ROOT) — the sibling mathbank-mcp-competitions dependency (requirements/
+# 49) is reached via a BuildKit *additional build context* instead (`--build-context
+# mcp_competitions=...` / CDK's `build_contexts={...}`), named `mcp_competitions` below.
+# This sidesteps GOTCHAS.md #44 entirely rather than fighting it: a REPO_ROOT-context
+# build triggered twice in one CDK synth (api + worker) self-nests far worse than the
+# single-call case #44 already documents (confirmed live, requirements/63) — scoping the
+# *primary* context to this directory means cdk.out (which lives under mathbank-infra-aws/,
+# itself under REPO_ROOT) is never walked at all, for either of this stack's two builds.
+#   docker buildx build --platform linux/arm64 -f Dockerfile.lambda \
+#     --build-context mcp_competitions=../mathbank-mcp-competitions \
+#     -t mathbank-manim-studio-lambda .
+# (run from mathbank-manim-studio/; requires the `docker-buildx` CLI plugin)
+#
+# Base image is Python 3.12 (Amazon Linux 2023, glibc 2.34) rather than this project's
+# own 3.11 floor — AL2023's modern glibc is required for TeX Live's precompiled
+# aarch64-linux binaries (GOTCHAS.md #46-adjacent finding, requirements/63): Lambda's
+# Python 3.11 base image runs on Amazon Linux 2 (glibc ~2.26), which fails importing
+# TeX Live's dvisvgm/pdftex binaries with `GLIBC_2.29' not found`. AL2023 also carries
+# every TeX package Manim needs directly in its own dnf repos as individually-packaged
+# RPMs — no risky network TeX Live installer needed.
+FROM public.ecr.aws/lambda/python:3.12
+
+# TeX Live (compile + render MathTex/Text to SVG via dvisvgm), Cairo/Pango (Manim's
+# default renderer backend + manimpango's font/text-layout shaping), Ghostscript (EPS/PS
+# support pulled in transitively), plus a C/C++ toolchain and pkg-config so `pip install`
+# can actually build pycairo and manimpango from source (neither ships a Lambda-targeted
+# manylinux wheel — confirmed live, requirements/63). tar/xz/findutils: needed to unpack
+# the static ffmpeg download below.
+RUN microdnf install -y \
+      texlive-dvisvgm texlive-standalone texlive-doublestroke texlive-xcolor \
+      texlive-amsfonts texlive-physics texlive-ragged2e texlive-relsize \
+      texlive-setspace texlive-wasysym texlive-cm-super texlive-microtype \
+      texlive-tipa texlive-collection-latexextra \
+      cairo-devel pango-devel ghostscript gcc gcc-c++ pkgconfig \
+      tar xz findutils \
+    && microdnf clean all
+
+# Neither AL2 nor AL2023 package ffmpeg directly (confirmed live, requirements/63) — a
+# static aarch64 binary is the standard fallback. manim_compiler.py's own ffprobe calls
+# (via `subprocess.run(["ffprobe", ...])`) require both binaries on PATH.
+RUN curl -sL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz \
+      -o /tmp/ffmpeg.tar.xz \
+    && tar -xJf /tmp/ffmpeg.tar.xz -C /tmp \
+    && FFDIR=$(find /tmp -maxdepth 1 -type d -name "ffmpeg-*-arm64-static") \
+    && cp "$FFDIR/ffmpeg" "$FFDIR/ffprobe" /usr/local/bin/ \
+    && rm -rf /tmp/ffmpeg.tar.xz "$FFDIR"
+
+# mathbank-mcp-competitions — the research agent's real MCP stdio subprocess dependency
+# (requirements/49). Pulled in via the named `mcp_competitions` additional build context
+# (see header comment), not a sibling-directory COPY from REPO_ROOT.
+COPY --from=mcp_competitions . /tmp/mathbank-mcp-competitions
+RUN pip install --no-cache-dir --only-binary=:all: /tmp/mathbank-mcp-competitions \
+    && rm -rf /tmp/mathbank-mcp-competitions
+
+# mathbank-manim-studio itself, with the Lambda-only `lambda` extras group
+# (pyproject.toml) — never installed into the local dev venv. `--only-binary=:all:` is
+# deliberately NOT used here: pycairo and manimpango have no prebuilt wheels for this
+# image at all (hence the C/C++ toolchain above) and must compile from source.
+COPY . /tmp/mathbank-manim-studio
+RUN pip install --no-cache-dir "/tmp/mathbank-manim-studio[lambda]" \
+    && rm -rf /tmp/mathbank-manim-studio
+
+# Overridden per-function by the CDK stack (api_handler vs worker_handler) — this
+# default lets a bare `docker run` smoke-test the API handler without extra flags.
+CMD ["mathbank_manim_studio.lambda_handler.api_handler"]
+

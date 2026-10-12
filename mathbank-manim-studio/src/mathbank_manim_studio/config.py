@@ -39,6 +39,21 @@ class Settings(BaseSettings):
     job_ttl_days: int = 1
     worker_poll_seconds: float = 2.0
 
+    # S3 object storage (Lambda deployment opt-in, requirements/63 — local dev keeps the
+    # filesystem backend above unchanged). Reuses mathbank-rest's already-provisioned
+    # Neon S3-compatible bucket under a `manim-studio/` key prefix, and the same
+    # MATHBANK_S3_* alias names object_store.py's Lambda deployment checks first (never
+    # the bare AWS_* names, which Lambda reserves for its own execution-role credentials
+    # — see GOTCHAS.md #40-class issues / mathbank-rest's object_store.py).
+    mathbank_object_backend: str = "filesystem"  # "filesystem" or "s3"
+    mathbank_object_bucket: str = ""
+    mathbank_object_key_prefix: str = "manim-studio/"
+    mathbank_s3_endpoint_url: str = ""
+    mathbank_s3_region: str = ""
+    mathbank_s3_access_key_id: str = ""
+    mathbank_s3_secret_access_key: str = ""
+    mathbank_s3_session_token: str = ""
+
     # Shared with mathbank-rest's ADMIN_API_KEY (same value, same header convention,
     # requirements/60 §7) — guards the one write endpoint a peer service calls
     # (mark-promoted), not the research/render job endpoints themselves.

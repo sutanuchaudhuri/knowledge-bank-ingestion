@@ -1,0 +1,21 @@
+{
+  "course": "MC-MARKOV-COMP-01",
+  "reuse_canonical_ids": [
+    "PROB_MARKOV",
+    "PROB_MARKOV_MATRIX",
+    "TECH_STATE_GRAPH",
+    "PROB_BASIC",
+    "PROB_COND",
+    "PROB_EXP",
+    "COUNT_REC",
+    "ALG_MATRIX"
+  ],
+  "do_not_create_dynamic_taxonomy": true,
+  "publication_blockers": [
+    "YouTube transcript import/review for every interactive video state",
+    "admin approval of PRE/INTERMEDIATE/POST quizzes",
+    "canonical misconception rows approved",
+    "artifact/diagram/Manim assets registered",
+    "competition-problem placement reviewed where sub-skill is not source-confirmed"
+  ]
+}

@@ -245,6 +245,46 @@ mcp-test:                         ## Run mathbank-mcp-competitions's test suite
 mcp-demo:                         ## Run the bundled OpenAI agent demo against the MCP server
 	$(MAKE) -C mathbank-mcp-competitions demo
 
+.PHONY: infra-install
+infra-install:                     ## Install the AWS CDK deployment project's venv (requirements/62-63)
+	$(MAKE) -C mathbank-infra-aws install
+
+.PHONY: infra-bootstrap
+infra-bootstrap:                   ## One-time: bootstrap the AWS account/region for CDK
+	$(MAKE) -C mathbank-infra-aws bootstrap
+
+.PHONY: infra-synth
+infra-synth:                       ## Validate the CDK stacks without deploying
+	$(MAKE) -C mathbank-infra-aws synth
+
+.PHONY: infra-deploy
+infra-deploy:                      ## Build + deploy every service to AWS Lambda; override STACKS=MathBankXStack to target one (redeploy = rerun this)
+	$(MAKE) -C mathbank-infra-aws deploy STACKS="$(STACKS)"
+
+.PHONY: infra-diff
+infra-diff:                        ## Show what infra-deploy would change, without deploying
+	$(MAKE) -C mathbank-infra-aws diff
+
+.PHONY: infra-destroy
+infra-destroy:                     ## Tear down every deployed AWS stack (stops all charges for this project)
+	$(MAKE) -C mathbank-infra-aws destroy
+
+.PHONY: infra-destroy-one
+infra-destroy-one:                 ## "Pause"/stop one service: make infra-destroy-one STACK=MathBankManimStudioStack
+	$(MAKE) -C mathbank-infra-aws destroy-one STACK="$(STACK)"
+
+.PHONY: infra-outputs
+infra-outputs:                     ## Print every deployed Function URL and stack output; override STACK=MathBankXStack for just one
+	$(MAKE) -C mathbank-infra-aws outputs STACK="$(STACK)"
+
+.PHONY: infra-colima-start
+infra-colima-start:                ## Start the local Docker-compatible runtime (colima) needed to build images
+	$(MAKE) -C mathbank-infra-aws colima-start
+
+.PHONY: infra-colima-stop
+infra-colima-stop:                 ## Stop the local Docker-compatible runtime (colima) when not building/deploying
+	$(MAKE) -C mathbank-infra-aws colima-stop
+
 .PHONY: manim-install
 manim-install:                     ## Install mathbank-manim-studio (research + video-render agents)
 	$(MAKE) -C mathbank-manim-studio install

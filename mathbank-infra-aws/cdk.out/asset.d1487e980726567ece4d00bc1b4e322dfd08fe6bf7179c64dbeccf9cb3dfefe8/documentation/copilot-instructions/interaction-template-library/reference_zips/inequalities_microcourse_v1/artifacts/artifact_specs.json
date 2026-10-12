@@ -1,0 +1,126 @@
+{
+  "artifact_set": "INEQUALITY-LAB-V1",
+  "artifacts": [
+    {
+      "id": "ART-AMGM-GAP",
+      "topic": "AM-GM",
+      "type": "INTERACTIVE_SLIDERS",
+      "controls": [
+        "a>0",
+        "b>0"
+      ],
+      "computed": [
+        "AM",
+        "GM",
+        "gap"
+      ],
+      "teaches": [
+        "AM-GM",
+        "equality condition"
+      ],
+      "misconceptions": [
+        "MIS-AMGM-02"
+      ]
+    },
+    {
+      "id": "ART-WAMGM-WEIGHTS",
+      "topic": "Weighted AM-GM",
+      "type": "INTERACTIVE_SLIDERS",
+      "controls": [
+        "x>0",
+        "y>0",
+        "lambda in [0,1]"
+      ],
+      "computed": [
+        "weighted_AM",
+        "weighted_GM",
+        "gap"
+      ],
+      "teaches": [
+        "weight-exponent matching"
+      ],
+      "misconceptions": [
+        "MIS-WAMGM-01",
+        "MIS-WAMGM-02"
+      ]
+    },
+    {
+      "id": "ART-CS-VECTORS",
+      "topic": "Cauchy-Schwarz",
+      "type": "INTERACTIVE_VECTOR",
+      "controls": [
+        "u1",
+        "u2",
+        "v1",
+        "v2"
+      ],
+      "computed": [
+        "dot_squared",
+        "norm_product",
+        "gap"
+      ],
+      "teaches": [
+        "dot-product bound",
+        "proportional equality"
+      ]
+    },
+    {
+      "id": "ART-JENSEN-CHORD",
+      "topic": "Jensen",
+      "type": "INTERACTIVE_CONVEX_GRAPH",
+      "function": "f(x)=x^2",
+      "controls": [
+        "x1",
+        "x2",
+        "lambda"
+      ],
+      "computed": [
+        "f(weighted_x)",
+        "weighted_f",
+        "gap"
+      ],
+      "teaches": [
+        "convex chord inequality"
+      ],
+      "misconceptions": [
+        "MIS-JENSEN-01",
+        "MIS-JENSEN-02"
+      ]
+    },
+    {
+      "id": "ART-MUIRHEAD-MAJORIZE",
+      "topic": "Muirhead",
+      "type": "INTERACTIVE_MAJORISATION",
+      "controls": [
+        "a>0",
+        "b>0",
+        "c>0"
+      ],
+      "exponent_vectors": [
+        [
+          4,
+          0,
+          0
+        ],
+        [
+          2,
+          1,
+          1
+        ]
+      ],
+      "computed": [
+        "partial_sums",
+        "normalized_symmetric_means"
+      ],
+      "teaches": [
+        "majorization",
+        "symmetric mean comparison"
+      ],
+      "misconceptions": [
+        "MIS-MUIR-01",
+        "MIS-MUIR-02",
+        "MIS-MUIR-04"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,206 @@
+{
+  "/MathBankManimStudioStack": [
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioApiFunctionUrl": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioApiFunctionUrl"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioApiFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioApiFunctionFD9A0A96"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioApiFunction/invoke-function-url": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioApiFunctioninvokefunctionurl86C04B6E"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioApiFunction/invoke-function": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioApiFunctioninvokefunctionF595C469"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioWorkerFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioWorkerFunctionAD93AB48"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioWorkerSchedule/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioWorkerScheduleB620DDAA"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioWorkerSchedule/AllowEventRuleMathBankManimStudioStackManimStudioWorkerFunction6D91FECF": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioWorkerScheduleAllowEventRuleMathBankManimStudioStackManimStudioWorkerFunction6D91FECF64C238F0"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioApiFunction/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioApiFunctionServiceRoleF647B8FC"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioApiFunction/FunctionUrl/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioApiFunctionFunctionUrlE63C8A0B"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioWorkerFunction/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioWorkerFunctionServiceRole8AE56BE4"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioApiFunction/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioApiFunctionServiceRoleDefaultPolicy91B87A32"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankManimStudioStack/ManimStudioWorkerFunction/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ManimStudioWorkerFunctionServiceRoleDefaultPolicyADD97143"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ]
+}

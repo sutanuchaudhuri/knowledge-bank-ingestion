@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Inequality Lab v1</title>
+<style>
+body{font-family:system-ui,Arial;margin:0;background:#f5f5f7;color:#171717}
+header{background:white;padding:18px 24px;border-bottom:1px solid #ddd}
+main{max-width:980px;margin:20px auto;padding:0 16px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{padding:9px 12px;border:1px solid #bbb;background:white;border-radius:8px;cursor:pointer}
+.tabs button.active{font-weight:700;border-color:#222}.card{background:white;border:1px solid #ddd;border-radius:12px;padding:18px;margin-top:14px}
+.row{display:grid;grid-template-columns:170px 1fr 90px;gap:10px;align-items:center;margin:12px 0}.row input{width:100%}
+.formula{font:20px Georgia,serif;background:#fafafa;padding:12px;border-radius:8px}.metric{font-size:18px;margin-top:14px}
+.small{font-size:13px;color:#555}svg{width:100%;height:280px;border:1px solid #ddd;border-radius:8px}
+table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #ddd;padding:8px;text-align:center}
+</style></head>
+<body><header><h2>Inequality Lab v1</h2><div class="small">Pre-authored deterministic artifact</div></header>
+<main><div class="tabs" id="tabs"></div><div id="content"></div></main>
+<script>
+const topics=["AM-GM","Weighted AM-GM","Cauchy-Schwarz","Jensen","Muirhead"];
+let current=0;const tabs=document.getElementById("tabs"),content=document.getElementById("content");
+topics.forEach((t,i)=>{const b=document.createElement("button");b.textContent=t;b.onclick=()=>{current=i;render()};tabs.appendChild(b)});
+const fmt=x=>Number(x).toFixed(4).replace(/\.?0+$/,"");
+function slider(label,min,max,step,val,id){return `<div class="row"><label>${label}</label><input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${val}"><span id="${id}v"></span></div>`}
+function bind(ids,fn){ids.forEach(id=>document.getElementById(id).oninput=fn);fn()}
+function v(id){return +document.getElementById(id).value}
+function render(){[...tabs.children].forEach((b,i)=>b.className=i===current?"active":"");[amgm,wamgm,cs,jensen,muirhead][current]()}
+function amgm(){content.innerHTML=`<div class="card"><h3>AM-GM gap</h3><div class="formula">(a+b)/2 ≥ √(ab)</div>${slider("a",.1,12,.1,3,"a")}${slider("b",.1,12,.1,8,"b")}<div class="metric" id="out"></div><div class="small">The gap closes exactly at a=b.</div></div>`;bind(["a","b"],()=>{["a","b"].forEach(id=>document.getElementById(id+"v").textContent=fmt(v(id)));let A=(v("a")+v("b"))/2,G=Math.sqrt(v("a")*v("b"));out.textContent=`AM=${fmt(A)}  GM=${fmt(G)}  gap=${fmt(A-G)}`})}
+function wamgm(){content.innerHTML=`<div class="card"><h3>Weighted AM-GM</h3><div class="formula">λx+(1−λ)y ≥ x^λ y^(1−λ)</div>${slider("x",.1,12,.1,2,"x")}${slider("y",.1,12,.1,9,"y")}${slider("λ",0,1,.01,.67,"l")}<div class="metric" id="out"></div></div>`;bind(["x","y","l"],()=>{["x","y","l"].forEach(id=>document.getElementById(id+"v").textContent=fmt(v(id)));let l=v("l"),A=l*v("x")+(1-l)*v("y"),G=Math.pow(v("x"),l)*Math.pow(v("y"),1-l);out.textContent=`weighted AM=${fmt(A)}  weighted GM=${fmt(G)}  gap=${fmt(A-G)}`})}
+function cs(){content.innerHTML=`<div class="card"><h3>Cauchy-Schwarz</h3><div class="formula">(u·v)² ≤ ||u||²||v||²</div>${slider("u₁",-5,5,.1,3,"u1")}${slider("u₂",-5,5,.1,1,"u2")}${slider("v₁",-5,5,.1,2,"v1")}${slider("v₂",-5,5,.1,4,"v2")}<div class="metric" id="out"></div><div class="small">Try making v proportional to u; equality appears.</div></div>`;bind(["u1","u2","v1","v2"],()=>{["u1","u2","v1","v2"].forEach(id=>document.getElementById(id+"v").textContent=fmt(v(id)));let d=v("u1")*v("v1")+v("u2")*v("v2"),L=d*d,R=(v("u1")**2+v("u2")**2)*(v("v1")**2+v("v2")**2);out.textContent=`dot²=${fmt(L)}  norm product=${fmt(R)}  gap=${fmt(R-L)}`})}
+function jensen(){content.innerHTML=`<div class="card"><h3>Jensen for f(x)=x²</h3><div class="formula">f(λx₁+(1−λ)x₂) ≤ λf(x₁)+(1−λ)f(x₂)</div>${slider("x₁",-4,4,.1,-2,"j1")}${slider("x₂",-4,4,.1,3,"j2")}${slider("λ",0,1,.01,.4,"jl")}<svg id="plot" viewBox="0 0 600 280"></svg><div class="metric" id="out"></div></div>`;bind(["j1","j2","jl"],()=>{["j1","j2","jl"].forEach(id=>document.getElementById(id+"v").textContent=fmt(v(id)));let l=v("jl"),xm=l*v("j1")+(1-l)*v("j2"),L=xm*xm,R=l*v("j1")**2+(1-l)*v("j2")**2;out.textContent=`f(weighted x)=${fmt(L)}  weighted f=${fmt(R)}  gap=${fmt(R-L)}`;let pts=[];for(let x=-4;x<=4;x+=.1)pts.push(`${300+x*55},${250-x*x*12}`);plot.innerHTML=`<polyline fill="none" stroke="black" stroke-width="2" points="${pts.join(" ")}"/><text x="14" y="22">Convex graph lies below its chord</text>`})}
+function symMean(e,a,b,c){let p=[[a,b,c],[a,c,b],[b,a,c],[b,c,a],[c,a,b],[c,b,a]],s=0;for(const x of p)s+=x[0]**e[0]*x[1]**e[1]*x[2]**e[2];return s/6}
+function muirhead(){content.innerHTML=`<div class="card"><h3>Muirhead</h3><div class="formula">(4,0,0) ≻ (2,1,1)</div><table><tr><th>k</th><th>α partial</th><th>β partial</th></tr><tr><td>1</td><td>4</td><td>2</td></tr><tr><td>2</td><td>4</td><td>3</td></tr><tr><td>3</td><td>4</td><td>4</td></tr></table>${slider("a",.2,4,.1,1.2,"ma")}${slider("b",.2,4,.1,2,"mb")}${slider("c",.2,4,.1,3,"mc")}<div class="metric" id="out"></div><div class="small">Uses normalized average over all 6 permutations.</div></div>`;bind(["ma","mb","mc"],()=>{["ma","mb","mc"].forEach(id=>document.getElementById(id+"v").textContent=fmt(v(id)));let A=symMean([4,0,0],v("ma"),v("mb"),v("mc")),B=symMean([2,1,1],v("ma"),v("mb"),v("mc"));out.textContent=`[4,0,0]=${fmt(A)}  [2,1,1]=${fmt(B)}  gap=${fmt(A-B)}`})}
+render();
+</script></body></html>

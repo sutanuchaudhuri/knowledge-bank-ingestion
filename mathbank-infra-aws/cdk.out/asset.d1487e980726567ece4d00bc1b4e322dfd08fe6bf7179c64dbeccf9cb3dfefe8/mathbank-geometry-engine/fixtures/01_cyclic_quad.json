@@ -1,0 +1,20 @@
+{
+  "case_id": "01_cyclic_quad",
+  "initial": {
+    "problem_text": "Let ABCD be a convex cyclic quadrilateral.",
+    "objects": {"A": {}, "B": {}, "C": {}, "D": {}},
+    "relations": [
+      {"id": "quad", "type": "QUADRILATERAL", "args": ["A","B","C","D"], "status": "GIVEN"},
+      {"id": "Gamma", "type": "CONCYCLIC", "args": ["A","B","C","D"], "status": "GIVEN"}
+    ]
+  },
+  "expected": [
+    {"entities": ["point_A","point_B","point_C","point_D","circle_Gamma","segment_AB","segment_BC","segment_CD","segment_DA"], "absent": ["segment_AC","angle_BAC"], "background": ["circle_Gamma"]},
+    {"entities": ["segment_AC"], "highlight": ["segment_AC"], "background": ["circle_Gamma"]},
+    {"entities": ["angle_BAC","segment_AC"], "highlight": ["angle_BAC"]}
+  ],
+  "steps": [
+    {"expected_version": 0, "instruction_text": "Add and highlight diagonal AC.", "add_entities": [{"id":"segment_AC","type":"SEGMENT","refs":["A","C"]}], "visual":{"highlight":["segment_AC"]}},
+    {"expected_version": 1, "instruction_text": "Mark angle BAC only.", "add_entities": [{"id":"angle_BAC","type":"ANGLE_MARK","refs":["B","A","C"]}], "visual":{"highlight":["angle_BAC"]}}
+  ]
+}

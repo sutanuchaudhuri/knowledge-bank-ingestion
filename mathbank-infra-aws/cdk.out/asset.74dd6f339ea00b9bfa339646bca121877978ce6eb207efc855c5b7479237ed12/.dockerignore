@@ -1,0 +1,17 @@
+# Docker build-context exclusions for mathbank-mcp-competitions' own Dockerfile.lambda,
+# whose build context is this directory (GOTCHAS.md #44). .env exclusions are
+# load-bearing (GOTCHAS.md #43 — a real .env must never enter a Lambda image).
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.server.log
+.server.pid
+.env
+.env.*
+!.env.example
+Dockerfile.lambda
+tests/
+agent_demo/

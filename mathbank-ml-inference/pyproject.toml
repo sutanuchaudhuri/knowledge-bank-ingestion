@@ -24,6 +24,11 @@ dev = [
   "ruff>=0.4",
   "mypy>=1.10",
 ]
+# AWS Lambda-only — a Mangum ASGI-to-Lambda adapter; never installed into the local dev
+# venv (requirements/63, mirrors mathbank-rest's own `lambda` extras group).
+lambda = [
+  "mangum>=0.17",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

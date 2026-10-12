@@ -1,0 +1,26 @@
+{
+  "case_id":"04_similar_triangles",
+  "initial":{
+    "problem_text":"Triangles ABC and ADE will later be shown similar.",
+    "objects":{"A":{},"B":{},"C":{},"D":{},"E":{}},
+    "positions":{"A":[100,100],"B":[130,350],"C":[330,290],"D":[440,150],"E":[530,390]},
+    "relations":[
+      {"id":"abc","type":"TRIANGLE","args":["A","B","C"],"status":"GIVEN"},
+      {"id":"ade","type":"TRIANGLE","args":["A","D","E"],"status":"GIVEN"},
+      {"id":"similar","type":"SIMILAR","args":["A","B","C","A","D","E"],"status":"TARGET_TO_PROVE"}
+    ]
+  },
+  "expected":[
+    {"entities":["triangle_ABC","triangle_ADE"],"absent":["mark_similar","mark_angles1","mark_angles2"]},
+    {"highlight":["triangle_ABC","triangle_ADE"],"absent":["mark_similar"]},
+    {"entities":["mark_angles1"],"absent":["mark_similar","mark_angles2"]},
+    {"entities":["mark_angles1","mark_angles2"],"absent":["mark_similar"]},
+    {"entities":["mark_similar"],"statuses":{"similar":"PROVEN"}}
+  ],
+  "steps":[
+    {"expected_version":0,"visual":{"highlight":["triangle_ABC","triangle_ADE"]}},
+    {"expected_version":1,"relayout":true,"add_relations":[{"id":"angles1","type":"EQUAL_ANGLE","args":["A","B","C","A","D","E"],"status":"PROVEN","provenance":"First angle pair established."}]},
+    {"expected_version":2,"relayout":true,"add_relations":[{"id":"angles2","type":"EQUAL_ANGLE","args":["A","C","B","A","E","D"],"status":"PROVEN","provenance":"Second angle pair established."}]},
+    {"expected_version":3,"change_status":[{"relation_id":"similar","status":"PROVEN","provenance":"AA similarity supplied by reasoning."}]}
+  ]
+}

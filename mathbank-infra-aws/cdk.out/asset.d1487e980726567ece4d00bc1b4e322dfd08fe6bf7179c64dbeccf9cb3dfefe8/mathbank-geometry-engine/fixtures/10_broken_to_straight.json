@@ -1,0 +1,17 @@
+{
+  "case_id":"10_broken_to_straight",
+  "initial":{
+    "problem_text":"XP and PY will eventually be proved to form one straight line.",
+    "objects":{"X":{},"P":{},"Y":{}},
+    "positions":{"X":[100,180],"P":[320,180],"Y":[470,340]},
+    "relations":[{"id":"straight","type":"COLLINEAR","args":["X","P","Y"],"status":"TARGET_TO_PROVE"}],
+    "entities":[{"id":"segment_XP","type":"SEGMENT","refs":["X","P"]},{"id":"segment_PY","type":"SEGMENT","refs":["P","Y"]}]
+  },
+  "expected":[
+    {"entities":["segment_XP","segment_PY"],"absent":["line_XPY"],"statuses":{"straight":"TARGET_TO_PROVE"}},
+    {"entities":["line_XPY","segment_XP","segment_PY"],"statuses":{"straight":"PROVEN","angle":"PROVEN"}}
+  ],
+  "steps":[
+    {"expected_version":0,"relayout":true,"change_status":[{"relation_id":"straight","status":"PROVEN","provenance":"External proof establishes angle XPY is 180 degrees."}],"add_relations":[{"id":"angle","type":"ANGLE_MEASURE","args":["X","P","Y"],"status":"PROVEN","value":180}],"visual":{"highlight":["line_XPY"],"caption":"The two segments now form a proven straight line."}}
+  ]
+}

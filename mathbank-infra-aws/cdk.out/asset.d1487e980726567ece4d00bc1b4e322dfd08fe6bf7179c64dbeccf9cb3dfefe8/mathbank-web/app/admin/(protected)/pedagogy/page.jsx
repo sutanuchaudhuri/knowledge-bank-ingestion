@@ -1,0 +1,402 @@
+"use client";
+
+import { Callout, IconButton, PageHeader, Pill } from "../../../_components/ui.jsx";
+
+import { useEffect, useRef, useState } from "react";
+import MathText from "../../../_components/MathText.jsx";
+import ProblemDetail from "../../../db/ProblemDetail.jsx";
+import PedagogyFeedbackQueue from "../../../_components/PedagogyFeedbackQueue.jsx";
+
+const KINDS = [
+  ["skill", "Skills"],
+  ["skill_concept", "Skill-to-concept links"],
+  ["skill_relation", "Skill prerequisites and relations"],
+  ["concept_relation", "Concept prerequisites and relations"],
+  ["problem_skill", "Problem-to-skill mappings"],
+  ["problem_pedagogy", "Difficulty assessments"],
+  ["problem_concept", "Problem concept classifications"],
+  ["problem_technique", "Problem technique classifications"],
+];
+const PAGE_SIZE = 25;
+const endpoint = "/api/rest/admin/pedagogy";
+
+async function request(body, signal) {
+  const response = await fetch(endpoint, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body), signal,
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
+  return result;
+}
+
+function Badge({ status, method }) {
+  const tone = status === "REVIEWED" ? "success" : status === "REJECTED" ? "danger" : "warning";
+  return <Pill tone={tone}>{method === "automatic" && status === "REVIEWED" ? "AUTO-APPROVED" : status}</Pill>;
+}
+
+const EDITABLE = {
+  skill: ["name", "objective", "level", "source", "confidence"],
+  skill_concept: ["source", "confidence"],
+  skill_relation: ["source", "confidence"],
+  concept_relation: ["strength", "assertion_source"],
+  problem_skill: ["required_level", "importance", "source", "confidence"],
+  problem_pedagogy: ["conceptual_depth", "technical_load", "algebraic_load", "insight_required", "number_of_steps", "prerequisite_depth", "estimated_contest_level", "source", "confidence"],
+  problem_concept: ["confidence", "assertion_source"],
+  problem_technique: ["confidence", "assertion_source"],
+};
+
+export default function PedagogyReviewPage() {
+  const [kind, setKind] = useState("skill");
+  const [status, setStatus] = useState("ALL");
+  const [editJson, setEditJson] = useState("");
+  const [reclassifyCode, setReclassifyCode] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [reload, setReload] = useState(0);
+  const [data, setData] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [note, setNote] = useState("");
+  const [attested, setAttested] = useState(false);
+  const [history, setHistory] = useState(null);
+  const [historyError, setHistoryError] = useState(null);
+  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [publishConfirm, setPublishConfirm] = useState(false);
+  const [checked, setChecked] = useState([]);
+  const [bulkNote, setBulkNote] = useState("");
+  const [bulkConfirmed, setBulkConfirmed] = useState(false);
+  const [showSolutionEvidence, setShowSolutionEvidence] = useState(false);
+  const inFlight = useRef(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setData(null);
+    setSelected(null);
+    setError(null);
+    setPublishConfirm(false);
+    setChecked([]);
+    setBulkConfirmed(false);
+    fetch(`${endpoint}?kind=${kind}&status=${status}&limit=${PAGE_SIZE}&offset=${offset}`, { signal: controller.signal })
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || `Queue failed (${response.status})`);
+        return body;
+      })
+      .then(setData)
+      .catch(err => { if (err.name !== "AbortError") setError(err.message); });
+    return () => controller.abort();
+  }, [kind, status, offset, reload]);
+
+  useEffect(() => {
+    setNote("");
+    setAttested(false);
+    setHistory(null);
+    setHistoryError(null);
+    setShowSolutionEvidence(false);
+    if (!selected) return undefined;
+    setEditJson(JSON.stringify(Object.fromEntries(
+      EDITABLE[kind].map(field => [field, selected.metadata[field] ?? null])
+    ), null, 2));
+    const controller = new AbortController();
+    request({ action: "history", kind, key: selected.key }, controller.signal)
+      .then(result => setHistory(result.events))
+      .catch(err => { if (err.name !== "AbortError") setHistoryError(err.message); });
+    return () => controller.abort();
+  }, [selected, kind]);
+
+  async function correctMetadata(action) {
+    if (inFlight.current) return;
+    if (action === "edit" && (!selected || note.trim().length < 10)) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = action === "edit" ? {
+        action, kind, key: selected.key, expected_revision: selected.revision,
+        changes: JSON.parse(editJson), note: note.trim(),
+      } : { action, problem_code: reclassifyCode.trim() };
+      const result = await request(payload);
+      setNotice(result.message);
+      setReload(value => value + 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function review(nextStatus) {
+    if (inFlight.current || !selected || note.trim().length < 10 ||
+        (nextStatus === "REVIEWED" && !attested)) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await request({
+        action: "review", kind, key: selected.key, expected_revision: selected.revision,
+        review_status: nextStatus, note: note.trim(),
+      });
+      setNotice(result.message);
+      setReload(value => value + 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function publish() {
+    if (inFlight.current || !publishConfirm || !data) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await request({
+        action: "publish", expected_fingerprint: data.source_fingerprint,
+      });
+      setNotice(result.message);
+      setReload(value => value + 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function bulkReview(nextStatus, starter = false) {
+    if (inFlight.current || !bulkConfirmed || bulkNote.trim().length < 10 ||
+        !data || (!starter && !checked.length)) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const payload = starter ? {
+        action: "approve-starter", expected_fingerprint: data.source_fingerprint,
+        note: bulkNote.trim(),
+      } : {
+        action: "bulk-review", review_status: nextStatus, note: bulkNote.trim(),
+        items: data.items.filter(item => checked.includes(JSON.stringify(item.key))).map(item => ({
+          kind, key: item.key, expected_revision: item.revision,
+        })),
+      };
+      const result = await request(payload);
+      setNotice(result.message);
+      setBulkNote("");
+      setReload(value => value + 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader icon="patch-check" title="Pedagogical metadata approval"
+        subtitle="Inspect evidence, record a decision in Postgres, then explicitly publish to the teaching graph."
+        pills={<Pill tone="primary" icon="person-check">Human review</Pill>} />
+      <PedagogyFeedbackQueue />
+      <Callout tone="insight" title="Review order">
+        Approve skills first, then their mappings and relations. Approval records your review of the displayed assertion, not automatic approval of related rows.
+        Generated content and confidence are not expert validation. Publishing preserves each row&apos;s status; it never approves pending rows.
+      </Callout>
+      {error && <Callout tone="danger" role="alert">{error}</Callout>}
+      {notice && <Callout tone="success" role="status">{notice}</Callout>}
+      <section className="card border-0 shadow-sm mb-4">
+        <div className="card-body">
+          <h2 className="h5">Bulk review</h2>
+          <p className="small text-secondary">Select assertions in the queue for one atomic decision, or approve all pending rows in the versioned counting starter manifest.
+            The starter action includes skills and dependent links in dependency order, not the 65 legacy concept-hierarchy assertions or other corpus tags.</p>
+          {data?.starter_warning && <Callout tone="warning" role="status" className="mb-3">{data.starter_warning}</Callout>}
+          <label htmlFor="bulk-note" className="form-label">Bulk review rationale (10-2,000 characters)</label>
+          <textarea id="bulk-note" className="form-control mb-3" rows={2} maxLength={2000} value={bulkNote} disabled={busy}
+            onChange={event => setBulkNote(event.target.value)} />
+          <label className="form-check mb-3">
+            <input className="form-check-input" type="checkbox" checked={bulkConfirmed} disabled={busy}
+              onChange={event => setBulkConfirmed(event.target.checked)} />
+            <span className="form-check-label">I authorize the displayed bulk scope and have reviewed the evidence appropriate to my decision.</span>
+          </label>
+          <div className="d-flex flex-wrap gap-2">
+            <button className="btn btn-success" onClick={() => bulkReview("REVIEWED")}
+              disabled={busy || !checked.length || !bulkConfirmed || bulkNote.trim().length < 10}>Approve selected ({checked.length})</button>
+            <button className="btn btn-outline-danger" onClick={() => bulkReview("REJECTED")}
+              disabled={busy || !checked.length || !bulkConfirmed || bulkNote.trim().length < 10}>Reject selected ({checked.length})</button>
+            <button className="btn btn-outline-primary" onClick={() => bulkReview("REVIEWED", true)}
+              disabled={busy || !data?.starter_pending || !bulkConfirmed || bulkNote.trim().length < 10}>
+              Approve pending starter set ({data?.starter_pending ?? 0})
+            </button>
+          </div>
+          <p className="small text-secondary mt-2 mb-0">Each affected assertion gets its own immutable before/after audit event. Nothing is published automatically.</p>
+        </div>
+      </section>
+      <section className="card border-0 shadow-sm mb-4">
+        <div className="card-body">
+          <h2 className="h5">Graph publication</h2>
+          {data ? <>
+            <p className={data.needs_publish ? "text-warning-emphasis" : "text-success"}>
+              {data.needs_publish ? "Postgres metadata needs publication or has no recorded admin publication." : "Postgres matches the last recorded admin publication."}
+            </p>
+            <p className="small text-secondary">Until publish succeeds, tutoring uses the previous Neo4j snapshot. A rejected assertion can remain active there until you publish. Other server instances may cache graph views for up to five minutes.</p>
+            <p className="small">Last recorded publication: {data.last_publication?.published_at || "None"}.
+              {" "}Publisher identity is the shared admin credential, not a named individual.</p>
+            <label className="form-check mb-3">
+              <input className="form-check-input" type="checkbox" checked={publishConfirm} disabled={busy}
+                onChange={event => setPublishConfirm(event.target.checked)} />
+              <span className="form-check-label">I intend to publish the current Postgres review decisions to Neo4j.</span>
+            </label>
+            <button className="btn btn-primary" onClick={publish} disabled={!publishConfirm || busy}>
+              {busy ? "Working..." : "Publish metadata to graph"}
+            </button>
+          </> : <p>Load the review queue to check publication status.</p>}
+        </div>
+      </section>
+      <div className="row g-4">
+        <section className="col-12 col-xl-5">
+          <div className="card border-0 shadow-sm">
+            <div className="card-body">
+              <h2 className="h5">Review queue</h2>
+              <Callout tone="insight" className="mb-3">
+                Automatic approvals are usable immediately but are not human verification. Admin edits and rejections are protected from automated replacement.
+              </Callout>
+              <label className="form-label" htmlFor="reclassify-code">Regenerate teaching metadata</label>
+              <input id="reclassify-code" className="form-control mb-2" value={reclassifyCode}
+                onChange={event => setReclassifyCode(event.target.value)} placeholder="AIME_1983_Q01" disabled={busy} />
+              <button className="btn btn-primary mb-3" disabled={busy || !reclassifyCode.trim()}
+                onClick={() => correctMetadata("reclassify")}>Reclassify automatically</button>
+              <div className="row g-2 mb-3">
+                <div className="col-sm-7">
+                  <label htmlFor="metadata-kind" className="form-label">Metadata type</label>
+                  <select id="metadata-kind" className="form-select" value={kind} disabled={busy}
+                    onChange={event => { setKind(event.target.value); setOffset(0); }}>
+                    {KINDS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </div>
+                <div className="col-sm-5">
+                  <label htmlFor="review-status" className="form-label">Review status</label>
+                  <select id="review-status" className="form-select" value={status} disabled={busy}
+                    onChange={event => { setStatus(event.target.value); setOffset(0); }}>
+                    {["PENDING", "REVIEWED", "REJECTED", "ALL"].map(value => <option key={value}>{value}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="mb-3">
+                <IconButton icon="arrow-clockwise" label="Reload queue" variant="outline-secondary" size="sm"
+                  disabled={busy} onClick={() => setReload(value => value + 1)} />
+              </div>
+              {data && <p className="small text-secondary">
+                This type: {data.counts[kind]?.PENDING || 0} pending · {data.counts[kind]?.REVIEWED || 0} approved (human or automatic) · {data.counts[kind]?.REJECTED || 0} rejected
+              </p>}
+              {data && <p className="small text-secondary">
+                Corpus enrichment: {data.unenriched_problems ?? "Unknown"} questions remaining · {data.enrichment_counts?.IN_PROGRESS || 0} active · {data.enrichment_counts?.FAILED || 0} failed jobs
+              </p>}
+              {(data?.enrichment_errors || []).map(job => <Callout key={job.canonical_code} tone="warning" className="mb-3">
+                <div className="small">
+                  <strong>{job.canonical_code}</strong> · {job.attempts} attempts
+                  <p className="mb-1">{job.last_error}</p>
+                  <button className="btn btn-sm btn-outline-secondary" disabled={busy}
+                    onClick={() => setReclassifyCode(job.canonical_code)}>Select for retry</button>
+                </div>
+              </Callout>)}
+              {data && <p className="small text-secondary">
+                Relationship enrichment: {data.relationship_enrichment_counts?.COMPLETED || 0} completed · {data.relationship_enrichment_counts?.IN_PROGRESS || 0} active · {data.relationship_enrichment_counts?.FAILED || 0} failed
+              </p>}
+              {(data?.relationship_enrichment_jobs || []).map(job => <details key={`${job.entity_kind}:${job.anchor_slug}`} className="small mb-2">
+                <summary>{job.entity_kind}/{job.anchor_slug} · {job.status} · {job.edges_inserted} new edges · {job.published_at ? "published" : "not published"}</summary>
+                {job.last_error && <p className="text-danger">{job.last_error}</p>}
+                {job.evidence && <pre className="bg-body-tertiary p-2 text-wrap">{JSON.stringify(job.evidence, null, 2)}</pre>}
+              </details>)}
+              {!data && !error && <p role="status">Loading metadata...</p>}
+              {data && <label className="form-check mb-3">
+                <input className="form-check-input" type="checkbox" disabled={busy || !data.items.length}
+                  checked={data.items.length > 0 && checked.length === data.items.length}
+                  onChange={event => setChecked(event.target.checked ? data.items.map(item => JSON.stringify(item.key)) : [])} />
+                <span className="form-check-label">Select all assertions on this page</span>
+              </label>}
+              {data?.items.map(item => <div key={JSON.stringify(item.key)} className="d-flex align-items-start gap-2 mb-2">
+                <input type="checkbox" className="form-check-input mt-3 flex-shrink-0" aria-label={`Select ${item.title}`} disabled={busy}
+                  checked={checked.includes(JSON.stringify(item.key))}
+                  onChange={event => setChecked(values => event.target.checked
+                    ? [...values, JSON.stringify(item.key)] : values.filter(value => value !== JSON.stringify(item.key)))} />
+                <button type="button" disabled={busy}
+                className={`w-100 text-start btn ${selected?.revision === item.revision ? "btn-light border-primary" : "btn-light"} border mb-2 p-3`}
+                onClick={() => { setSelected(item); setError(null); }}>
+                <div className="d-flex flex-wrap justify-content-between gap-2"><strong>{item.title}</strong><Badge status={item.metadata.review_status} method={item.metadata.approval_method} /></div>
+                <span className="small text-secondary text-break">{item.metadata.source || item.metadata.assertion_source}</span>
+              </button></div>)}
+              {data && !data.items.length && <p>No assertions match this filter.</p>}
+              {data && <div className="d-flex align-items-center justify-content-between mt-3">
+                <button className="btn btn-sm btn-outline-secondary" disabled={!offset || busy} onClick={() => setOffset(value => Math.max(0, value - PAGE_SIZE))}>Previous</button>
+                <span className="small">{data.total ? offset + 1 : 0}-{Math.min(offset + PAGE_SIZE, data.total)} of {data.total}</span>
+                <button className="btn btn-sm btn-outline-secondary" disabled={offset + PAGE_SIZE >= data.total || busy} onClick={() => setOffset(value => value + PAGE_SIZE)}>Next</button>
+              </div>}
+            </div>
+          </div>
+        </section>
+        <section className="col-12 col-xl-7">
+          <div className="card border-0 shadow-sm">
+            <div className="card-body">
+              <h2 className="h5">Assertion and evidence</h2>
+              {!selected ? <p className="text-secondary">Select an assertion to inspect its objective, source, confidence, dimensions, and problem context.</p> : <>
+                <h3 className="h6 fw-bold">{selected.title}</h3>
+                <Badge status={selected.metadata.review_status} method={selected.metadata.approval_method} />
+                <div className="border rounded p-3 my-3"><MathText>{selected.context || "No context available."}</MathText></div>
+                {selected.objective && <p><strong>Skill objective:</strong> {selected.objective}</p>}
+                {selected.problem_code && <div className="mb-3">
+                  <button className="btn btn-sm btn-outline-secondary" disabled={busy}
+                    onClick={() => setShowSolutionEvidence(value => !value)}>
+                    {showSolutionEvidence ? "Hide solution evidence" : "Load official answer and solutions for review"}
+                  </button>
+                  {showSolutionEvidence && <div className="mt-3"><ProblemDetail code={selected.problem_code} /></div>}
+                </div>}
+                <dl className="row small">
+                  {Object.entries(selected.metadata).map(([field, value]) => <div className="col-12 mb-2" key={field}>
+                    <dt>{field}</dt><dd className="text-break mb-0">{value === null ? "Not assessed" : String(value)}</dd>
+                  </div>)}
+                </dl>
+                <label className="form-label" htmlFor="metadata-edit">Correct attributes (JSON)</label>
+                <textarea id="metadata-edit" className="form-control font-monospace mb-2" rows={8}
+                  value={editJson} onChange={event => setEditJson(event.target.value)} disabled={busy} />
+                <button className="btn btn-outline-primary mb-3" disabled={busy || note.trim().length < 10}
+                  onClick={() => correctMetadata("edit")}>Save protected admin correction</button>
+                <label htmlFor="review-note" className="form-label">Review rationale (required, 10-2,000 characters)</label>
+                <textarea id="review-note" className="form-control mb-3" rows={3} maxLength={2000}
+                  disabled={busy} value={note} onChange={event => setNote(event.target.value)} />
+                <label className="form-check mb-3">
+                  <input className="form-check-input" type="checkbox" checked={attested} disabled={busy}
+                    onChange={event => setAttested(event.target.checked)} />
+                  <span className="form-check-label">I reviewed this assertion and its source/context for pedagogical correctness.</span>
+                </label>
+                <div className="d-flex flex-wrap gap-2">
+                  <button className="btn btn-success" onClick={() => review("REVIEWED")}
+                    disabled={busy || !attested || note.trim().length < 10 || selected.metadata.review_status === "REVIEWED"}>Approve assertion</button>
+                  <button className="btn btn-outline-danger" onClick={() => review("REJECTED")}
+                    disabled={busy || note.trim().length < 10 || selected.metadata.review_status === "REJECTED"}>Reject assertion</button>
+                  <button className="btn btn-outline-secondary" onClick={() => review("PENDING")}
+                    disabled={busy || note.trim().length < 10 || selected.metadata.review_status === "PENDING"}>Return to pending</button>
+                </div>
+                <p className="small text-secondary mt-3">The decision and before/after snapshots are stored in Postgres. Concurrent changes require reloading; prerequisite and hierarchy cycles are rejected.</p>
+                <h3 className="h6 mt-4">Review history</h3>
+                {historyError && <p role="alert" className="text-danger">{historyError}</p>}
+                {!history && !historyError && <p>Loading history...</p>}
+                {history?.length === 0 && <p className="small text-secondary">No recorded admin decisions yet.</p>}
+                {history?.map(event => <div key={event.review_event_id} className="border rounded p-3 mb-2 small">
+                  <p className="mb-1">{event.before_snapshot.review_status} → {event.after_snapshot.review_status} · {event.reviewed_at}</p>
+                  <p className="mb-1 text-break">{event.review_note}</p>
+                  <span className="text-secondary">{event.reviewer}</span>
+                </div>)}
+              </>}
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}

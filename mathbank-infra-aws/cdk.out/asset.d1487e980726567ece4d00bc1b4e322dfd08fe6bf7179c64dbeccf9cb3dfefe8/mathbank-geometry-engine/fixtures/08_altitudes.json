@@ -1,0 +1,20 @@
+{
+  "case_id":"08_altitudes",
+  "initial":{
+    "problem_text":"In triangle ABC construct two altitudes, then their intersection.",
+    "objects":{"A":{},"B":{},"C":{}},
+    "positions":{"A":[230,80],"B":[100,340],"C":[510,300]},
+    "relations":[{"id":"abc","type":"TRIANGLE","args":["A","B","C"],"status":"GIVEN"}]
+  },
+  "expected":[
+    {"entities":["triangle_ABC"],"absent":["point_Ha","point_Hb","point_H"]},
+    {"entities":["point_Ha","segment_AHa","right_angle_altA"],"dashed":["segment_AHa"]},
+    {"entities":["point_Hb","segment_BHb","right_angle_altB"]},
+    {"entities":["point_H"],"highlight":["point_H"],"labels":{"point_H":"H"}}
+  ],
+  "steps":[
+    {"expected_version":0,"add_objects":{"Ha":{}},"add_relations":[{"id":"altA","type":"ALTITUDE","args":["Ha","A","B","C"],"status":"ASSUMED_FOR_CONSTRUCTION"}]},
+    {"expected_version":1,"add_objects":{"Hb":{}},"add_relations":[{"id":"altB","type":"ALTITUDE","args":["Hb","B","A","C"],"status":"ASSUMED_FOR_CONSTRUCTION"}]},
+    {"expected_version":2,"add_objects":{"H":{}},"add_relations":[{"id":"cross","type":"INTERSECTION","args":["H","A","Ha","B","Hb"],"status":"ASSUMED_FOR_CONSTRUCTION"}],"visual":{"highlight":["point_H"]}}
+  ]
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "file": "00_INDEX.md",
+    "bytes": 3469,
+    "sha256": "abf51cf1c37582a18245ab55ef8e9b53887f2eb0b24149548a26d963a615f700"
+  },
+  {
+    "file": "01_FASTMCP_DECISION_ARCHITECTURE.md",
+    "bytes": 4830,
+    "sha256": "c07e58da59c4ded983b926e24023c42df7f75baf2f4efa1a16fbfe14d072b019"
+  },
+  {
+    "file": "02_APP_AND_TOOL_BOUNDARIES.md",
+    "bytes": 4251,
+    "sha256": "ca77b5fb5bb52bf81aaa16d1035e0bd08a3dcfee35ec873f4e69d91ad78f5eb2"
+  },
+  {
+    "file": "03_STUDENT_INTELLITUTOR_PREFAB_UI.md",
+    "bytes": 6151,
+    "sha256": "a5041fad62243acc083a58b73c2ff6b4e6793f94b30c7af508585b8c64fd0c8d"
+  },
+  {
+    "file": "04_MICROCOURSE_QUIZ_AND_NAVIGATION.md",
+    "bytes": 3609,
+    "sha256": "a0f96de0986632e8c7ffda5084ca0b9801593ec3e5603722c2cd7807c377ad5e"
+  },
+  {
+    "file": "05_HINTS_STEPS_ROUTES_AND_MISCONCEPTIONS.md",
+    "bytes": 3097,
+    "sha256": "c329dc3fa32fc2bb25dfd02b0747374d91eca845e1392cd3834bb2663d325d63"
+  },
+  {
+    "file": "06_PROGRESS_AND_ANALYTICS_UI.md",
+    "bytes": 4777,
+    "sha256": "b94037f22defa6a3839f5ff3f9c9a339743cbe51119dc9cf75337426c2a53bf8"
+  },
+  {
+    "file": "07_AGENTIC_ORCHESTRATION.md",
+    "bytes": 4869,
+    "sha256": "af6802253023e0cfac40b3d5d6c9d7fbe43c95e474c5816e6917c6ce2eaf8fb2"
+  },
+  {
+    "file": "08_GENERATIVE_UI_POLICY.md",
+    "bytes": 3300,
+    "sha256": "0e74060c702b3f65b62f1fa12ca085c43daaa0ef0e20f51405c6913a8eddb470"
+  },
+  {
+    "file": "09_CUSTOM_HTML_ADVANCED_MATH_UI.md",
+    "bytes": 3844,
+    "sha256": "7b31acacbbb83b6549eacb41b105c295c1010c17dbc09a5481ee87a7c22bbdee"
+  },
+  {
+    "file": "10_ADMIN_AUTHORING_FASTMCP_APPS.md",
+    "bytes": 2931,
+    "sha256": "6f00b7497b65dc310c0e9aedb2a737bfb6398fbc1cce50dcecb03b7aecd8f716"
+  },
+  {
+    "file": "11_REAL_END_TO_END_EXAMPLES.md",
+    "bytes": 4282,
+    "sha256": "440f41405c115465a7489f8f24c72a1ba7dce72be4c2e65e70cb7ba7df5aedbf"
+  },
+  {
+    "file": "12_IMPLEMENTATION_TEST_DEPLOYMENT.md",
+    "bytes": 4054,
+    "sha256": "1dad89900aa289d65dab72fc57704d5daa014d12bd2b97208b8f3bf8aad4e71b"
+  },
+  {
+    "file": "13_SOURCE_MAP.md",
+    "bytes": 4004,
+    "sha256": "144981ba0cc0f48ba208de0a5cb63512a5800d8182ce723f3b39172c70abe837"
+  }
+]

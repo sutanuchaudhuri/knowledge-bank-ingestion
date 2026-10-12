@@ -1,0 +1,62 @@
+[
+  {
+    "section": "Core",
+    "title": "Markov chain",
+    "url": "https://en.wikipedia.org/wiki/Markov_chain",
+    "use": "Definitions, transition matrix, stationary distribution"
+  },
+  {
+    "section": "Core",
+    "title": "Discrete-time Markov chain",
+    "url": "https://en.wikipedia.org/wiki/Discrete-time_Markov_chain",
+    "use": "Formal discrete-time definition and stationary distributions"
+  },
+  {
+    "section": "Absorption",
+    "title": "Absorbing Markov chain",
+    "url": "https://en.wikipedia.org/wiki/Absorbing_Markov_chain",
+    "use": "Transient/absorbing states, Q/R block form"
+  },
+  {
+    "section": "Long-run",
+    "title": "Stationary distribution",
+    "url": "https://en.wikipedia.org/wiki/Stationary_distribution",
+    "use": "Invariant distributions and interpretation"
+  },
+  {
+    "section": "Long-run",
+    "title": "Ergodicity",
+    "url": "https://en.wikipedia.org/wiki/Ergodicity",
+    "use": "Irreducibility/ergodic perspective"
+  },
+  {
+    "section": "Random walk",
+    "title": "Random walk",
+    "url": "https://en.wikipedia.org/wiki/Random_walk",
+    "use": "Random walks as key Markov examples"
+  },
+  {
+    "section": "Prerequisite",
+    "title": "Conditional probability",
+    "url": "https://en.wikipedia.org/wiki/Conditional_probability",
+    "use": "Conditional probability"
+  },
+  {
+    "section": "Prerequisite",
+    "title": "Law of total probability",
+    "url": "https://en.wikipedia.org/wiki/Law_of_total_probability",
+    "use": "First-step decomposition foundation"
+  },
+  {
+    "section": "Prerequisite",
+    "title": "Expected value",
+    "url": "https://en.wikipedia.org/wiki/Expected_value",
+    "use": "Expected hitting-time prerequisite"
+  },
+  {
+    "section": "Matrix",
+    "title": "Stochastic matrix",
+    "url": "https://en.wikipedia.org/wiki/Stochastic_matrix",
+    "use": "Transition-matrix conventions"
+  }
+]

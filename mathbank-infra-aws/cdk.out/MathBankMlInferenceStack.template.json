@@ -1,0 +1,173 @@
+{
+ "Description": "mathbank-ml-inference on Lambda (container image) + Function URL (requirements/63)",
+ "Resources": {
+  "MlInferenceFunctionServiceRoleA02FEFCE": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankMlInferenceStack/MlInferenceFunction/ServiceRole/Resource"
+   }
+  },
+  "MlInferenceFunction5FA47FC0": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Architectures": [
+     "arm64"
+    ],
+    "Code": {
+     "ImageUri": {
+      "Fn::Sub": "848941468793.dkr.ecr.us-east-2.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-848941468793-us-east-2:78a06d1021ffffba4d31ad4b9defccae4eb86c72a00b3274ce4a2ea5eb1bc5ea"
+     }
+    },
+    "FunctionName": "mathbank-ml-inference",
+    "MemorySize": 512,
+    "PackageType": "Image",
+    "Role": {
+     "Fn::GetAtt": [
+      "MlInferenceFunctionServiceRoleA02FEFCE",
+      "Arn"
+     ]
+    },
+    "Timeout": 30
+   },
+   "DependsOn": [
+    "MlInferenceFunctionServiceRoleA02FEFCE"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "MathBankMlInferenceStack/MlInferenceFunction/Resource",
+    "aws:asset:path": "asset.78a06d1021ffffba4d31ad4b9defccae4eb86c72a00b3274ce4a2ea5eb1bc5ea",
+    "aws:asset:dockerfile-path": "Dockerfile.lambda",
+    "aws:asset:property": "Code.ImageUri"
+   }
+  },
+  "MlInferenceFunctionFunctionUrl432DBC1E": {
+   "Type": "AWS::Lambda::Url",
+   "Properties": {
+    "AuthType": "NONE",
+    "TargetFunctionArn": {
+     "Fn::GetAtt": [
+      "MlInferenceFunction5FA47FC0",
+      "Arn"
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankMlInferenceStack/MlInferenceFunction/FunctionUrl/Resource"
+   }
+  },
+  "MlInferenceFunctioninvokefunctionurlDDE125D9": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunctionUrl",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "MlInferenceFunction5FA47FC0",
+      "Arn"
+     ]
+    },
+    "FunctionUrlAuthType": "NONE",
+    "Principal": "*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankMlInferenceStack/MlInferenceFunction/invoke-function-url"
+   }
+  },
+  "MlInferenceFunctioninvokefunctionDE9F10CB": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "MlInferenceFunction5FA47FC0",
+      "Arn"
+     ]
+    },
+    "InvokedViaFunctionUrl": true,
+    "Principal": "*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankMlInferenceStack/MlInferenceFunction/invoke-function"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/02OywrCMBBFv8V9Omq7EJc+EFxZKq5LmsY6tklKJkFK6b+b+MLVvZwzXCaFdJXBYsYflIi6TTqsYDw7LloWUDl2XFU1h3FvRCvtUfFGHrwWDo1mu6v+9W+52C7yT+TSKiQKfGLIFYyF6WQUMScmhS05kXQEf/ubSKKDQvaG0Bk7bDmF+5cJzzWom7hy8q73bmL54G5GzzNYZrCe3QkxsV47VBKKdz4B2OhRjucAAAA="
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankMlInferenceStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "MlInferenceFunctionUrl": {
+   "Value": {
+    "Fn::GetAtt": [
+     "MlInferenceFunctionFunctionUrl432DBC1E",
+     "FunctionUrl"
+    ]
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

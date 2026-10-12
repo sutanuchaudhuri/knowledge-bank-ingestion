@@ -1,0 +1,43 @@
+schema_version: 1
+
+# ── Google Sheets ────────────────────────────────────────────────────────────
+# Set spreadsheet_id via the MATHBANK_SPREADSHEET_ID env var or override here.
+spreadsheet_id: ""
+
+sheets:
+  parsing_batch_queue: "Parsing Batch Queue"
+  paper_registry:      "Paper Registry"
+  question_index:      "Question Index"
+  taxonomy_map:        "Question Taxonomy Map"
+  technique_map:       "Question Technique Map"
+  visual_evidence:     "Question Visual Evidence"
+  canonical_taxonomy:  "Canonical Topic Hierarchy"
+  technique_catalog:   "Technique Catalog"
+  course_registry:     "Course Registry"
+
+# ── Google Drive ─────────────────────────────────────────────────────────────
+drive:
+  root_folder_id:           ""
+  corpus_features_folder_id: ""
+
+# ── Firestore ────────────────────────────────────────────────────────────────
+firestore:
+  project:  ""          # set to your GCP project ID
+  database: "(default)"
+
+# ── Local paths ──────────────────────────────────────────────────────────────
+local:
+  data_root:    "data"
+  batches_root: "batches"
+  logs_root:    "logs"
+
+# ── Pipeline behaviour ───────────────────────────────────────────────────────
+batch_size: 10
+request_timeout_seconds: 45
+max_download_retries: 4
+user_agent: "MathBank/0.1 (+educational archive ingestion)"
+
+sync:
+  confidence_required: ["high", "medium"]
+  require_drive_receipt: true
+  skip_complete: true

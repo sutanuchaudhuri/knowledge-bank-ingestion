@@ -1,0 +1,41 @@
+{
+  "version": "54.0.0",
+  "files": {
+    "3afb59b9570f893c76d3f0eb9d27cb5ac1302672051ce26a3b863d84655441e3": {
+      "displayName": "MathBankManimStudioStack Template",
+      "source": {
+        "path": "MathBankManimStudioStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "848941468793-us-east-2-bd8406a2": {
+          "bucketName": "cdk-hnb659fds-assets-848941468793-us-east-2",
+          "objectKey": "3afb59b9570f893c76d3f0eb9d27cb5ac1302672051ce26a3b863d84655441e3.json",
+          "region": "us-east-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-file-publishing-role-848941468793-us-east-2"
+        }
+      }
+    }
+  },
+  "dockerImages": {
+    "10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e": {
+      "displayName": "ManimStudioApiFunction/AssetImage",
+      "source": {
+        "directory": "asset.10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e",
+        "dockerBuildContexts": {
+          "mcp_competitions": "/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-mcp-competitions"
+        },
+        "dockerFile": "Dockerfile.lambda",
+        "platform": "linux/arm64"
+      },
+      "destinations": {
+        "848941468793-us-east-2-ca20e5b8": {
+          "repositoryName": "cdk-hnb659fds-container-assets-848941468793-us-east-2",
+          "imageTag": "10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e",
+          "region": "us-east-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-image-publishing-role-848941468793-us-east-2"
+        }
+      }
+    }
+  }
+}

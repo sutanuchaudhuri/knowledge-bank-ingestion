@@ -1,0 +1,71 @@
+{
+  "quiz_id": "QUIZ-HPOLY",
+  "module": "Higher Polynomial",
+  "questions": [
+    {
+      "id": "H1",
+      "type": "single_select",
+      "prompt": "For a monic polynomial, what is the relation between p1=sum r_i and e1?",
+      "options": [
+        "p1=e1",
+        "p1=-e1",
+        "p1=e1^2",
+        "p1=e2"
+      ],
+      "answer": 0,
+      "explanation": "The first power sum and first elementary symmetric sum are both the sum of roots."
+    },
+    {
+      "id": "H2",
+      "type": "single_select",
+      "prompt": "Which identity expresses p2 in terms of e1,e2?",
+      "options": [
+        "p2=e1 p1-2e2",
+        "p2=e1+2e2",
+        "p2=e2 p1",
+        "p2=e1 p1+2e2"
+      ],
+      "answer": 0,
+      "explanation": "Newton's second identity gives p2-e1p1+2e2=0."
+    },
+    {
+      "id": "H3",
+      "type": "single_select",
+      "prompt": "When only one coefficient of a huge product is needed, a good first principle is:",
+      "options": [
+        "Track only degree combinations that contribute to that coefficient",
+        "Fully expand every term",
+        "Find every root numerically",
+        "Differentiate repeatedly"
+      ],
+      "answer": 0,
+      "explanation": "Selective coefficient extraction avoids exponential algebraic expansion."
+    },
+    {
+      "id": "H4",
+      "type": "single_select",
+      "prompt": "A degree-n polynomial over C has how many roots counted with multiplicity?",
+      "options": [
+        "n",
+        "At most n-1",
+        "Exactly 2n",
+        "Only the real ones count"
+      ],
+      "answer": 0,
+      "explanation": "The fundamental theorem of algebra gives n complex roots counted with multiplicity."
+    },
+    {
+      "id": "H5",
+      "type": "single_select",
+      "prompt": "What is the main danger in replacing x by y-h in a polynomial?",
+      "options": [
+        "Assuming coefficients shift termwise instead of re-expanding/using binomial structure",
+        "The degree always doubles",
+        "All roots become zero",
+        "Vieta stops applying"
+      ],
+      "answer": 0,
+      "explanation": "Translation mixes coefficients; it must be handled through substitution/binomial expansion or root translation."
+    }
+  ]
+}

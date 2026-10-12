@@ -1,0 +1,31 @@
+{
+  "course": {
+    "canonical_code": "MC-POLY-VIETA-FOUNDATIONS-01",
+    "status": "DRAFT"
+  },
+  "canonical_ids_to_reuse": [
+    "ALG_QUAD",
+    "ALG_POLY",
+    "ALG_VIETA",
+    "VIETA_SUM",
+    "VIETA_PRODUCT",
+    "VIETA_SYMSUM",
+    "VIETA_CONSTRUCT",
+    "VIETA_RECIP",
+    "VIETA_POWER",
+    "VIETA_JUMP",
+    "VIETA_DIRECT"
+  ],
+  "do_not_create_implicitly": [
+    "ALG_CUBIC",
+    "ALG_QUARTIC",
+    "ALG_BIQUADRATIC"
+  ],
+  "publication_blockers": [
+    "map local module/state rows to actual Postgres canonical UUIDs",
+    "import and approve actual YouTube transcripts for interactive video Q&A",
+    "approve quizzes as learning_item/activity rows",
+    "register HTML/SVG/Manim assets in visual.asset",
+    "review misconception canonical rows"
+  ]
+}

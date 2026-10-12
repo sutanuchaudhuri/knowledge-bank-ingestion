@@ -1,0 +1,32 @@
+{
+  "interaction_instance_id": "INT-MARKOV-MATRIX-01",
+  "event_type": "ANSWER_SUBMITTED",
+  "semantic_action": "SET_TRANSITION_ROW",
+  "control_key": "ROW_A",
+  "object_id": "matrix:row:A",
+  "before_state": {
+    "row": [
+      0.3,
+      0.4,
+      0.3
+    ]
+  },
+  "action_payload": {
+    "row": [
+      0.3,
+      0.4,
+      0.5
+    ]
+  },
+  "after_state": {
+    "row": [
+      0.3,
+      0.4,
+      0.5
+    ]
+  },
+  "expected_evaluation": {
+    "error_signature": "ROW_SUM_INVALID",
+    "row_sum": 1.2
+  }
+}

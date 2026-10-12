@@ -1,0 +1,163 @@
+{
+  "/MathBankAgentStack": [
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    },
+    {
+      "type": "aws:cdk:warning",
+      "data": "No cross-stack-reference strength configured, defaulting to \"strong\". We recommend you set feature flag \"@aws-cdk/core:defaultCrossStackReferences\" to \"both\", then deploy everywhere, then set it to \"weak\". Alternatively, set it to \"strong\" explicitly to lock in the current producer-protecting behavior. (See: https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk-lib/README.md#reference-strength) [ack: @aws-cdk/core:crossStackReferencesDefaultStrong]",
+      "trace": [
+        "Annotations.addMessage (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-esHGu2/node_modules/aws-cdk-lib/core/lib/annotations.js:1:3506)",
+        "Annotations.addWarningV2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-esHGu2/node_modules/aws-cdk-lib/core/lib/annotations.js:1:2194)",
+        "resolveValue (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-esHGu2/node_modules/aws-cdk-lib/core/lib/private/refs.js:1:7177)",
+        "resolveReferencesInElements (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-esHGu2/node_modules/aws-cdk-lib/core/lib/private/refs.js:1:5045)",
+        "resolveReferences (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-esHGu2/node_modules/aws-cdk-lib/core/lib/private/refs.js:1:4718)",
+        "prepareApp (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-esHGu2/node_modules/aws-cdk-lib/core/lib/private/prepare-app.js:1:1240)",
+        "synthesize (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-esHGu2/node_modules/aws-cdk-lib/core/lib/private/synthesis.js:1:2625)",
+        "App.synth (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-esHGu2/node_modules/aws-cdk-lib/core/lib/stage.js:1:5061)",
+        "App.synth (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-esHGu2/node_modules/aws-cdk-lib/core/lib/app.js:1:5126)",
+        "/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpea9bm9pa/lib/program.js:1:55604",
+        "Kernel._Kernel_ensureSync (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpea9bm9pa/lib/program.js:1:71225)",
+        "Kernel.invoke (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpea9bm9pa/lib/program.js:1:55549)",
+        "KernelHost.processRequest (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpea9bm9pa/lib/program.js:1:227972)",
+        "KernelHost.run (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpea9bm9pa/lib/program.js:1:226956)",
+        "Immediate._onImmediate (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpea9bm9pa/lib/program.js:1:227000)",
+        "process.processImmediate (node:internal/timers:505:21)"
+      ]
+    }
+  ],
+  "/MathBankAgentStack/AgentFunctionUrl": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AgentFunctionUrl"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankAgentStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankAgentStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankAgentStack/AgentFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AgentFunction4E676656"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankAgentStack/AgentFunction/invoke-function-url": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AgentFunctioninvokefunctionurl68715288"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankAgentStack/AgentFunction/invoke-function": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AgentFunctioninvokefunction437B6A14"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankAgentStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankAgentStack/AgentFunction/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AgentFunctionServiceRoleEBBA64FD"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankAgentStack/AgentFunction/FunctionUrl/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AgentFunctionFunctionUrl2977BBBC"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankAgentStack/AgentFunction/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AgentFunctionServiceRoleDefaultPolicy623FB673"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ]
+}

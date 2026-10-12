@@ -1,0 +1,50 @@
+{
+  "artifact_set": "MARKOV-LAB-V1",
+  "assets": [
+    {
+      "id": "ART-MARKOV-LAB",
+      "type": "INTERACTIVE_HTML",
+      "file": "artifacts/markov_lab.html",
+      "teaches": [
+        "PROB_MARKOV",
+        "PROB_MARKOV_MATRIX",
+        "TECH_STATE_GRAPH"
+      ]
+    },
+    {
+      "id": "DIAG-MARKOV-01",
+      "type": "SVG",
+      "file": "artifacts/diagrams/01_markov_property.svg"
+    },
+    {
+      "id": "DIAG-MARKOV-02",
+      "type": "SVG",
+      "file": "artifacts/diagrams/02_two_state_amc.svg"
+    },
+    {
+      "id": "DIAG-MARKOV-03",
+      "type": "SVG",
+      "file": "artifacts/diagrams/03_transition_matrix.svg"
+    },
+    {
+      "id": "DIAG-MARKOV-04",
+      "type": "SVG",
+      "file": "artifacts/diagrams/04_first_step_hitting.svg"
+    },
+    {
+      "id": "DIAG-MARKOV-05",
+      "type": "SVG",
+      "file": "artifacts/diagrams/05_absorbing_chain.svg"
+    },
+    {
+      "id": "DIAG-MARKOV-06",
+      "type": "SVG",
+      "file": "artifacts/diagrams/06_stationary_distribution.svg"
+    },
+    {
+      "id": "DIAG-MARKOV-07",
+      "type": "SVG",
+      "file": "artifacts/diagrams/07_competition_workflow.svg"
+    }
+  ]
+}

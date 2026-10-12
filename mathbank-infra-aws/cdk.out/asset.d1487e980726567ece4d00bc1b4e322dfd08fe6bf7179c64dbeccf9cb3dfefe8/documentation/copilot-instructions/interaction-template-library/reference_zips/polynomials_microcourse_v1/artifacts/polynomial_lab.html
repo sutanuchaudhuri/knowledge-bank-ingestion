@@ -1,0 +1,48 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Polynomial Structure Lab</title>
+<style>
+body{font-family:system-ui,Arial;margin:0;background:#f5f6f8;color:#171717}
+header{padding:18px 24px;background:#fff;border-bottom:1px solid #ddd}
+main{max-width:1050px;margin:22px auto;padding:0 16px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{padding:9px 12px;background:#fff;border:1px solid #bbb;border-radius:8px;cursor:pointer}
+.tabs button.active{font-weight:700;border-color:#222}
+.card{margin-top:14px;background:#fff;border:1px solid #ddd;border-radius:12px;padding:18px}
+.row{display:grid;grid-template-columns:170px 1fr 100px;gap:10px;align-items:center;margin:10px 0}
+input{width:100%}.formula{font:20px Georgia,serif;background:#fafafa;padding:11px;border-radius:8px;margin:10px 0}
+.metric{margin:10px 0;font-size:17px}.small{font-size:13px;color:#555}
+table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:center}
+svg{width:100%;height:280px;border:1px solid #ddd;border-radius:8px;background:white}
+</style></head>
+<body><header><h2>Polynomial Structure Lab</h2><div class="small">Deterministic pre-authored artifact</div></header>
+<main><div class="tabs" id="tabs"></div><div id="content"></div></main>
+<script>
+const names=["Vieta","Quadratic","Cubic","Biquadratic","Higher-degree"];
+let current=0; const tabs=document.getElementById("tabs"), content=document.getElementById("content");
+names.forEach((n,i)=>{let b=document.createElement("button");b.textContent=n;b.onclick=()=>{current=i;render()};tabs.appendChild(b)});
+const fmt=x=>Number(x).toFixed(4).replace(/\.?0+$/,"");
+function slider(label,min,max,step,val,id){return `<div class="row"><label>${label}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"><span id="${id}v"></span></div>`}
+function val(id){return +document.getElementById(id).value}
+function bind(ids,fn){ids.forEach(id=>document.getElementById(id).oninput=fn);fn()}
+function render(){[...tabs.children].forEach((b,i)=>b.className=i===current?"active":"");[vieta,quad,cubic,biquad,higher][current]()}
+function vieta(){
+ content.innerHTML=`<div class="card"><h3>Roots ↔ coefficients</h3>${slider("r₁",-5,5,.1,1,"v1")}${slider("r₂",-5,5,.1,2,"v2")}${slider("r₃",-5,5,.1,-3,"v3")}<div class="formula" id="poly"></div><div class="metric" id="sym"></div></div>`;
+ bind(["v1","v2","v3"],()=>{["v1","v2","v3"].forEach(id=>document.getElementById(id+"v").textContent=fmt(val(id)));let a=val("v1"),b=val("v2"),c=val("v3"),e1=a+b+c,e2=a*b+a*c+b*c,e3=a*b*c;poly.textContent=`x³ - (${fmt(e1)})x² + (${fmt(e2)})x - (${fmt(e3)})`;sym.textContent=`e₁=${fmt(e1)}, e₂=${fmt(e2)}, e₃=${fmt(e3)}`})
+}
+function quad(){
+ content.innerHTML=`<div class="card"><h3>Discriminant explorer</h3>${slider("a",.2,4,.1,1,"qa")}${slider("b",-8,8,.1,2,"qb")}${slider("c",-8,8,.1,-3,"qc")}<div class="formula">Δ=b²−4ac</div><div class="metric" id="out"></div></div>`;
+ bind(["qa","qb","qc"],()=>{["qa","qb","qc"].forEach(id=>document.getElementById(id+"v").textContent=fmt(val(id)));let a=val("qa"),b=val("qb"),c=val("qc"),d=b*b-4*a*c;let kind=d>1e-9?"two distinct real roots":Math.abs(d)<=1e-9?"one repeated real root":"two nonreal conjugate roots";out.textContent=`Δ=${fmt(d)} → ${kind}`})
+}
+function cubic(){
+ content.innerHTML=`<div class="card"><h3>Transformed cubic roots</h3>${slider("a",-4,4,.1,1,"ca")}${slider("b",-4,4,.1,2,"cb")}${slider("c",-4,4,.1,-1,"cc")}<div class="formula">new roots: a+b, b+c, c+a</div><div class="metric" id="out"></div></div>`;
+ bind(["ca","cb","cc"],()=>{["ca","cb","cc"].forEach(id=>document.getElementById(id+"v").textContent=fmt(val(id)));let a=val("ca"),b=val("cb"),c=val("cc"),r=[a+b,b+c,c+a],e1=r[0]+r[1]+r[2],e2=r[0]*r[1]+r[0]*r[2]+r[1]*r[2],e3=r[0]*r[1]*r[2];out.textContent=`new e₁=${fmt(e1)}, e₂=${fmt(e2)}, e₃=${fmt(e3)}; polynomial x³−e₁x²+e₂x−e₃`})
+}
+function biquad(){
+ content.innerHTML=`<div class="card"><h3>Biquadratic substitution y=x²</h3>${slider("A",.2,4,.1,1,"ba")}${slider("B",-10,10,.1,-5,"bb")}${slider("C",-10,10,.1,4,"bc")}<div class="formula">Ax⁴+Bx²+C=0 → Ay²+By+C=0</div><div class="metric" id="out"></div></div>`;
+ bind(["ba","bb","bc"],()=>{["ba","bb","bc"].forEach(id=>document.getElementById(id+"v").textContent=fmt(val(id)));let A=val("ba"),B=val("bb"),C=val("bc"),D=B*B-4*A*C;if(D<0){out.textContent=`y-discriminant ${fmt(D)}: no real y, hence no real x.`;return;}let y1=(-B+Math.sqrt(D))/(2*A),y2=(-B-Math.sqrt(D))/(2*A);function map(y){if(y>1e-9)return `±${fmt(Math.sqrt(y))}`;if(Math.abs(y)<=1e-9)return "0";return "no real x";}out.textContent=`y₁=${fmt(y1)} → x=${map(y1)}; y₂=${fmt(y2)} → x=${map(y2)}`})
+}
+function higher(){
+ content.innerHTML=`<div class="card"><h3>Newton identities for four roots</h3>${slider("r₁",-3,3,.1,1,"h1")}${slider("r₂",-3,3,.1,2,"h2")}${slider("r₃",-3,3,.1,-1,"h3")}${slider("r₄",-3,3,.1,.5,"h4")}<table><tr><th>Quantity</th><th>Value</th><th>Identity check</th></tr><tr><td>p₁</td><td id="p1"></td><td>p₁=e₁</td></tr><tr><td>p₂</td><td id="p2"></td><td id="id2"></td></tr><tr><td>p₃</td><td id="p3"></td><td id="id3"></td></tr></table></div>`;
+ bind(["h1","h2","h3","h4"],()=>{["h1","h2","h3","h4"].forEach(id=>document.getElementById(id+"v").textContent=fmt(val(id)));let r=["h1","h2","h3","h4"].map(val);let e1=r.reduce((s,x)=>s+x,0),e2=0,e3=0;for(let i=0;i<4;i++)for(let j=i+1;j<4;j++)e2+=r[i]*r[j];for(let i=0;i<4;i++)for(let j=i+1;j<4;j++)for(let k=j+1;k<4;k++)e3+=r[i]*r[j]*r[k];let P1=e1,P2=r.reduce((s,x)=>s+x*x,0),P3=r.reduce((s,x)=>s+x*x*x,0);p1.textContent=fmt(P1);p2.textContent=fmt(P2);p3.textContent=fmt(P3);id2.textContent=`e₁p₁−2e₂=${fmt(e1*P1-2*e2)}`;id3.textContent=`e₁p₂−e₂p₁+3e₃=${fmt(e1*P2-e2*P1+3*e3)}`})
+}
+render();
+</script></body></html>

@@ -24,6 +24,11 @@ dev = [
   "openai>=1.50",
   "psycopg[binary]>=3.1",
 ]
+# AWS Lambda-only — a Mangum ASGI-to-Lambda adapter; never installed into the local dev
+# venv (requirements/63, mirrors mathbank-rest's own `lambda` extras group).
+lambda = [
+  "mangum>=0.17",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

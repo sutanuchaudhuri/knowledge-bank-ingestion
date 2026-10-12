@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mathbank-ml-training"
+version = "0.1.0"
+description = "Offline feature/label/dataset building and model training for the IntelliTutor ML/RL platform (requirements/54-55). Scaffolded only; see README.md for status."
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.7",
+  "pydantic-settings>=2.4",
+  "sqlalchemy>=2.0",
+  "psycopg[binary]>=3.2",
+  "neo4j>=5.23",
+  "python-dotenv>=1.0",
+  "pandas>=2.2",
+  "numpy>=1.26",
+  # TODO: add scikit-learn / lightgbm / hdbscan once models/*.py grows real logic
+  # (requirements/55 §6). Deliberately not pinned yet so the scaffold install stays light.
+  "boto3>=1.35",  # for the sagemaker/ wrappers (requirements/54 §4) — not yet invoked
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "ruff>=0.4",
+  "mypy>=1.10",
+  "jupyter>=1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

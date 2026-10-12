@@ -1,0 +1,88 @@
+{
+  "policies": [
+    {
+      "policy_key": "POLICY-MARKOV-MATRIX-V1",
+      "version": 1,
+      "stages": [
+        {
+          "when": {
+            "same_error_count": 1
+          },
+          "feedback": "FB-MARKOV-ROW-SUM-NEUTRAL"
+        },
+        {
+          "when": {
+            "same_error_count": 2
+          },
+          "feedback": "FB-MARKOV-ROW-SUM-FOCUSED"
+        },
+        {
+          "when": {
+            "same_error_count_gte": 3
+          },
+          "action": "ASK_DIAGNOSTIC",
+          "item": "LI-MARKOV-ROW-SUM-PROBE-01"
+        },
+        {
+          "when": {
+            "misconception_confidence_gte": 0.8
+          },
+          "action": "START_INTERVENTION",
+          "intervention": "INT-MARKOV-ROW-SUM-01"
+        }
+      ]
+    },
+    {
+      "policy_key": "POLICY-VIETA-COEFFICIENTS-V1",
+      "version": 1,
+      "stages": [
+        {
+          "when": {
+            "same_error_count": 1
+          },
+          "feedback": "FB-VIETA-SIGN-NEUTRAL"
+        },
+        {
+          "when": {
+            "same_error_count": 2
+          },
+          "action": "ASK_DIAGNOSTIC",
+          "item": "LI-VIETA-SIGN-PROBE-01"
+        },
+        {
+          "when": {
+            "misconception_confidence_gte": 0.8
+          },
+          "action": "START_INTERVENTION",
+          "intervention": "INT-VIETA-SIGN-01"
+        }
+      ]
+    },
+    {
+      "policy_key": "POLICY-JENSEN-CONVEXITY-V1",
+      "version": 1,
+      "stages": [
+        {
+          "when": {
+            "same_error_count": 1
+          },
+          "feedback": "FB-JENSEN-DIRECTION-NEUTRAL"
+        },
+        {
+          "when": {
+            "same_error_count": 2
+          },
+          "action": "ASK_DIAGNOSTIC",
+          "item": "LI-JENSEN-DIRECTION-PROBE-01"
+        },
+        {
+          "when": {
+            "misconception_confidence_gte": 0.8
+          },
+          "action": "START_INTERVENTION",
+          "intervention": "INT-JENSEN-CONVEX-CHORD-01"
+        }
+      ]
+    }
+  ]
+}

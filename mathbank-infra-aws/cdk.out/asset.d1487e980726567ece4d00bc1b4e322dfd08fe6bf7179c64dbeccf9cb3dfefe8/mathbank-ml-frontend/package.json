@@ -1,0 +1,16 @@
+{
+  "name": "mathbank-ml-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ML-ops / admin-analyst dashboard for the IntelliTutor ML/RL platform (requirements/54, 56). Separate audience from mathbank-web's students/course-admins. Scaffolded only — see README.md.",
+  "scripts": {
+    "dev": "next dev -p 5175",
+    "build": "next build",
+    "start": "next start -p 5175"
+  },
+  "dependencies": {
+    "next": "^16.3.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "case_id":"05_circumcenter_chain",
+  "initial":{
+    "problem_text":"Given convex ABCD, A1,B1,C1,D1 are circumcenters of BCD,CDA,DAB,ABC respectively.",
+    "objects":{"A":{},"B":{},"C":{},"D":{},"A1":{},"B1":{},"C1":{},"D1":{}},
+    "positions":{"A":[100,100],"B":[460,90],"C":[510,360],"D":[150,310]},
+    "relations":[
+      {"id":"quad","type":"QUADRILATERAL","args":["A","B","C","D"],"status":"GIVEN"},
+      {"id":"def_A1","type":"CIRCUMCENTER","args":["A1","B","C","D"],"status":"GIVEN"},
+      {"id":"def_B1","type":"CIRCUMCENTER","args":["B1","C","D","A"],"status":"GIVEN"},
+      {"id":"def_C1","type":"CIRCUMCENTER","args":["C1","D","A","B"],"status":"GIVEN"},
+      {"id":"def_D1","type":"CIRCUMCENTER","args":["D1","A","B","C"],"status":"GIVEN"}
+    ],
+    "deferred_relations":["def_A1","def_B1","def_C1","def_D1"]
+  },
+  "expected":[
+    {"entities":["quadrilateral_ABCD"],"absent":["point_A1","triangle_BCD","point_B1"]},
+    {"entities":["quadrilateral_ABCD","triangle_BCD","point_A1"],"absent":["point_B1"],"highlight":["triangle_BCD","point_A1"]},
+    {"entities":["triangle_BCD","triangle_CDA","point_A1","point_B1"],"absent":["point_C1"]},
+    {"entities":["point_A1","point_B1","point_C1","point_D1","quadrilateral_ABCD"]},
+    {"highlight":["segment_CD","point_A1","point_B1"],"absent":["segment_A1B1","mark_similar"]}
+  ],
+  "steps":[
+    {"expected_version":0,"instruction_text":"UNDERSTAND_DEFINITION_OF_A1","activate_relations":["def_A1"],"ensure_entities":["triangle_BCD","point_A1"],"visual":{"highlight":["triangle_BCD","point_A1"]}},
+    {"expected_version":1,"activate_relations":["def_B1"],"visual":{"highlight":["triangle_CDA","point_B1"],"dim":["triangle_BCD"]}},
+    {"expected_version":2,"activate_relations":["def_C1","def_D1"],"visual":{"highlight":["point_C1","point_D1"]}},
+    {"expected_version":3,"visual":{"highlight":["segment_CD","point_A1","point_B1"],"caption":"Both definitions use side CD; no new relation is asserted."}}
+  ]
+}

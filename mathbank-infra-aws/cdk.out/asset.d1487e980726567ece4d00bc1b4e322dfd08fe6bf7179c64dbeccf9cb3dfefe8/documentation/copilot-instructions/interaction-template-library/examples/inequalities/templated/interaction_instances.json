@@ -1,0 +1,181 @@
+{
+  "library": "INEQUALITY_TEMPLATE_EXAMPLES_V1",
+  "instances": [
+    {
+      "canonical_code": "INT-AMGM-GAP-01",
+      "template_key": "SLIDER_COMPARE_V1",
+      "template_version": 1,
+      "learning_objective": "Observe AM >= GM and equality at a=b.",
+      "controls": {
+        "a": {
+          "control": "POSITIVE_REAL_SLIDER",
+          "min": 0.1,
+          "max": 12,
+          "step": 0.1,
+          "initial": 3
+        },
+        "b": {
+          "control": "POSITIVE_REAL_SLIDER",
+          "min": 0.1,
+          "max": 12,
+          "step": 0.1,
+          "initial": 8
+        }
+      },
+      "computed": {
+        "am": "(a+b)/2",
+        "gm": "sqrt(a*b)",
+        "gap": "am-gm"
+      },
+      "semantic_bindings": {
+        "technique_ids": [
+          "MAP_EXISTING_AM_GM_ID"
+        ],
+        "misconception_ids": [
+          "MIS-AMGM-02"
+        ]
+      },
+      "success_criteria": {
+        "explore_equality": true
+      },
+      "feedback_policy": "POLICY-AMGM-EXPLORE-V1"
+    },
+    {
+      "canonical_code": "INT-WAMGM-01",
+      "template_key": "SLIDER_COMPARE_V1",
+      "template_version": 1,
+      "learning_objective": "Connect normalized arithmetic weights to geometric exponents.",
+      "controls": {
+        "x": {
+          "control": "POSITIVE_REAL_SLIDER",
+          "min": 0.1,
+          "max": 12,
+          "step": 0.1,
+          "initial": 2
+        },
+        "y": {
+          "control": "POSITIVE_REAL_SLIDER",
+          "min": 0.1,
+          "max": 12,
+          "step": 0.1,
+          "initial": 9
+        },
+        "lambda": {
+          "control": "PROBABILITY_SLIDER",
+          "initial": 0.67
+        }
+      },
+      "computed": {
+        "wam": "lambda*x+(1-lambda)*y",
+        "wgm": "x^lambda*y^(1-lambda)"
+      },
+      "semantic_bindings": {
+        "technique_ids": [
+          "MAP_EXISTING_WEIGHTED_AM_GM_ID"
+        ],
+        "misconception_ids": [
+          "MIS-WAMGM-01",
+          "MIS-WAMGM-02"
+        ]
+      },
+      "success_criteria": {
+        "weights_normalized": true
+      },
+      "feedback_policy": "POLICY-WAMGM-V1"
+    },
+    {
+      "canonical_code": "INT-CAUCHY-VECTOR-01",
+      "template_key": "VECTOR_EXPLORER_V1",
+      "template_version": 1,
+      "learning_objective": "See (u\u00b7v)^2 <= ||u||^2||v||^2 and equality under proportionality.",
+      "semantic_bindings": {
+        "technique_ids": [
+          "MAP_EXISTING_CAUCHY_ID"
+        ],
+        "misconception_ids": [
+          "MIS-CS-02"
+        ]
+      },
+      "success_criteria": {
+        "recognizes_proportional_equality": true
+      },
+      "feedback_policy": "POLICY-CAUCHY-VECTOR-V1"
+    },
+    {
+      "canonical_code": "INT-JENSEN-CHORD-01",
+      "template_key": "FUNCTION_GRAPH_EXPLORER_V1",
+      "template_version": 1,
+      "learning_objective": "Connect convexity to Jensen direction.",
+      "controls": {
+        "x1": {
+          "control": "REAL_SLIDER",
+          "min": -4,
+          "max": 4,
+          "step": 0.1,
+          "initial": -2
+        },
+        "x2": {
+          "control": "REAL_SLIDER",
+          "min": -4,
+          "max": 4,
+          "step": 0.1,
+          "initial": 3
+        },
+        "lambda": {
+          "control": "PROBABILITY_SLIDER",
+          "initial": 0.4
+        }
+      },
+      "function": {
+        "expression": "x^2",
+        "convexity": "CONVEX"
+      },
+      "semantic_bindings": {
+        "technique_ids": [
+          "MAP_EXISTING_JENSEN_ID"
+        ],
+        "misconception_ids": [
+          "MIS-JENSEN-01",
+          "MIS-JENSEN-02"
+        ]
+      },
+      "success_criteria": {
+        "direction": "f(weighted_x)<=weighted_f"
+      },
+      "feedback_policy": "POLICY-JENSEN-CONVEXITY-V1",
+      "scene_spec": "SCENE-JENSEN-CONVEX-CHORD-01"
+    },
+    {
+      "canonical_code": "INT-MUIRHEAD-MAJ-01",
+      "template_key": "MAJORIZATION_EXPLORER_V1",
+      "template_version": 1,
+      "learning_objective": "Compare sorted exponent partial sums before invoking Muirhead.",
+      "instance_config": {
+        "alpha": [
+          4,
+          0,
+          0
+        ],
+        "beta": [
+          2,
+          1,
+          1
+        ]
+      },
+      "semantic_bindings": {
+        "technique_ids": [
+          "MAP_EXISTING_MUIRHEAD_ID"
+        ],
+        "misconception_ids": [
+          "MIS-MUIR-01",
+          "MIS-MUIR-02",
+          "MIS-MUIR-04"
+        ]
+      },
+      "success_criteria": {
+        "majorization_verified": true
+      },
+      "feedback_policy": "POLICY-MUIRHEAD-V1"
+    }
+  ]
+}

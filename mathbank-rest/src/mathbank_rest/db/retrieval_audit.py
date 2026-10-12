@@ -8,8 +8,14 @@ from pathlib import Path
 from sqlalchemy import text
 
 AUDIT_VERSION = "topic-audit-v1"
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "mathbank-scripts"))
-from power_geometry_evidence import POWER, power_structure
+try:
+    # Local dev/test (editable, monorepo-checkout install): the real sibling source.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "mathbank-scripts"))
+    from power_geometry_evidence import POWER, power_structure
+except ImportError:
+    # Installed/Lambda deployment (requirements/63): the sibling directory does not
+    # exist at this path depth — fall back to the vendored copy bundled in the package.
+    from mathbank_rest._vendor.power_geometry_evidence import POWER, power_structure
 
 
 def audit_problem(conn, code: str, topic: str, node: dict | None) -> dict:

@@ -1,0 +1,37 @@
+-- COPILOT SKELETON ONLY
+-- Do not run directly.
+-- Copilot must inspect the current highest migration number and current DDL first.
+--
+-- Intended work:
+--
+-- 1. knowledge.misconception
+-- 2. pedagogy.micro_course
+-- 3. pedagogy.micro_course_target
+-- 4. pedagogy.micro_course_release
+-- 5. pedagogy.micro_course_module
+-- 6. pedagogy.micro_course_state
+-- 7. state -> concept/technique/skill/misconception binding tables
+-- 8. backwards-compatible visual.asset extensions if required
+-- 9. pedagogy.micro_course_state_asset
+-- 10. pedagogy.video_asset
+-- 11. pedagogy.video_transcript
+-- 12. pedagogy.video_transcript_segment
+-- 13. segment semantic binding tables
+-- 14. pedagogy.video_timeline_marker
+-- 15. pedagogy.state_qa_context
+-- 16. pedagogy.micro_course_state_learning_item
+-- 17. pedagogy.micro_course_state_activity
+-- 18. pedagogy.micro_course_transition
+-- 19. pedagogy.intervention_script
+-- 20. pedagogy.intervention_step
+-- 21. pedagogy.micro_course_review
+-- 22. learner.micro_course_enrollment
+-- 23. learner.micro_course_state_event
+-- 24. tutor.micro_course_runtime
+-- 25. pipeline.projection_request CHECK vocabulary extensions
+-- 26. immutable publication guard functions/triggers
+-- 27. indexes/comments
+--
+-- IMPORTANT:
+-- Postgres is canonical.
+-- Neo4j is projected asynchronously.

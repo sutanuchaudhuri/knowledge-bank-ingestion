@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MathBank SceneSpec",
+  "type": "object",
+  "required": [
+    "scene_key",
+    "scene_version",
+    "objects",
+    "timeline"
+  ],
+  "properties": {
+    "scene_key": {
+      "type": "string"
+    },
+    "scene_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "canvas": {
+      "type": "object"
+    },
+    "objects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "semantic_tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "at_ms",
+          "action"
+        ],
+        "properties": {
+          "at_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "action": {
+            "type": "string"
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "semantic_event": {
+            "type": "string"
+          },
+          "narration_segment_id": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

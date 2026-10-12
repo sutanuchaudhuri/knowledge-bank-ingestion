@@ -1,0 +1,23 @@
+# Lambda container image for mathbank-rest (requirements/62 §4, requirements/63).
+# Build context MUST be the repo root (not mathbank-rest/), so this Dockerfile can also
+# reach the sibling mathbank-geometry-engine dependency:
+#   docker build --platform linux/arm64 -f mathbank-rest/Dockerfile.lambda -t mathbank-rest-lambda .
+#
+# arm64 (Graviton2) chosen for lower Lambda GB-second pricing (requirements/62 §4.2) and
+# to match this dev machine's native architecture (no QEMU emulation needed to build).
+FROM public.ecr.aws/lambda/python:3.11
+
+# The local, editable-in-dev sibling package — installed as a normal (non-editable)
+# package here, since the container is immutable at runtime. --only-binary=:all: forces
+# wheel-only resolution (no C compiler in this base image) — confirmed necessary: an
+# unconstrained install pulled a numpy version with no prebuilt wheel for this image and
+# tried (and failed) to compile it from source.
+COPY mathbank-geometry-engine /tmp/mathbank-geometry-engine
+RUN pip install --no-cache-dir --only-binary=:all: /tmp/mathbank-geometry-engine && rm -rf /tmp/mathbank-geometry-engine
+
+# mathbank-rest itself, with the Lambda-only `mangum` extra (pyproject.toml). Never
+# installed into the local dev venv — see pyproject.toml's comment on that extra.
+COPY mathbank-rest /tmp/mathbank-rest
+RUN pip install --no-cache-dir --only-binary=:all: "/tmp/mathbank-rest[lambda]" && rm -rf /tmp/mathbank-rest
+
+CMD ["mathbank_rest.lambda_handler.handler"]

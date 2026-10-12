@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Feedback Policy",
+  "type": "object",
+  "required": [
+    "policy_key",
+    "version",
+    "stages"
+  ],
+  "properties": {
+    "policy_key": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "when"
+        ],
+        "properties": {
+          "when": {
+            "type": "object"
+          },
+          "feedback": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "item": {
+            "type": "string"
+          },
+          "intervention": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

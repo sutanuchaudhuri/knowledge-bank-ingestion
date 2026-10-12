@@ -1,0 +1,169 @@
+{
+  "quiz_id": "QUIZ-MARKOV-INTERMEDIATE",
+  "phase": "INTERMEDIATE",
+  "title": "Three Checkpoints",
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "after": "State modeling and Markov property",
+      "questions": [
+        {
+          "id": "I1",
+          "prompt": "What information should a Markov state contain?",
+          "options": [
+            "Exactly enough information to determine next-step probabilities",
+            "The entire history always",
+            "Only the previous random number",
+            "As little information as possible even if future probabilities change"
+          ],
+          "answer": 0,
+          "explanation": "A state must be sufficient: enough history to make the next-step law depend only on the state."
+        },
+        {
+          "id": "I2",
+          "prompt": "In the 2019 AMC money game, why can permutations of (2,1,0) be grouped?",
+          "options": [
+            "Player labels do not change future transition behavior for the target",
+            "Because all permutations are equally likely at every time",
+            "Because 2+1+0=3",
+            "Because the chain is absorbing"
+          ],
+          "answer": 0,
+          "explanation": "The target and rules are symmetric under relabeling, so the permutations are behaviorally equivalent."
+        },
+        {
+          "id": "I3",
+          "prompt": "Every transition-matrix row must:",
+          "options": [
+            "Sum to 1",
+            "Sum to 0",
+            "Have a diagonal 1",
+            "Be identical"
+          ],
+          "answer": 0,
+          "explanation": "A row lists the full conditional distribution of the next state from one current state."
+        },
+        {
+          "id": "I4",
+          "prompt": "If \u03bc0 is a row distribution, the distribution after n steps is:",
+          "options": [
+            "\u03bc0 P^n",
+            "P^n \u03bc0",
+            "\u03bc0+nP",
+            "P elementwise to power n"
+          ],
+          "answer": 0,
+          "explanation": "Under the course's row-vector convention, \u03bc_(n+1)=\u03bc_nP."
+        }
+      ]
+    },
+    {
+      "id": "CP2",
+      "after": "First-step recursion and absorption",
+      "questions": [
+        {
+          "id": "I5",
+          "prompt": "For success-hitting probability h_i at a transient state i:",
+          "options": [
+            "h_i=\u03a3_j P_ij h_j",
+            "h_i=1+\u03a3_j P_ij h_j",
+            "h_i=P_ii only",
+            "h_i=\u03a3_j h_j"
+          ],
+          "answer": 0,
+          "explanation": "Condition on the first next state; no +1 appears because h_i is a probability, not an expected time."
+        },
+        {
+          "id": "I6",
+          "prompt": "For expected absorption time E_i at a transient state i:",
+          "options": [
+            "E_i=1+\u03a3_j P_ij E_j",
+            "E_i=\u03a3_j P_ij E_j",
+            "E_i=P_ii",
+            "E_i=1 always"
+          ],
+          "answer": 0,
+          "explanation": "The leading 1 counts the step taken before arriving at the next state."
+        },
+        {
+          "id": "I7",
+          "prompt": "For a success absorbing state S, the boundary condition for success probability is:",
+          "options": [
+            "h_S=1",
+            "h_S=0",
+            "h_S=1/2",
+            "h_S depends on the prior path"
+          ],
+          "answer": 0,
+          "explanation": "Once already at success, eventual success has probability 1."
+        },
+        {
+          "id": "I8",
+          "prompt": "A process can disappear before reaching the target. Best model?",
+          "options": [
+            "Add a failure absorbing state with target value 0",
+            "Ignore disappearance",
+            "Renormalize every step secretly",
+            "Force it back to start"
+          ],
+          "answer": 0,
+          "explanation": "Explicit failure absorption makes total-probability equations correct and auditable."
+        }
+      ]
+    },
+    {
+      "id": "CP3",
+      "after": "Stationarity and long-run behavior",
+      "questions": [
+        {
+          "id": "I9",
+          "prompt": "A stationary row distribution \u03c0 satisfies:",
+          "options": [
+            "\u03c0P=\u03c0",
+            "P\u03c0=0",
+            "\u03c0P=0",
+            "P\u00b2=\u03c0"
+          ],
+          "answer": 0,
+          "explanation": "Stationarity means one transition leaves the distribution unchanged."
+        },
+        {
+          "id": "I10",
+          "prompt": "Does existence of a stationary distribution alone guarantee convergence to it from every start?",
+          "options": [
+            "No",
+            "Yes",
+            "Only if P has integers",
+            "Only for two states"
+          ],
+          "answer": 0,
+          "explanation": "Periodic or reducible chains can have stationary distributions without universal convergence."
+        },
+        {
+          "id": "I11",
+          "prompt": "The deterministic two-state alternation A\u2194B has stationary distribution:",
+          "options": [
+            "(1/2,1/2)",
+            "(1,0) only",
+            "No stationary distribution",
+            "(0,0)"
+          ],
+          "answer": 0,
+          "explanation": "(1/2,1/2) is invariant, even though a point-mass start oscillates."
+        },
+        {
+          "id": "I12",
+          "prompt": "Why is 2019 irrelevant in AMC 2019B #22 after one round?",
+          "options": [
+            "The post-step distribution is already invariant under the two-state transition",
+            "2019 is prime",
+            "The chain is absorbing",
+            "Every state has probability 1/2"
+          ],
+          "answer": 0,
+          "explanation": "After one step, probabilities are A=1/4 and B=3/4; applying the transition again preserves them."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+# Lambda container image for mathbank-ml-inference (requirements/62 §4, requirements/63).
+# No sibling monorepo dependency (unlike mathbank-rest's mathbank-geometry-engine), so the
+# build context is this service's own directory — simpler than the REST service's image:
+#   docker build --platform linux/arm64 -f Dockerfile.lambda -t mathbank-ml-inference-lambda .
+#
+# arm64 (Graviton2) chosen for lower Lambda GB-second pricing (requirements/62 §4.2) and
+# to match this dev machine's native architecture (no QEMU emulation needed to build).
+FROM public.ecr.aws/lambda/python:3.11
+
+# Scoped package install (never a whole-directory COPY) — the real local .env, if one
+# existed, would never enter the image this way, since setuptools only packages files
+# declared under [tool.setuptools.packages.find] (GOTCHAS.md #43). This service happens
+# to have no .env file at all (its config.py's Settings() defaults are safe to ship),
+# but the scoped-install pattern is kept for consistency/future-proofing regardless.
+COPY . /tmp/mathbank-ml-inference
+RUN pip install --no-cache-dir --only-binary=:all: "/tmp/mathbank-ml-inference[lambda]" && rm -rf /tmp/mathbank-ml-inference
+
+CMD ["mathbank_ml_inference.lambda_handler.handler"]

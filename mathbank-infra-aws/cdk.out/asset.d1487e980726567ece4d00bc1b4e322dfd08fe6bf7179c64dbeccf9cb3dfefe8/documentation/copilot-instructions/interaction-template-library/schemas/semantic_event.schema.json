@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Semantic Interaction Event",
+  "type": "object",
+  "required": [
+    "event_type",
+    "semantic_action",
+    "interaction_instance_id",
+    "action_payload"
+  ],
+  "properties": {
+    "event_type": {
+      "type": "string"
+    },
+    "semantic_action": {
+      "type": "string"
+    },
+    "interaction_instance_id": {
+      "type": "string"
+    },
+    "control_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "object_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "before_state": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "action_payload": {
+      "type": "object"
+    },
+    "after_state": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  }
+}

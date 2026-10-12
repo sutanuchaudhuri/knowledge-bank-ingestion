@@ -1,0 +1,167 @@
+{
+  "quiz_id": "QUIZ-MARKOV-PRE",
+  "phase": "PRE",
+  "title": "Prerequisite Diagnostic",
+  "questions": [
+    {
+      "id": "PRE1",
+      "type": "single_select",
+      "prompt": "If P(A)=0.6 and P(B|A)=0.5, what is P(A and B)?",
+      "options": [
+        "0.30",
+        "0.50",
+        "1.10",
+        "0.10"
+      ],
+      "answer": 0,
+      "explanation": "P(A\u2229B)=P(A)P(B|A)=0.6\u00d70.5=0.3.",
+      "maps": [
+        "PROB_COND"
+      ]
+    },
+    {
+      "id": "PRE2",
+      "type": "single_select",
+      "prompt": "Events C1,C2 partition the sample space. Which formula is correct?",
+      "options": [
+        "P(A)=P(A|C1)P(C1)+P(A|C2)P(C2)",
+        "P(A)=P(A|C1)+P(A|C2)",
+        "P(A)=P(C1)P(C2)",
+        "P(A)=1/2 always"
+      ],
+      "answer": 0,
+      "explanation": "This is the law of total probability\u2014the engine behind first-step analysis.",
+      "maps": [
+        "PROB_COND"
+      ]
+    },
+    {
+      "id": "PRE3",
+      "type": "single_select",
+      "prompt": "A fair coin gives payoff 3 on heads and 0 on tails. Expected payoff?",
+      "options": [
+        "1.5",
+        "3",
+        "0",
+        "6"
+      ],
+      "answer": 0,
+      "explanation": "E=0.5\u00b73+0.5\u00b70=1.5.",
+      "maps": [
+        "PROB_EXP"
+      ]
+    },
+    {
+      "id": "PRE4",
+      "type": "single_select",
+      "prompt": "If x=1+(1/2)x, then x equals:",
+      "options": [
+        "2",
+        "1",
+        "1/2",
+        "3"
+      ],
+      "answer": 0,
+      "explanation": "Subtract x/2 from both sides: x/2=1, so x=2.",
+      "maps": [
+        "COUNT_REC"
+      ]
+    },
+    {
+      "id": "PRE5",
+      "type": "single_select",
+      "prompt": "Which row can be a probability transition row?",
+      "options": [
+        "(0.2,0.3,0.5)",
+        "(0.3,0.3,0.5)",
+        "(-0.1,0.6,0.5)",
+        "(2,0,0)"
+      ],
+      "answer": 0,
+      "explanation": "All entries must be nonnegative and sum to 1.",
+      "maps": [
+        "PROB_BASIC"
+      ]
+    },
+    {
+      "id": "PRE6",
+      "type": "single_select",
+      "prompt": "What does matrix multiplication P\u00b2 represent for a transition matrix P?",
+      "options": [
+        "Two-step transition probabilities",
+        "Squaring each probability",
+        "Two independent copies",
+        "Only absorbing probabilities"
+      ],
+      "answer": 0,
+      "explanation": "The (i,j) entry of P\u00b2 sums over every intermediate state.",
+      "maps": [
+        "ALG_MATRIX"
+      ]
+    },
+    {
+      "id": "PRE7",
+      "type": "single_select",
+      "prompt": "If two physical configurations have identical transition behavior for every future question of interest, then:",
+      "options": [
+        "They may be merged into one state",
+        "They must always remain separate",
+        "They are independent events",
+        "Their probabilities must be 1/2"
+      ],
+      "answer": 0,
+      "explanation": "State compression merges configurations with identical future behavior.",
+      "maps": [
+        "TECH_STATE_GRAPH"
+      ]
+    },
+    {
+      "id": "PRE8",
+      "type": "single_select",
+      "prompt": "For an event that has already occurred, the probability of eventually reaching that same target is:",
+      "options": [
+        "1",
+        "0",
+        "1/2",
+        "Undefined"
+      ],
+      "answer": 0,
+      "explanation": "This becomes a boundary condition h_target=1 in a hitting-probability system.",
+      "maps": [
+        "PROB_MARKOV"
+      ]
+    },
+    {
+      "id": "PRE9",
+      "type": "single_select",
+      "prompt": "A recurrence is most useful when:",
+      "options": [
+        "A quantity at one step is expressible from earlier/neighboring states",
+        "Every path is independent forever",
+        "No state can repeat",
+        "Only geometry is involved"
+      ],
+      "answer": 0,
+      "explanation": "Markov first-step equations are recurrences over state values.",
+      "maps": [
+        "COUNT_REC"
+      ]
+    },
+    {
+      "id": "PRE10",
+      "type": "single_select",
+      "prompt": "Which is the best prerequisite action if matrix multiplication is weak?",
+      "options": [
+        "Start state-graph/recursion track first and remediate matrices before matrix-power module",
+        "Block the whole course",
+        "Skip probability",
+        "Memorize P^n formulas"
+      ],
+      "answer": 0,
+      "explanation": "Competition Markov modeling can begin without matrices; matrix work can be remediated later.",
+      "maps": [
+        "ALG_MATRIX"
+      ]
+    }
+  ]
+}

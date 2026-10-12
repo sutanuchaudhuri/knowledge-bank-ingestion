@@ -1,0 +1,57 @@
+[
+  {
+    "control_key": "REAL_SLIDER",
+    "control_type": "SLIDER",
+    "semantic": "real parameter"
+  },
+  {
+    "control_key": "POSITIVE_REAL_SLIDER",
+    "control_type": "SLIDER",
+    "semantic": "positive real parameter"
+  },
+  {
+    "control_key": "PROBABILITY_SLIDER",
+    "control_type": "SLIDER",
+    "semantic": "probability [0,1]"
+  },
+  {
+    "control_key": "INTEGER_STEPPER",
+    "control_type": "STEPPER",
+    "semantic": "integer parameter"
+  },
+  {
+    "control_key": "NUMBER_ENTRY",
+    "control_type": "NUMBER_INPUT",
+    "semantic": "numeric answer"
+  },
+  {
+    "control_key": "RADIO_OPTIONS",
+    "control_type": "RADIO",
+    "semantic": "single selection"
+  },
+  {
+    "control_key": "CHECKBOX_OPTIONS",
+    "control_type": "CHECKBOX",
+    "semantic": "multi selection"
+  },
+  {
+    "control_key": "PROBABILITY_MATRIX_CELL",
+    "control_type": "MATRIX_CELL",
+    "semantic": "transition probability"
+  },
+  {
+    "control_key": "VECTOR_HANDLE",
+    "control_type": "VECTOR_HANDLE",
+    "semantic": "vector component control"
+  },
+  {
+    "control_key": "GRAPH_POINT",
+    "control_type": "GRAPH_POINT",
+    "semantic": "graph input"
+  },
+  {
+    "control_key": "VIDEO_TIMELINE",
+    "control_type": "TIMELINE",
+    "semantic": "approved media timestamp"
+  }
+]

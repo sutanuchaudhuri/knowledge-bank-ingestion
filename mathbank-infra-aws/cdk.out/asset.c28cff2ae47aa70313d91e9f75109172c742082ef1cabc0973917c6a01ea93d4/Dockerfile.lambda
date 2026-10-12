@@ -1,0 +1,26 @@
+# Lambda container image for mathbank-agent (requirements/62 §4, requirements/63).
+# Build context is this directory itself (not the repo root — this service has no
+# sibling-package dependency, see GOTCHAS.md #44):
+#   docker build --platform linux/arm64 -f Dockerfile.lambda -t mathbank-agent-lambda .
+#
+# Unlike mathbank-rest, this is NOT pip-installed as a package (no
+# [tool.setuptools.packages.find] section in pyproject.toml — this service has always
+# run as a flat script directory, `python server.py`, not an installed package). The
+# whole directory is copied verbatim into LAMBDA_TASK_ROOT instead, preserving the exact
+# relative depth `agents/mathbank_tutor/agent.py`'s own `parents[2]` sibling-path lookup
+# already assumes — safe here specifically because nothing is being pip-installed into a
+# different site-packages depth (see GOTCHAS.md #40 for the general-case pitfall this
+# sidesteps). The local `.dockerignore` excludes `.env`/`.env.*` from this COPY —
+# load-bearing, not optional (GOTCHAS.md #43: an earlier version of this Dockerfile
+# leaked the real `.env` into a pushed image before that exclusion existed).
+FROM public.ecr.aws/lambda/python:3.11
+
+# Only the real dependency list from pyproject.toml, plus mangum — installed directly
+# (no "pip install ." here; there's nothing for setuptools to build/discover).
+RUN pip install --no-cache-dir --only-binary=:all: \
+    "google-adk[db]>=2.11" "psycopg[binary]>=3.2" "litellm>=1.50" "httpx>=0.27" \
+    "python-dotenv>=1.0" "mangum>=0.17"
+
+COPY . ${LAMBDA_TASK_ROOT}/
+
+CMD ["lambda_handler.handler"]

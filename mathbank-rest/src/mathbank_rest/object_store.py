@@ -30,6 +30,22 @@ _CONFIG_NAMES = (
     "AWS_REGION", "AWS_SESSION_TOKEN",
     "AWS_BUCKET_NAME",
 )
+# AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN are all reserved,
+# runtime-managed environment variables on AWS Lambda (confirmed live, requirements/63)
+# — Lambda always sets them to the function's *own execution role's* temporary
+# credentials/region, which is not the Neon S3-compatible storage credential this module
+# actually needs, and a Lambda deployment cannot set them to anything else. A
+# `MATHBANK_S3_*`-prefixed alias is checked first for exactly these four names (falling
+# back to the legacy bare `AWS_*` name otherwise), so a Lambda deployment can supply the
+# real storage credentials under non-colliding names while every existing local `.env`
+# keeps working completely unchanged.
+_S3_ALIASES = {
+    "AWS_ENDPOINT_URL_S3": "MATHBANK_S3_ENDPOINT_URL",
+    "AWS_ACCESS_KEY_ID": "MATHBANK_S3_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY": "MATHBANK_S3_SECRET_ACCESS_KEY",
+    "AWS_REGION": "MATHBANK_S3_REGION",
+    "AWS_SESSION_TOKEN": "MATHBANK_S3_SESSION_TOKEN",
+}
 
 
 class ObjectStoreError(OSError):
@@ -40,8 +56,16 @@ def _config() -> dict[str, str]:
     root_file = REPOSITORY_ROOT / ".env"
     # Never search cwd/service .env files or modify process variables.
     values = dotenv_values(root_file, interpolate=False) if root_file.is_file() else {}
-    config = {name: os.environ[name] if name in os.environ else str(values.get(name) or "")
-              for name in _CONFIG_NAMES}
+
+    def _lookup(name: str) -> str:
+        alias = _S3_ALIASES.get(name)
+        if alias and alias in os.environ:
+            return os.environ[alias]
+        if name in os.environ:
+            return os.environ[name]
+        return str(values.get(name) or "")
+
+    config = {name: _lookup(name) for name in _CONFIG_NAMES}
     if config["MATHBANK_OBJECT_BUCKET"] and config["AWS_BUCKET_NAME"] and (
         config["MATHBANK_OBJECT_BUCKET"] != config["AWS_BUCKET_NAME"]
     ):

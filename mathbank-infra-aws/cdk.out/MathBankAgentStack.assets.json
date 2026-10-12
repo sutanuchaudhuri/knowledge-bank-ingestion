@@ -1,0 +1,38 @@
+{
+  "version": "54.0.0",
+  "files": {
+    "917171064c1a8db0582e95b76a8d4fd900ed6a0b804c2e38a6e62a268aafc3be": {
+      "displayName": "MathBankAgentStack Template",
+      "source": {
+        "path": "MathBankAgentStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "848941468793-us-east-2-b3e7d725": {
+          "bucketName": "cdk-hnb659fds-assets-848941468793-us-east-2",
+          "objectKey": "917171064c1a8db0582e95b76a8d4fd900ed6a0b804c2e38a6e62a268aafc3be.json",
+          "region": "us-east-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-file-publishing-role-848941468793-us-east-2"
+        }
+      }
+    }
+  },
+  "dockerImages": {
+    "c28cff2ae47aa70313d91e9f75109172c742082ef1cabc0973917c6a01ea93d4": {
+      "displayName": "AgentFunction/AssetImage",
+      "source": {
+        "directory": "asset.c28cff2ae47aa70313d91e9f75109172c742082ef1cabc0973917c6a01ea93d4",
+        "dockerFile": "Dockerfile.lambda",
+        "platform": "linux/arm64"
+      },
+      "destinations": {
+        "848941468793-us-east-2-30d856ad": {
+          "repositoryName": "cdk-hnb659fds-container-assets-848941468793-us-east-2",
+          "imageTag": "c28cff2ae47aa70313d91e9f75109172c742082ef1cabc0973917c6a01ea93d4",
+          "region": "us-east-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-image-publishing-role-848941468793-us-east-2"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "case_id":"03_tangent_contact",
+  "initial":{
+    "problem_text":"PT is tangent to circle Gamma at T; O is its center.",
+    "objects":{"O":{},"T":{},"P":{},"Gamma":{"type":"CIRCLE","refs":["O"],"radius":100}},
+    "positions":{"O":[250,220],"T":[350,220],"P":[350,80]},
+    "relations":[{"id":"tangent","type":"TANGENT","args":["P","T","Gamma"],"status":"GIVEN"}]
+  },
+  "expected":[
+    {"entities":["circle_Gamma","point_O","point_P","point_T","segment_PT","segment_OT"],"absent":["mark_perp"],"background":["circle_Gamma"]},
+    {"highlight":["point_T"]},
+    {"entities":["mark_perp"],"statuses":{"perp":"PROVEN"}}
+  ],
+  "steps":[
+    {"expected_version":0,"visual":{"highlight":["point_T"]}},
+    {"expected_version":1,"add_relations":[{"id":"perp","type":"PERPENDICULAR","args":["O","T","P","T"],"status":"PROVEN","provenance":"Externally supplied tangent-radius theorem."}]}
+  ]
+}

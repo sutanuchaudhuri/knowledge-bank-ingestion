@@ -1,0 +1,89 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "questions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "course_id",     "order": "ASCENDING" },
+        { "fieldPath": "primary_topic", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "questions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "course_id",      "order": "ASCENDING" },
+        { "fieldPath": "primary_topic",  "order": "ASCENDING" },
+        { "fieldPath": "difficulty_band","order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "questions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "course_id",       "order": "ASCENDING" },
+        { "fieldPath": "competition_id",  "order": "ASCENDING" },
+        { "fieldPath": "year",            "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "questions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "course_id",      "order": "ASCENDING" },
+        { "fieldPath": "difficulty_band","order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "questions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "course_id", "order": "ASCENDING" },
+        { "fieldPath": "subtopic",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "papers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "course_id",      "order": "ASCENDING" },
+        { "fieldPath": "competition_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "papers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "course_id",      "order": "ASCENDING" },
+        { "fieldPath": "competition_id", "order": "ASCENDING" },
+        { "fieldPath": "year",           "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "chunks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "course_id",  "order": "ASCENDING" },
+        { "fieldPath": "chunk_type", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "chunks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "course_id",     "order": "ASCENDING" },
+        { "fieldPath": "primary_topic", "order": "ASCENDING" },
+        { "fieldPath": "chunk_type",    "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "documents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "course_id",   "order": "ASCENDING" },
+        { "fieldPath": "entity_type", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

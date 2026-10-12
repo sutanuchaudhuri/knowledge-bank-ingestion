@@ -1,0 +1,616 @@
+[
+  {
+    "slug": "overview",
+    "path": "/graph",
+    "nodes_sample": null,
+    "rels_sample": null,
+    "total_of_kind": null,
+    "coverage": null,
+    "total_nodes_overview": "483,840",
+    "total_rels_overview": "1,288,967",
+    "legend": []
+  },
+  {
+    "slug": "has-paper",
+    "path": "/graph/has-paper",
+    "nodes_sample": "1,010",
+    "rels_sample": "1,000",
+    "total_of_kind": "1,391",
+    "coverage": "71.9",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Competition",
+        "10"
+      ],
+      [
+        "Paper",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "has-problem",
+    "path": "/graph/has-problem",
+    "nodes_sample": "1,040",
+    "rels_sample": "1,000",
+    "total_of_kind": "12,542",
+    "coverage": "8",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Paper",
+        "40"
+      ],
+      [
+        "Problem",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "has-solution",
+    "path": "/graph/has-solution",
+    "nodes_sample": "1,453",
+    "rels_sample": "1,000",
+    "total_of_kind": "18,749",
+    "coverage": "5.3",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Problem",
+        "453"
+      ],
+      [
+        "Solution",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "tests",
+    "path": "/graph/tests",
+    "nodes_sample": "990",
+    "rels_sample": "1,000",
+    "total_of_kind": "53,796",
+    "coverage": "1.9",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Problem",
+        "989"
+      ],
+      [
+        "Concept",
+        "1"
+      ]
+    ]
+  },
+  {
+    "slug": "uses-technique",
+    "path": "/graph/uses-technique",
+    "nodes_sample": "864",
+    "rels_sample": "1,000",
+    "total_of_kind": "26,489",
+    "coverage": "3.8",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Problem",
+        "849"
+      ],
+      [
+        "Technique",
+        "15"
+      ]
+    ]
+  },
+  {
+    "slug": "concept-relation",
+    "path": "/graph/concept-relation",
+    "nodes_sample": "613",
+    "rels_sample": "798",
+    "total_of_kind": "798",
+    "coverage": "100",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Concept",
+        "613"
+      ]
+    ]
+  },
+  {
+    "slug": "requires-skill",
+    "path": "/graph/requires-skill",
+    "nodes_sample": "622",
+    "rels_sample": "1,000",
+    "total_of_kind": "38,105",
+    "coverage": "2.6",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Problem",
+        "284"
+      ],
+      [
+        "Skill",
+        "338"
+      ]
+    ]
+  },
+  {
+    "slug": "practices-skill",
+    "path": "/graph/practices-skill",
+    "nodes_sample": "4",
+    "rels_sample": "2",
+    "total_of_kind": "2",
+    "coverage": "100",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Problem",
+        "2"
+      ],
+      [
+        "Skill",
+        "2"
+      ]
+    ]
+  },
+  {
+    "slug": "tests-skill",
+    "path": "/graph/tests-skill",
+    "nodes_sample": "2",
+    "rels_sample": "1",
+    "total_of_kind": "1",
+    "coverage": "100",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Problem",
+        "1"
+      ],
+      [
+        "Skill",
+        "1"
+      ]
+    ]
+  },
+  {
+    "slug": "skill-concepts",
+    "path": "/graph/skill-concepts",
+    "nodes_sample": "648",
+    "rels_sample": "1,000",
+    "total_of_kind": "9,265",
+    "coverage": "10.8",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Skill",
+        "640"
+      ],
+      [
+        "Concept",
+        "8"
+      ]
+    ]
+  },
+  {
+    "slug": "skill-prerequisites",
+    "path": "/graph/skill-prerequisites",
+    "nodes_sample": "341",
+    "rels_sample": "1,000",
+    "total_of_kind": "3,380",
+    "coverage": "29.6",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Skill",
+        "341"
+      ]
+    ]
+  },
+  {
+    "slug": "skill-hierarchy",
+    "path": "/graph/skill-hierarchy",
+    "nodes_sample": "922",
+    "rels_sample": "1,000",
+    "total_of_kind": "2,052",
+    "coverage": "48.7",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Skill",
+        "922"
+      ]
+    ]
+  },
+  {
+    "slug": "concept-hierarchy",
+    "path": "/graph/concept-hierarchy",
+    "nodes_sample": "323",
+    "rels_sample": "309",
+    "total_of_kind": "309",
+    "coverage": "100",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Concept",
+        "323"
+      ]
+    ]
+  },
+  {
+    "slug": "concept-prerequisites",
+    "path": "/graph/concept-prerequisites",
+    "nodes_sample": "472",
+    "rels_sample": "484",
+    "total_of_kind": "484",
+    "coverage": "100",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Concept",
+        "472"
+      ]
+    ]
+  },
+  {
+    "slug": "skill-builds-on",
+    "path": "/graph/skill-builds-on",
+    "nodes_sample": "813",
+    "rels_sample": "1,000",
+    "total_of_kind": "3,387",
+    "coverage": "29.5",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Skill",
+        "813"
+      ]
+    ]
+  },
+  {
+    "slug": "solution-routes",
+    "path": "/graph/solution-routes",
+    "nodes_sample": "2,000",
+    "rels_sample": "1,000",
+    "total_of_kind": "18,589",
+    "coverage": "5.4",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Solution",
+        "1,000"
+      ],
+      [
+        "RouteRelease",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "route-steps",
+    "path": "/graph/route-steps",
+    "nodes_sample": "1,231",
+    "rels_sample": "1,000",
+    "total_of_kind": "80,168",
+    "coverage": "1.2",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "RouteRelease",
+        "231"
+      ],
+      [
+        "RouteStep",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "step-requires-technique",
+    "path": "/graph/step-requires-technique",
+    "nodes_sample": "1,305",
+    "rels_sample": "1,000",
+    "total_of_kind": "11,993",
+    "coverage": "8.3",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "RouteStep",
+        "1,000"
+      ],
+      [
+        "Technique",
+        "305"
+      ]
+    ]
+  },
+  {
+    "slug": "step-requires-skill",
+    "path": "/graph/step-requires-skill",
+    "nodes_sample": "1,010",
+    "rels_sample": "1,000",
+    "total_of_kind": "27,983",
+    "coverage": "3.6",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "RouteStep",
+        "997"
+      ],
+      [
+        "Skill",
+        "13"
+      ]
+    ]
+  },
+  {
+    "slug": "step-requires-concept",
+    "path": "/graph/step-requires-concept",
+    "nodes_sample": "1,025",
+    "rels_sample": "1,000",
+    "total_of_kind": "42,043",
+    "coverage": "2.4",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "RouteStep",
+        "991"
+      ],
+      [
+        "Concept",
+        "34"
+      ]
+    ]
+  },
+  {
+    "slug": "step-produces",
+    "path": "/graph/step-produces",
+    "nodes_sample": "2,000",
+    "rels_sample": "1,000",
+    "total_of_kind": "80,168",
+    "coverage": "1.2",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "RouteStep",
+        "1,000"
+      ],
+      [
+        "Claim",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "step-uses-claim",
+    "path": "/graph/step-uses-claim",
+    "nodes_sample": "977",
+    "rels_sample": "1,000",
+    "total_of_kind": "128,468",
+    "coverage": "0.8",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "RouteStep",
+        "490"
+      ],
+      [
+        "Claim",
+        "487"
+      ]
+    ]
+  },
+  {
+    "slug": "step-dependencies",
+    "path": "/graph/step-dependencies",
+    "nodes_sample": "639",
+    "rels_sample": "1,000",
+    "total_of_kind": "128,468",
+    "coverage": "0.8",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "RouteStep",
+        "639"
+      ]
+    ]
+  },
+  {
+    "slug": "step-misconceptions",
+    "path": "/graph/step-misconceptions",
+    "nodes_sample": "2,000",
+    "rels_sample": "1,000",
+    "total_of_kind": "80,168",
+    "coverage": "1.2",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "RouteStep",
+        "1,000"
+      ],
+      [
+        "Misconception",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "step-checks",
+    "path": "/graph/step-checks",
+    "nodes_sample": "2,000",
+    "rels_sample": "1,000",
+    "total_of_kind": "80,168",
+    "coverage": "1.2",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "RouteStep",
+        "1,000"
+      ],
+      [
+        "LearningItem",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "step-theory",
+    "path": "/graph/step-theory",
+    "nodes_sample": "2,000",
+    "rels_sample": "1,000",
+    "total_of_kind": "80,168",
+    "coverage": "1.2",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "RouteStep",
+        "1,000"
+      ],
+      [
+        "TheoryItem",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "misconception-remediation",
+    "path": "/graph/misconception-remediation",
+    "nodes_sample": "2,000",
+    "rels_sample": "1,000",
+    "total_of_kind": "80,168",
+    "coverage": "1.2",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Misconception",
+        "1,000"
+      ],
+      [
+        "TheoryItem",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "misconception-diagnosis",
+    "path": "/graph/misconception-diagnosis",
+    "nodes_sample": "2,000",
+    "rels_sample": "1,000",
+    "total_of_kind": "80,168",
+    "coverage": "1.2",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "Misconception",
+        "1,000"
+      ],
+      [
+        "LearningItem",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "theory-techniques",
+    "path": "/graph/theory-techniques",
+    "nodes_sample": "1,305",
+    "rels_sample": "1,000",
+    "total_of_kind": "11,993",
+    "coverage": "8.3",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "TheoryItem",
+        "1,000"
+      ],
+      [
+        "Technique",
+        "305"
+      ]
+    ]
+  },
+  {
+    "slug": "item-techniques",
+    "path": "/graph/item-techniques",
+    "nodes_sample": "1,305",
+    "rels_sample": "1,000",
+    "total_of_kind": "11,993",
+    "coverage": "8.3",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "LearningItem",
+        "1,000"
+      ],
+      [
+        "Technique",
+        "305"
+      ]
+    ]
+  },
+  {
+    "slug": "item-misconceptions",
+    "path": "/graph/item-misconceptions",
+    "nodes_sample": "2,000",
+    "rels_sample": "1,000",
+    "total_of_kind": "80,168",
+    "coverage": "1.2",
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": [
+      [
+        "LearningItem",
+        "1,000"
+      ],
+      [
+        "Misconception",
+        "1,000"
+      ]
+    ]
+  },
+  {
+    "slug": "solution-approaches",
+    "path": "/graph/solution-approaches",
+    "nodes_sample": "0",
+    "rels_sample": "0",
+    "total_of_kind": "0",
+    "coverage": null,
+    "total_nodes_overview": null,
+    "total_rels_overview": null,
+    "legend": []
+  }
+]

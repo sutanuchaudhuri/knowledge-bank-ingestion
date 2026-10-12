@@ -1,0 +1,487 @@
+{
+ "Description": "mathbank-manim-studio on Lambda: API (container image) + Function URL, plus a scheduled worker function (requirements/60, requirements/63)",
+ "Resources": {
+  "ManimStudioApiFunctionServiceRoleF647B8FC": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioApiFunction/ServiceRole/Resource"
+   }
+  },
+  "ManimStudioApiFunctionServiceRoleDefaultPolicy91B87A32": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "ssm:GetParameter",
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:",
+           {
+            "Ref": "AWS::Partition"
+           },
+           ":ssm:us-east-2:848941468793:parameter/mathbank/dev/mathbank-manim-studio/ADMIN_API_KEY"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:",
+           {
+            "Ref": "AWS::Partition"
+           },
+           ":ssm:us-east-2:848941468793:parameter/mathbank/dev/mathbank-manim-studio/AWS_SECRET_ACCESS_KEY"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:",
+           {
+            "Ref": "AWS::Partition"
+           },
+           ":ssm:us-east-2:848941468793:parameter/mathbank/dev/mathbank-manim-studio/OPENAI_API_KEY"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:",
+           {
+            "Ref": "AWS::Partition"
+           },
+           ":ssm:us-east-2:848941468793:parameter/mathbank/dev/mathbank-manim-studio/POSTGRES_PASSWORD"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "ManimStudioApiFunctionServiceRoleDefaultPolicy91B87A32",
+    "Roles": [
+     {
+      "Ref": "ManimStudioApiFunctionServiceRoleF647B8FC"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioApiFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "ManimStudioApiFunctionFD9A0A96": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Architectures": [
+     "arm64"
+    ],
+    "Code": {
+     "ImageUri": {
+      "Fn::Sub": "848941468793.dkr.ecr.us-east-2.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-848941468793-us-east-2:10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e"
+     }
+    },
+    "Environment": {
+     "Variables": {
+      "POSTGRES_HOST": "ep-aged-moon-b58ba15z-pooler.c-7.us-east-2.aws.neon.tech",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_DB": "neondb",
+      "POSTGRES_USER": "neondb_owner",
+      "POSTGRES_SSLMODE": "require",
+      "MATHBANK_OBJECT_BUCKET": "mathbank-runtime",
+      "MATHBANK_OBJECT_BACKEND": "s3",
+      "MATHBANK_S3_ENDPOINT_URL": "https://br-mute-glitter-b54fq1fm.storage.c-7.us-east-2.aws.neon.tech",
+      "MATHBANK_S3_REGION": "us-east-2",
+      "MATHBANK_S3_ACCESS_KEY_ID": "nak_live_2640944353cc4641bd8595383f3a1e60",
+      "MATHBANK_REST_BASE_URL": {
+       "Fn::ImportValue": "MathBankRestStack:ExportsOutputFnGetAttRestFunctionFunctionUrl7CA0B462FunctionUrl832BDBE2"
+      },
+      "MATHBANK_SSM_PREFIX": "/mathbank/dev/mathbank-manim-studio",
+      "MATHBANK_SECRET_MAP": "POSTGRES_PASSWORD=POSTGRES_PASSWORD,OPENAI_API_KEY=OPENAI_API_KEY,ADMIN_API_KEY=ADMIN_API_KEY,AWS_SECRET_ACCESS_KEY=MATHBANK_S3_SECRET_ACCESS_KEY"
+     }
+    },
+    "FunctionName": "mathbank-manim-studio-api",
+    "ImageConfig": {
+     "Command": [
+      "mathbank_manim_studio.lambda_handler.api_handler"
+     ]
+    },
+    "MemorySize": 1024,
+    "PackageType": "Image",
+    "Role": {
+     "Fn::GetAtt": [
+      "ManimStudioApiFunctionServiceRoleF647B8FC",
+      "Arn"
+     ]
+    },
+    "Timeout": 30
+   },
+   "DependsOn": [
+    "ManimStudioApiFunctionServiceRoleDefaultPolicy91B87A32",
+    "ManimStudioApiFunctionServiceRoleF647B8FC"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioApiFunction/Resource",
+    "aws:asset:path": "asset.10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e",
+    "aws:asset:dockerfile-path": "Dockerfile.lambda",
+    "aws:asset:docker-build-contexts": {
+     "mcp_competitions": "/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-mcp-competitions"
+    },
+    "aws:asset:property": "Code.ImageUri"
+   }
+  },
+  "ManimStudioApiFunctionFunctionUrlE63C8A0B": {
+   "Type": "AWS::Lambda::Url",
+   "Properties": {
+    "AuthType": "NONE",
+    "TargetFunctionArn": {
+     "Fn::GetAtt": [
+      "ManimStudioApiFunctionFD9A0A96",
+      "Arn"
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioApiFunction/FunctionUrl/Resource"
+   }
+  },
+  "ManimStudioApiFunctioninvokefunctionurl86C04B6E": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunctionUrl",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ManimStudioApiFunctionFD9A0A96",
+      "Arn"
+     ]
+    },
+    "FunctionUrlAuthType": "NONE",
+    "Principal": "*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioApiFunction/invoke-function-url"
+   }
+  },
+  "ManimStudioApiFunctioninvokefunctionF595C469": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ManimStudioApiFunctionFD9A0A96",
+      "Arn"
+     ]
+    },
+    "InvokedViaFunctionUrl": true,
+    "Principal": "*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioApiFunction/invoke-function"
+   }
+  },
+  "ManimStudioWorkerFunctionServiceRole8AE56BE4": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioWorkerFunction/ServiceRole/Resource"
+   }
+  },
+  "ManimStudioWorkerFunctionServiceRoleDefaultPolicyADD97143": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "ssm:GetParameter",
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:",
+           {
+            "Ref": "AWS::Partition"
+           },
+           ":ssm:us-east-2:848941468793:parameter/mathbank/dev/mathbank-manim-studio/ADMIN_API_KEY"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:",
+           {
+            "Ref": "AWS::Partition"
+           },
+           ":ssm:us-east-2:848941468793:parameter/mathbank/dev/mathbank-manim-studio/AWS_SECRET_ACCESS_KEY"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:",
+           {
+            "Ref": "AWS::Partition"
+           },
+           ":ssm:us-east-2:848941468793:parameter/mathbank/dev/mathbank-manim-studio/OPENAI_API_KEY"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:",
+           {
+            "Ref": "AWS::Partition"
+           },
+           ":ssm:us-east-2:848941468793:parameter/mathbank/dev/mathbank-manim-studio/POSTGRES_PASSWORD"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "ManimStudioWorkerFunctionServiceRoleDefaultPolicyADD97143",
+    "Roles": [
+     {
+      "Ref": "ManimStudioWorkerFunctionServiceRole8AE56BE4"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioWorkerFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "ManimStudioWorkerFunctionAD93AB48": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Architectures": [
+     "arm64"
+    ],
+    "Code": {
+     "ImageUri": {
+      "Fn::Sub": "848941468793.dkr.ecr.us-east-2.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-848941468793-us-east-2:10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e"
+     }
+    },
+    "Environment": {
+     "Variables": {
+      "POSTGRES_HOST": "ep-aged-moon-b58ba15z-pooler.c-7.us-east-2.aws.neon.tech",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_DB": "neondb",
+      "POSTGRES_USER": "neondb_owner",
+      "POSTGRES_SSLMODE": "require",
+      "MATHBANK_OBJECT_BUCKET": "mathbank-runtime",
+      "MATHBANK_OBJECT_BACKEND": "s3",
+      "MATHBANK_S3_ENDPOINT_URL": "https://br-mute-glitter-b54fq1fm.storage.c-7.us-east-2.aws.neon.tech",
+      "MATHBANK_S3_REGION": "us-east-2",
+      "MATHBANK_S3_ACCESS_KEY_ID": "nak_live_2640944353cc4641bd8595383f3a1e60",
+      "MATHBANK_REST_BASE_URL": {
+       "Fn::ImportValue": "MathBankRestStack:ExportsOutputFnGetAttRestFunctionFunctionUrl7CA0B462FunctionUrl832BDBE2"
+      },
+      "MATHBANK_SSM_PREFIX": "/mathbank/dev/mathbank-manim-studio",
+      "MATHBANK_SECRET_MAP": "POSTGRES_PASSWORD=POSTGRES_PASSWORD,OPENAI_API_KEY=OPENAI_API_KEY,ADMIN_API_KEY=ADMIN_API_KEY,AWS_SECRET_ACCESS_KEY=MATHBANK_S3_SECRET_ACCESS_KEY"
+     }
+    },
+    "EphemeralStorage": {
+     "Size": 2048
+    },
+    "FunctionName": "mathbank-manim-studio-worker",
+    "ImageConfig": {
+     "Command": [
+      "mathbank_manim_studio.lambda_handler.worker_handler"
+     ]
+    },
+    "MemorySize": 3008,
+    "PackageType": "Image",
+    "Role": {
+     "Fn::GetAtt": [
+      "ManimStudioWorkerFunctionServiceRole8AE56BE4",
+      "Arn"
+     ]
+    },
+    "Timeout": 300
+   },
+   "DependsOn": [
+    "ManimStudioWorkerFunctionServiceRoleDefaultPolicyADD97143",
+    "ManimStudioWorkerFunctionServiceRole8AE56BE4"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioWorkerFunction/Resource",
+    "aws:asset:path": "asset.10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e",
+    "aws:asset:dockerfile-path": "Dockerfile.lambda",
+    "aws:asset:docker-build-contexts": {
+     "mcp_competitions": "/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-mcp-competitions"
+    },
+    "aws:asset:property": "Code.ImageUri"
+   }
+  },
+  "ManimStudioWorkerScheduleB620DDAA": {
+   "Type": "AWS::Events::Rule",
+   "Properties": {
+    "ScheduleExpression": "rate(1 minute)",
+    "State": "ENABLED",
+    "Targets": [
+     {
+      "Arn": {
+       "Fn::GetAtt": [
+        "ManimStudioWorkerFunctionAD93AB48",
+        "Arn"
+       ]
+      },
+      "Id": "Target0"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioWorkerSchedule/Resource"
+   }
+  },
+  "ManimStudioWorkerScheduleAllowEventRuleMathBankManimStudioStackManimStudioWorkerFunction6D91FECF64C238F0": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ManimStudioWorkerFunctionAD93AB48",
+      "Arn"
+     ]
+    },
+    "Principal": "events.amazonaws.com",
+    "SourceArn": {
+     "Fn::GetAtt": [
+      "ManimStudioWorkerScheduleB620DDAA",
+      "Arn"
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/ManimStudioWorkerSchedule/AllowEventRuleMathBankManimStudioStackManimStudioWorkerFunction6D91FECF"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/02PTW/CMAyGfwv31AN6QBy3oUmcqIo4oxC8zms+UJxsqqL89yUdQzs9rx6/suU1rDctLBfymxt1HRtNF0jHINUoijonLc3lKiHtnBrR740c8C1aFchZ8fpuH/kvnLyu/o4OvSHm4rMgaSD1TmMdzOycJjXNvTllgcqfJTMGhn8Hn6upM+jx5piC89OLZBT4hbZUUx/vWwtzFnO//DCQHao+xHCLIYtuCh/OPrWwamG7+GSixkcbyCD0v/wBN0KssA4BAAA="
+   },
+   "Metadata": {
+    "aws:cdk:path": "MathBankManimStudioStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "ManimStudioApiFunctionUrl": {
+   "Value": {
+    "Fn::GetAtt": [
+     "ManimStudioApiFunctionFunctionUrlE63C8A0B",
+     "FunctionUrl"
+    ]
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

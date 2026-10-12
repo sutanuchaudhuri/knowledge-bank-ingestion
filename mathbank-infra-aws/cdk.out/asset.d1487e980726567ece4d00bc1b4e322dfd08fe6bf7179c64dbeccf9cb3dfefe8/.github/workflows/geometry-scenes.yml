@@ -1,0 +1,23 @@
+name: Geometry scene regressions
+on:
+  push:
+    paths: ["mathbank-geometry-engine/**", ".github/workflows/geometry-scenes.yml"]
+  pull_request:
+    paths: ["mathbank-geometry-engine/**", ".github/workflows/geometry-scenes.yml"]
+jobs:
+  deterministic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e "./mathbank-geometry-engine[dev]"
+      - run: pytest mathbank-geometry-engine/tests -q
+      - run: ruff check mathbank-geometry-engine/src mathbank-geometry-engine/tests
+      - run: mypy mathbank-geometry-engine/src --ignore-missing-imports
+      - run: python -m geometry_scene.gallery --fixtures mathbank-geometry-engine/fixtures --output mathbank-geometry-engine/output/gallery
+      - uses: actions/upload-artifact@v4
+        with:
+          name: geometry-scene-images-and-states
+          path: mathbank-geometry-engine/output/gallery
