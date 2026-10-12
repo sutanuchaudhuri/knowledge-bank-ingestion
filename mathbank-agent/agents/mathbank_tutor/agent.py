@@ -36,6 +36,9 @@ from .tools.rest_tools import (
     search_concepts,
     search_practice_problems,
     search_problems,
+    search_theorems,
+    get_theorem,
+    get_theorem_prerequisites,
 )
 from .tools.step_runtime_tools import STEP_RUNTIME_TOOLS
 from .tools.widget_tools import WIDGET_TOOLS
@@ -340,6 +343,9 @@ root_agent = Agent(
         get_prerequisite_path,
         get_next_hint,
         find_easier_same_skill_problems,
+        search_theorems,
+        get_theorem,
+        get_theorem_prerequisites,
         *STEP_RUNTIME_TOOLS,
         *ATTEMPT_MEDIA_TOOLS,
         *GEOMETRY_SCENE_TOOLS,

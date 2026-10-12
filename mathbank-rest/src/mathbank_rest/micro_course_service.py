@@ -14,6 +14,9 @@ TARGETS = {
     "CONCEPT": ("knowledge.concept", "concept_id"),
     "TECHNIQUE": ("knowledge.technique", "technique_id"),
     "SKILL": ("knowledge.skill", "skill_id"),
+    # requirements/61 §3.3: a course can target a theorem (and, via role, its
+    # corollaries/prerequisites) directly, not only via a reference step.
+    "THEOREM": ("knowledge.theorem", "theorem_id"),
 }
 STATE_TARGETS = {
     **TARGETS,
@@ -222,14 +225,15 @@ def list_courses(conn, limit: int = 50, offset: int = 0) -> list[dict]:
         LEFT JOIN LATERAL (
             SELECT jsonb_agg(jsonb_build_object(
                 'target_type', t.target_type, 'target_id',
-                COALESCE(t.concept_id, t.technique_id, t.skill_id), 'name',
-                COALESCE(concept.name, technique.name, skill.name), 'slug',
-                COALESCE(concept.slug, technique.slug, skill.slug), 'ordinal', t.ordinal
+                COALESCE(t.concept_id, t.technique_id, t.skill_id, t.theorem_id), 'name',
+                COALESCE(concept.name, technique.name, skill.name, theorem.name), 'slug',
+                COALESCE(concept.slug, technique.slug, skill.slug, theorem.slug), 'ordinal', t.ordinal
             ) ORDER BY t.ordinal) AS primary_targets
             FROM pedagogy.micro_course_target t
             LEFT JOIN knowledge.concept concept ON concept.concept_id=t.concept_id
             LEFT JOIN knowledge.technique technique ON technique.technique_id=t.technique_id
             LEFT JOIN knowledge.skill skill ON skill.skill_id=t.skill_id
+            LEFT JOIN knowledge.theorem theorem ON theorem.theorem_id=t.theorem_id
             WHERE t.micro_course_id=course.micro_course_id AND t.role='PRIMARY'
         ) targets ON true
         ORDER BY course.canonical_code
@@ -257,7 +261,7 @@ def search_canonical_targets(conn, target_type: str, query: str, limit: int = 20
         ).mappings()
         return [dict(row) for row in rows]
     if target_type not in TARGETS:
-        raise ValueError("target_type must be CONCEPT, TECHNIQUE, SKILL, or MISCONCEPTION")
+        raise ValueError("target_type must be CONCEPT, TECHNIQUE, SKILL, THEOREM, or MISCONCEPTION")
     table, id_column = TARGETS[target_type]
     rows = conn.execute(
         text(f"""
@@ -290,13 +294,14 @@ def list_published_courses(conn, limit: int = 50, offset: int = 0) -> list[dict]
         LEFT JOIN LATERAL (
             SELECT jsonb_agg(jsonb_build_object(
                 'target_type', t.target_type, 'name',
-                COALESCE(concept.name, technique.name, skill.name),
-                'slug', COALESCE(concept.slug, technique.slug, skill.slug)
+                COALESCE(concept.name, technique.name, skill.name, theorem.name),
+                'slug', COALESCE(concept.slug, technique.slug, skill.slug, theorem.slug)
             ) ORDER BY t.ordinal) AS primary_targets
             FROM pedagogy.micro_course_target t
             LEFT JOIN knowledge.concept concept ON concept.concept_id=t.concept_id
             LEFT JOIN knowledge.technique technique ON technique.technique_id=t.technique_id
             LEFT JOIN knowledge.skill skill ON skill.skill_id=t.skill_id
+            LEFT JOIN knowledge.theorem theorem ON theorem.theorem_id=t.theorem_id
             WHERE t.micro_course_id=c.micro_course_id AND t.role='PRIMARY'
         ) targets ON true
         WHERE c.is_active
@@ -424,12 +429,13 @@ def _assemble_course_reader_payload(conn, course, approved_only: bool = True) ->
         for row in conn.execute(
             text("""
             SELECT t.target_type,
-                   COALESCE(concept.name, technique.name, skill.name) AS name,
-                   COALESCE(concept.slug, technique.slug, skill.slug) AS slug
+                   COALESCE(concept.name, technique.name, skill.name, theorem.name) AS name,
+                   COALESCE(concept.slug, technique.slug, skill.slug, theorem.slug) AS slug
             FROM pedagogy.micro_course_target t
             LEFT JOIN knowledge.concept concept ON concept.concept_id=t.concept_id
             LEFT JOIN knowledge.technique technique ON technique.technique_id=t.technique_id
             LEFT JOIN knowledge.skill skill ON skill.skill_id=t.skill_id
+            LEFT JOIN knowledge.theorem theorem ON theorem.theorem_id=t.theorem_id
             WHERE t.micro_course_id=:course_id AND t.role='PRIMARY'
             ORDER BY t.ordinal
         """),
@@ -441,12 +447,13 @@ def _assemble_course_reader_payload(conn, course, approved_only: bool = True) ->
         for row in conn.execute(
             text("""
             SELECT t.target_type,
-                   COALESCE(concept.name, technique.name, skill.name) AS name,
-                   COALESCE(concept.slug, technique.slug, skill.slug) AS slug
+                   COALESCE(concept.name, technique.name, skill.name, theorem.name) AS name,
+                   COALESCE(concept.slug, technique.slug, skill.slug, theorem.slug) AS slug
             FROM pedagogy.micro_course_target t
             LEFT JOIN knowledge.concept concept ON concept.concept_id=t.concept_id
             LEFT JOIN knowledge.technique technique ON technique.technique_id=t.technique_id
             LEFT JOIN knowledge.skill skill ON skill.skill_id=t.skill_id
+            LEFT JOIN knowledge.theorem theorem ON theorem.theorem_id=t.theorem_id
             WHERE t.micro_course_id=:course_id AND t.role='PREREQUISITE'
             ORDER BY t.ordinal
         """),
@@ -1343,7 +1350,7 @@ def get_course(conn, canonical_code: str) -> dict:
         dict(row)
         for row in conn.execute(
             text("""
-            SELECT target_type, concept_id, technique_id, skill_id, role, ordinal
+            SELECT target_type, concept_id, technique_id, skill_id, theorem_id, role, ordinal
             FROM pedagogy.micro_course_target WHERE micro_course_id=:id
             ORDER BY role, ordinal
         """),
@@ -1859,6 +1866,15 @@ def bind_state_target(
         raise MicroCourseNotFound("micro-course state not found")
     _editable_release(conn, str(state["release_id"]))
     target_type, _ = _canonical_target(conn, target_type, target_id)
+    if target_type not in STATE_BINDINGS:
+        # THEOREM is a valid course-level target (requirements/61 §3.3,
+        # pedagogy.micro_course_target) but intentionally has no per-state binding table
+        # yet — a step-level theorem reference uses the THEOREM_REFERENCE_V1 interaction
+        # template instead (doc 61 §13.2), not this function.
+        raise ValueError(
+            f"{target_type} has no micro-course-state binding; use a course-level target "
+            "or an interaction instance instead"
+        )
     table, binding_column = STATE_BINDINGS[target_type]
     params = {"state_id": str(state_id), "target_id": str(target_id), "role": role.upper()}
     if target_type in {"CONCEPT", "TECHNIQUE"}:

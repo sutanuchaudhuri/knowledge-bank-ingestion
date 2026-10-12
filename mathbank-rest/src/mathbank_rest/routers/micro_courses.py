@@ -38,7 +38,7 @@ student_router = APIRouter(prefix="/v1/micro-courses", tags=["micro-courses"])
 
 class CourseTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    target_type: Literal["CONCEPT", "TECHNIQUE", "SKILL"]
+    target_type: Literal["CONCEPT", "TECHNIQUE", "SKILL", "THEOREM"]
     target_id: UUID
     role: Literal["PRIMARY", "SECONDARY", "PREREQUISITE"] = "PRIMARY"
 
@@ -197,7 +197,7 @@ def _call(operation, *args, **kwargs):
 
 @admin_router.get("/targets")
 def search_targets(
-    target_type: Literal["CONCEPT", "TECHNIQUE", "SKILL", "MISCONCEPTION"],
+    target_type: Literal["CONCEPT", "TECHNIQUE", "SKILL", "THEOREM", "MISCONCEPTION"],
     q: str = Query(default="", max_length=120),
     limit: int = Query(default=20, ge=1, le=50),
 ) -> list[dict]:

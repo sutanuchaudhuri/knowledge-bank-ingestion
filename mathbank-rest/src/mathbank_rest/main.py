@@ -31,6 +31,8 @@ from mathbank_rest.routers.admin_activities import router as admin_activities_ro
 from mathbank_rest.routers.admin_activities import binding_router as admin_activity_bindings_router
 from mathbank_rest.routers.quiz_runtime import router as quiz_runtime_router
 from mathbank_rest.routers.notifications import router as notifications_router
+from mathbank_rest.routers.theorems import admin_router as theorems_admin_router
+from mathbank_rest.routers.theorems import student_router as theorems_student_router
 
 # One line per tag actually used by any operation (doc 45 APID-2): what it covers + which auth
 # scheme applies. Admin-gated tags are prefixed `admin-`; everything else is anonymous or learner
@@ -48,6 +50,7 @@ OPENAPI_TAGS = [
     {"name": "step-runtime", "description": "Guided step attempts, hints, recovery routes. Learner JWT."},
     {"name": "tutoring-routes", "description": "Precompiled tutoring-route runtime. Learner JWT."},
     {"name": "micro-courses", "description": "Published micro-course catalog and enrollment runtime. Anonymous (preview) or learner JWT (enrolled)."},
+    {"name": "theorems", "description": "Approved-only theorem/axiom/lemma/corollary catalog: detail, sources, diagrams, prerequisite lineage, hybrid search. Anonymous."},
     {"name": "geometry-agent", "description": "Geometry-scene interpretation for staff/student. Mixed staff-or-student auth."},
     {"name": "geometry-scenes", "description": "Independent deterministic geometry scene engine, mounted as a sub-API. Mixed staff-or-student auth; debug evidence is staff-only."},
     {"name": "fluid-widgets", "description": "Live-session widget proposals and activities. Session-scoped auth."},
@@ -63,6 +66,7 @@ OPENAPI_TAGS = [
     {"name": "admin-micro-courses", "description": "Micro-course authoring, release lifecycle, activity, preview. X-Admin-Api-Key."},
     {"name": "admin-taxonomy", "description": "Concept/technique/skill/misconception list, update, alias, activate/deactivate (doc 45). X-Admin-Api-Key."},
     {"name": "admin-activities", "description": "Quiz/activity authoring bank (doc 46). X-Admin-Api-Key."},
+    {"name": "admin-theorems", "description": "Theorem/axiom/lemma/corollary catalog authoring: CRUD, prerequisite relations (cycle-checked), technique/taxonomy linking, sources, diagrams, dedup search (doc 61). X-Admin-Api-Key."},
 ]
 
 app = FastAPI(
@@ -106,6 +110,8 @@ app.include_router(admin_activities_router)
 app.include_router(admin_activity_bindings_router)
 app.include_router(quiz_runtime_router)
 app.include_router(notifications_router)
+app.include_router(theorems_admin_router)
+app.include_router(theorems_student_router)
 
 
 @app.get("/health", tags=["ops"])

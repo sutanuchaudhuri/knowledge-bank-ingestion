@@ -430,3 +430,50 @@ def find_easier_same_skill_problems(problem_code: str, limit: int = 5) -> dict:
         )
         response.raise_for_status()
         return response.json()
+
+
+def search_theorems(query: str, field: str = "", kind: str = "", limit: int = 10) -> dict:
+    """Find a named theorem/axiom/lemma/corollary by topic or wording (e.g. 'why does AM-GM
+    work', 'Pythagorean theorem'). field: ALGEBRA, GEOMETRY, NUMBER_THEORY, COMBINATORICS,
+    PROBABILITY, ANALYSIS, LOGIC_AND_SET_THEORY, or OTHER. kind: AXIOM, THEOREM, LEMMA,
+    PROPOSITION, COROLLARY, IDENTITY, or DEFINITION. Only reviewed, published theorems are
+    returned — never invent one that search_theorems did not return.
+    """
+    with _client() as client:
+        params: dict[str, str | int] = {"q": query, "limit": limit}
+        if field:
+            params["field"] = field
+        if kind:
+            params["kind"] = kind
+        response = client.get("/v1/theorems/search", params=params)
+        response.raise_for_status()
+        return response.json()
+
+
+def get_theorem(slug: str) -> dict:
+    """Fetch one theorem's full formal statement, description, proof sketch, diagrams and
+    approved source links (see search_theorems for slugs). Ground any 'why is this true'
+    answer in this exact statement and cite its sources, never a paraphrase from memory.
+    """
+    with _client() as client:
+        response = client.get(f"/v1/theorems/{quote(slug, safe='')}")
+        if response.status_code == 404:
+            return {"error": f"No published theorem {slug!r}"}
+        response.raise_for_status()
+        return response.json()
+
+
+def get_theorem_prerequisites(theorem_slug: str, max_depth: int = 4) -> dict:
+    """Walk a theorem's prerequisite lineage back toward the axioms it ultimately rests
+    on (bounded to 1-10 levels) — for 'why is THIS actually true' follow-ups, after
+    get_theorem. Only reviewed prerequisite edges are returned.
+    """
+    with _client() as client:
+        response = client.get(
+            f"/v1/theorems/{quote(theorem_slug, safe='')}/prerequisites",
+            params={"max_depth": max_depth},
+        )
+        if response.status_code == 404:
+            return {"error": f"No published theorem {theorem_slug!r}"}
+        response.raise_for_status()
+        return response.json()
