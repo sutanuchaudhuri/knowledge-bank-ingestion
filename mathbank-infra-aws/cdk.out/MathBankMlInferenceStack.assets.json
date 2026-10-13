@@ -1,16 +1,16 @@
 {
   "version": "54.0.0",
   "files": {
-    "e7e354ebdf4c9836da57f4d1c503c5fabb4ff36680518cdb9cc4f2065a411ad1": {
+    "9972a67cf5f483239680fb0f70a52f459ae6d7db2d4bc4d4ab58eed992905eca": {
       "displayName": "MathBankMlInferenceStack Template",
       "source": {
         "path": "MathBankMlInferenceStack.template.json",
         "packaging": "file"
       },
       "destinations": {
-        "848941468793-us-east-2-602ca13d": {
+        "848941468793-us-east-2-ec090c6f": {
           "bucketName": "cdk-hnb659fds-assets-848941468793-us-east-2",
-          "objectKey": "e7e354ebdf4c9836da57f4d1c503c5fabb4ff36680518cdb9cc4f2065a411ad1.json",
+          "objectKey": "9972a67cf5f483239680fb0f70a52f459ae6d7db2d4bc4d4ab58eed992905eca.json",
           "region": "us-east-2",
           "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-file-publishing-role-848941468793-us-east-2"
         }

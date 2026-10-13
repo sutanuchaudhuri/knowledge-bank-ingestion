@@ -140,7 +140,7 @@
     ],
     "Code": {
      "ImageUri": {
-      "Fn::Sub": "848941468793.dkr.ecr.us-east-2.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-848941468793-us-east-2:d1487e980726567ece4d00bc1b4e322dfd08fe6bf7179c64dbeccf9cb3dfefe8"
+      "Fn::Sub": "848941468793.dkr.ecr.us-east-2.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-848941468793-us-east-2:e1fcefbd4ab696f61691095f7597fd955f36db8ff4f74031c4e5c2e3b8d3fe5e"
      }
     },
     "Environment": {
@@ -156,7 +156,6 @@
       "MATHBANK_OBJECT_BUCKET": "mathbank-runtime",
       "MATHBANK_OBJECT_BACKEND": "s3",
       "MATHBANK_RUNTIME_AI_PROVIDER": "openai",
-      "MANIM_STUDIO_BASE_URL": "http://localhost:8020",
       "MATHBANK_S3_ENDPOINT_URL": "https://br-mute-glitter-b54fq1fm.storage.c-7.us-east-2.aws.neon.tech",
       "MATHBANK_S3_REGION": "us-east-2",
       "MATHBANK_S3_ACCESS_KEY_ID": "nak_live_2640944353cc4641bd8595383f3a1e60",
@@ -181,7 +180,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "MathBankRestStack/RestFunction/Resource",
-    "aws:asset:path": "asset.d1487e980726567ece4d00bc1b4e322dfd08fe6bf7179c64dbeccf9cb3dfefe8",
+    "aws:asset:path": "asset.e1fcefbd4ab696f61691095f7597fd955f36db8ff4f74031c4e5c2e3b8d3fe5e",
     "aws:asset:dockerfile-path": "mathbank-rest/Dockerfile.lambda",
     "aws:asset:property": "Code.ImageUri"
    }

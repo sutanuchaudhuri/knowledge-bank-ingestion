@@ -235,3 +235,135 @@ def test_live_mastery_blends_quiz_and_real_attempts(mock_llm, live_student):
         ).mappings().first()
     assert score is not None
     assert score["attempts_count"] == 1
+
+
+# --------------------------------------------------------------------------- requirements/64:
+# mathbank-exam-agent integration (import, exam-mode gate, submit, diagnosis)
+
+def _sample_import_question(ordinal: int) -> dict:
+    return {
+        "question_type": "MCQ",
+        "prompt_text": f"Sample question {ordinal}: what is 3+3?",
+        "prompt_latex": None,
+        "options": [{"key": "A", "text": "5"}, {"key": "B", "text": "6"},
+                   {"key": "C", "text": "7"}, {"key": "D", "text": "8"}],
+        "correct_answer": {"correct_key": "B"},
+        "solution_text": "3+3=6 by direct addition.",
+        "key_insight": "Basic arithmetic.",
+        "difficulty_band": "easy",
+        "revision_log": [{"round": 1, "verdict": "APPROVE", "feedback": "Clear and correct."}],
+        "concept_slugs": [], "technique_slugs": [], "skill_slugs": [],
+    }
+
+
+def test_import_paper_rejects_unknown_style():
+    with pytest.raises(quiz_runtime.QuizError) as exc:
+        quiz_runtime.import_paper(
+            uuid4(), style="NOT_A_STYLE", title="t", requested_question_count=1,
+            requested_question_types=["MCQ"], generated_by="test", questions=[_sample_import_question(1)],
+        )
+    assert exc.value.code == "INVALID_STYLE"
+
+
+def test_import_paper_rejects_no_questions():
+    with pytest.raises(quiz_runtime.QuizError) as exc:
+        quiz_runtime.import_paper(
+            uuid4(), style="AIME", title="t", requested_question_count=1,
+            requested_question_types=["MCQ"], generated_by="test", questions=[],
+        )
+    assert exc.value.code == "NO_QUESTIONS"
+
+
+def test_exam_integration_routes_require_admin_key():
+    qid = "00000000-0000-0000-0000-000000000000"
+    assert client.post("/v1/quiz-integration/papers", json={}).status_code == 401
+    assert client.post(f"/v1/quiz-integration/papers/{qid}/submit",
+                       params={"student_id": qid}).status_code == 401
+    assert client.get(f"/v1/quiz-integration/papers/{qid}/diagnosis",
+                      params={"student_id": qid}).status_code == 401
+
+
+@live
+def test_live_import_exam_mode_gate_submit_and_diagnosis(live_student):
+    student_id = live_student
+    paper = quiz_runtime.import_paper(
+        student_id, style="MIXED", title="Mock Exam — Bedrock Generated",
+        requested_question_count=2, requested_question_types=["MCQ"],
+        generated_by="bedrock:anthropic.claude-3-5-haiku", exam_mode=True,
+        time_limit_seconds=5400,
+        questions=[_sample_import_question(1), _sample_import_question(2)],
+    )
+    assert paper["status"] == "READY"
+    assert len(paper["questions"]) == 2
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT exam_mode, time_limit_seconds, agent_framework FROM quiz.paper WHERE quiz_id=:q"),
+            {"q": paper["quiz_id"]},
+        ).mappings().one()
+    assert row["exam_mode"] is True
+    assert row["time_limit_seconds"] == 5400
+    assert row["agent_framework"] == "STRANDS_BEDROCK"
+
+    question_ids = [q["question_id"] for q in paper["questions"]]
+
+    # Exam-mode gate: review is rejected while the paper is still in progress, even
+    # though requirements/53's own practice-mode flow would allow it as soon as any
+    # response exists (requirements/64 §6).
+    quiz_runtime.submit_response(
+        paper["quiz_id"], question_ids[0], student_id, raw_response={"selected_key": "B"},
+        time_spent_seconds=45,
+    )
+    with pytest.raises(quiz_runtime.QuizError) as exc:
+        quiz_runtime.get_review(paper["quiz_id"], student_id)
+    assert exc.value.code == "EXAM_IN_PROGRESS"
+
+    # Explicit submission (e.g. a time-limit auto-submit) with one question left blank —
+    # review must still succeed and transition to GRADED, unlike the "every question
+    # answered" trigger requirements/53's practice flow relies on.
+    submitted = quiz_runtime.submit_exam(paper["quiz_id"], student_id)
+    assert submitted["answered_count"] == 1
+    assert submitted["score"] == 1
+    with engine.connect() as conn:
+        status = conn.execute(
+            text("SELECT status FROM quiz.paper WHERE quiz_id=:q"), {"q": paper["quiz_id"]}
+        ).scalar_one()
+    assert status == "GRADED"
+
+    # Diagnosis input assembly — pre-exam mastery + per-question timing/difficulty.
+    diagnosis_input = quiz_runtime.get_paper_for_diagnosis(paper["quiz_id"], student_id)
+    assert len(diagnosis_input["questions"]) == 2
+    answered_q = next(q for q in diagnosis_input["questions"] if q["time_spent_seconds"] == 45)
+    assert answered_q["is_correct"] is True
+    assert answered_q["difficulty_band"] == "easy"
+
+    # Writing and reading the diagnosis report.
+    written = quiz_runtime.write_diagnosis(
+        paper["quiz_id"], student_id,
+        time_management_verdict="Well-paced on the answered question; one left blank at time-up.",
+        pacing_notes=[{"question_ordinal": 1, "time_spent_seconds": 45, "difficulty_band": "easy"}],
+        reasoning_guidance=[], improvement_areas=[{"concept_or_technique": "arithmetic",
+                                                    "current_mastery_tier": "DEVELOPING",
+                                                    "evidence": "answered correctly, no gap evidence yet"}],
+        generated_by="bedrock:anthropic.claude-3-5-haiku",
+    )
+    assert written["quiz_id"] == paper["quiz_id"]
+    fetched = quiz_runtime.get_diagnosis(paper["quiz_id"], student_id)
+    assert fetched["time_management_verdict"].startswith("Well-paced")
+    assert len(fetched["improvement_areas"]) == 1
+
+
+@live
+def test_live_diagnosis_rejected_before_grading(live_student):
+    student_id = live_student
+    paper = quiz_runtime.import_paper(
+        student_id, style="MIXED", title="Ungraded Paper", requested_question_count=1,
+        requested_question_types=["MCQ"], generated_by="test", exam_mode=True,
+        questions=[_sample_import_question(1)],
+    )
+    with pytest.raises(quiz_runtime.QuizError) as exc:
+        quiz_runtime.write_diagnosis(
+            paper["quiz_id"], student_id, time_management_verdict="x", pacing_notes=[],
+            reasoning_guidance=[], improvement_areas=[], generated_by="test",
+        )
+    assert exc.value.code == "NOT_GRADED"

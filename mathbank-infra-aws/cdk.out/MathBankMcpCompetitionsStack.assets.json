@@ -1,16 +1,16 @@
 {
   "version": "54.0.0",
   "files": {
-    "1551da56437cc7abf1aa97a3c820efbddee1793cdd43bb006c6172c2a4cceef6": {
+    "896a8e82c0ea6b8b98cc2c0680aec567ec21ad43deb3797bc9e48d965714675a": {
       "displayName": "MathBankMcpCompetitionsStack Template",
       "source": {
         "path": "MathBankMcpCompetitionsStack.template.json",
         "packaging": "file"
       },
       "destinations": {
-        "848941468793-us-east-2-c28baa81": {
+        "848941468793-us-east-2-160b4498": {
           "bucketName": "cdk-hnb659fds-assets-848941468793-us-east-2",
-          "objectKey": "1551da56437cc7abf1aa97a3c820efbddee1793cdd43bb006c6172c2a4cceef6.json",
+          "objectKey": "896a8e82c0ea6b8b98cc2c0680aec567ec21ad43deb3797bc9e48d965714675a.json",
           "region": "us-east-2",
           "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-file-publishing-role-848941468793-us-east-2"
         }

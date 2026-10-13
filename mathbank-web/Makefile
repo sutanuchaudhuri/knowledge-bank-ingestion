@@ -54,12 +54,14 @@ sync-widgets:                   ## Refresh node_modules/mathbank-widgets from ..
 
 .PHONY: dev
 dev: sync-widgets                ## Start the Next.js dev server on :$(WEB_PORT) in the foreground
-	node node_modules/next/dist/bin/next dev -p $(WEB_PORT)
+	AWS_PROFILE=$${AWS_PROFILE:-aws-sutanu-admin} AWS_DEFAULT_REGION=$${AWS_DEFAULT_REGION:-us-east-2} \
+		node node_modules/next/dist/bin/next dev -p $(WEB_PORT)
 
 .PHONY: start
 start: sync-widgets              ## Start on :$(WEB_PORT), verify HTTP readiness, and report failures (never kills an occupied port)
 	@test -f node_modules/next/dist/bin/next || (echo "ERROR: Next.js is missing. Run make install in mathbank-web." >&2; exit 1)
-	@bash ../mathbank-scripts/start-service.sh mathbank-web "$(WEB_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
+	@AWS_PROFILE=$${AWS_PROFILE:-aws-sutanu-admin} AWS_DEFAULT_REGION=$${AWS_DEFAULT_REGION:-us-east-2} \
+		bash ../mathbank-scripts/start-service.sh mathbank-web "$(WEB_PORT)" "$(PID_FILE)" "$(LOG_FILE)" \
 	  "http://127.0.0.1:$(WEB_PORT)/login" node node_modules/next/dist/bin/next dev -p $(WEB_PORT)
 
 .PHONY: stop

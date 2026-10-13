@@ -99,6 +99,19 @@
       ]
     }
   ],
+  "/MathBankMlInferenceStack/Exports/Output{\"Fn::GetAtt\":[\"MlInferenceFunctionFunctionUrl432DBC1E\",\"FunctionUrl\"]}": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsOutputFnGetAttMlInferenceFunctionFunctionUrl432DBC1EFunctionUrlD93B3E1B"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
   "/MathBankMlInferenceStack/MlInferenceFunction/ServiceRole/Resource": [
     {
       "type": "aws:cdk:logicalId",

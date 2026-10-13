@@ -1,16 +1,16 @@
 {
   "version": "54.0.0",
   "files": {
-    "917171064c1a8db0582e95b76a8d4fd900ed6a0b804c2e38a6e62a268aafc3be": {
+    "7d0839dccd01572e82229e21ebf7f81094a78da3d98a329b9a3a94d6e8365f13": {
       "displayName": "MathBankAgentStack Template",
       "source": {
         "path": "MathBankAgentStack.template.json",
         "packaging": "file"
       },
       "destinations": {
-        "848941468793-us-east-2-b3e7d725": {
+        "848941468793-us-east-2-4bf84040": {
           "bucketName": "cdk-hnb659fds-assets-848941468793-us-east-2",
-          "objectKey": "917171064c1a8db0582e95b76a8d4fd900ed6a0b804c2e38a6e62a268aafc3be.json",
+          "objectKey": "7d0839dccd01572e82229e21ebf7f81094a78da3d98a329b9a3a94d6e8365f13.json",
           "region": "us-east-2",
           "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-file-publishing-role-848941468793-us-east-2"
         }

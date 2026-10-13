@@ -213,6 +213,17 @@
      "FunctionUrl"
     ]
    }
+  },
+  "ExportsOutputFnGetAttAgentFunctionFunctionUrl2977BBBCFunctionUrl036096BF": {
+   "Value": {
+    "Fn::GetAtt": [
+     "AgentFunctionFunctionUrl2977BBBC",
+     "FunctionUrl"
+    ]
+   },
+   "Export": {
+    "Name": "MathBankAgentStack:ExportsOutputFnGetAttAgentFunctionFunctionUrl2977BBBCFunctionUrl036096BF"
+   }
   }
  },
  "Parameters": {

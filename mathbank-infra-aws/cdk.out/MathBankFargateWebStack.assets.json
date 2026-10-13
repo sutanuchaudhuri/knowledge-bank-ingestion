@@ -1,0 +1,78 @@
+{
+  "version": "54.0.0",
+  "files": {
+    "c327f23851636706e34c9c39eb1b127afe045b4eb90b156d0d222cd41517a214": {
+      "displayName": "MathBankFargateWebStack Template",
+      "source": {
+        "path": "MathBankFargateWebStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "848941468793-us-east-2-f2775cd0": {
+          "bucketName": "cdk-hnb659fds-assets-848941468793-us-east-2",
+          "objectKey": "c327f23851636706e34c9c39eb1b127afe045b4eb90b156d0d222cd41517a214.json",
+          "region": "us-east-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-file-publishing-role-848941468793-us-east-2"
+        }
+      }
+    }
+  },
+  "dockerImages": {
+    "127083ba791bc95063a005cbba44076b1694d87877a1fd9c6e07046061a8afcc": {
+      "displayName": "mathbank-webImage",
+      "source": {
+        "directory": "asset.127083ba791bc95063a005cbba44076b1694d87877a1fd9c6e07046061a8afcc",
+        "dockerBuildContexts": {
+          "mathbank_widgets": "/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-widgets",
+          "mathbank_scripts": "/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-scripts"
+        },
+        "dockerFile": "Dockerfile.fargate",
+        "platform": "linux/arm64"
+      },
+      "destinations": {
+        "848941468793-us-east-2-dbe4e118": {
+          "repositoryName": "cdk-hnb659fds-container-assets-848941468793-us-east-2",
+          "imageTag": "127083ba791bc95063a005cbba44076b1694d87877a1fd9c6e07046061a8afcc",
+          "region": "us-east-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-image-publishing-role-848941468793-us-east-2"
+        }
+      }
+    },
+    "471ae7b71386faf7e8264e30e429ae311a5f625186d2c416acb107aa7fd9cdc2": {
+      "displayName": "mathbank-liveImage",
+      "source": {
+        "directory": "asset.471ae7b71386faf7e8264e30e429ae311a5f625186d2c416acb107aa7fd9cdc2",
+        "dockerBuildContexts": {
+          "mathbank_widgets": "/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-widgets",
+          "mathbank_scripts": "/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-scripts"
+        },
+        "dockerFile": "Dockerfile.fargate",
+        "platform": "linux/arm64"
+      },
+      "destinations": {
+        "848941468793-us-east-2-4a4faf29": {
+          "repositoryName": "cdk-hnb659fds-container-assets-848941468793-us-east-2",
+          "imageTag": "471ae7b71386faf7e8264e30e429ae311a5f625186d2c416acb107aa7fd9cdc2",
+          "region": "us-east-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-image-publishing-role-848941468793-us-east-2"
+        }
+      }
+    },
+    "67425bcef20fcf322a8ee1b61540033b772b6bbfe5dd884f2f4f30b88f0217af": {
+      "displayName": "mathbank-ml-frontendImage",
+      "source": {
+        "directory": "asset.67425bcef20fcf322a8ee1b61540033b772b6bbfe5dd884f2f4f30b88f0217af",
+        "dockerFile": "Dockerfile.fargate",
+        "platform": "linux/arm64"
+      },
+      "destinations": {
+        "848941468793-us-east-2-05313041": {
+          "repositoryName": "cdk-hnb659fds-container-assets-848941468793-us-east-2",
+          "imageTag": "67425bcef20fcf322a8ee1b61540033b772b6bbfe5dd884f2f4f30b88f0217af",
+          "region": "us-east-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-image-publishing-role-848941468793-us-east-2"
+        }
+      }
+    }
+  }
+}

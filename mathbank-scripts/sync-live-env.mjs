@@ -6,7 +6,13 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(process.argv[2] || fileURLToPath(new URL("../", import.meta.url)));
 export const LIVE_KEYS = ["MATHBANK_REST_BASE_URL", "MATHBANK_ADMIN_API_KEY", "ADMIN_LOGIN_USERNAME",
-  "ADMIN_LOGIN_PASSWORD", "ADMIN_SESSION_SECRET", "ELEVEN_API_KEY"];
+  "ADMIN_LOGIN_PASSWORD", "ADMIN_SESSION_SECRET", "ELEVEN_API_KEY", "AWS_REGION",
+  "COGNITO_USER_POOL_ID", "COGNITO_ADMIN_GROUP"];
+// Renamed on the way in — mathbank-live gets its own App Client (COGNITO_CLIENT_ID_LIVE/
+// COGNITO_CLIENT_SECRET_LIVE in the root .env), distinct from mathbank-web's and
+// mathbank-exam-agent's, but lib/cognito.js in both mathbank-web and mathbank-live reads
+// the same generic COGNITO_CLIENT_ID/COGNITO_CLIENT_SECRET names either way.
+export const LIVE_RENAMED_KEYS = { COGNITO_CLIENT_ID_LIVE: "COGNITO_CLIENT_ID", COGNITO_CLIENT_SECRET_LIVE: "COGNITO_CLIENT_SECRET" };
 
 export function parseEnv(text) {
   const out = {};
@@ -40,6 +46,9 @@ async function main() {
   const values = {};
   const missing = [];
   for (const k of LIVE_KEYS) (rootEnv[k] ? (values[k] = rootEnv[k]) : missing.push(k));
+  for (const [sourceKey, targetKey] of Object.entries(LIVE_RENAMED_KEYS)) {
+    (rootEnv[sourceKey] ? (values[targetKey] = rootEnv[sourceKey]) : missing.push(sourceKey));
+  }
   values.LIVE_PORT = rootEnv.LIVE_PORT || "5174";
   const target = join(root, "mathbank-live", ".env");
   const merged = mergeEnv(await readFile(target, "utf8").catch(() => ""), values);

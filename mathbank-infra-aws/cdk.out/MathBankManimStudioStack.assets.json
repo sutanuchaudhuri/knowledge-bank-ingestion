@@ -1,16 +1,16 @@
 {
   "version": "54.0.0",
   "files": {
-    "3afb59b9570f893c76d3f0eb9d27cb5ac1302672051ce26a3b863d84655441e3": {
+    "c86f909679a5b240d986be0d4afe6bb9d28b0a47846a62592a85b6eaf4ccc8ce": {
       "displayName": "MathBankManimStudioStack Template",
       "source": {
         "path": "MathBankManimStudioStack.template.json",
         "packaging": "file"
       },
       "destinations": {
-        "848941468793-us-east-2-bd8406a2": {
+        "848941468793-us-east-2-725d00c8": {
           "bucketName": "cdk-hnb659fds-assets-848941468793-us-east-2",
-          "objectKey": "3afb59b9570f893c76d3f0eb9d27cb5ac1302672051ce26a3b863d84655441e3.json",
+          "objectKey": "c86f909679a5b240d986be0d4afe6bb9d28b0a47846a62592a85b6eaf4ccc8ce.json",
           "region": "us-east-2",
           "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-file-publishing-role-848941468793-us-east-2"
         }
@@ -18,10 +18,10 @@
     }
   },
   "dockerImages": {
-    "10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e": {
+    "ac35017f1106524c83ea9dc3485c78d44c90cda409d4302485b1061bb1b2fccf": {
       "displayName": "ManimStudioApiFunction/AssetImage",
       "source": {
-        "directory": "asset.10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e",
+        "directory": "asset.ac35017f1106524c83ea9dc3485c78d44c90cda409d4302485b1061bb1b2fccf",
         "dockerBuildContexts": {
           "mcp_competitions": "/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-mcp-competitions"
         },
@@ -29,9 +29,9 @@
         "platform": "linux/arm64"
       },
       "destinations": {
-        "848941468793-us-east-2-ca20e5b8": {
+        "848941468793-us-east-2-7587178d": {
           "repositoryName": "cdk-hnb659fds-container-assets-848941468793-us-east-2",
-          "imageTag": "10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e",
+          "imageTag": "ac35017f1106524c83ea9dc3485c78d44c90cda409d4302485b1061bb1b2fccf",
           "region": "us-east-2",
           "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-image-publishing-role-848941468793-us-east-2"
         }

@@ -1,16 +1,16 @@
 {
   "version": "54.0.0",
   "files": {
-    "4dc9d0139b2738b750baa7d9c86849fd769494fb30760bad89a878c9b40d1acd": {
+    "429bd56bdab72b3cb61db947581adfab0ea4f8da8946e75686bda5383bb3c8a1": {
       "displayName": "MathBankRestStack Template",
       "source": {
         "path": "MathBankRestStack.template.json",
         "packaging": "file"
       },
       "destinations": {
-        "848941468793-us-east-2-1c2ea144": {
+        "848941468793-us-east-2-078f6d2a": {
           "bucketName": "cdk-hnb659fds-assets-848941468793-us-east-2",
-          "objectKey": "4dc9d0139b2738b750baa7d9c86849fd769494fb30760bad89a878c9b40d1acd.json",
+          "objectKey": "429bd56bdab72b3cb61db947581adfab0ea4f8da8946e75686bda5383bb3c8a1.json",
           "region": "us-east-2",
           "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-file-publishing-role-848941468793-us-east-2"
         }
@@ -18,17 +18,17 @@
     }
   },
   "dockerImages": {
-    "d1487e980726567ece4d00bc1b4e322dfd08fe6bf7179c64dbeccf9cb3dfefe8": {
+    "e1fcefbd4ab696f61691095f7597fd955f36db8ff4f74031c4e5c2e3b8d3fe5e": {
       "displayName": "RestFunction/AssetImage",
       "source": {
-        "directory": "asset.d1487e980726567ece4d00bc1b4e322dfd08fe6bf7179c64dbeccf9cb3dfefe8",
+        "directory": "asset.e1fcefbd4ab696f61691095f7597fd955f36db8ff4f74031c4e5c2e3b8d3fe5e",
         "dockerFile": "mathbank-rest/Dockerfile.lambda",
         "platform": "linux/arm64"
       },
       "destinations": {
-        "848941468793-us-east-2-6eaac2d6": {
+        "848941468793-us-east-2-579b20fb": {
           "repositoryName": "cdk-hnb659fds-container-assets-848941468793-us-east-2",
-          "imageTag": "d1487e980726567ece4d00bc1b4e322dfd08fe6bf7179c64dbeccf9cb3dfefe8",
+          "imageTag": "e1fcefbd4ab696f61691095f7597fd955f36db8ff4f74031c4e5c2e3b8d3fe5e",
           "region": "us-east-2",
           "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-image-publishing-role-848941468793-us-east-2"
         }

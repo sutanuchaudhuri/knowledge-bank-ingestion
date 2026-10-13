@@ -309,6 +309,18 @@ manim-status:                      ## Show whether mathbank-manim-studio is runn
 manim-test:                        ## Run mathbank-manim-studio's test suite (real OpenAI + manim render, ~30s)
 	$(MAKE) -C mathbank-manim-studio test
 
+.PHONY: exam-agent-install
+exam-agent-install:                ## Install mathbank-exam-agent (requirements/64 — Strands SDK mock-exam agent)
+	$(MAKE) -C mathbank-exam-agent install
+
+.PHONY: exam-agent-test
+exam-agent-test:                   ## Run mathbank-exam-agent's unit test suite (no network/LLM calls)
+	$(MAKE) -C mathbank-exam-agent test
+
+.PHONY: exam-agent-run
+exam-agent-run:                    ## Run mathbank-exam-agent locally on :8030 (needs mathbank-rest already running)
+	$(MAKE) -C mathbank-exam-agent run
+
 .PHONY: ml-training-install
 ml-training-install:               ## Install mathbank-ml-training (offline notebooks; scaffolded, requirements/54-55)
 	$(MAKE) -C mathbank-ml-training install

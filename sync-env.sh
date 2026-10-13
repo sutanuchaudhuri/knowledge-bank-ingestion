@@ -172,7 +172,12 @@ write_file "mathbank-web/.env" "Next.js app — server-side only, the browser ne
   "MATHBANK_ADMIN_API_KEY=$(require MATHBANK_ADMIN_API_KEY)" \
   "ADMIN_LOGIN_USERNAME=$(require ADMIN_LOGIN_USERNAME)" \
   "ADMIN_LOGIN_PASSWORD=$(require ADMIN_LOGIN_PASSWORD)" \
-  "ADMIN_SESSION_SECRET=$(require ADMIN_SESSION_SECRET)"
+  "ADMIN_SESSION_SECRET=$(require ADMIN_SESSION_SECRET)" \
+  "AWS_REGION=$(require AWS_REGION)" \
+  "COGNITO_USER_POOL_ID=$(require COGNITO_USER_POOL_ID)" \
+  "COGNITO_CLIENT_ID=$(require COGNITO_CLIENT_ID_WEB)" \
+  "COGNITO_CLIENT_SECRET=$(require COGNITO_CLIENT_SECRET_WEB)" \
+  "COGNITO_ADMIN_GROUP=$(require COGNITO_ADMIN_GROUP)"
 
 echo
 if [ "$MISSING" -eq 1 ]; then

@@ -1,0 +1,512 @@
+{
+  "/MathBankFargateWebStack": [
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    },
+    {
+      "type": "aws:cdk:acknowledged-rules",
+      "data": {
+        "CloudFormation-Validate::W3010": "Literal AZs in template are the result of accessing stack.availabilityZones, this is expected and safe"
+      },
+      "trace": [
+        "    ...aws-cdk-lib, jsii runtime, node internals...",
+        "    (no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-webService": [
+    {
+      "type": "aws:cdk:warning",
+      "data": "Enable the 'circuitBreaker' property to trigger a quicker deployment failure if tasks are failing to start up (without this setting deployments may take up to 3 hours to fail). [ack: @aws-cdk/aws-ecs:shouldUseCircuitBreaker]",
+      "trace": [
+        "Annotations.addMessage (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:3506)",
+        "Annotations.addWarningV2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:2194)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/base/base-service.js:1:14814)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/no-box-stack-traces.js:1:349)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/fargate/fargate-service.js:1:8083)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/prop-injectable.js:1:861)",
+        "Kernel._Kernel_create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:62509)",
+        "Kernel.create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:53243)",
+        "KernelHost.processRequest (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227972)",
+        "KernelHost.run (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:226956)",
+        "Immediate._onImmediate (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227000)",
+        "process.processImmediate (node:internal/timers:505:21)"
+      ]
+    },
+    {
+      "type": "aws:cdk:warning",
+      "data": "minHealthyPercent has not been configured so the default value of 50% is used. The number of running tasks will decrease below the desired count during deployments etc. See https://github.com/aws/aws-cdk/issues/31705 [ack: @aws-cdk/aws-ecs:minHealthyPercent]",
+      "trace": [
+        "Annotations.addMessage (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:3506)",
+        "Annotations.addWarningV2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:2194)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/base/base-service.js:1:16436)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/no-box-stack-traces.js:1:349)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/fargate/fargate-service.js:1:8083)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/prop-injectable.js:1:861)",
+        "Kernel._Kernel_create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:62509)",
+        "Kernel.create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:53243)",
+        "KernelHost.processRequest (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227972)",
+        "KernelHost.run (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:226956)",
+        "Immediate._onImmediate (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227000)",
+        "process.processImmediate (node:internal/timers:505:21)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-webServiceName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankwebServiceName"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-liveService": [
+    {
+      "type": "aws:cdk:warning",
+      "data": "Enable the 'circuitBreaker' property to trigger a quicker deployment failure if tasks are failing to start up (without this setting deployments may take up to 3 hours to fail). [ack: @aws-cdk/aws-ecs:shouldUseCircuitBreaker]",
+      "trace": [
+        "Annotations.addMessage (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:3506)",
+        "Annotations.addWarningV2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:2194)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/base/base-service.js:1:14814)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/no-box-stack-traces.js:1:349)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/fargate/fargate-service.js:1:8083)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/prop-injectable.js:1:861)",
+        "Kernel._Kernel_create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:62509)",
+        "Kernel.create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:53243)",
+        "KernelHost.processRequest (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227972)",
+        "KernelHost.run (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:226956)",
+        "Immediate._onImmediate (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227000)",
+        "process.processImmediate (node:internal/timers:505:21)"
+      ]
+    },
+    {
+      "type": "aws:cdk:warning",
+      "data": "minHealthyPercent has not been configured so the default value of 50% is used. The number of running tasks will decrease below the desired count during deployments etc. See https://github.com/aws/aws-cdk/issues/31705 [ack: @aws-cdk/aws-ecs:minHealthyPercent]",
+      "trace": [
+        "Annotations.addMessage (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:3506)",
+        "Annotations.addWarningV2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:2194)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/base/base-service.js:1:16436)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/no-box-stack-traces.js:1:349)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/fargate/fargate-service.js:1:8083)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/prop-injectable.js:1:861)",
+        "Kernel._Kernel_create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:62509)",
+        "Kernel.create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:53243)",
+        "KernelHost.processRequest (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227972)",
+        "KernelHost.run (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:226956)",
+        "Immediate._onImmediate (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227000)",
+        "process.processImmediate (node:internal/timers:505:21)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-liveServiceName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankliveServiceName"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-ml-frontendService": [
+    {
+      "type": "aws:cdk:warning",
+      "data": "Enable the 'circuitBreaker' property to trigger a quicker deployment failure if tasks are failing to start up (without this setting deployments may take up to 3 hours to fail). [ack: @aws-cdk/aws-ecs:shouldUseCircuitBreaker]",
+      "trace": [
+        "Annotations.addMessage (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:3506)",
+        "Annotations.addWarningV2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:2194)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/base/base-service.js:1:14814)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/no-box-stack-traces.js:1:349)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/fargate/fargate-service.js:1:8083)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/prop-injectable.js:1:861)",
+        "Kernel._Kernel_create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:62509)",
+        "Kernel.create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:53243)",
+        "KernelHost.processRequest (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227972)",
+        "KernelHost.run (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:226956)",
+        "Immediate._onImmediate (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227000)",
+        "process.processImmediate (node:internal/timers:505:21)"
+      ]
+    },
+    {
+      "type": "aws:cdk:warning",
+      "data": "minHealthyPercent has not been configured so the default value of 50% is used. The number of running tasks will decrease below the desired count during deployments etc. See https://github.com/aws/aws-cdk/issues/31705 [ack: @aws-cdk/aws-ecs:minHealthyPercent]",
+      "trace": [
+        "Annotations.addMessage (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:3506)",
+        "Annotations.addWarningV2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/annotations.js:1:2194)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/base/base-service.js:1:16436)",
+        "new BaseService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/no-box-stack-traces.js:1:349)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/aws-ecs/lib/fargate/fargate-service.js:1:8083)",
+        "new FargateService2 (/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/jsii-kernel-f7w0P6/node_modules/aws-cdk-lib/core/lib/prop-injectable.js:1:861)",
+        "Kernel._Kernel_create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:62509)",
+        "Kernel.create (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:53243)",
+        "KernelHost.processRequest (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227972)",
+        "KernelHost.run (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:226956)",
+        "Immediate._onImmediate (/private/var/folders/64/wpkdwc7s3j7g4swxy380y9sw0000gn/T/tmpjfzbn7x9/lib/program.js:1:227000)",
+        "process.processImmediate (node:internal/timers:505:21)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-ml-frontendServiceName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankmlfrontendServiceName"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/ClusterName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ClusterName"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/FargateCluster/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FargateCluster7CCD5F93"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/FargateServicesSg/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FargateServicesSgAFB56839"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-webTaskDef/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankwebTaskDef35F8447C"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-webLogGroup/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankwebLogGroupDF42DBC4"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-webService/Service": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankwebServiceF39523FC"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-liveTaskDef/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankliveTaskDef68BE2E6E"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-liveLogGroup/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankliveLogGroup5C1A860A"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-liveService/Service": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankliveService22B5E5AE"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-ml-frontendTaskDef/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankmlfrontendTaskDefEFD3B864"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-ml-frontendLogGroup/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankmlfrontendLogGroup1C49DFDF"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-ml-frontendService/Service": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankmlfrontendServiceFD20BEC1"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-webTaskDef/TaskRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankwebTaskDefTaskRoleA671E22F"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-webTaskDef/ExecutionRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankwebTaskDefExecutionRole15B60812"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-liveTaskDef/TaskRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankliveTaskDefTaskRole18603743"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-liveTaskDef/ExecutionRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankliveTaskDefExecutionRole0711B569"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-ml-frontendTaskDef/TaskRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankmlfrontendTaskDefTaskRole00893E6E"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-ml-frontendTaskDef/ExecutionRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankmlfrontendTaskDefExecutionRole7333A0FA"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-webTaskDef/TaskRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankwebTaskDefTaskRoleDefaultPolicy2E9382A0"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-webTaskDef/ExecutionRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankwebTaskDefExecutionRoleDefaultPolicy7167DFBF"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-liveTaskDef/TaskRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankliveTaskDefTaskRoleDefaultPolicy1FB77858"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-liveTaskDef/ExecutionRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankliveTaskDefExecutionRoleDefaultPolicy922B2FAC"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/MathBankFargateWebStack/mathbank-ml-frontendTaskDef/ExecutionRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "mathbankmlfrontendTaskDefExecutionRoleDefaultPolicyB669E0F7"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ]
+}

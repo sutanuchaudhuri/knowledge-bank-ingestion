@@ -5,8 +5,9 @@ managed by mathbank-db/sql/003_learner_schema.sql, not by this service.
 """
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import text
 
@@ -92,12 +93,74 @@ def get_student_profile(student_id: UUID) -> dict | None:
     with engine.connect() as conn:
         row = conn.execute(
             text(
-                "SELECT student_id, email, first_name, last_name, display_name, status, created_at, last_login_at "
+                "SELECT student_id, email, first_name, last_name, display_name, status, "
+                "created_at, last_login_at, grade, phone "
                 "FROM learner.student_profile WHERE student_id = :id"
             ),
             {"id": str(student_id)},
         ).mappings().first()
         return dict(row) if row else None
+
+
+def get_student_by_cognito_sub(cognito_sub: str) -> dict | None:
+    """requirements/64 (continued) — mathbank-exam-web's Cognito-backed onboarding.
+    One `learner.student_profile` row per Cognito identity (`cognito_sub` is the
+    Cognito User Pool's own immutable, unique `sub` claim — never the mutable
+    username/email), resolved on every token verification so a returning user's
+    student_id (and accumulated quiz history/mastery) stays stable across logins."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT student_id, email, first_name, last_name, display_name, grade, phone, status "
+                "FROM learner.student_profile WHERE cognito_sub = :sub"
+            ),
+            {"sub": cognito_sub},
+        ).mappings().first()
+        return dict(row) if row else None
+
+
+def create_student_for_cognito(
+    *, cognito_sub: str | None, first_name: str, last_name: str, grade: str | None = None,
+    email: str | None = None, phone: str | None = None, is_anonymous: bool = False,
+) -> dict:
+    """Creates the `learner.student_profile` row at onboarding time (both the named
+    Cognito-signup path and the anonymous path create a row here — requirements/64
+    continued's "in both cases StudentId is created during onboarding"). No
+    `password_hash` is ever set here — Cognito owns the credential, this table only
+    owns the student's MathBank identity and profile fields. `email` is NOT NULL on this
+    table (a real, pre-existing constraint — every other code path always supplies one),
+    so a synthetic placeholder is generated when the student gave none; it is never a
+    real, reachable address and is distinguishable from a real one by its fixed
+    `@mathbank.anonymous.invalid` domain."""
+    display_name = f"{first_name} {last_name}".strip() or "Student"
+    placeholder_id = cognito_sub or uuid4()
+    email = email or f"anon-{placeholder_id}@mathbank.anonymous.invalid"
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("""
+                INSERT INTO learner.student_profile
+                    (cognito_sub, email, password_hash, first_name, last_name, display_name,
+                     grade, phone, is_anonymous)
+                VALUES (:sub, :email, :hash, :first_name, :last_name, :display_name,
+                        :grade, :phone, :is_anonymous)
+                -- A student who already registered the old password-based way (e.g. the
+                -- seeded demo accounts, or the e2e regression student) has a row here
+                -- under the same email, with cognito_sub still NULL. First-ever Cognito
+                -- login for that same email must link the existing row, never insert a
+                -- duplicate (email is NOT NULL UNIQUE) or silently 500 on the conflict.
+                -- Only cognito_sub is touched — every other existing column (profile,
+                -- password_hash, student_id) is left exactly as it was.
+                ON CONFLICT (email) DO UPDATE
+                    SET cognito_sub = COALESCE(learner.student_profile.cognito_sub, EXCLUDED.cognito_sub)
+                RETURNING student_id, email, first_name, last_name, display_name, grade, phone, status
+            """),
+            {
+                "sub": cognito_sub, "email": email, "hash": secrets.token_hex(32),
+                "first_name": first_name, "last_name": last_name, "display_name": display_name,
+                "grade": grade, "phone": phone, "is_anonymous": is_anonymous,
+            },
+        ).mappings().first()
+        return dict(row)
 
 
 def get_problem_id_by_code(canonical_code: str) -> UUID | None:

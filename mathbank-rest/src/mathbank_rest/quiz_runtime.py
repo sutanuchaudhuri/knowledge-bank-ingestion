@@ -16,6 +16,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from mathbank_rest import artifact_runtime, mastery, object_store
 from mathbank_rest.db import hybrid_search
@@ -398,6 +399,8 @@ def get_quiz(quiz_id: UUID, student_id: UUID) -> dict:
     return {
         "quiz_id": str(quiz_id), "style": paper["style"], "title": paper["title"],
         "status": paper["status"], "instructions": paper["instructions"],
+        "exam_mode": paper["exam_mode"], "time_limit_seconds": paper["time_limit_seconds"],
+        "started_at": paper["started_at"],
         "questions": [
             {
                 "question_id": str(q["question_id"]), "ordinal": q["ordinal"],
@@ -490,33 +493,44 @@ def submit_response(
         "json",
     )
     response_id = uuid4()
-    with engine.begin() as conn:
-        conn.execute(
-            text("""
-            INSERT INTO quiz.response (response_id, question_id, quiz_id, student_id,
-                response_type, raw_response, object_key, object_sha256, is_correct,
-                grading_method, grading_confidence, grading_feedback, time_spent_seconds)
-            VALUES (:rid, :qid, :quiz_id, :sid, :rtype, CAST(:raw AS jsonb), :okey, :osha,
-                :correct, :method, :conf, :feedback, :seconds)
-        """),
-            {
-                "rid": str(response_id), "qid": str(question_id), "quiz_id": str(quiz_id),
-                "sid": str(student_id), "rtype": question["question_type"],
-                "raw": json.dumps(raw_response), "okey": response_snapshot["object_key"],
-                "osha": response_snapshot["sha256"], "correct": is_correct,
-                "method": grading_method, "conf": confidence, "feedback": feedback,
-                "seconds": time_spent_seconds,
-            },
-        )
-        conn.execute(
-            text("UPDATE quiz.paper SET status='IN_PROGRESS', started_at=coalesce(started_at, now()) "
-                 "WHERE quiz_id=:id"),
-            {"id": str(quiz_id)},
-        )
-        solution = conn.execute(
-            text("SELECT solution_text, key_insight FROM quiz.solution WHERE question_id=:id"),
-            {"id": str(question_id)},
-        ).mappings().first()
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                INSERT INTO quiz.response (response_id, question_id, quiz_id, student_id,
+                    response_type, raw_response, object_key, object_sha256, is_correct,
+                    grading_method, grading_confidence, grading_feedback, time_spent_seconds)
+                VALUES (:rid, :qid, :quiz_id, :sid, :rtype, CAST(:raw AS jsonb), :okey, :osha,
+                    :correct, :method, :conf, :feedback, :seconds)
+            """),
+                {
+                    "rid": str(response_id), "qid": str(question_id), "quiz_id": str(quiz_id),
+                    "sid": str(student_id), "rtype": question["question_type"],
+                    "raw": json.dumps(raw_response), "okey": response_snapshot["object_key"],
+                    "osha": response_snapshot["sha256"], "correct": is_correct,
+                    "method": grading_method, "conf": confidence, "feedback": feedback,
+                    "seconds": time_spent_seconds,
+                },
+            )
+            conn.execute(
+                text("UPDATE quiz.paper SET status='IN_PROGRESS', started_at=coalesce(started_at, now()) "
+                     "WHERE quiz_id=:id"),
+                {"id": str(quiz_id)},
+            )
+            solution = conn.execute(
+                text("SELECT solution_text, key_insight FROM quiz.solution WHERE question_id=:id"),
+                {"id": str(question_id)},
+            ).mappings().first()
+    except IntegrityError as exc:
+        # A second request for the same question can slip past the existence check
+        # above (that SELECT and this INSERT aren't one atomic transaction) if it
+        # arrives while the first is still mid-flight — e.g. a client confirming a
+        # question and then immediately submitting the whole exam. Surface the same
+        # clean 409 the early check already gives the common (non-racing) case,
+        # rather than letting the UNIQUE(question_id) violation bubble up as a 500.
+        raise QuizError(
+            "ALREADY_ANSWERED", "this question already has a response", status_code=409,
+        ) from exc
 
     _absorb_mastery_feedback(student_id, question_id)
 
@@ -551,9 +565,21 @@ def _absorb_mastery_feedback(student_id: UUID, question_id: UUID) -> dict:
 def get_review(quiz_id: UUID, student_id: UUID) -> dict:
     with engine.connect() as conn:
         paper = _require_owned_paper(conn, quiz_id, student_id)
+        # requirements/64 §6 — exam-mode session gate: revealing even one question's
+        # correct answer mid-exam lets a student infer grading patterns, unlike
+        # self-paced practice (where requirements/53 already allows per-question review
+        # as soon as a response exists). Solutions are withheld server-side, not merely
+        # hidden in the UI, exactly like requirements/53 §5 already withholds them
+        # before any response exists at all.
+        if paper["exam_mode"] and paper["status"] not in ("SUBMITTED", "GRADED"):
+            raise QuizError(
+                "EXAM_IN_PROGRESS", "this exam paper must be submitted before it can be reviewed",
+                status_code=409,
+            )
         rows = conn.execute(
             text("""
             SELECT q.question_id, q.ordinal, q.question_type, q.prompt_text, q.points,
+                   q.options, q.correct_answer, q.option_explanations,
                    s.solution_text, s.key_insight,
                    r.raw_response, r.is_correct, r.grading_feedback, r.submitted_at
             FROM quiz.question q
@@ -565,7 +591,12 @@ def get_review(quiz_id: UUID, student_id: UUID) -> dict:
         ).mappings().all()
     answered = [r for r in rows if r["raw_response"] is not None]
     score = sum(1 for r in answered if r["is_correct"]) if answered else 0
-    if answered and len(answered) == len(rows):
+    # requirements/64 §6 — an exam-mode paper may reach SUBMITTED (explicit student
+    # action or a time-limit auto-submit) with some questions left blank; "every
+    # question answered" is not a reliable GRADED-trigger for that case the way it is
+    # for requirements/53's original self-paced practice flow, so SUBMITTED alone is
+    # also accepted here.
+    if paper["status"] == "SUBMITTED" or (answered and len(answered) == len(rows)):
         with engine.begin() as conn:
             conn.execute(
                 text("UPDATE quiz.paper SET status='GRADED', graded_at=now(), "
@@ -582,6 +613,12 @@ def get_review(quiz_id: UUID, student_id: UUID) -> dict:
                 "points": float(r["points"]), "student_response": r["raw_response"],
                 "is_correct": r["is_correct"], "feedback": r["grading_feedback"],
                 "solution_text": r["solution_text"], "key_insight": r["key_insight"],
+                # requirements/64 (continued) — every MCQ option's own explanation
+                # (why it's correct, or specifically why it's wrong), not just the
+                # correct answer + one overall solution. Only ever reached after the
+                # exam-mode gate above has already passed.
+                "options": r["options"], "correct_answer": r["correct_answer"],
+                "option_explanations": r["option_explanations"],
             }
             for r in rows
         ],
@@ -600,3 +637,337 @@ def list_my_quizzes(student_id: UUID, *, limit: int = 20) -> list[dict]:
             {"sid": str(student_id), "limit": limit},
         ).mappings().all()
     return [dict(r) for r in rows]
+
+
+# --------------------------------------------------------------------------- requirements/64:
+# mathbank-exam-agent integration — import an already-generated, critic-reviewed paper
+# (the STRANDS_BEDROCK counterpart to generate_quiz()'s OPENAI_DIRECT path, §2/§11 of
+# requirements/64_AWS_BEDROCK_MOCK_EXAM_AGENT.md), explicit exam submission, and the
+# post-exam diagnosis report. mathbank-exam-agent never connects to this database
+# directly — every write below is reached only via the admin-key-gated REST endpoints
+# in routers/exam_integration.py, keeping this service the one owner of quiz.* writes.
+
+def import_paper(
+    student_id: UUID, *, style: str, title: str, instructions: str = "",
+    requested_question_count: int, requested_question_types: list[str],
+    target_skill_slugs: list[str] | None = None, target_concept_slugs: list[str] | None = None,
+    difficulty_band: str | None = None, generated_by: str, exam_mode: bool = True,
+    time_limit_seconds: int | None = None, questions: list[dict],
+) -> dict:
+    """Persists a fully-formed, already-critic-approved paper. Each entry in `questions`
+    must carry: ordinal, question_type, prompt_text, prompt_latex (nullable), options
+    (MCQ only, nullable otherwise), correct_answer (same shape quiz.question.correct_answer
+    already uses: {"correct_key":...} for MCQ, {"expected_answer":...,"grading_rubric":...}
+    otherwise), solution_text, key_insight, revision_log (list, every generator<->critic
+    round — requirements/64 §4), concept_slugs/technique_slugs/skill_slugs (already
+    resolved by the caller, e.g. via the MCP list_concepts/list_techniques tools),
+    inspired_by_problem_id (optional), diagram (optional {"object_key":...,"sha256":...}).
+    """
+    if style not in STYLES:
+        raise QuizError("INVALID_STYLE", f"style must be one of {STYLES}")
+    if not 1 <= requested_question_count <= 20:
+        raise QuizError("INVALID_QUESTION_COUNT", "requested_question_count must be between 1 and 20")
+    if not questions:
+        raise QuizError("NO_QUESTIONS", "at least one question is required")
+
+    quiz_id = uuid4()
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+            INSERT INTO quiz.paper (quiz_id, student_id, style, title, instructions,
+                requested_question_count, requested_question_types, target_skill_slugs,
+                target_concept_slugs, difficulty_band, generated_by, agent_framework,
+                exam_mode, time_limit_seconds, status)
+            VALUES (:quiz_id, :student_id, :style, :title, :instructions, :count, :types,
+                :skills, :concepts, :difficulty, :generated_by, 'STRANDS_BEDROCK',
+                :exam_mode, :time_limit, 'READY')
+        """),
+            {
+                "quiz_id": str(quiz_id), "student_id": str(student_id), "style": style,
+                "title": title, "instructions": instructions,
+                "count": requested_question_count, "types": requested_question_types,
+                "skills": target_skill_slugs or [], "concepts": target_concept_slugs or [],
+                "difficulty": difficulty_band, "generated_by": generated_by,
+                "exam_mode": exam_mode, "time_limit": time_limit_seconds,
+            },
+        )
+        for ordinal, q in enumerate(questions, start=1):
+            qtype = q["question_type"]
+            if qtype not in QUESTION_TYPES:
+                raise QuizError("INVALID_QUESTION_TYPE", f"question_type must be one of {QUESTION_TYPES}")
+            question_id = uuid4()
+            conn.execute(
+                text("""
+                INSERT INTO quiz.question (question_id, quiz_id, ordinal, question_type,
+                    prompt_text, prompt_latex, options, correct_answer, inspired_by_problem_id,
+                    diagram_object_key, diagram_sha256, revision_log, difficulty_band,
+                    option_explanations)
+                VALUES (:qid, :quiz_id, :ordinal, :qtype, :prompt, :latex,
+                    CAST(:options AS jsonb), CAST(:correct AS jsonb), :inspired_by,
+                    :diagram_key, :diagram_sha, CAST(:revisions AS jsonb), :difficulty,
+                    CAST(:option_explanations AS jsonb))
+            """),
+                {
+                    "qid": str(question_id), "quiz_id": str(quiz_id), "ordinal": ordinal,
+                    "qtype": qtype, "prompt": q["prompt_text"], "latex": q.get("prompt_latex"),
+                    "options": json.dumps(q["options"]) if q.get("options") else None,
+                    "correct": json.dumps(q["correct_answer"]),
+                    "inspired_by": q.get("inspired_by_problem_id"),
+                    "diagram_key": (q.get("diagram") or {}).get("object_key"),
+                    "diagram_sha": (q.get("diagram") or {}).get("sha256"),
+                    "revisions": json.dumps(q.get("revision_log") or []),
+                    "difficulty": q.get("difficulty_band"),
+                    "option_explanations": json.dumps(q.get("option_explanations") or {}),
+                },
+            )
+            for slug in q.get("concept_slugs") or []:
+                conn.execute(
+                    text("""
+                    INSERT INTO quiz.question_concept (question_id, concept_id)
+                    SELECT :q, concept_id FROM knowledge.concept WHERE slug=:slug
+                    ON CONFLICT DO NOTHING
+                """),
+                    {"q": str(question_id), "slug": slug},
+                )
+            for slug in q.get("technique_slugs") or []:
+                conn.execute(
+                    text("""
+                    INSERT INTO quiz.question_technique (question_id, technique_id)
+                    SELECT :q, technique_id FROM knowledge.technique WHERE slug=:slug
+                    ON CONFLICT DO NOTHING
+                """),
+                    {"q": str(question_id), "slug": slug},
+                )
+            for slug in q.get("skill_slugs") or []:
+                conn.execute(
+                    text("""
+                    INSERT INTO quiz.question_skill (question_id, skill_id)
+                    SELECT :q, skill_id FROM knowledge.skill WHERE slug=:slug
+                    ON CONFLICT DO NOTHING
+                """),
+                    {"q": str(question_id), "slug": slug},
+                )
+            conn.execute(
+                text("""
+                INSERT INTO quiz.solution (question_id, solution_text, key_insight)
+                VALUES (:qid, :text, :insight)
+            """),
+                {"qid": str(question_id), "text": q["solution_text"], "insight": q.get("key_insight", "")},
+            )
+    return get_quiz(quiz_id, student_id)
+
+
+def submit_exam(quiz_id: UUID, student_id: UUID) -> dict:
+    """Explicit exam submission (student action or a client-side time-limit auto-submit)
+    — the authoritative "the exam is over" signal for exam_mode papers, independent of
+    whether every question was answered (requirements/64 §6)."""
+    with engine.begin() as conn:
+        paper = _require_owned_paper(conn, quiz_id, student_id)
+        if paper["status"] not in ("GENERATING", "READY", "IN_PROGRESS"):
+            raise QuizError(
+                "ALREADY_SUBMITTED", f"paper is already {paper['status']}", status_code=409,
+            )
+        conn.execute(
+            text("UPDATE quiz.paper SET status='SUBMITTED', "
+                 "submitted_at=coalesce(submitted_at, now()) WHERE quiz_id=:id"),
+            {"id": str(quiz_id)},
+        )
+    return get_review(quiz_id, student_id)
+
+
+def write_diagnosis(
+    quiz_id: UUID, student_id: UUID, *, time_management_verdict: str,
+    pacing_notes: list[dict], reasoning_guidance: list[dict], improvement_areas: list[dict],
+    generated_by: str,
+) -> dict:
+    """Persists the diagnosis agent's holistic, post-exam report (requirements/64 §7).
+    Requires the paper to already be GRADED (i.e. every question has been graded via the
+    existing submit_response()/get_review() path, unchanged) — a diagnosis synthesized
+    over partial/ungraded responses would be misleading, not merely incomplete."""
+    with engine.connect() as conn:
+        paper = _require_owned_paper(conn, quiz_id, student_id)
+        if paper["status"] != "GRADED":
+            raise QuizError(
+                "NOT_GRADED", "the paper must be fully graded before a diagnosis can be written",
+                status_code=409,
+            )
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+            INSERT INTO quiz.exam_diagnosis (quiz_id, time_management_verdict, pacing_notes,
+                reasoning_guidance, improvement_areas, generated_by)
+            VALUES (:id, :verdict, CAST(:pacing AS jsonb), CAST(:reasoning AS jsonb),
+                CAST(:improve AS jsonb), :by)
+            ON CONFLICT (quiz_id) DO UPDATE SET
+                time_management_verdict=EXCLUDED.time_management_verdict,
+                pacing_notes=EXCLUDED.pacing_notes,
+                reasoning_guidance=EXCLUDED.reasoning_guidance,
+                improvement_areas=EXCLUDED.improvement_areas,
+                generated_by=EXCLUDED.generated_by, created_at=now()
+        """),
+            {
+                "id": str(quiz_id), "verdict": time_management_verdict,
+                "pacing": json.dumps(pacing_notes), "reasoning": json.dumps(reasoning_guidance),
+                "improve": json.dumps(improvement_areas), "by": generated_by,
+            },
+        )
+    return get_diagnosis(quiz_id, student_id)
+
+
+def get_diagnosis(quiz_id: UUID, student_id: UUID) -> dict:
+    with engine.connect() as conn:
+        _require_owned_paper(conn, quiz_id, student_id)
+        row = conn.execute(
+            text("SELECT * FROM quiz.exam_diagnosis WHERE quiz_id=:id"),
+            {"id": str(quiz_id)},
+        ).mappings().first()
+    if row is None:
+        raise QuizError("NOT_FOUND", "no diagnosis yet for this paper", status_code=404)
+    result = dict(row)
+    result["quiz_id"] = str(result["quiz_id"])
+    return result
+
+
+def get_paper_for_diagnosis(quiz_id: UUID, student_id: UUID) -> dict:
+    """Everything the diagnosis agent needs as structured input (requirements/64 §7) —
+    per-question correctness/timing/difficulty/tags plus the student's PRE-exam mastery
+    for every tagged concept/technique, so the report can distinguish a confirmed known
+    gap from a newly-surfaced one, not just restate per-question grading feedback."""
+    with engine.connect() as conn:
+        paper = _require_owned_paper(conn, quiz_id, student_id)
+        rows = conn.execute(
+            text("""
+            SELECT q.question_id, q.ordinal, q.question_type, q.prompt_text,
+                   q.difficulty_band AS question_difficulty_band,
+                   r.is_correct, r.time_spent_seconds, r.raw_response,
+                   s.solution_text, s.key_insight,
+                   coalesce(array_agg(DISTINCT kc.slug) FILTER (WHERE kc.slug IS NOT NULL), '{}') AS concept_slugs,
+                   coalesce(array_agg(DISTINCT kt.slug) FILTER (WHERE kt.slug IS NOT NULL), '{}') AS technique_slugs
+            FROM quiz.question q
+            LEFT JOIN quiz.response r ON r.question_id = q.question_id
+            LEFT JOIN quiz.solution s ON s.question_id = q.question_id
+            LEFT JOIN quiz.question_concept qc ON qc.question_id = q.question_id
+            LEFT JOIN knowledge.concept kc ON kc.concept_id = qc.concept_id
+            LEFT JOIN quiz.question_technique qt ON qt.question_id = q.question_id
+            LEFT JOIN knowledge.technique kt ON kt.technique_id = qt.technique_id
+            WHERE q.quiz_id = :id
+            GROUP BY q.question_id, q.ordinal, q.question_type, q.prompt_text,
+                     q.difficulty_band, r.is_correct, r.time_spent_seconds, r.raw_response,
+                     s.solution_text, s.key_insight
+            ORDER BY q.ordinal
+        """),
+            {"id": str(quiz_id)},
+        ).mappings().all()
+        all_concept_slugs = sorted({slug for r in rows for slug in r["concept_slugs"]})
+        all_technique_slugs = sorted({slug for r in rows for slug in r["technique_slugs"]})
+        concept_mastery = {}
+        if all_concept_slugs:
+            concept_mastery = {
+                r["slug"]: float(r["mastery_score"])
+                for r in conn.execute(
+                    text("""
+                    SELECT c.slug, cm.mastery_score FROM learner.concept_mastery cm
+                    JOIN knowledge.concept c ON c.concept_id = cm.concept_id
+                    WHERE cm.student_id=:sid AND c.slug = ANY(:slugs)
+                """),
+                    {"sid": str(student_id), "slugs": all_concept_slugs},
+                ).mappings().all()
+            }
+        technique_mastery = {}
+        if all_technique_slugs:
+            technique_mastery = {
+                r["slug"]: float(r["mastery_score"])
+                for r in conn.execute(
+                    text("""
+                    SELECT t.slug, tm.mastery_score FROM learner.technique_mastery tm
+                    JOIN knowledge.technique t ON t.technique_id = tm.technique_id
+                    WHERE tm.student_id=:sid AND t.slug = ANY(:slugs)
+                """),
+                    {"sid": str(student_id), "slugs": all_technique_slugs},
+                ).mappings().all()
+            }
+    return {
+        "quiz_id": str(quiz_id), "style": paper["style"], "time_limit_seconds": paper["time_limit_seconds"],
+        "started_at": paper["started_at"], "submitted_at": paper["submitted_at"],
+        "questions": [
+            {
+                "question_id": str(r["question_id"]), "ordinal": r["ordinal"],
+                "question_type": r["question_type"], "prompt_text": r["prompt_text"],
+                "difficulty_band": r["question_difficulty_band"],
+                "is_correct": r["is_correct"], "time_spent_seconds": r["time_spent_seconds"],
+                "student_response": r["raw_response"],
+                "solution_text": r["solution_text"], "key_insight": r["key_insight"],
+                "concept_slugs": list(r["concept_slugs"]), "technique_slugs": list(r["technique_slugs"]),
+            }
+            for r in rows
+        ],
+        "concept_mastery_pre_exam": concept_mastery,
+        "technique_mastery_pre_exam": technique_mastery,
+    }
+
+
+# --------------------------------------------------------------------------- requirements/64
+# (continued): the mathbank-exam-web interaction timeline + anonymous student sessions.
+
+EVENT_TYPES = ("VIEW", "SELECT_OPTION", "DESELECT_OPTION", "TEXT_CHANGE", "SKIP", "FINAL_SUBMIT")
+
+
+def log_response_event(
+    quiz_id: UUID, question_id: UUID, student_id: UUID, *, event_type: str,
+    option_key: str | None = None, client_timestamp_ms: int | None = None,
+) -> dict:
+    """Appends one raw interaction event — "option A chosen at T1, changed to option B
+    at T2, skipped at T3" is this table's own real row sequence, not a derived summary.
+    Never used for grading (quiz.response/submit_response are unchanged and remain the
+    sole source of truth for the final answer) — purely telemetry for the exam-taking
+    UI's own "attempted so far" view and the diagnosis agent's pacing analysis."""
+    if event_type not in EVENT_TYPES:
+        raise QuizError("INVALID_EVENT_TYPE", f"event_type must be one of {EVENT_TYPES}")
+    with engine.connect() as conn:
+        _require_owned_paper(conn, quiz_id, student_id)
+        question = conn.execute(
+            text("SELECT 1 FROM quiz.question WHERE question_id=:id AND quiz_id=:qid"),
+            {"id": str(question_id), "qid": str(quiz_id)},
+        ).first()
+        if question is None:
+            raise QuizError("NOT_FOUND", "no such question in this quiz", status_code=404)
+    event_id = uuid4()
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+            INSERT INTO quiz.response_event (event_id, quiz_id, question_id, student_id,
+                event_type, option_key, client_timestamp_ms)
+            VALUES (:eid, :quiz_id, :qid, :sid, :etype, :okey, :cts)
+        """),
+            {
+                "eid": str(event_id), "quiz_id": str(quiz_id), "qid": str(question_id),
+                "sid": str(student_id), "etype": event_type, "okey": option_key, "cts": client_timestamp_ms,
+            },
+        )
+    return {"event_id": str(event_id), "event_type": event_type, "option_key": option_key}
+
+
+def get_response_events(quiz_id: UUID, student_id: UUID) -> list[dict]:
+    with engine.connect() as conn:
+        _require_owned_paper(conn, quiz_id, student_id)
+        rows = conn.execute(
+            text("""
+            SELECT e.question_id, q.ordinal, e.event_type, e.option_key,
+                   e.client_timestamp_ms, e.created_at
+            FROM quiz.response_event e JOIN quiz.question q ON q.question_id = e.question_id
+            WHERE e.quiz_id = :id ORDER BY e.created_at
+        """),
+            {"id": str(quiz_id)},
+        ).mappings().all()
+    return [
+        {
+            "question_id": str(r["question_id"]), "ordinal": r["ordinal"], "event_type": r["event_type"],
+            "option_key": r["option_key"], "client_timestamp_ms": r["client_timestamp_ms"],
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
+
+
+
+

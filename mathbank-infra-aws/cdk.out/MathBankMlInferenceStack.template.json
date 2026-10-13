@@ -134,6 +134,17 @@
      "FunctionUrl"
     ]
    }
+  },
+  "ExportsOutputFnGetAttMlInferenceFunctionFunctionUrl432DBC1EFunctionUrlD93B3E1B": {
+   "Value": {
+    "Fn::GetAtt": [
+     "MlInferenceFunctionFunctionUrl432DBC1E",
+     "FunctionUrl"
+    ]
+   },
+   "Export": {
+    "Name": "MathBankMlInferenceStack:ExportsOutputFnGetAttMlInferenceFunctionFunctionUrl432DBC1EFunctionUrlD93B3E1B"
+   }
   }
  },
  "Parameters": {

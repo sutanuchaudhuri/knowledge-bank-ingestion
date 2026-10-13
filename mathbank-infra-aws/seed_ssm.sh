@@ -19,11 +19,13 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-# Keep in sync with stacks/ssm_config.py's SECRET_ENV_KEYS.
+# Keep in sync with stacks/ssm_config.py's SECRET_ENV_KEYS, plus a few
+# service-local-name variants (e.g. MATHBANK_ADMIN_API_KEY) that aren't literally the
+# same key name as another service's but hold the same kind of sensitive value.
 SECRET_KEYS=(
   POSTGRES_PASSWORD NEO4J_PASSWORD JWT_SECRET ADMIN_API_KEY OPENAI_API_KEY
   AWS_SECRET_ACCESS_KEY NEON_AI_GATEWAY_TOKEN ELEVEN_API_KEY ADMIN_SESSION_SECRET
-  ADMIN_LOGIN_PASSWORD
+  ADMIN_LOGIN_PASSWORD COGNITO_CLIENT_SECRET MATHBANK_ADMIN_API_KEY
 )
 
 echo "Seeding SSM SecureString parameters for $SERVICE in $REGION (profile: $PROFILE)..."

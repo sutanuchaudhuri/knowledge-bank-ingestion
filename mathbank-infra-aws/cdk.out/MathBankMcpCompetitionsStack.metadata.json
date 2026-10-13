@@ -99,6 +99,19 @@
       ]
     }
   ],
+  "/MathBankMcpCompetitionsStack/Exports/Output{\"Fn::GetAtt\":[\"McpCompetitionsFunctionFunctionUrl6B3179A3\",\"FunctionUrl\"]}": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsOutputFnGetAttMcpCompetitionsFunctionFunctionUrl6B3179A3FunctionUrl1617CA7D"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, jsii runtime...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
   "/MathBankMcpCompetitionsStack/McpCompetitionsFunction/ServiceRole/Resource": [
     {
       "type": "aws:cdk:logicalId",

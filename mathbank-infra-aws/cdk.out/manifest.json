@@ -18,7 +18,7 @@
         "validateOnSynth": false,
         "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-deploy-role-848941468793-us-east-2",
         "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-cfn-exec-role-848941468793-us-east-2",
-        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/4dc9d0139b2738b750baa7d9c86849fd769494fb30760bad89a878c9b40d1acd.json",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/429bd56bdab72b3cb61db947581adfab0ea4f8da8946e75686bda5383bb3c8a1.json",
         "requiresBootstrapStackVersion": 6,
         "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
         "additionalDependencies": [
@@ -53,7 +53,7 @@
         "validateOnSynth": false,
         "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-deploy-role-848941468793-us-east-2",
         "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-cfn-exec-role-848941468793-us-east-2",
-        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/917171064c1a8db0582e95b76a8d4fd900ed6a0b804c2e38a6e62a268aafc3be.json",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/7d0839dccd01572e82229e21ebf7f81094a78da3d98a329b9a3a94d6e8365f13.json",
         "requiresBootstrapStackVersion": 6,
         "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
         "additionalDependencies": [
@@ -89,7 +89,7 @@
         "validateOnSynth": false,
         "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-deploy-role-848941468793-us-east-2",
         "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-cfn-exec-role-848941468793-us-east-2",
-        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/e7e354ebdf4c9836da57f4d1c503c5fabb4ff36680518cdb9cc4f2065a411ad1.json",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/9972a67cf5f483239680fb0f70a52f459ae6d7db2d4bc4d4ab58eed992905eca.json",
         "requiresBootstrapStackVersion": 6,
         "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
         "additionalDependencies": [
@@ -124,7 +124,7 @@
         "validateOnSynth": false,
         "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-deploy-role-848941468793-us-east-2",
         "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-cfn-exec-role-848941468793-us-east-2",
-        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/1551da56437cc7abf1aa97a3c820efbddee1793cdd43bb006c6172c2a4cceef6.json",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/896a8e82c0ea6b8b98cc2c0680aec567ec21ad43deb3797bc9e48d965714675a.json",
         "requiresBootstrapStackVersion": 6,
         "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
         "additionalDependencies": [
@@ -160,7 +160,7 @@
         "validateOnSynth": false,
         "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-deploy-role-848941468793-us-east-2",
         "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-cfn-exec-role-848941468793-us-east-2",
-        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/3afb59b9570f893c76d3f0eb9d27cb5ac1302672051ce26a3b863d84655441e3.json",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/c86f909679a5b240d986be0d4afe6bb9d28b0a47846a62592a85b6eaf4ccc8ce.json",
         "requiresBootstrapStackVersion": 6,
         "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
         "additionalDependencies": [
@@ -178,6 +178,116 @@
       ],
       "additionalMetadataFile": "MathBankManimStudioStack.metadata.json",
       "displayName": "MathBankManimStudioStack"
+    },
+    "MathBankExamAgentStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "MathBankExamAgentStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "MathBankExamAgentStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://848941468793/us-east-2",
+      "properties": {
+        "templateFile": "MathBankExamAgentStack.template.json",
+        "terminationProtection": false,
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-deploy-role-848941468793-us-east-2",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-cfn-exec-role-848941468793-us-east-2",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/97cfccda12d0da85d02eee3144d232034ebb54b89661b9454477728714d543fd.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "MathBankExamAgentStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-lookup-role-848941468793-us-east-2",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "MathBankRestStack",
+        "MathBankMcpCompetitionsStack",
+        "MathBankExamAgentStack.assets"
+      ],
+      "additionalMetadataFile": "MathBankExamAgentStack.metadata.json",
+      "displayName": "MathBankExamAgentStack"
+    },
+    "MathBankExamWebStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "MathBankExamWebStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "MathBankExamWebStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://848941468793/us-east-2",
+      "properties": {
+        "templateFile": "MathBankExamWebStack.template.json",
+        "terminationProtection": false,
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-deploy-role-848941468793-us-east-2",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-cfn-exec-role-848941468793-us-east-2",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/f06f16cc872f61b4965bc0965eb6194b964cce174072c13e3290ab31fc420e97.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "MathBankExamWebStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-lookup-role-848941468793-us-east-2",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "MathBankExamWebStack.assets"
+      ],
+      "additionalMetadataFile": "MathBankExamWebStack.metadata.json",
+      "displayName": "MathBankExamWebStack"
+    },
+    "MathBankFargateWebStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "MathBankFargateWebStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "MathBankFargateWebStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://848941468793/us-east-2",
+      "properties": {
+        "templateFile": "MathBankFargateWebStack.template.json",
+        "terminationProtection": false,
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-deploy-role-848941468793-us-east-2",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-cfn-exec-role-848941468793-us-east-2",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-848941468793-us-east-2/c327f23851636706e34c9c39eb1b127afe045b4eb90b156d0d222cd41517a214.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "MathBankFargateWebStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::848941468793:role/cdk-hnb659fds-lookup-role-848941468793-us-east-2",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "MathBankRestStack",
+        "MathBankAgentStack",
+        "MathBankMlInferenceStack",
+        "MathBankFargateWebStack.assets"
+      ],
+      "additionalMetadataFile": "MathBankFargateWebStack.metadata.json",
+      "displayName": "MathBankFargateWebStack"
     },
     "Tree": {
       "type": "cdk:tree",

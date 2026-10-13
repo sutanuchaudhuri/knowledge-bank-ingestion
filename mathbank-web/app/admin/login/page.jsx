@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { input, primaryButton } from "../../db/dbStyles.js";
 import { Callout, Icon, PageHeader } from "../../_components/ui.jsx";
 
@@ -31,7 +32,7 @@ export default function AdminLoginPage() {
   return (
     <div className="app-auth">
       <div className="mb-4">
-        <PageHeader icon="shield-lock" title="Admin login" subtitle="Single predefined admin account until OAuth lands." tone="warning" centered />
+        <PageHeader icon="shield-lock" title="Admin login" subtitle="Sign in with your Cognito admin account." tone="warning" centered />
       </div>
       <form onSubmit={submit} className="card p-4 d-grid gap-3">
         <label className="form-label mb-0">Username
@@ -57,9 +58,12 @@ export default function AdminLoginPage() {
           {status === "checking" ? "Checking…" : "Log in"}
         </button>
         {status?.startsWith("error") && <Callout tone="danger" role="alert">{status}</Callout>}
+        <p className="small text-center mb-0">
+          <Link href="/forgot-password">Forgot password?</Link>
+        </p>
       </form>
-      <p className="small text-secondary text-center mt-3" title="Set ADMIN_LOGIN_USERNAME / ADMIN_LOGIN_PASSWORD in mathbank-web/.env to change (requirements/12).">
-        <Icon name="info-circle" className="me-1" />Dev default: <code>admin</code> / <code>ChangeMe123!</code>
+      <p className="small text-secondary text-center mt-3" title="Admin accounts are provisioned via AWS Cognito, in the Admins group — not self-service sign-up.">
+        <Icon name="info-circle" className="me-1" />Admin access requires membership in the Cognito <code>Admins</code> group.
       </p>
     </div>
   );

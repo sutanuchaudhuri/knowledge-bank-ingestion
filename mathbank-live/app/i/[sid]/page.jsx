@@ -7,6 +7,6 @@ export const dynamic = "force-dynamic";
 export default async function InstructorPage({ params }) {
   const { sid } = await params;
   const actor = await currentActor();
-  if (actor?.role !== "INSTRUCTOR") redirect("/login");
+  if (actor?.role !== "INSTRUCTOR") redirect("/admin/login");
   return <Console sid={sid} />;
 }

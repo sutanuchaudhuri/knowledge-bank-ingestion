@@ -23,6 +23,8 @@
 | ARCH-8 | `mathbank-web` / `mathbank-ml-frontend` on Amplify Hosting | ⏳ NOT STARTED |
 | ARCH-9 | `mathbank-live` on Fargate (start/stop scheduling) | ⏳ NOT STARTED |
 | ARCH-10 | Root `Makefile` delegate targets (`infra-*`), including per-service pause/stop | ✅ IMPLEMENTED — see §6 |
+| ARCH-11 | `mathbank-exam-agent` Lambda container image + Function URL (requirements/64) | ✅ IMPLEMENTED and live-verified — real Cognito signup/paper-generation/exam/diagnosis round trip against the deployed URL |
+| ARCH-12 | `mathbank-exam-web` static SPA on S3 + CloudFront (requirements/64) — this repo's first non-Amplify, non-Lambda frontend deployment | ✅ IMPLEMENTED and live-verified — private S3 bucket (OAC) behind CloudFront, SPA-routing error-response rewrite, real browser round trip against the deployed URL |
 
 ## 1. Live service URLs
 
@@ -34,6 +36,8 @@
 | `mathbank-mcp-competitions` | `https://xkvec5covshtvkf35ryg2haree0dijjm.lambda-url.us-east-2.on.aws/` | FastMCP streamable-HTTP server (corpus search tools) — a separate, standing instance from the stdio copy bundled inside `mathbank-manim-studio` |
 | `mathbank-manim-studio` (API) | `https://vo2eqjkh5xgkdj6x64ntche7ua0hneru.lambda-url.us-east-2.on.aws/` | `/v1/research-jobs`, `/v1/render-jobs`, `/v1/render-jobs/{id}/video` |
 | `mathbank-manim-studio` (worker) | *(no URL — EventBridge-triggered only, see §2)* | Claims and processes one research job + one render job per minute |
+| `mathbank-exam-agent` | `https://rp4tfkonnswyn72i7dvvijao3i0amwxw.lambda-url.us-east-2.on.aws/` | Mock-exam agent (requirements/64) — Cognito auth, NL paper generation, exam-taking, diagnosis |
+| `mathbank-exam-web` | `https://d1zj6erbhmlgyk.cloudfront.net` | Independent static frontend (S3 + CloudFront, not Lambda) for the mock-exam feature |
 
 `make infra-outputs` (repo root) prints every stack's outputs at any time; override with
 `STACK=MathBankXStack` for just one.

@@ -11,6 +11,8 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1150.0",
+    "@aws-sdk/client-ssm": "^3.1150.0",
     "bootstrap": "^5.3.8",
     "katex": "^0.19.0",
     "mathbank-widgets": "file:../mathbank-widgets",

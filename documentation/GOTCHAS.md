@@ -1196,7 +1196,161 @@ don't have this failure mode — concurrent local + deployed instances just serv
 independent reads/writes, they don't compete to "claim" anything — so this is specific
 to queue/worker-shaped services.
 
+## 48. A valid Bedrock bearer token/IAM session and a successful `list_foundation_models()` call do not mean Bedrock *invocation* actually works on that account — "Error 002: Access to Bedrock models is not allowed for this account" is a genuine, account-level restriction, not a model-ID or region problem
+
+Hit live building `mathbank-exam-agent` (requirements/64): every attempt to actually call
+a Bedrock model — via the AWS Strands Agents SDK's `BedrockModel`, using the
+`AWS_BEARER_TOKEN_BEDROCK` already present in the root `.env` — failed identically:
+```
+botocore.errorfactory.ValidationException: An error occurred (ValidationException) when
+calling the ConverseStream operation: Error 002: Access to Bedrock models is not allowed
+for this account
+```
+Confirmed this is **not** a per-model access-grant gap (the usual "request model access
+in the Bedrock console" friction most Claude-on-Bedrock guides mention) by trying two
+completely different providers' models — `anthropic.claude-haiku-4-5-20251001-v1:0` and
+`amazon.nova-2-lite-v1:0` (Amazon's own first-party model, which is not normally gated
+behind a separate access request) — both failed with the exact same "Error 002" text.
+Also confirmed the credential itself is valid and not the issue: `bedrock.
+list_foundation_models()` (a metadata-only call) succeeded fine with the same bearer
+token, returning 97 real model entries — only the actual invoke/converse operation is
+blocked. This points to an account-level restriction (e.g. Bedrock not yet enabled for
+this account/region combination, a billing/payment-verification gate specific to
+Bedrock, or an organizational policy), resolvable only via the AWS Console (Bedrock →
+Model access page) or AWS Support, not via any code change.
+
+**Fix applied, not a workaround for the restriction itself**: per the user's explicit
+instruction, continued with **`strands.models.openai.OpenAIModel`** instead of
+`BedrockModel` — confirmed live that the Strands Agents SDK's `Agent`/`MCPClient`/
+`agent(prompt, structured_output_model=...)` interface is completely unchanged regardless
+of which `Model` backs it, so the actual "AWS agent framework, not Google ADK"
+architecture requirement was preserved; only the LLM provider changed. Isolated this
+choice to three small factory functions (`llm_models.py`) so swapping back once Bedrock
+access is resolved touches no other file. **Separate, smaller finding from the same
+investigation**: `Agent.structured_output(Model, prompt)` is deprecated in the installed
+SDK version (`strands-agents==1.59.0`) in favour of
+`agent(prompt, structured_output_model=Model)` — the deprecation warning names the
+replacement directly; worth using the non-deprecated form from the start rather than
+hitting the warning mid-project.
+
+## 49. A new service's `.env` using lowercase keys (fine for the app itself — pydantic-settings matches env vars case-insensitively) silently breaks a CDK stack's own case-sensitive `env_values.get("UPPERCASE_KEY")` lookup — no error, just an empty `present_secrets`/`plain_env_vars` result
+
+Hit live deploying `mathbank-exam-agent` (requirements/64): the new
+`exam_agent_service_stack.py` built and deployed cleanly, with no synth/deploy error at
+all, yet every request needing `ADMIN_API_KEY` failed with a clean-looking (but wrong)
+`401 invalid admin API key` — not a crash, just silently always-wrong. Root cause: this
+service's `.env` uses lowercase keys (`admin_api_key`, `openai_api_key`, …), unlike every
+other service's `.env` in this repo (always uppercase). The stack's own
+`SECRET_KEY_TARGETS = {"ADMIN_API_KEY": "ADMIN_API_KEY", ...}` dict and `_parse_env_file()`
+helper did a plain case-sensitive `env_values.get("ADMIN_API_KEY")` — which found nothing
+in a dict keyed by `"admin_api_key"` — so `present_secrets` came back `{}`,
+`grant_and_map_secrets()` short-circuited (`if not secret_to_target: return {}`), and the
+Lambda's `MATHBANK_SECRET_MAP`/`MATHBANK_SSM_PREFIX` env vars were simply never set. The
+app itself never errors on a missing secret — it just reads the field's blank pydantic
+default (`admin_api_key: str = ""`) and sends an empty string, which `require_admin_api_key`
+correctly (and silently, from the stack's point of view) rejects. `seed_ssm.sh` was
+*not* affected by this (it already does a case-insensitive `grep -iE`), which made this
+extra confusing: the secrets really were sitting in SSM with the right values the whole
+time — this stack's code just never asked for them. **Fix**: normalize every key to
+uppercase in `_parse_env_file()` (`values[key.strip().upper()] = ...`), matching
+`seed_ssm.sh`'s existing case-insensitive handling, rather than assuming every `.env` in
+the repo uses the same casing convention. **General lesson**: when adding a new CDK
+stack for a service whose `.env` convention you haven't verified, normalize case
+up front — a silently-empty secrets map produces a working-looking deploy and a
+clean-looking auth error, not an obvious stack-misconfiguration signal.
+
+## 50. Both ends of a freshly-deployed two-Lambda call chain can cold-start on the very
+first real request, and a 15s httpx client timeout tuned for a warm steady-state can
+trip before either one finishes — not a hung call, just two sequential cold starts
+
+Hit live deploying `mathbank-exam-agent` → `mathbank-rest` (requirements/64): right
+after `cdk deploy` of both stacks, the first `/v1/auth/anonymous` call failed with a raw
+httpx `ReadTimeout`/`ConnectTimeout`-mapped exception at almost exactly 15.0s — the exact
+value `rest_client.py`'s `_request()` used as its default `timeout`. `mathbank-rest`'s own
+Lambda was also freshly redeployed moments earlier, so this specific request paid for
+*two* cold starts back to back (exam-agent's own ~3-10s init, plus a network round trip
+to a cold-starting downstream Lambda) — comfortably over a timeout sized for an
+already-warm steady state. Retrying immediately (both Lambdas now warm) succeeded in
+under half a second. **Fix**: raised the default timeout to 30s — enough headroom for a
+worst-case simultaneous cold-start cascade without masking a genuinely hung call.
+**General lesson**: a client timeout tuned against warm-path latency numbers needs a
+deliberate cold-start margin for any call chain that can itself trigger a downstream
+Lambda's cold start — the very first request after any deploy is the one most likely to
+need it.
+
+## 51. A `DockerImageAsset` built `platform=LINUX_ARM64` (for cheaper Graviton Fargate pricing) still runs on a standard x86_64 task unless `FargateTaskDefinition`'s own `runtime_platform` is set to match — the container fails instantly with `exec format error`, and the task can briefly look RUNNING if you only check `desiredStatus`
+
+Hit deploying `mathbank-web`/`mathbank-live`/`mathbank-ml-frontend` to Fargate
+(`fargate_web_stack.py`, this revision of requirements/62): the three
+`ecs.FargateTaskDefinition(...)` calls had no `runtime_platform` argument, so CDK left
+it at its default (`LINUX`/`X86_64`), while the `ecr_assets.DockerImageAsset(...)` a few
+lines later was deliberately built with `platform=ecr_assets.Platform.LINUX_ARM64` (for
+the ~20% cheaper Graviton Fargate rate). An ARM64 image launched on an x86_64 task fails
+at the container's very first `exec` with `exec format error` — visible only in
+CloudWatch Logs, not in `aws ecs describe-services`/`describe-tasks`, both of which can
+report the task as `RUNNING` for a few seconds between ECS restart attempts. A start
+script polling only `desiredStatus == RUNNING` (set the instant `update-service` is
+called) rather than the task's actual `lastStatus`, or not checking logs at all, can read
+this as a successful start and then time out confusingly on the next step (e.g. resolving
+a public IP that is about to disappear when the task cycles to `STOPPED` again). **Fix**:
+`runtime_platform=ecs.RuntimePlatform(cpu_architecture=ecs.CpuArchitecture.ARM64,
+operating_system_family=ecs.OperatingSystemFamily.LINUX)` passed to
+`FargateTaskDefinition`, matching the image's `platform=` exactly. **General lesson**:
+whenever a Fargate task definition and its container image are constructed in two
+separate CDK calls, their CPU architectures are two independent settings that silently
+default differently (task definition defaults to x86_64; nothing stops you building an
+ARM64 image) — always pin both explicitly or grep for both before debugging container
+logs as if it were an application bug.
+
+## 52. A Fargate task role, unlike a Lambda execution role built from the same `FargateAppSpec`-style config, needs its own explicit per-app IAM grant for any non-SSM/non-S3 AWS API a container calls — a generic "Fargate app" CDK construct that only wires `ssm:GetParameter` leaves any app-specific SDK call (e.g. Cognito `AdminInitiateAuth`) with zero permissions, failing only at the first real call, not at deploy or container-boot time
+
+Hit deploying `mathbank-web`/`mathbank-live` (both now calling Cognito's
+`AdminInitiateAuth`/`AdminCreateUser`/`AdminSetUserPassword`/`AdminGetUser` from
+`lib/cognito.js`, same four actions `mathbank-exam-agent`'s Lambda execution role already
+had): the container started fine, the homepage returned 200, and `/login` rendered
+correctly — the first sign something was wrong was a real login POST returning
+`AccessDeniedException: ... is not authorized to perform: cognito-idp:AdminInitiateAuth
+... because no identity-based policy allows the cognito-idp:AdminInitiateAuth action`.
+The generic `FargateWebStack`/`FargateAppSpec` construct only ever wired
+`ssm:GetParameter` (for `fetch-secrets.mjs`'s runtime secret fetch) onto the task role,
+since most of this stack's Fargate apps don't call any other AWS service directly — there
+was no equivalent of `exam_agent_service_stack.py`'s explicit Cognito policy grant for
+the generic multi-app construct. **Fix**: a `needs_cognito: bool` field on
+`FargateAppSpec` (`True` only for the two apps that actually call Cognito), conditionally
+attaching the same 4-action policy scoped to the one User Pool ARN. **General lesson**: a
+shared/generic infra construct's IAM wiring tends to cover only the lowest-common
+denominator of what *most* apps using it need (here, SSM) — any app with an extra
+AWS SDK dependency needs its own explicit grant added to that construct, and the failure
+mode for a missing grant is a normal-looking running container that only errors on the
+specific API call, not at deploy time or container startup, making "it's up and the
+homepage works" an insufficient smoke test for anything Cognito/IAM-related.
+
+## 53. The AWS CLI's browser-based `aws login` session (`login_session` profile, not classic SSO) silently expires mid-session — every `aws`/`cdk`/`make deploy`/`make fargate-*` command then fails with the *same* generic `Your session has expired. Please reauthenticate using 'aws login'` error, regardless of which API call actually triggered it
+
+Hit mid-session, between one `make fargate-*-start` call and the next: a previously
+working `aws ecr describe-repositories` call (and, moments later, `aws sts
+get-caller-identity`) both failed with `aws: [ERROR]: Your session has expired. Please
+reauthenticate using 'aws login'` — this repo's `~/.aws/config` uses the newer
+`login_session = arn:aws:iam::<account>:root` profile shape (AWS CLI's own browser-based
+Console-credential login, added for local dev — see the `us-east-1.signin.aws.amazon.com/
+v1/authorize?...` URL this project's earlier session used to first set it up), not a
+classic IAM-user access-key pair or an IAM Identity Center/SSO profile. Unlike SSO's
+`aws sso login`, this flow's session/refresh-token lifetime is comparatively short and
+there is **no proactive warning** before every single `aws`/`cdk`-wrapping command (the
+`fargate_ctl.sh` script, every `make fargate-*`/`make deploy`/`make seed-ssm` target) just
+starts failing identically, whether the underlying call was STS, ECR, ECS, SSM, or
+CloudFormation — the error message is generic, not tied to the specific API that
+happened to be called first. **Fix**: re-run `aws login --profile aws-sutanu-admin`
+(opens a local browser callback; add `--remote` only if working over SSH with no local
+browser) — no CDK/stack state is lost, this only affects the CLI's own credentials, not
+anything already deployed. **General lesson**: before diagnosing a sudden, otherwise
+unexplained failure across *several unrelated* AWS CLI/CDK commands in the same session
+(not just one), check `aws sts get-caller-identity --profile <profile>` first — a session
+expiry masquerades as whatever command happens to need credentials next, which can look
+like a new infra bug if you don't check the simplest explanation first.
+
 ## Single-command recreation
+
 
 ```bash
 # one-time, from a fresh clone, with OPENAI_API_KEY in root .env:

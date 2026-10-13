@@ -30,6 +30,7 @@ from mathbank_rest.routers.admin_taxonomy import router as admin_taxonomy_router
 from mathbank_rest.routers.admin_activities import router as admin_activities_router
 from mathbank_rest.routers.admin_activities import binding_router as admin_activity_bindings_router
 from mathbank_rest.routers.quiz_runtime import router as quiz_runtime_router
+from mathbank_rest.routers.exam_integration import router as exam_integration_router
 from mathbank_rest.routers.notifications import router as notifications_router
 from mathbank_rest.routers.theorems import admin_router as theorems_admin_router
 from mathbank_rest.routers.theorems import student_router as theorems_student_router
@@ -109,6 +110,7 @@ app.include_router(admin_taxonomy_router)
 app.include_router(admin_activities_router)
 app.include_router(admin_activity_bindings_router)
 app.include_router(quiz_runtime_router)
+app.include_router(exam_integration_router)
 app.include_router(notifications_router)
 app.include_router(theorems_admin_router)
 app.include_router(theorems_student_router)

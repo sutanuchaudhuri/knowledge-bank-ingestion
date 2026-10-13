@@ -1,0 +1,330 @@
+# mathbank-web
+
+Next.js chat frontend for the MathBank tutor. The browser only ever talks to
+**this app** (same-origin, no CORS needed) — `app/api/agent/*` route handlers
+run server-side and proxy to the `mathbank-agent` Google ADK REST server,
+which itself calls `mathbank-rest` → Postgres.
+
+```
+browser ──same-origin──▶ mathbank-web (Next.js, :5173)
+                              │ app/api/agent/session, app/api/agent/run
+                              │ (server-side fetch, no CORS)
+                              ▼
+                         mathbank-agent (ADK REST, :8001) ──▶ mathbank-rest ──▶ Postgres
+```
+
+This replaces an earlier Vite/React version that called `mathbank-agent`
+directly from the browser — `adk api_server` rejects cross-origin browser
+requests by default (`403 Forbidden: origin not allowed`), so routing through
+Next.js's own server avoids needing to configure CORS on the agent at all.
+
+## Quick start
+
+```bash
+cp .env.example .env   # MATHBANK_AGENT_BASE_URL, defaults to http://127.0.0.1:8001
+make install
+make dev                # http://localhost:5173
+```
+
+Requires `mathbank-agent` running (`make -C ../mathbank-agent run`), which in
+turn requires `mathbank-rest` running (`make -C ../mathbank-rest run`).
+
+## Current user model
+
+Admins use `/admin/corpus` for competition/problem-number filters, likely
+missing-diagram triage, collapsed canonical previews, reviewed text repair,
+private permitted source/solution-image uploads and original practice drafts.
+Manual drafts are free; optional configured-provider AI generation requires
+explicit paid consent. Approval is separate and new practice is labelled
+synthetic/nonofficial with UNVERIFIED solutions. No graph/vector publication
+or source scraping happens automatically. See
+[requirement 35](../documentation/requirements/35_CORPUS_REPAIR_AND_AUTHORING.md).
+
+Students sign in at `/login` (httpOnly JWT cookie); admins at `/admin/login`.
+The ADK `user_id` is derived on the server (`/api/agent/session`): the student
+UUID when signed in, otherwise `anonymous`; any client-supplied id is ignored.
+Signed-in chats are linked to the student in `learner.agent_session_link`, so
+the full conversation can be rebuilt at `/learn/conversations` (student) and
+`/admin/conversations` (admin, incl. tool calls). Anonymous chats stay
+unlinked. See [requirements/22](../documentation/requirements/22_AGENT_SESSION_TRANSCRIPTS.md).
+
+Admins can browse the imported Prasolov corpus at `/admin/textbooks`:
+
+- Coverage matrix across source, Postgres, pgvector and Neo4j.
+- Problems, transformations and taxonomy.
+- `/admin/textbooks/problems/{canonical_code}`, which shows solution steps, transformations, diagrams (including solution-hidden ones) and per-store status.
+
+See [requirements/24](../documentation/requirements/24_ADMIN_TEXTBOOK_CORPUS_DASHBOARD.md).
+
+## Math and embedded source diagrams
+
+### Accepted geometry scenes
+
+Tutor replies can embed a pinned, declarative reference (version zero is valid):
+
+````text
+```geometry-scene
+{"scene_id":"triangle_ABC","version":2,"caption":"Draw the altitude.","current_math_step":"step_2"}
+```
+````
+
+Only closed, validated references load an image; incomplete streamed fences show
+pending and malformed references show an error. Images are fetched as authenticated
+blobs, never injected SVG. Navigation begins at the pinned version and can only
+visit earlier frames. Each displayed caption comes from that version's
+`visual_state.caption`, not the latest scene or a supplied image URL.
+
+The tightly allowlisted `/api/rest/geometry-scenes/*` proxy forwards to REST:
+`GET /v1/geometry-scenes/{id}`, `/{id}/frames`,
+`/{id}/versions/{version}`, and `/{id}/versions/{version}/render`.
+JSON metadata must include `scene_id`, `version`, and `visual_state.caption`;
+frames return `{"frames":[{"version":0},...]}`. Renders must have
+`image/svg+xml` or `image/png` MIME. All responses are private/no-store.
+Credentials remain server-side: the existing student JWT or a verified admin
+session with the configured admin API key. REST must enforce ownership.
+
+Production orchestration is available only through explicit
+`POST /api/rest/geometry-scenes/interpret`, forwarding to
+`POST /v1/geometry-scenes/interpret` with required `problem_text` (20,000 characters)
+and `goal` (2,000 characters), optional paired `scene_id`/`expected_version`,
+`context` containing `{type,fact}` objects (up to 128, bounded to 32 KiB),
+identifier-array `required_entities`/`forbidden_entities`, and integer
+`seed` from 0–2,147,483,647 (for example 17). Optional `current_math_step`,
+`problem_id`, `solution_step_id`, and `solve_attempt_id` are bounded to 200 characters.
+Rendering a reference never calls this potentially paid endpoint.
+Staff-only `/admin/geometry-scenes?run=<run_id>&owner=<learner_uuid|admin>` reads
+JSON diagnostics from `GET /v1/geometry-scenes/debug/runs/{run_id}?owner=...`.
+The same protected proxy allowlists `GET /debug/runs?owner=...` and
+`POST /debug/runs/{run_id}/review?owner=...` with
+`{decision: "ACCEPTED"|"REJECTED"|"NEEDS_REVISION", note?: string}` (note max 4,000).
+Only staff debug routes accept exactly one `owner` query; it must be `admin` or
+a learner UUID. The view remains read-only and never reviews automatically.
+Run links accept both `run_<32 hex>` and `failed_<32 hex>` receipts.
+Interpret errors retain only bounded public `code`, `message`, and `run_id`
+inside `detail`; private provider responses and diagnostic evidence are omitted.
+Neither scene mutations nor arbitrary upstream paths, query parameters, tokens
+in URLs, or browser-supplied credentials are forwarded.
+
+Focused offline tests:
+`node --test tests/geometryScenes*.test.mjs` and
+`npx playwright test e2e/geometry-scenes.spec.mjs` against the running web app.
+The browser tests mock service responses and make no paid model calls.
+
+### Guided problem workspace
+
+`/learn?problem=CANONICAL_CODE` pairs Tutor with My work rather than requiring
+an opening self-diagnosis. A temporary Understand/Plan/Work/Check/Reflect journey
+supports jump/skip/self-reported completion; editable step tabs keep provisional
+coaching and hint counts attached to each draft. Retry of unavailable teaching
+context preserves typed work and the canonical question when possible, and
+disables coaching until recovery.
+
+The practice search accepts topics, descriptions, pasted question text and
+codes. Free text uses existing graph/text search without paid embeddings;
+up to ten collapsed canonical question/diagram previews require an explicit
+practice selection. Exact AMC/AIME references are optional shortcuts; ambiguous
+papers require a choice. Search does not discard the current question or work.
+
+The profile's Practice by theme tab shows per-skill/technique available,
+distinct attempted and remaining problem counts from the authenticated
+`/v1/learner/practice-progress` read. Coverage uses the full recorded history,
+not the recent-attempts window; repeated/ungraded attempts do not imply mastery.
+Cards link to exact theme-filtered corpus previews to choose a practice problem.
+
+The compact view collapses change-problem controls, source metadata, working
+preferences and routine warnings. Real service/upload errors remain visible;
+workspace details explain temporary drafts and provisional coaching. KaTeX
+renderer/CSS versions match, with measured smaller/lowered subscripts. Shared
+server/UI statement presentation repairs recognized PDF word breaks and
+source-specific Q31 notation without modifying canonical text or invoking a
+paid formatter.
+
+Question/orientation bootstrap is independent of the graph. Background context
+has a 15-second browser deadline, bootstrap has 12 seconds and tutor GET proxies
+have 20 seconds; errors offer recovery without discarding drafts/progression.
+
+Q31 and AIME 1985 Q1 have statement-gated authored orientation MCQs. Q31 also
+offers prompt-specific validated circumcenter constructions: exact defining
+triangles, centers, circumcircles and radii, followed after orientation by all
+first-level centers and the second iteration. Missing required elements or
+invalid definitions suppress the diagram; no generic quadrilateral replaces
+it. Coordinates are illustrative, with equal-radii checks and an independently
+magnified second-level panel, not a recovered source or similarity proof.
+Source details and
+lower-level practice are collapsed. MathComposer retains math/voice support;
+upload/paste opens the existing private, editable-transcription workflow with
+explicit approval/analysis. These browser drafts and journey choices are **not**
+a durable PedagogySession or a correctness/mastery assessment.
+See [requirement 34](../documentation/requirements/34_GUIDED_PROBLEM_WORKSPACE.md).
+
+Problem-linked chat now consults stored solutions privately before selecting
+a roadmap. Activity shows actual reference counts and verification status;
+only high-level stages and one checkpoint appear in the reply. Step coaching
+also receives private stored references through REST, not browser payloads.
+No problem-opening request automatically generates a solution plan.
+
+### Corpus previews and problem-linked chat
+
+At `/db`, selecting a competition shows coverage stats and a collapsed
+question-preview panel. `/db/problems` offers filtered, paginated collapsed
+cards with formatted statements, published concept/technique pills and
+question-specific source figures. Missing text is labelled incomplete, and the
+original source opens through the existing split-pane viewer.
+
+Each question has a collapsed **Explore related problems** panel. It uses the
+existing graph/text search with semantic embeddings disabled, excludes the
+current question/duplicate matches, and shows bounded cross-competition
+candidates. These are discovery candidates, not verified practice assignments.
+Retrieval limitations and errors are visible.
+
+**Discuss with tutor** opens `/?problem=CANONICAL_CODE`, previews that question
+in chat and prepares a coaching prompt. The learner still clicks Send to invoke
+the tutor; opening the link does not make a paid inference call. Signed-in
+session links include `problem_code` context. Existing diagnosis/step-solving
+links are preserved; answers and solutions require an explicit reveal.
+
+The tutor activity timeline shows actual tool progress and allowlisted evidence:
+graph queried/unavailable/disabled, vector/text search configuration, candidate
+counts and learning-context metadata provenance. Machine-approved skill metadata
+and pending generated hints are visibly qualified. Raw tool payloads, private
+thoughts and provider/database warning strings are never copied to the timeline.
+Missing retrieval telemetry is not presented as successful graph/vector evidence.
+Topic pedagogy activity also shows roadmap stages and complete step-supported
+candidate counts. Bare topics open a theory/checkpoint lesson before contest
+practice; Power of a Point has persisted seven-stage progress and an interactive
+four-frame chord illustration. Private preview frame controls reuse theme/icon
+components and announce their current frame; generated figures remain explicitly
+distinct from original sources. Unsupported topics disclose missing authored
+checkpoints. A checkpoint is not a mastery certification.
+Relevance reports are pending review, not silently ingested as
+graph truth. Admin `/admin/pedagogy` includes the paginated learner-report queue;
+correction snapshots expose actual step counts/support and structural review
+flags. Human relevance/error decisions require an evidence note and do not
+themselves publish corrections or train models.
+
+When a document/web URL is registered, Source controls include its direct original
+link. Book identity without a document is separately shown as “Source book
+identified; original page/location provenance incomplete,” with chapter/problem
+identity and no guessed PDF/highlight controls. Clicking Source or Original PDF opens a shared right-hand split pane;
+modifier-click/new-tab links still open the untouched original. On mobile this
+becomes a bottom pane with its own Close control. Cached PDFs with an unambiguous
+text match or current-hash extraction coordinates open at the verified physical
+page and highlight the problem in an annotated full-document copy. A highlighted
+page preview is also shown. Originals are never modified; annotated responses
+are no-store and never registered as individual problem diagrams.
+Statements and diagrams on different physical pages have separate page pills;
+all verified regions are highlighted in the annotated document.
+
+Unknown/ambiguous locations are not highlighted. When only a web source is
+registered, its direct link remains available and the pane explicitly says no
+PDF is known; it never fabricates a PDF URL. Missing source registration is
+shown explicitly. Full documents may include other questions/answers.
+
+Chat, guided practice and corpus details share `MathText`: prose LaTeX
+`\(...\)` / `\[...\]` becomes KaTeX math without modifying code strings.
+Single and double-escaped legacy delimiters normalize without visible backslashes;
+complete expressions render during streaming and when reopening saved messages.
+The agent also guards final prose server-side. Its optional presentation formatter
+returns deterministic exact-span emphasis: bold, italic, and semantic givens/goals/
+insights/cautions. Reserved links `#mb-tone-given`, `#mb-tone-goal`,
+`#mb-tone-insight`, `#mb-tone-warning` render as styled spans (not clickable links),
+using theme tokens rather than arbitrary agent-supplied colors or executable HTML.
+Legacy `[asy]...[/asy]` and fenced `asy`/`asymptote` blocks render as PNG
+diagrams; their code stays in collapsed source details, not the statement.
+Incomplete streaming blocks wait until complete. Malformed inline Problem/Source
+labels are separated into the same tinted problem and neutral source panels.
+
+`POST /api/diagrams/asymptote` requires a same-origin request and a student token
+verified through REST `/v1/learner/me` (not merely a cookie's presence).
+It uses the installed macOS `/usr/bin/sandbox-exec`, Asymptote and TeX/Ghostscript.
+Default compiler: `/Library/TeX/texbin/asy`; server-only
+`MATHBANK_ASYMPTOTE_PATH` can select an installed executable. Child processes
+receive no application/provider credentials, cannot read project/home files or
+use the network, and can write only their unique temporary directory.
+Unsafe imports/process/file/configuration primitives are rejected too.
+PNG responses are private/no-store; temporary files are removed after rendering.
+
+Limits: 32,000 source characters, two concurrent renders per server process,
+15-second wall/10-second CPU timeout, 8 MiB per generated file, 2 MiB returned
+PNG, and a 512 MiB process-group RSS monitor polled every 250 ms (not a hard
+instantaneous allocation ceiling). Raster conversion uses the supplied source
+projection, not model-invented geometry. Source scale parameters are not answers.
+Unsupported code and missing dependencies produce explicit errors. Other
+operating systems fail closed with 503 until an equivalent isolation backend is
+implemented; there is no unsandboxed fallback or browser JavaScript execution.
+
+Verify the real compiler/isolation without paid calls:
+
+```sh
+RUN_ASYMPTOTE_TESTS=1 node --test tests/asymptoteRenderer.test.mjs tests/markdownText.test.mjs tests/tutorProblem.test.mjs
+RUN_ASYMPTOTE_TESTS=1 npx playwright test e2e/tutor-asymptote.spec.mjs
+```
+
+## Tests
+
+```bash
+make test           # node unit tests (tests/*.test.mjs), no services needed
+make e2e-install    # one-time: Playwright Chromium
+make e2e            # Playwright regression against the running stack (no paid calls)
+make e2e-llm        # also runs @llm specs (small paid OpenAI calls)
+make e2e-report     # open the last HTML report
+```
+
+`E2E_BASE_URL` overrides `http://localhost:5173`. See
+[requirements/23](../documentation/requirements/23_E2E_REGRESSION_SUITE.md).
+
+## Architecture flow
+
+```mermaid
+flowchart TD
+    Browser["Browser"] --> NextPages["app/ (Next.js App Router)\nlearn/*, admin/*, db/*, graph/*, profile, login"]
+    NextPages --> Proxy["app/api/rest/*\nsame-origin proxy routes"]
+    Proxy --> REST["mathbank-rest :8000\n(X-Admin-Api-Key injected server-side,\nnever exposed to the browser)"]
+    NextPages --> AgentProxy["app/api/agent/*"]
+    AgentProxy --> Agent["mathbank-agent :8001"]
+    NextPages --> Widgets["mathbank-widgets\n(WidgetHost, MathComposer — copied via sync-widgets)"]
+    NextPages --> Components["app/_components/ui.jsx\n(PageHeader, Pill, Callout, StatCard, ...\nthe shared design-token component set)"]
+```
+
+Every database credential (`ADMIN_API_KEY`, etc.) lives server-side in Next.js route handlers —
+the browser only ever talks to this app's own `/api/*` routes, never directly to `mathbank-rest`.
+
+## Data model
+
+This app owns no database rows of its own — it's a pure presentation/proxy layer. Its "model" is
+the JSON contracts documented in
+[documentation/requirements/reference/REST_API.md](../documentation/requirements/reference/REST_API.md)
+and, for the micro-course reader specifically,
+[documentation/requirements/42_MICRO_COURSE_STUDENT_NAVIGATION.md](../documentation/requirements/42_MICRO_COURSE_STUDENT_NAVIGATION.md).
+
+## Deployment strategy
+
+**Today:** `make start` runs `next build && next start` in the background via
+`mathbank-scripts/start-service.sh` (port 5173), configured entirely through this folder's own
+`.env` (REST/agent base URLs, admin key, ElevenLabs key).
+
+**Independence:** no sibling-folder dependency for the Next.js app itself beyond the one
+intentional shared package, `mathbank-widgets` (`make sync-widgets` copies it in — see that
+project's own README for why it's distributed this way rather than published to a registry).
+Everything else is reached over HTTP (`mathbank-rest`, `mathbank-agent`), not the filesystem.
+
+## Roadmap / TODO
+
+- [documentation/requirements/48_SITE_WIDE_UX_VISUAL_AUDIT.md](../documentation/requirements/48_SITE_WIDE_UX_VISUAL_AUDIT.md)
+  (written this session) is a page-by-page audit against the `modern-ui-design` skill's checklist —
+  the `db/*` and `graph/*` routes predate the design-token system and need a sweep; several pages
+  are missing structured loading/empty states.
+- [documentation/requirements/47_MICRO_COURSE_STUDENT_NAVIGATION_V2_AND_AI_ASSIST.md](../documentation/requirements/47_MICRO_COURSE_STUDENT_NAVIGATION_V2_AND_AI_ASSIST.md)
+  — per-item course-state decomposition and a scoped "Help me?"/"Give up" micro-chat are designed
+  but not implemented.
+
+## Gotchas (mathbank-web-specific)
+
+See [documentation/GOTCHAS.md](../documentation/GOTCHAS.md) for repo-wide pitfalls. Specific to
+this app:
+- `useSearchParams()` requires a `Suspense` boundary in the App Router — forgetting it breaks the
+  build in a way that only shows up at `next build` time, not `next dev`.
+- Server and client markup must match exactly — no `Date.now()`/`Math.random()`/locale-dependent
+  date formatting during the initial render; format dates client-side after mount.
+- The admin env var for the REST admin key is `MATHBANK_ADMIN_API_KEY` here, but plain
+  `ADMIN_API_KEY` in `mathbank-rest` itself — same value, different name, easy to typo.

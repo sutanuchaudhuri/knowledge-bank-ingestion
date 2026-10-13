@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { input, primaryButton } from "../db/dbStyles.js";
 import { Avatar, Callout, Icon, PageHeader } from "../_components/ui.jsx";
 
@@ -15,7 +16,7 @@ const DEMO_PASSWORD = "Demo1234!";
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState("login"); // login | register
-  const [form, setForm] = useState({ email: "", password: "", first_name: "", last_name: "" });
+  const [form, setForm] = useState({ email: "", password: "", first_name: "", last_name: "", grade: "", phone: "" });
   const [status, setStatus] = useState(null);
 
   async function submit(e) {
@@ -24,7 +25,10 @@ export default function LoginPage() {
     const endpoint = mode === "login" ? "/api/auth/student-login" : "/api/auth/student-register";
     const body = mode === "login"
       ? { email: form.email, password: form.password }
-      : { email: form.email, password: form.password, first_name: form.first_name, last_name: form.last_name };
+      : {
+        email: form.email, password: form.password, first_name: form.first_name,
+        last_name: form.last_name, grade: form.grade || null, phone: form.phone || null,
+      };
     try {
       const res = await fetch(endpoint, {
         method: "POST",
@@ -66,6 +70,12 @@ export default function LoginPage() {
             <label className="form-label mb-0">Last name
             <input className={input} placeholder="Last name" autoComplete="family-name" required
               value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></label>
+            <label className="form-label mb-0">Grade (optional)
+            <input className={input} placeholder="e.g. 9, 10, College" autoComplete="off"
+              value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} /></label>
+            <label className="form-label mb-0">Phone (optional)
+            <input className={input} type="tel" placeholder="Phone" autoComplete="tel"
+              value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
           </>
         )}
         <label className="form-label mb-0">Email
@@ -79,6 +89,11 @@ export default function LoginPage() {
           {status === "submitting" ? "Working…" : mode === "login" ? "Log in" : "Create account"}
         </button>
         {status?.startsWith("error") && <Callout tone="danger" role="alert">{status}</Callout>}
+        {mode === "login" && (
+          <p className="small text-center mb-0">
+            <Link href="/forgot-password">Forgot password?</Link>
+          </p>
+        )}
       </form>
 
       <div className="mt-4">

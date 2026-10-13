@@ -1,0 +1,19 @@
+# Lambda container image for mathbank-exam-agent (requirements/64, requirements/63's
+# established pattern). Build context is this directory itself (not the repo root —
+# this service has no sibling-package dependency; it only ever reaches mathbank-rest and
+# mathbank-mcp-competitions over HTTP/MCP, exactly like mathbank-agent's own Dockerfile):
+#   docker build --platform linux/arm64 -f Dockerfile.lambda -t mathbank-exam-agent-lambda .
+#
+# arm64 (Graviton2) chosen for lower Lambda GB-second pricing, matching every other
+# service stack in this repo.
+FROM public.ecr.aws/lambda/python:3.11
+
+# pip-installed as a package (src-layout, hatchling build-backend — unlike
+# mathbank-agent's flat-script-directory COPY), with the Lambda-only `mangum` extra.
+# --only-binary=:all: forces wheel-only resolution (no C compiler in this base image).
+COPY pyproject.toml ${LAMBDA_TASK_ROOT}/build/pyproject.toml
+COPY src ${LAMBDA_TASK_ROOT}/build/src
+RUN pip install --no-cache-dir --only-binary=:all: "${LAMBDA_TASK_ROOT}/build[lambda]" \
+    && rm -rf "${LAMBDA_TASK_ROOT}/build"
+
+CMD ["mathbank_exam_agent.lambda_handler.handler"]

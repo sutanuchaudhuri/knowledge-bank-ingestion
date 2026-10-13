@@ -96,7 +96,12 @@ export default function Home({ role, name }) {
       <p className="text-secondary">Realtime sessions over Socket.IO — widgets, polls, tutor and instructor messages appear instantly.</p>
       {role === "INSTRUCTOR" && <><p className="small">Signed in as instructor <strong>{name}</strong>.</p><InstructorHome /></>}
       {role === "STUDENT" && <div style={{ maxWidth: 520 }}><JoinCard /></div>}
-      {!role && <div className="alert alert-info">Please <Link href="/login">sign in</Link> as a student (to join with a code) or as an instructor (to run a session).</div>}
+      {!role && (
+        <div className="alert alert-info">
+          Please <Link href="/login">sign in as a student</Link> (to join with a code) or{" "}
+          <Link href="/admin/login">sign in as an instructor</Link> (to run a session).
+        </div>
+      )}
     </div>
   );
 }

@@ -116,7 +116,7 @@
     ],
     "Code": {
      "ImageUri": {
-      "Fn::Sub": "848941468793.dkr.ecr.us-east-2.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-848941468793-us-east-2:10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e"
+      "Fn::Sub": "848941468793.dkr.ecr.us-east-2.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-848941468793-us-east-2:ac35017f1106524c83ea9dc3485c78d44c90cda409d4302485b1061bb1b2fccf"
      }
     },
     "Environment": {
@@ -160,7 +160,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "MathBankManimStudioStack/ManimStudioApiFunction/Resource",
-    "aws:asset:path": "asset.10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e",
+    "aws:asset:path": "asset.ac35017f1106524c83ea9dc3485c78d44c90cda409d4302485b1061bb1b2fccf",
     "aws:asset:dockerfile-path": "Dockerfile.lambda",
     "aws:asset:docker-build-contexts": {
      "mcp_competitions": "/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-mcp-competitions"
@@ -332,7 +332,7 @@
     ],
     "Code": {
      "ImageUri": {
-      "Fn::Sub": "848941468793.dkr.ecr.us-east-2.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-848941468793-us-east-2:10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e"
+      "Fn::Sub": "848941468793.dkr.ecr.us-east-2.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-848941468793-us-east-2:ac35017f1106524c83ea9dc3485c78d44c90cda409d4302485b1061bb1b2fccf"
      }
     },
     "Environment": {
@@ -379,7 +379,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "MathBankManimStudioStack/ManimStudioWorkerFunction/Resource",
-    "aws:asset:path": "asset.10c6c444b48f924ad728443caa5b36d57e0796e46ca9749d186caa932a9e496e",
+    "aws:asset:path": "asset.ac35017f1106524c83ea9dc3485c78d44c90cda409d4302485b1061bb1b2fccf",
     "aws:asset:dockerfile-path": "Dockerfile.lambda",
     "aws:asset:docker-build-contexts": {
      "mcp_competitions": "/Volumes/External/Developer/knowledge-bank-ingestion/mathbank-mcp-competitions"

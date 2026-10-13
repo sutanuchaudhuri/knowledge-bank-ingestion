@@ -38,6 +38,7 @@ SECRET_ENV_KEYS = {
     "ELEVEN_API_KEY",
     "ADMIN_SESSION_SECRET",
     "ADMIN_LOGIN_PASSWORD",
+    "COGNITO_CLIENT_SECRET",
 }
 
 # Set automatically by the Lambda runtime itself — attempting to set these as a
