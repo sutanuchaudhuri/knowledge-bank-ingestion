@@ -59,6 +59,10 @@ async function request(method, path, { json, params, auth = true } = {}) {
     body = null;
   }
   if (!response.ok) {
+    if (auth && response.status === 401) {
+      clearSession();
+      window.dispatchEvent(new Event("mathbank:auth-expired"));
+    }
     const detail = body && body.detail;
     const code = (detail && detail.code) || "UNKNOWN";
     const message = (detail && detail.message) || (typeof detail === "string" ? detail : response.statusText);
@@ -78,10 +82,16 @@ export const api = {
   me: () => request("GET", "/v1/auth/me"),
 
   // papers
-  generatePaper: (nlRequest, examMode = true) =>
+  startPaper: (nlRequest, examMode = true) =>
     request("POST", "/v1/exam-papers", { json: { nl_request: nlRequest, exam_mode: examMode } }),
+  runPaperGeneration: (quizId, nlRequest) =>
+    request("POST", `/v1/exam-papers/${quizId}/run`, { json: { nl_request: nlRequest } }),
+  generationProgress: (quizId, sinceOrdinal = 0) =>
+    request("GET", `/v1/exam-papers/${quizId}/generation-progress`, { params: { since_ordinal: sinceOrdinal } }),
   myPapers: () => request("GET", "/v1/exam-papers/mine"),
   getPaper: (quizId) => request("GET", `/v1/exam-papers/${quizId}`),
+  saveExamProgress: (quizId, payload) =>
+    request("PUT", `/v1/exam-papers/${quizId}/progress`, { json: payload }),
   logEvent: (quizId, questionId, payload) =>
     request("POST", `/v1/exam-papers/${quizId}/questions/${questionId}/events`, { json: payload }),
   getEvents: (quizId) => request("GET", `/v1/exam-papers/${quizId}/events`),

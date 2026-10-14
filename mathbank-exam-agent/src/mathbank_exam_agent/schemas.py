@@ -32,6 +32,18 @@ class QuestionOption(BaseModel):
     text: str
 
 
+class InspirationSource(BaseModel):
+    """One real corpus problem a drafted question drew on (requirements/64 continued —
+    "inspired by, never copied" made concrete: a question can draw on more than one real
+    problem at once, each contributing something different, so this is a list, not a
+    single field). `canonical_code` must be chosen only from the candidate pool the
+    caller supplies in the prompt — never invented — and is validated server-side
+    against that same pool before being accepted (exam_service.py)."""
+    canonical_code: str = Field(description="Must be one of the candidate canonical_codes given in the prompt")
+    note: str = Field(description="What was specifically borrowed/changed from this source — style, the "
+                                   "underlying setup, numbers, context — never \"general inspiration\"")
+
+
 class GeneratedQuestionDraft(BaseModel):
     """One drafted question, before critic review (requirements/64 §4)."""
     question_type: str = Field(description="MCQ, FREE_TEXT, or PROOF")
@@ -55,11 +67,28 @@ class GeneratedQuestionDraft(BaseModel):
     )
     expected_answer: str | None = Field(default=None, description="FREE_TEXT/PROOF only")
     grading_rubric: str | None = Field(default=None, description="FREE_TEXT/PROOF only")
-    solution_text: str
+    solution_steps: list[str] = Field(
+        description="The full solution broken into discrete, ordered steps — each list entry is ONE "
+                     "step of the derivation (not one sentence of prose). This is the authoritative "
+                     "solution representation: step count (a real, computed complexity signal, not an "
+                     "estimate) is literally len(solution_steps), mirroring how real corpus problems "
+                     "already track solution_step_count. Never collapse the whole solution into one entry.",
+    )
     key_insight: str
+    synthesis_rationale: str = Field(
+        default="",
+        description="For hard/very_hard questions, identify the distinct concepts, constraints, "
+                    "or techniques that must interact and explain why no one of them alone solves "
+                    "the problem. This is critic evidence, not student-facing solution prose.",
+    )
     difficulty_band: str = Field(description="easy, medium, hard, or very_hard — the generator's own estimate")
     concept_slugs: list[str] = Field(default_factory=list)
     technique_slugs: list[str] = Field(default_factory=list)
+    inspiration_sources: list[InspirationSource] = Field(
+        default_factory=list, max_length=5,
+        description="1-3 real corpus problems this question drew on, chosen only from the candidate "
+                     "pool given in the prompt. Empty only if the candidate pool itself was empty.",
+    )
 
 
 class CriticVerdict(BaseModel):
@@ -67,11 +96,36 @@ class CriticVerdict(BaseModel):
     verdict: str = Field(description="APPROVE or REVISE")
     correctness_ok: bool
     difficulty_match_ok: bool = Field(description="False if the draft reads easier/harder than requested")
+    synthesis_ok: bool = Field(
+        default=True,
+        description="False for a requested hard/very_hard question unless solving it requires "
+                    "multiple ideas or constraints to interact non-trivially",
+    )
     clarity_ok: bool
+    math_format_ok: bool = Field(
+        description="True only if all mathematical notation is correctly delimited and compatible with the exam UI's KaTeX renderer"
+    )
     distractor_quality_ok: bool = Field(
         default=True, description="MCQ only — true/not-applicable for FREE_TEXT/PROOF"
     )
     feedback: str = Field(description="Specific, actionable — what exactly to fix if verdict is REVISE")
+
+
+class FlaggedQuestion(BaseModel):
+    ordinal: int = Field(description="1-based position of the flagged question in the paper")
+    issue: str = Field(description="e.g. \"near-duplicate of question 3's setup\" or \"option C repeats "
+                                    "question 5's distractor almost verbatim\"")
+    feedback: str = Field(description="Specific, actionable fix instruction for a targeted regeneration")
+
+
+class DiversityVerdict(BaseModel):
+    """The aggregate critic's review of the WHOLE drafted paper together (requirements/
+    64 continued) — runs once, after every individual question has already passed its
+    own per-question critic review. Checks only what a single-question critic cannot:
+    cross-question near-duplication and repeated MCQ option text across DIFFERENT
+    questions."""
+    verdict: str = Field(description="APPROVE or REVISE")
+    flagged: list[FlaggedQuestion] = Field(default_factory=list)
 
 
 class PacingNote(BaseModel):

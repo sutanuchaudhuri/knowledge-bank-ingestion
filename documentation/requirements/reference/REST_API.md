@@ -2,6 +2,40 @@
 
 ## Evidence
 
+### Current source snapshot and resumable mock exams
+
+Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5` with relevant
+worktree changes included. Screened `app.openapi()` contains **324 paths /
+346 HTTP operations / 177 schemas**; the [complete operation inventory](REST_ENDPOINTS.md)
+and [OpenAPI snapshot](openapi.json) were regenerated from checked-in source.
+No endpoint handler was invoked and no running API/database parity check was
+performed. Migration 051 and the associated runtime changes are not yet
+activated or live-verified.
+
+The browser talks to the authenticated exam-agent; its `StudentId` resolves
+the learner from the signed-in session. The agent proxies to the admin-key
+protected REST integration router rather than exposing REST's internal key to
+the browser.
+
+| Method/path | Contract |
+|---|---|
+| `PUT /v1/quiz-integration/papers/{quiz_id}/progress` | Internal exam-agent route. `SaveExamProgressRequest` requires `student_id` and `current_question_ordinal` (1–20); optional `question_id`, `selected_key` (max 10 chars) or `response_text` (max 10,000 chars). The runtime checks owner, editable paper state and question/ordinal correspondence, validates draft shape against MCQ vs written question type, and transactionally saves the position and optional draft. Returns `saved` and the saved ordinal. |
+| `PUT /v1/exam-papers/{quiz_id}/progress` | Exam-agent route used by the browser. Takes the same progress fields except `student_id`, which is derived from the authenticated session. |
+
+The exam-agent's `GET /v1/exam-papers/{quiz_id}` path returns the paper's
+resume ordinal, confirmed answer and unsubmitted draft for its owner. Confirmed
+answers remain in `quiz.response`; drafts in `quiz.response_draft` are not
+graded. Confirmation/skip removes a question's draft, and exam submission
+removes all paper drafts. See the [quiz schema](postgres/quiz.md) and
+[source-derived DML behavior](POSTGRES_DML.md#mock-exam-session-and-resume-state).
+
+Runtime ownership failures are intentionally indistinguishable from a missing
+paper (404); non-editable exam states return 409 and invalid request/draft
+shapes return 422. Only successful and request-validation responses are fully
+documented in OpenAPI; implementation errors are not all declared there. The
+migration is additive, but schema existence on any deployment has not been
+verified.
+
 ### Micro-course authoring and published catalog (initial slice)
 
 The source currently mounts `/v1/admin/micro-courses` with the shared
@@ -44,21 +78,22 @@ OpenAPI parity check was performed in this session.
 ### Tutoring-route deployment follow-up
 
 The user-authorized REST reload exposes staff preview/edit/review/publication/
-graph refresh and JWT-owned attempt start/read/assistance. A read-only
-deployment check observed **218 mounted paths**; normalized running OpenAPI
-matches [the committed snapshot](openapi.json). Unauthenticated access to
+graph refresh and JWT-owned attempt start/read/assistance. At that earlier
+deployment check, a read-only request observed **218 mounted paths** and
+normalized running OpenAPI matched the snapshot at that time. Unauthenticated access to
 `GET /v1/admin/tutoring-routes` returns 401. Bulk operator review remains
 separate from student publication. See
 [requirement 39](../39_PRECOMPILED_TUTORING_ROUTES.md) for the exact deployment,
-approval and active ingestion observations. Older evidence sections below are
-historical.
+approval and active ingestion observations. This is not a current runtime
+parity claim.
 
 ### Geometry scene system
 
 Incremental source revision `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7`
-with geometry worktree changes. Fresh screened OpenAPI and registered handler
-inventory cover **209 paths / 220 operations / 116 schemas**; the complete
-catalog numbers below retain their prior dated evidence.
+with geometry worktree changes. At that earlier refresh, screened OpenAPI and
+registered handler inventory covered **209 paths / 220 operations / 116
+schemas**. The current source snapshot and inventory counts are recorded at
+the top of this document.
 
 All geometry routes use existing learner JWT or shared staff-key authorization.
 Learner owner identities are server-derived; staff core operations use `admin`.

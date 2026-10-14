@@ -45,6 +45,21 @@ mathbank-exam-agent/
     main.py               # FastAPI app (thin — all logic above)
 ```
 
+Generation (`exam_service.run_generation_async`) is asyncio end to end: agent calls use
+`Agent.invoke_async`, blocking MCP/REST calls run in `asyncio.to_thread`, and question
+slots (plus aggregate fix-ups) are drafted concurrently. Before drafting, the service
+asks mathbank-rest's `POST /v1/quiz-integration/question-pool/match` for cached
+critic-approved questions (`quiz.question_pool`, migration 052) matching the same style,
+type, difficulty band and a similar topic/concept, and only drafts the remaining slots.
+Cleanly approved new questions are added to the pool on finalize, so it keeps growing.
+Generation and critique default to `gpt-4o`. Hard/very-hard drafts must synthesize at
+least two concepts/techniques (and two distinct retrieved sources when available);
+solution-step count is presentation metadata, never a difficulty proxy. Model-produced
+TeX is normalized before review/persistence, and deterministic delimiter/MCQ-shape
+checks supplement the critic. A question still rejected after four revision rounds
+marks the paper `FAILED`; rejected drafts are never served or cached.
+See requirements/64 §16.
+
 ## Running locally
 
 ```bash

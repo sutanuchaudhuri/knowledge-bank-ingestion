@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { PageHeader, Field, Button, Callout } from "../components/ui.jsx";
 import { api, setSession } from "../api.js";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -17,7 +18,11 @@ export default function Login() {
     try {
       const data = await api.login({ username, password });
       setSession(data.access_token, data.student_id);
-      navigate("/request");
+      const from = location.state?.from;
+      const destination = from?.pathname?.startsWith("/") && !from.pathname.startsWith("//")
+        ? { pathname: from.pathname, search: from.search || "", hash: from.hash || "" }
+        : "/request";
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {

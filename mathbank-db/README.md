@@ -29,6 +29,16 @@ acceptance. See the [complete step lifecycle/specification](../documentation/req
 for imported atomic moves, admin preview/edit limits, durable hints/attempts,
 source/widget/video boundaries and the proposed full generator/editor.
 
+## Mock-exam source schema and resume state
+
+The [source-derived `quiz.*` inventory](../documentation/requirements/reference/postgres/quiz.md)
+now covers the mock-exam tables through migration 051, including owner-scoped
+drafts and the resume position. The [exam requirement](../documentation/requirements/64_AWS_BEDROCK_MOCK_EXAM_AGENT.md)
+records the critic's LaTeX-format check and student-facing rendering contract.
+`make -C mathbank-rest migrate-exam-resume-state` is an explicit operator
+action against REST's configured database; it was not run during this
+documentation refresh. Source DDL does not prove the schema is applied.
+
 ## Reviewed corpus authoring (migration 025)
 
 [`sql/025_corpus_authoring.sql`](sql/025_corpus_authoring.sql) adds private
@@ -112,9 +122,11 @@ See root [DATABASES.md](../documentation/DATABASES.md) for the full local-vs-rem
 (Neon/AuraDB) picture and [GOTCHAS.md](../documentation/GOTCHAS.md) for environment
 troubleshooting. The source-derived composite schema, SQL behavior, and API
 contracts are in the [canonical implementation references](../documentation/requirements/reference/README.md);
-the source inventory includes migrations 001-025. Selected-target live metadata
-is separately dated in the complete catalog; it is not an assertion about every
-database branch or a proof of full source/deployment DDL parity.
+the source inventory covers the checked-in migration chain, including the
+source-only [quiz schema through migration 051](../documentation/requirements/reference/postgres/quiz.md).
+Selected-target live metadata is separately dated in the complete catalog;
+it does not establish that migration 051 is applied or prove full
+source/deployment DDL parity.
 
 ## Quick start (local cluster)
 
@@ -323,11 +335,14 @@ Migrations use idempotent DDL where appropriate; inspect each migration for
 its exact operations and prerequisites before applying it. The inventory above
 does not assert that any remote target has applied a migration.
 
-Migrations 021-025 are described in the schema reference; this command
-table is not evidence that they have run. The separately dated selected-target
-catalog records their observed relations/columns. Attempt media and generated artifact
-bytes use private object storage, independently configured from Neon Auth and
-the AI Gateway. See [schema](../documentation/requirements/reference/POSTGRES_SCHEMA.md),
+Migrations 021-025 are described in the schema reference; later source-derived
+additions are documented there as well, including mock-exam migrations 042 and
+047-051 in the [quiz schema page](../documentation/requirements/reference/postgres/quiz.md).
+This command table is not evidence that they have run. The separately dated
+selected-target catalog records only its own observed relations/columns.
+Attempt media and generated artifact bytes use private object storage,
+independently configured from Neon Auth and the AI Gateway. See
+[schema](../documentation/requirements/reference/POSTGRES_SCHEMA.md),
 [DML behavior](../documentation/requirements/reference/POSTGRES_DML.md), and
 [REST contracts](../documentation/requirements/reference/REST_API.md).
 

@@ -108,16 +108,24 @@ export default function Review() {
       {review.questions.map((q) => (
         <div className="mb-card" key={q.question_id} style={{ marginBottom: "1.25rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <p style={{ fontWeight: 500, marginTop: 0 }}>
+            <div className="mb-question-prompt" style={{ fontWeight: 500, marginTop: 0 }}>
               Q{q.ordinal}. <MathText text={q.prompt_text} />
-            </p>
-            {q.student_response != null ? (
-              <Pill tone={q.is_correct ? "success" : "danger"} icon={q.is_correct ? "check2" : "x-lg"}>
-                {q.is_correct ? "Correct" : "Incorrect"}
-              </Pill>
-            ) : (
-              <Pill tone="neutral" icon="dash-circle">Not answered</Pill>
-            )}
+            </div>
+            <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              {q.student_response != null ? (
+                <Pill tone={q.is_correct ? "success" : "danger"} icon={q.is_correct ? "check2" : "x-lg"}>
+                  {q.is_correct ? "Correct" : "Incorrect"}
+                </Pill>
+              ) : (
+                <Pill tone="neutral" icon="dash-circle">Not answered</Pill>
+              )}
+              {q.difficulty_band && (
+                <Pill tone="neutral" icon="bar-chart-steps">
+                  {q.difficulty_band}
+                  {q.complexity_signals?.step_count ? ` · ${q.complexity_signals.step_count} steps` : ""}
+                </Pill>
+              )}
+            </div>
           </div>
 
           {q.question_type === "MCQ" && q.options && (
@@ -135,9 +143,9 @@ export default function Review() {
                       {isSelected && <Pill tone="info" style={{ marginLeft: "0.5rem" }}>Your answer</Pill>}
                       {isCorrect && <Pill tone="success" style={{ marginLeft: "0.5rem" }}>Correct answer</Pill>}
                       {q.option_explanations?.[opt.key] && (
-                        <p style={{ fontSize: "0.85rem", margin: "0.35rem 0 0", color: "var(--mb-muted)" }}>
+                        <div style={{ fontSize: "0.85rem", margin: "0.35rem 0 0", color: "var(--mb-muted)" }}>
                           <MathText text={q.option_explanations[opt.key]} />
-                        </p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -154,9 +162,26 @@ export default function Review() {
           {q.feedback && <Callout tone={q.is_correct ? "success" : "warning"} icon="chat-square-text">{q.feedback}</Callout>}
 
           <h4 style={{ fontSize: "0.85rem", marginBottom: "0.25rem" }}>Full solution</h4>
-          <p style={{ fontSize: "0.9rem" }}><MathText text={q.solution_text} /></p>
+          <div style={{ fontSize: "0.9rem" }}><MathText text={q.solution_text} /></div>
           {q.key_insight && (
             <Callout tone="primary" icon="stars">{q.key_insight}</Callout>
+          )}
+          {q.inspiration_sources?.length > 0 && (
+            <Callout tone="info" icon="bookmark-star">
+              <strong>Inspired by</strong> (newly composed, never copied):
+              <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.1rem" }}>
+                {q.inspiration_sources.map((s, i) => (
+                  <li key={i} style={{ fontSize: "0.85rem" }}>
+                    {s.source_url ? (
+                      <a href={s.source_url} target="_blank" rel="noreferrer">{s.canonical_code}</a>
+                    ) : (
+                      s.canonical_code
+                    )}
+                    {" "}({s.competition} {s.year}) — {s.note}
+                  </li>
+                ))}
+              </ul>
+            </Callout>
           )}
         </div>
       ))}

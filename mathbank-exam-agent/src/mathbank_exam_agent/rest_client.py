@@ -78,6 +78,61 @@ def import_paper(payload: dict) -> dict:
     return _request("POST", "/v1/quiz-integration/papers", json=payload, timeout=30.0)
 
 
+def start_paper(payload: dict) -> str:
+    """Mints a quiz_id immediately, status GENERATING (requirements/64 continued —
+    parallel generation + live progress). Returns just the quiz_id string so the caller
+    can start posting generation-events and the frontend can start polling them, well
+    before any question is drafted."""
+    return _request("POST", "/v1/quiz-integration/papers/start", json=payload)["quiz_id"]
+
+
+def finalize_paper(quiz_id: str, payload: dict) -> dict:
+    return _request("POST", f"/v1/quiz-integration/papers/{quiz_id}/finalize", json=payload, timeout=60.0)
+
+
+def match_pool_questions(
+    *, student_id: str, style: str, question_types: list[str], difficulty_band: str | None,
+    topic: str | None, concept_slugs: list[str], limit: int = 20,
+) -> list[dict]:
+    """Cached, critic-approved questions for an almost-identical request, never one this
+    student already saw (quiz.question_pool, migration 052)."""
+    return _request(
+        "POST", "/v1/quiz-integration/question-pool/match",
+        json={
+            "student_id": student_id, "style": style, "question_types": question_types,
+            "difficulty_band": difficulty_band, "topic": topic,
+            "concept_slugs": concept_slugs, "limit": limit,
+        },
+        timeout=15.0,
+    )
+
+
+def post_generation_event(
+    quiz_id: str, *, ordinal: int, phase: str, status: str,
+    question_ordinal: int | None = None, detail: str = "",
+) -> None:
+    # Best-effort, never fatal to the actual generation work — a progress-event write
+    # failing must not abort an otherwise-successful question draft.
+    try:
+        _request(
+            "POST", f"/v1/quiz-integration/papers/{quiz_id}/generation-events",
+            json={
+                "ordinal": ordinal, "phase": phase, "status": status,
+                "question_ordinal": question_ordinal, "detail": detail,
+            },
+            timeout=10.0,
+        )
+    except Exception:  # noqa: BLE001 -- progress visibility is best-effort, not critical-path
+        pass
+
+
+def list_generation_events(quiz_id: str, student_id: str, *, since_ordinal: int = 0) -> list[dict]:
+    return _request(
+        "GET", f"/v1/quiz-integration/papers/{quiz_id}/generation-events",
+        params={"student_id": student_id, "since_ordinal": since_ordinal},
+    )
+
+
 def submit_exam(quiz_id: str, student_id: str) -> dict:
     return _request("POST", f"/v1/quiz-integration/papers/{quiz_id}/submit", params={"student_id": student_id})
 
@@ -108,6 +163,30 @@ def list_my_papers(student_id: str, *, limit: int = 20) -> list[dict]:
 
 def get_paper(quiz_id: str, student_id: str) -> dict:
     return _request("GET", f"/v1/quiz-integration/papers/{quiz_id}", params={"student_id": student_id})
+
+
+def save_exam_progress(
+    quiz_id: str, student_id: str, *, current_question_ordinal: int,
+    question_id: str | None = None, selected_key: str | None = None,
+    response_text: str | None = None,
+) -> dict:
+    return _request(
+        "PUT", f"/v1/quiz-integration/papers/{quiz_id}/progress",
+        json={
+            "student_id": student_id,
+            "current_question_ordinal": current_question_ordinal,
+            "question_id": question_id,
+            "selected_key": selected_key,
+            "response_text": response_text,
+        },
+    )
+
+
+def fail_paper(quiz_id: str, student_id: str, error_message: str) -> dict:
+    return _request(
+        "POST", f"/v1/quiz-integration/papers/{quiz_id}/fail",
+        json={"student_id": student_id, "error_message": error_message},
+    )
 
 
 def respond(

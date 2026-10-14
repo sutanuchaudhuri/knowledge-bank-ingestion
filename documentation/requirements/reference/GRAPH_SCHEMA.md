@@ -1,5 +1,13 @@
 # Neo4j graph schema reference
 
+## Current worktree boundary
+
+At source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`, the exam
+resume/LaTeX work adds no Neo4j labels, relationships, properties, constraints,
+projector writes or graph reads. It is stored in PostgreSQL `quiz.*` and
+rendered by the exam frontend. No live graph catalog or projection was
+refreshed; the dated observation below remains historical.
+
 ## Evidence
 
 ### Tutoring-route projection follow-up

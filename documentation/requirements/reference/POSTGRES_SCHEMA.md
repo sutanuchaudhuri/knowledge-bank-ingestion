@@ -1,5 +1,16 @@
 # PostgreSQL schema reference
 
+## Current source-derived mock-exam addition
+
+Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5` plus relevant
+worktree changes; inspected migrations 042 and 047-051, the REST quiz runtime
+and exam integration router. The [quiz schema page](postgres/quiz.md) documents
+the 12 source-defined `quiz` tables, including `quiz.response_draft` and
+`quiz.paper.resume_question_ordinal` from migration 051. Migration 051 has not
+been applied or live-verified; this source inventory does not establish target
+database parity. The student/session identity and ownership boundaries are
+described in [requirement 64](../64_AWS_BEDROCK_MOCK_EXAM_AGENT.md).
+
 ## Evidence
 
 ### Incremental tutoring-route changes
@@ -74,7 +85,8 @@ from compilation and publication. The older evidence below is historical;
 see [requirement 39](../39_PRECOMPILED_TUTORING_ROUTES.md) for the explicit
 target, current migration/approval execution and active run.
 
-- Current source: `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`, clean source tree
+- Baseline source for the earlier complete-catalog refresh:
+  `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`, clean source tree
   before documentation edits; numbered migrations 001-025, ETL/REST callers,
   framework session configuration and source graph projectors.
 - **Selected live evidence:** REST-configured PostgreSQL, inspected metadata-only
@@ -98,6 +110,7 @@ target, current migration/approval execution and active run.
 | Corpus | [core](postgres/core.md), [knowledge](postgres/knowledge.md) |
 | Textbook/teaching/runtime | [pedagogy](postgres/pedagogy.md), [learner](postgres/learner.md), [tutor](postgres/tutor.md) |
 | Search and operations | [search](postgres/search.md), [pipeline](postgres/pipeline.md), [ingest](postgres/ingest.md), [analytics](postgres/analytics.md) |
+| Mock-exam papers, answers and resumable drafts | [quiz](postgres/quiz.md), [learner](postgres/learner.md) |
 | Private learner media and visuals | [attempt_media](postgres/attempt_media.md), [artifact_runtime](postgres/artifact_runtime.md) |
 | Classroom authoring/live | [authoring](postgres/authoring.md), [live](postgres/live.md), [activity](postgres/activity.md), [visual](postgres/visual.md) |
 | Framework/provider | [agent_sessions](postgres/agent_sessions.md), [neon_auth](postgres/neon_auth.md) |
@@ -300,6 +313,7 @@ Required extensions: `pg_trgm` and `vector`. The base schema uses `gen_random_uu
 | `search` | Representation/chunk/embedding/vector retrieval tables. |
 | `pipeline` | Corpus run/work-item/source/projection status and transactional outbox. |
 | `learner` | Student profiles, legacy answer attempts, derived mastery cache and step-runtime session/event state. |
+| `quiz` | Source-defined personalized quiz/exam papers, questions, solutions, responses, interaction/generation events, diagnoses and resumable drafts; see [full table inventory](postgres/quiz.md). Live presence is not asserted. |
 | `ingest` | v2 textbook package registry/staging/conflicts/reconciliation. |
 | `pedagogy` | Textbook source references, taxonomy nodes/edges, solution parts/steps/dependencies, learning items, diagrams. |
 | `tutor` | Runtime checkpoint/state for the student step-solving tutor. |

@@ -31,3 +31,9 @@ def parse_intake(nl_request: str) -> GenerationIntake:
     agent = Agent(model=generator_model(), system_prompt=_SYSTEM_PROMPT)
     result = agent(nl_request, structured_output_model=GenerationIntake)
     return result.structured_output
+
+
+async def parse_intake_async(nl_request: str) -> GenerationIntake:
+    agent = Agent(model=generator_model(), system_prompt=_SYSTEM_PROMPT)
+    result = await agent.invoke_async(nl_request, structured_output_model=GenerationIntake)
+    return result.structured_output

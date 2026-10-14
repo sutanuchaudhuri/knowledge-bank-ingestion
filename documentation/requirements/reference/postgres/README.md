@@ -16,6 +16,15 @@ identity, QUEUED jobs and persisted safe validation diagnostics. These later
 source-derived changes are distinguished from the timestamped catalog above;
 see [requirement 39](../../39_PRECOMPILED_TUTORING_ROUTES.md) for operational results.
 
+## Later source-only quiz schema
+
+The current worktree adds the source-derived
+[quiz schema inventory](quiz.md), including migration 051's resumable draft
+and position fields. Its 12 source-defined tables are intentionally not folded
+into the dated 2026-10-08 live counts or source/deployment reconciliation below.
+Migration 051 has not been applied or checked against a target. The `quiz` row
+in the index is therefore marked as source-only, not as a live observation.
+
 ## Schema index
 
 | Schema | Tables | Views | Sequences | Purpose and access |
@@ -38,6 +47,7 @@ see [requirement 39](../../39_PRECOMPILED_TUTORING_ROUTES.md) for operational re
 | [pedagogy](pedagogy.md) | 30 | 0 | 0 | Imported steps and released instructional routes; `/v1/admin/textbooks/*`, `/v1/admin/tutoring-routes/*`, `/v1/tutor/*`; source compiler and metadata projector. |
 | [pipeline](pipeline.md) | 7 | 0 | 0 | Operational work and publications; `/v1/admin/pipeline/*`, `/v1/admin/papers`, `/v1/admin/imports/projection-requests`; CLI workers/projectors. |
 | [public](public.md) | 0 | 0 | 0 | Default/extension namespace; Extension functions/operators are used indirectly by UUID, trigram and vector operations. |
+| [quiz](quiz.md) | — (12 source-defined) | — | — | Personalized quiz and exam runtime; `/v1/quiz-integration/*` via the exam agent; migration 051 remains unverified on a database target. |
 | [search](search.md) | 7 | 0 | 0 | Derived search representations; `/v1/search/*`, similar-step and recovery retrieval; explicit corpus/step embedding jobs. |
 | [tutor](tutor.md) | 1 | 0 | 0 | Durable step-runtime state; `/v1/attempts/*`; step/recovery runtime functions, scoped by JWT-owned attempt. |
 | [visual](visual.md) | 3 | 0 | 0 | Declarative widget registry/state; `/v1/widgets/*`, live widget operations; stored-spec mutations are admin-only. No step-widget attachment REST resource. |
@@ -49,6 +59,8 @@ Missing declared tables: **0**. Additional tables: **14**, explicitly listed bel
 This comparison checks relation identities and column-name sets, including dynamic approval columns in migration 008.
 It is not a PostgreSQL DDL interpreter or a claim that every type/default/constraint exactly matches source:
 the live per-table catalog above documents those details independently.
+These figures are bounded to the timestamped observation above and its then-current source inventory; they do
+not include later source additions such as `quiz`/migration 051 and are not refreshed by this source-only update.
 
 - Deployment/framework table: `agent_sessions.adk_internal_metadata`.
 - Deployment/framework table: `agent_sessions.app_states`.

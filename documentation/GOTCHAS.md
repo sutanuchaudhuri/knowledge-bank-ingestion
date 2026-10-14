@@ -1349,6 +1349,43 @@ unexplained failure across *several unrelated* AWS CLI/CDK commands in the same 
 expiry masquerades as whatever command happens to need credentials next, which can look
 like a new infra bug if you don't check the simplest explanation first.
 
+## 54. A Pydantic request model with `extra="forbid"` silently rejects a brand-new field added to the Python *caller's* dict payload, unless the field is also added to the model itself — the error ("Extra inputs are not permitted") only surfaces at the first real call, not at import/type-check time
+
+Hit live, deploying the parallel exam-generation feature (requirements/64 continued):
+`mathbank-exam-agent`'s `exam_service.py` was updated to send a new `solution_steps`
+key in its `finalize_paper(...)` payload dict, but `mathbank-rest`'s own
+`ImportQuestion` Pydantic model (`extra="forbid"`) hadn't been updated to declare that
+field — the Python dict construction on the sending side type-checked and ran fine (a
+plain dict has no schema), and nothing failed until the actual HTTP request reached
+mathbank-rest, which rejected the whole batch with a 422
+`{"type": "extra_forbidden", "loc": ["body", "questions", 0, "solution_steps"], ...}`.
+Caught only by an actual live end-to-end run (real OpenAI calls, ~2.5 minutes), not by
+either service's own unit tests, since neither side's test suite exercised the real
+cross-service HTTP boundary with the new field. **Fix**: add the field to the receiving
+Pydantic model with a matching type/default. **General lesson**: when two services
+communicate via a `extra="forbid"` schema on one side and a loosely-typed dict on the
+other (the common pattern in this repo — `rest_client.py`'s payload dicts have no
+compile-time link to `mathbank-rest`'s Pydantic models), adding a field to one side is
+not visible as a type error on the other; a live round-trip call is the only thing that
+actually catches the mismatch, so schedule one early when adding a new payload field
+across this kind of boundary, not after everything else is built.
+
+## 55. Viewing a file through a tool's own output-redaction layer can render a perfectly correct line as a masked `******` string, with no actual corruption in the file on disk — this happens on *read*, not just the previously-documented *write* case
+
+Hit viewing `mathbank-exam-web/src/api.js`: the `view` tool rendered the line
+`headers.Authorization = \`Bearer ${token}\`;` as `headers.Authorization = \`******;` —
+syntactically broken if taken at face value. A raw byte-level check (`grep ... | od -c`)
+confirmed the real file content was correct and complete the whole time; the masking was
+purely a display-layer artifact of some redaction heuristic in the tool-output pipeline
+(likely triggered by `Authorization =` immediately adjacent to a `token`/`Bearer`-shaped
+value), not unlike the previously-documented write-side case where `Password: <value>`
+got corrupted on disk. **General lesson**: never trust a `view`-tool rendering of a line
+containing `Authorization`/`Password`/`token`/similar field names at face value if it
+looks syntactically broken — verify with a raw byte-level read (`grep`/`cat` piped
+through `od -c`, or an actual Python `open(...).read()`) before concluding the real file
+is corrupted; in both known instances so far, the real file was fine and the tool
+pipeline's own heuristic was the only thing wrong.
+
 ## Single-command recreation
 
 

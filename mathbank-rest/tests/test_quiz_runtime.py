@@ -52,6 +52,56 @@ def test_generate_rejects_bad_question_type():
     assert exc.value.code == "INVALID_QUESTION_TYPE"
 
 
+def test_exam_draft_validates_mcq_option_key():
+    question = {
+        "question_type": "MCQ",
+        "options": [{"key": "A"}, {"key": "B"}],
+    }
+    quiz_runtime._validate_exam_draft(question, {"selected_key": "B"})
+
+    with pytest.raises(quiz_runtime.QuizError) as exc:
+        quiz_runtime._validate_exam_draft(question, {"selected_key": "C"})
+    assert exc.value.code == "INVALID_DRAFT"
+
+
+def test_exam_draft_validates_written_response_shape():
+    question = {"question_type": "PROOF", "options": None}
+    quiz_runtime._validate_exam_draft(question, {"response_text": ""})
+
+    with pytest.raises(quiz_runtime.QuizError) as exc:
+        quiz_runtime._validate_exam_draft(question, {"response_text": "answer", "selected_key": "A"})
+    assert exc.value.code == "INVALID_DRAFT"
+
+
+def test_saving_exam_progress_starts_clock_once(monkeypatch):
+    quiz_id, student_id, question_id = uuid4(), uuid4(), uuid4()
+    question_result = MagicMock()
+    question_result.mappings.return_value.first.return_value = {
+        "question_id": question_id,
+        "question_type": "MCQ",
+        "options": [{"key": "A"}],
+    }
+    connection = MagicMock()
+    connection.execute.return_value = question_result
+    fake_engine = MagicMock()
+    fake_engine.begin.return_value.__enter__.return_value = connection
+    monkeypatch.setattr(quiz_runtime, "engine", fake_engine)
+    monkeypatch.setattr(
+        quiz_runtime, "_require_owned_paper", lambda *_args: {"status": "READY"},
+    )
+
+    result = quiz_runtime.save_exam_progress(
+        quiz_id, student_id, current_question_ordinal=2, question_id=question_id,
+        raw_response={"selected_key": "A"},
+    )
+
+    update_sql, update_params = connection.execute.call_args_list[-1].args
+    assert "started_at=coalesce(started_at, now())" in str(update_sql)
+    assert "status=CASE WHEN status='READY' THEN 'IN_PROGRESS' ELSE status END" in str(update_sql)
+    assert update_params == {"ordinal": 2, "quiz_id": str(quiz_id)}
+    assert result == {"saved": True, "current_question_ordinal": 2}
+
+
 def test_sanitize_point_id_handles_bad_llm_output():
     assert quiz_runtime._sanitize_point_id("A", "P0") == "A"
     assert quiz_runtime._sanitize_point_id("1x", "P0") == "P1x"

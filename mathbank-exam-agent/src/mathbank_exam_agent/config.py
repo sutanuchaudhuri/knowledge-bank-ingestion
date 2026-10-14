@@ -20,10 +20,10 @@ class Settings(BaseSettings):
     # shared project-wide convention) pending Bedrock model-access being enabled on the
     # AWS account — see llm_models.py's module docstring for the one-line swap back to
     # BedrockModel once that's resolved. Deliberately 3 separate model-id settings (not
-    # one): the generator/critic run many times per paper (cheap model matters), the
-    # diagnoser runs once per exam (quality matters more than per-call cost).
-    generator_model_id: str = "gpt-4o-mini"
-    critic_model_id: str = "gpt-4o-mini"
+    # one): generation and critique need the stronger model because mathematical
+    # correctness is a hard acceptance gate; diagnosis remains independently configurable.
+    generator_model_id: str = "gpt-4o"
+    critic_model_id: str = "gpt-4o"
     diagnosis_model_id: str = "gpt-4o-mini"
     # Set once Bedrock access is confirmed (requirements/64 §1's cost-driven default):
     bedrock_model_id: str = "anthropic.claude-haiku-4-5-20251001-v1:0"
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # all (it is a genuinely separate project, requirements/64 §0's scope boundary).
     mcp_competitions_url: str = "http://localhost:9000/mcp"
 
-    max_critic_revision_rounds: int = 2
+    max_critic_revision_rounds: int = 4
 
     # AWS Cognito (requirements/64 continued — onboarding/login/forgot-password).
     cognito_user_pool_id: str = ""

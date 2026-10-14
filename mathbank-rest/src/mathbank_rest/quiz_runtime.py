@@ -389,18 +389,23 @@ def get_quiz(quiz_id: UUID, student_id: UUID) -> dict:
             text("""
             SELECT q.question_id, q.ordinal, q.question_type, q.prompt_text, q.prompt_latex,
                    q.options, q.points, q.diagram_object_key,
+                   r.raw_response AS student_response, d.raw_response AS draft_response,
                    (r.response_id IS NOT NULL) AS answered
             FROM quiz.question q
             LEFT JOIN quiz.response r ON r.question_id = q.question_id
+                AND r.quiz_id = q.quiz_id AND r.student_id = :student_id
+            LEFT JOIN quiz.response_draft d ON d.question_id = q.question_id
+                AND d.quiz_id = q.quiz_id AND d.student_id = :student_id
             WHERE q.quiz_id = :id ORDER BY q.ordinal
         """),
-            {"id": str(quiz_id)},
+            {"id": str(quiz_id), "student_id": str(student_id)},
         ).mappings().all()
     return {
         "quiz_id": str(quiz_id), "style": paper["style"], "title": paper["title"],
         "status": paper["status"], "instructions": paper["instructions"],
         "exam_mode": paper["exam_mode"], "time_limit_seconds": paper["time_limit_seconds"],
         "started_at": paper["started_at"],
+        "resume_question_ordinal": paper["resume_question_ordinal"],
         "questions": [
             {
                 "question_id": str(q["question_id"]), "ordinal": q["ordinal"],
@@ -408,11 +413,84 @@ def get_quiz(quiz_id: UUID, student_id: UUID) -> dict:
                 "prompt_latex": q["prompt_latex"],
                 "options": q["options"] if q["options"] else None,
                 "points": float(q["points"]), "has_diagram": bool(q["diagram_object_key"]),
+                "student_response": q["student_response"],
+                "draft_response": q["draft_response"],
                 "answered": q["answered"],
             }
             for q in questions
         ],
     }
+
+
+def _validate_exam_draft(question: dict, raw_response: dict) -> None:
+    if question["question_type"] == "MCQ":
+        selected_key = raw_response.get("selected_key")
+        available_keys = {option["key"] for option in question["options"] or []}
+        if not isinstance(selected_key, str) or selected_key not in available_keys:
+            raise QuizError("INVALID_DRAFT", "selected_key must match an option in this question")
+        if set(raw_response) != {"selected_key"}:
+            raise QuizError("INVALID_DRAFT", "MCQ drafts may only contain selected_key")
+        return
+
+    response_text = raw_response.get("response_text")
+    if not isinstance(response_text, str) or len(response_text) > 10000:
+        raise QuizError("INVALID_DRAFT", "response_text must be a string of at most 10000 characters")
+    if set(raw_response) != {"response_text"}:
+        raise QuizError("INVALID_DRAFT", "written-answer drafts may only contain response_text")
+
+
+def save_exam_progress(
+    quiz_id: UUID, student_id: UUID, *, current_question_ordinal: int,
+    question_id: UUID | None = None, raw_response: dict | None = None,
+) -> dict:
+    """Persist the student's current position and optional unsubmitted answer draft."""
+    with engine.begin() as conn:
+        paper = _require_owned_paper(conn, quiz_id, student_id)
+        if paper["status"] not in ("READY", "IN_PROGRESS"):
+            raise QuizError(
+                "EXAM_NOT_EDITABLE", f"paper is {paper['status']} and cannot be changed",
+                status_code=409,
+            )
+        question = conn.execute(
+            text("""
+            SELECT question_id, question_type, options
+            FROM quiz.question
+            WHERE quiz_id=:quiz_id AND ordinal=:ordinal
+        """),
+            {"quiz_id": str(quiz_id), "ordinal": current_question_ordinal},
+        ).mappings().first()
+        if question is None:
+            raise QuizError("NOT_FOUND", "no question with that ordinal in this paper", status_code=404)
+        if question_id is not None and str(question["question_id"]) != str(question_id):
+            raise QuizError("INVALID_DRAFT", "question_id does not match current_question_ordinal")
+        if raw_response is not None:
+            _validate_exam_draft(dict(question), raw_response)
+            conn.execute(
+                text("""
+                INSERT INTO quiz.response_draft
+                    (quiz_id, question_id, student_id, raw_response, updated_at)
+                VALUES (:quiz_id, :question_id, :student_id, CAST(:raw_response AS jsonb), now())
+                ON CONFLICT (quiz_id, question_id) DO UPDATE SET
+                    student_id=EXCLUDED.student_id,
+                    raw_response=EXCLUDED.raw_response,
+                    updated_at=now()
+            """),
+                {
+                    "quiz_id": str(quiz_id), "question_id": str(question["question_id"]),
+                    "student_id": str(student_id), "raw_response": json.dumps(raw_response),
+                },
+            )
+        conn.execute(
+            text("""
+            UPDATE quiz.paper
+            SET resume_question_ordinal=:ordinal,
+                started_at=coalesce(started_at, now()),
+                status=CASE WHEN status='READY' THEN 'IN_PROGRESS' ELSE status END
+            WHERE quiz_id=:quiz_id
+        """),
+            {"ordinal": current_question_ordinal, "quiz_id": str(quiz_id)},
+        )
+    return {"saved": True, "current_question_ordinal": current_question_ordinal}
 
 
 # --------------------------------------------------------------------------- grading
@@ -513,6 +591,10 @@ def submit_response(
                 },
             )
             conn.execute(
+                text("DELETE FROM quiz.response_draft WHERE quiz_id=:quiz_id AND question_id=:question_id"),
+                {"quiz_id": str(quiz_id), "question_id": str(question_id)},
+            )
+            conn.execute(
                 text("UPDATE quiz.paper SET status='IN_PROGRESS', started_at=coalesce(started_at, now()) "
                      "WHERE quiz_id=:id"),
                 {"id": str(quiz_id)},
@@ -562,6 +644,33 @@ def _absorb_mastery_feedback(student_id: UUID, question_id: UUID) -> dict:
     return {"concepts": concept_scores, "techniques": technique_scores}
 
 
+def _inspiration_sources_by_question(conn, quiz_id: UUID) -> dict[str, list[dict]]:
+    """Every real corpus problem a question drew on (requirements/64 continued — "can be
+    multiple sources", each with its own note on what was actually borrowed/changed),
+    keyed by question_id, rank-ordered. Only populated once finalize_paper has run."""
+    rows = conn.execute(
+        text("""
+        SELECT qs.question_id, qs.rank, qs.note, p.canonical_code, p.source_url,
+               comp.name AS competition, ed.year
+        FROM quiz.question_source qs
+        JOIN core.problem p ON p.problem_id = qs.problem_id
+        JOIN core.paper pa ON pa.paper_id = p.paper_id
+        JOIN core.competition_edition ed ON ed.edition_id = pa.edition_id
+        JOIN core.competition comp ON comp.competition_id = ed.competition_id
+        JOIN quiz.question q ON q.question_id = qs.question_id
+        WHERE q.quiz_id = :id ORDER BY qs.question_id, qs.rank
+    """),
+        {"id": str(quiz_id)},
+    ).mappings().all()
+    by_question: dict[str, list[dict]] = {}
+    for r in rows:
+        by_question.setdefault(str(r["question_id"]), []).append({
+            "canonical_code": r["canonical_code"], "competition": r["competition"],
+            "year": r["year"], "source_url": r["source_url"], "note": r["note"],
+        })
+    return by_question
+
+
 def get_review(quiz_id: UUID, student_id: UUID) -> dict:
     with engine.connect() as conn:
         paper = _require_owned_paper(conn, quiz_id, student_id)
@@ -579,8 +688,8 @@ def get_review(quiz_id: UUID, student_id: UUID) -> dict:
         rows = conn.execute(
             text("""
             SELECT q.question_id, q.ordinal, q.question_type, q.prompt_text, q.points,
-                   q.options, q.correct_answer, q.option_explanations,
-                   s.solution_text, s.key_insight,
+                   q.options, q.correct_answer, q.option_explanations, q.complexity_signals,
+                   q.difficulty_band, s.solution_text, s.key_insight, s.solution_steps,
                    r.raw_response, r.is_correct, r.grading_feedback, r.submitted_at
             FROM quiz.question q
             LEFT JOIN quiz.solution s ON s.question_id = q.question_id
@@ -589,6 +698,7 @@ def get_review(quiz_id: UUID, student_id: UUID) -> dict:
         """),
             {"id": str(quiz_id)},
         ).mappings().all()
+        sources_by_question = _inspiration_sources_by_question(conn, quiz_id)
     answered = [r for r in rows if r["raw_response"] is not None]
     score = sum(1 for r in answered if r["is_correct"]) if answered else 0
     # requirements/64 §6 — an exam-mode paper may reach SUBMITTED (explicit student
@@ -619,6 +729,16 @@ def get_review(quiz_id: UUID, student_id: UUID) -> dict:
                 # exam-mode gate above has already passed.
                 "options": r["options"], "correct_answer": r["correct_answer"],
                 "option_explanations": r["option_explanations"],
+                # requirements/64 (continued) — every real corpus problem (0+, can be
+                # multiple) this question was inspired by, with a note on what was
+                # actually borrowed/changed — "inspired by, never copied" made concrete.
+                "inspiration_sources": sources_by_question.get(str(r["question_id"]), []),
+                # requirements/64 (continued) — computed complexity evidence (step
+                # count, concept/technique count, solution length) the critic actually
+                # used to judge difficulty_match, not just its own prose re-read.
+                "difficulty_band": r["difficulty_band"],
+                "complexity_signals": r["complexity_signals"],
+                "solution_steps": r["solution_steps"] or [],
             }
             for r in rows
         ],
@@ -647,29 +767,24 @@ def list_my_quizzes(student_id: UUID, *, limit: int = 20) -> list[dict]:
 # directly — every write below is reached only via the admin-key-gated REST endpoints
 # in routers/exam_integration.py, keeping this service the one owner of quiz.* writes.
 
-def import_paper(
+def start_paper(
     student_id: UUID, *, style: str, title: str, instructions: str = "",
     requested_question_count: int, requested_question_types: list[str],
     target_skill_slugs: list[str] | None = None, target_concept_slugs: list[str] | None = None,
     difficulty_band: str | None = None, generated_by: str, exam_mode: bool = True,
-    time_limit_seconds: int | None = None, questions: list[dict],
-) -> dict:
-    """Persists a fully-formed, already-critic-approved paper. Each entry in `questions`
-    must carry: ordinal, question_type, prompt_text, prompt_latex (nullable), options
-    (MCQ only, nullable otherwise), correct_answer (same shape quiz.question.correct_answer
-    already uses: {"correct_key":...} for MCQ, {"expected_answer":...,"grading_rubric":...}
-    otherwise), solution_text, key_insight, revision_log (list, every generator<->critic
-    round — requirements/64 §4), concept_slugs/technique_slugs/skill_slugs (already
-    resolved by the caller, e.g. via the MCP list_concepts/list_techniques tools),
-    inspired_by_problem_id (optional), diagram (optional {"object_key":...,"sha256":...}).
-    """
+    time_limit_seconds: int | None = None,
+) -> UUID:
+    """Mints a quiz_id and inserts the `quiz.paper` shell row immediately, status
+    GENERATING (requirements/64 continued — parallel generation + live progress). The
+    caller (mathbank-exam-agent) gets this id back right away, well before any question
+    is drafted, specifically so it can start polling `quiz.generation_event` (below) for
+    this quiz_id while the actual (now-parallel) generation work runs as a separate,
+    later HTTP call — see `finalize_paper` for the step that turns this shell into a
+    real, gradeable paper."""
     if style not in STYLES:
         raise QuizError("INVALID_STYLE", f"style must be one of {STYLES}")
     if not 1 <= requested_question_count <= 20:
         raise QuizError("INVALID_QUESTION_COUNT", "requested_question_count must be between 1 and 20")
-    if not questions:
-        raise QuizError("NO_QUESTIONS", "at least one question is required")
-
     quiz_id = uuid4()
     with engine.begin() as conn:
         conn.execute(
@@ -680,7 +795,7 @@ def import_paper(
                 exam_mode, time_limit_seconds, status)
             VALUES (:quiz_id, :student_id, :style, :title, :instructions, :count, :types,
                 :skills, :concepts, :difficulty, :generated_by, 'STRANDS_BEDROCK',
-                :exam_mode, :time_limit, 'READY')
+                :exam_mode, :time_limit, 'GENERATING')
         """),
             {
                 "quiz_id": str(quiz_id), "student_id": str(student_id), "style": style,
@@ -691,70 +806,356 @@ def import_paper(
                 "exam_mode": exam_mode, "time_limit": time_limit_seconds,
             },
         )
-        for ordinal, q in enumerate(questions, start=1):
-            qtype = q["question_type"]
-            if qtype not in QUESTION_TYPES:
-                raise QuizError("INVALID_QUESTION_TYPE", f"question_type must be one of {QUESTION_TYPES}")
-            question_id = uuid4()
+    return quiz_id
+
+
+# --------------------------------------------------------------------------- question pool
+# requirements/64 (continued): a cache of critic-approved, corpus-inspired questions with
+# full solutions. The exam agent consults it first (match_pool_questions) for a
+# near-identical request and only drafts what the pool can't supply; finalize_paper writes
+# every newly approved question back (add_to_pool), so the pool keeps expanding.
+
+_POOL_QUESTION_EXCLUDED_FIELDS = ("revision_log", "pool_question_id", "add_to_pool")
+
+
+def normalize_topic_key(topic: str | None) -> str:
+    return " ".join((topic or "").lower().split())[:200]
+
+
+def _pool_content_hash(prompt_text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(" ".join(prompt_text.lower().split()).encode("utf-8")).hexdigest()
+
+
+def match_pool_questions(
+    student_id: UUID, *, style: str, question_types: list[str], difficulty_band: str | None,
+    topic: str | None, concept_slugs: list[str] | None = None, limit: int = 20,
+    min_topic_similarity: float = 0.5,
+) -> list[dict]:
+    """Pooled questions matching an "almost the same" request: same style, one of the
+    requested question types, same requested difficulty band, and either a similar topic
+    phrase (pg_trgm) or an overlapping resolved concept. Questions this student has
+    already been served (in any paper) are excluded. Best topic match first, then the
+    least-served, so reuse spreads across the pool."""
+    topic_key = normalize_topic_key(topic)
+    concepts = [s for s in (concept_slugs or []) if s]
+    if not topic_key and not concepts:
+        return []
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+            SELECT qp.pool_question_id, qp.question_type, qp.question,
+                   similarity(qp.topic_key, :topic) AS topic_similarity
+            FROM quiz.question_pool qp
+            WHERE qp.style = :style
+              AND qp.question_type = ANY(CAST(:types AS text[]))
+              AND qp.difficulty_band IS NOT DISTINCT FROM :difficulty
+              AND (
+                    (:topic <> '' AND similarity(qp.topic_key, :topic) >= :min_sim)
+                 OR (cardinality(CAST(:concepts AS text[])) > 0
+                     AND qp.concept_slugs && CAST(:concepts AS text[]))
+              )
+              AND NOT EXISTS (
+                    SELECT 1 FROM quiz.question q
+                    JOIN quiz.paper p ON p.quiz_id = q.quiz_id
+                    WHERE q.pool_question_id = qp.pool_question_id AND p.student_id = :sid
+              )
+            ORDER BY topic_similarity DESC, qp.times_served ASC, random()
+            LIMIT :limit
+        """),
+            {
+                "style": style, "types": question_types or list(QUESTION_TYPES),
+                "difficulty": difficulty_band, "topic": topic_key, "min_sim": min_topic_similarity,
+                "concepts": concepts, "sid": str(student_id), "limit": max(1, min(limit, 50)),
+            },
+        ).mappings().all()
+    return [
+        {
+            "pool_question_id": str(r["pool_question_id"]), "question_type": r["question_type"],
+            "question": r["question"], "topic_similarity": float(r["topic_similarity"] or 0.0),
+        }
+        for r in rows
+    ]
+
+
+def _link_pool_question(conn, q: dict, *, paper: dict, pool_topic_key: str,
+                        pool_concept_slugs: list[str], quiz_id: UUID, generated_by: str | None) -> str | None:
+    """Returns the pool_question_id the new quiz.question row should reference: the one it
+    was served from (bumping its usage), or a newly written-back pool entry."""
+    if q.get("pool_question_id"):
+        return conn.execute(
+            text("""
+            UPDATE quiz.question_pool SET times_served = times_served + 1, last_served_at = now()
+            WHERE pool_question_id = :id RETURNING pool_question_id
+        """),
+            {"id": str(q["pool_question_id"])},
+        ).scalar()
+    if not q.get("add_to_pool"):
+        return None
+    payload = {k: v for k, v in q.items() if k not in _POOL_QUESTION_EXCLUDED_FIELDS}
+    concepts = sorted(set((q.get("concept_slugs") or []) + pool_concept_slugs))
+    return conn.execute(
+        text("""
+        INSERT INTO quiz.question_pool (content_hash, style, question_type, difficulty_band,
+            topic_key, concept_slugs, technique_slugs, question, source_quiz_id, generated_by)
+        VALUES (:hash, :style, :qtype, :difficulty, :topic, CAST(:concepts AS text[]),
+            CAST(:techniques AS text[]), CAST(:question AS jsonb), :quiz_id, :generated_by)
+        ON CONFLICT (content_hash) DO UPDATE SET content_hash = EXCLUDED.content_hash
+        RETURNING pool_question_id
+    """),
+        {
+            "hash": _pool_content_hash(q["prompt_text"]), "style": paper["style"],
+            "qtype": q["question_type"], "difficulty": paper["difficulty_band"],
+            "topic": pool_topic_key, "concepts": concepts,
+            "techniques": q.get("technique_slugs") or [], "question": json.dumps(payload),
+            "quiz_id": str(quiz_id), "generated_by": generated_by or paper["generated_by"],
+        },
+    ).scalar()
+
+
+def finalize_paper(
+    quiz_id: UUID, student_id: UUID, *, questions: list[dict], generated_by: str | None = None,
+    pool_topic: str | None = None, pool_concept_slugs: list[str] | None = None,
+) -> dict:
+    """Inserts every question for an already-`start_paper`'d quiz_id and flips its
+    status to READY (requirements/64 continued). Each entry in `questions` must carry:
+    question_type, prompt_text, prompt_latex (nullable), options (MCQ only, nullable
+    otherwise), correct_answer (same shape quiz.question.correct_answer already uses:
+    {"correct_key":...} for MCQ, {"expected_answer":...,"grading_rubric":...} otherwise),
+    solution_text, key_insight, revision_log (list, every generator<->critic round),
+    concept_slugs/technique_slugs/skill_slugs, inspiration_sources (list of
+    {"canonical_code":..., "note":...}, rank = list order, 0-5 entries — can be multiple,
+    real corpus problems a question drew on), diagram (optional
+    {"object_key":...,"sha256":...}). On any failure the paper is marked FAILED with the
+    error message (never left stuck GENERATING forever), mirroring generate_quiz()'s own
+    error-handling convention.
+
+    Question pool (migration 052): a question carrying `pool_question_id` was served from
+    quiz.question_pool and is linked back to it; one carrying `add_to_pool=True` is
+    written into the pool (keyed by this paper's style/difficulty plus `pool_topic` and
+    `pool_concept_slugs`) and linked too, so the pool grows with every generated paper."""
+    if not questions:
+        raise QuizError("NO_QUESTIONS", "at least one question is required")
+    pool_topic_key = normalize_topic_key(pool_topic)
+    try:
+        with engine.begin() as conn:
+            owned = conn.execute(
+                text("SELECT style, difficulty_band, generated_by FROM quiz.paper "
+                     "WHERE quiz_id=:id AND student_id=:sid AND status='GENERATING'"),
+                {"id": str(quiz_id), "sid": str(student_id)},
+            ).mappings().first()
+            if not owned:
+                raise QuizError(
+                    "NOT_FOUND", "no GENERATING quiz with that id for this student — call start_paper first",
+                    status_code=404,
+                )
+            for ordinal, q in enumerate(questions, start=1):
+                qtype = q["question_type"]
+                if qtype not in QUESTION_TYPES:
+                    raise QuizError("INVALID_QUESTION_TYPE", f"question_type must be one of {QUESTION_TYPES}")
+                question_id = uuid4()
+                sources = q.get("inspiration_sources") or []
+                primary_problem_id = (
+                    _resolve_problem_id(conn, sources[0]["canonical_code"]) if sources else None
+                )
+                # requirements/64 continued — computed complexity/difficulty evidence,
+                # mirroring the real-corpus precedent (pedagogy.problem_enrichment.
+                # solution_step_count/technique_ids, migration 010): a generated
+                # question has no pre-existing solution_part breakdown to count, so this
+                # is derived from the generator's own structured solution_steps instead.
+                solution_steps = q.get("solution_steps") or []
+                concept_count = len(set((q.get("concept_slugs") or []) + (q.get("technique_slugs") or [])))
+                complexity_signals = {
+                    "step_count": len(solution_steps), "concept_count": concept_count,
+                    "technique_count": len(q.get("technique_slugs") or []),
+                    "solution_length_chars": len(q["solution_text"]),
+                }
+                pool_question_id = _link_pool_question(
+                    conn, q, paper=dict(owned), pool_topic_key=pool_topic_key,
+                    pool_concept_slugs=pool_concept_slugs or [], quiz_id=quiz_id,
+                    generated_by=generated_by,
+                )
+                conn.execute(
+                    text("""
+                    INSERT INTO quiz.question (question_id, quiz_id, ordinal, question_type,
+                        prompt_text, prompt_latex, options, correct_answer, inspired_by_problem_id,
+                        diagram_object_key, diagram_sha256, revision_log, difficulty_band,
+                        option_explanations, complexity_signals, pool_question_id)
+                    VALUES (:qid, :quiz_id, :ordinal, :qtype, :prompt, :latex,
+                        CAST(:options AS jsonb), CAST(:correct AS jsonb), :inspired_by,
+                        :diagram_key, :diagram_sha, CAST(:revisions AS jsonb), :difficulty,
+                        CAST(:option_explanations AS jsonb), CAST(:complexity AS jsonb), :pool_qid)
+                """),
+                    {
+                        "qid": str(question_id), "quiz_id": str(quiz_id), "ordinal": ordinal,
+                        "pool_qid": str(pool_question_id) if pool_question_id else None,
+                        "qtype": qtype, "prompt": q["prompt_text"], "latex": q.get("prompt_latex"),
+                        "options": json.dumps(q["options"]) if q.get("options") else None,
+                        "correct": json.dumps(q["correct_answer"]),
+                        "inspired_by": primary_problem_id,
+                        "diagram_key": (q.get("diagram") or {}).get("object_key"),
+                        "diagram_sha": (q.get("diagram") or {}).get("sha256"),
+                        "revisions": json.dumps(q.get("revision_log") or []),
+                        "difficulty": q.get("difficulty_band"),
+                        "option_explanations": json.dumps(q.get("option_explanations") or {}),
+                        "complexity": json.dumps(complexity_signals),
+                    },
+                )
+                for rank, source in enumerate(sources[:5], start=1):
+                    problem_id = _resolve_problem_id(conn, source["canonical_code"])
+                    if not problem_id:
+                        continue
+                    conn.execute(
+                        text("""
+                        INSERT INTO quiz.question_source (question_id, problem_id, rank, note)
+                        VALUES (:q, :p, :rank, :note) ON CONFLICT DO NOTHING
+                    """),
+                        {"q": str(question_id), "p": problem_id, "rank": rank, "note": source.get("note", "")},
+                    )
+                for slug in q.get("concept_slugs") or []:
+                    conn.execute(
+                        text("""
+                        INSERT INTO quiz.question_concept (question_id, concept_id)
+                        SELECT :q, concept_id FROM knowledge.concept WHERE slug=:slug
+                        ON CONFLICT DO NOTHING
+                    """),
+                        {"q": str(question_id), "slug": slug},
+                    )
+                for slug in q.get("technique_slugs") or []:
+                    conn.execute(
+                        text("""
+                        INSERT INTO quiz.question_technique (question_id, technique_id)
+                        SELECT :q, technique_id FROM knowledge.technique WHERE slug=:slug
+                        ON CONFLICT DO NOTHING
+                    """),
+                        {"q": str(question_id), "slug": slug},
+                    )
+                for slug in q.get("skill_slugs") or []:
+                    conn.execute(
+                        text("""
+                        INSERT INTO quiz.question_skill (question_id, skill_id)
+                        SELECT :q, skill_id FROM knowledge.skill WHERE slug=:slug
+                        ON CONFLICT DO NOTHING
+                    """),
+                        {"q": str(question_id), "slug": slug},
+                    )
+                conn.execute(
+                    text("""
+                    INSERT INTO quiz.solution (question_id, solution_text, key_insight,
+                        solution_steps, step_count)
+                    VALUES (:qid, :text, :insight, CAST(:steps AS jsonb), :step_count)
+                """),
+                    {
+                        "qid": str(question_id), "text": q["solution_text"],
+                        "insight": q.get("key_insight", ""),
+                        "steps": json.dumps(solution_steps), "step_count": len(solution_steps),
+                    },
+                )
             conn.execute(
-                text("""
-                INSERT INTO quiz.question (question_id, quiz_id, ordinal, question_type,
-                    prompt_text, prompt_latex, options, correct_answer, inspired_by_problem_id,
-                    diagram_object_key, diagram_sha256, revision_log, difficulty_band,
-                    option_explanations)
-                VALUES (:qid, :quiz_id, :ordinal, :qtype, :prompt, :latex,
-                    CAST(:options AS jsonb), CAST(:correct AS jsonb), :inspired_by,
-                    :diagram_key, :diagram_sha, CAST(:revisions AS jsonb), :difficulty,
-                    CAST(:option_explanations AS jsonb))
-            """),
-                {
-                    "qid": str(question_id), "quiz_id": str(quiz_id), "ordinal": ordinal,
-                    "qtype": qtype, "prompt": q["prompt_text"], "latex": q.get("prompt_latex"),
-                    "options": json.dumps(q["options"]) if q.get("options") else None,
-                    "correct": json.dumps(q["correct_answer"]),
-                    "inspired_by": q.get("inspired_by_problem_id"),
-                    "diagram_key": (q.get("diagram") or {}).get("object_key"),
-                    "diagram_sha": (q.get("diagram") or {}).get("sha256"),
-                    "revisions": json.dumps(q.get("revision_log") or []),
-                    "difficulty": q.get("difficulty_band"),
-                    "option_explanations": json.dumps(q.get("option_explanations") or {}),
-                },
+                text("UPDATE quiz.paper SET status='READY', generated_by=coalesce(:gb, generated_by) "
+                     "WHERE quiz_id=:id"),
+                {"id": str(quiz_id), "gb": generated_by},
             )
-            for slug in q.get("concept_slugs") or []:
-                conn.execute(
-                    text("""
-                    INSERT INTO quiz.question_concept (question_id, concept_id)
-                    SELECT :q, concept_id FROM knowledge.concept WHERE slug=:slug
-                    ON CONFLICT DO NOTHING
-                """),
-                    {"q": str(question_id), "slug": slug},
-                )
-            for slug in q.get("technique_slugs") or []:
-                conn.execute(
-                    text("""
-                    INSERT INTO quiz.question_technique (question_id, technique_id)
-                    SELECT :q, technique_id FROM knowledge.technique WHERE slug=:slug
-                    ON CONFLICT DO NOTHING
-                """),
-                    {"q": str(question_id), "slug": slug},
-                )
-            for slug in q.get("skill_slugs") or []:
-                conn.execute(
-                    text("""
-                    INSERT INTO quiz.question_skill (question_id, skill_id)
-                    SELECT :q, skill_id FROM knowledge.skill WHERE slug=:slug
-                    ON CONFLICT DO NOTHING
-                """),
-                    {"q": str(question_id), "slug": slug},
-                )
+    except QuizError:
+        raise
+    except Exception as exc:  # noqa: BLE001 -- surface a clean FAILED status, not a stuck GENERATING paper
+        logger.exception("paper finalization failed for quiz %s", quiz_id)
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE quiz.paper SET status='FAILED', error_message=:msg WHERE quiz_id=:id"),
+                {"id": str(quiz_id), "msg": str(exc)[:500]},
+            )
+        raise QuizError("GENERATION_FAILED", "paper finalization failed", status_code=502) from exc
+    return get_quiz(quiz_id, student_id)
+
+
+def fail_paper(quiz_id: UUID, student_id: UUID, error_message: str) -> dict:
+    with engine.begin() as conn:
+        paper = conn.execute(
+            text("SELECT student_id, status FROM quiz.paper WHERE quiz_id=:id FOR UPDATE"),
+            {"id": str(quiz_id)},
+        ).mappings().first()
+        if not paper or str(paper["student_id"]) != str(student_id):
+            raise QuizError("NOT_FOUND", "paper not found", status_code=404)
+        if paper["status"] == "GENERATING":
             conn.execute(
                 text("""
-                INSERT INTO quiz.solution (question_id, solution_text, key_insight)
-                VALUES (:qid, :text, :insight)
-            """),
-                {"qid": str(question_id), "text": q["solution_text"], "insight": q.get("key_insight", "")},
+                    UPDATE quiz.paper
+                    SET status='FAILED', error_message=:message
+                    WHERE quiz_id=:id
+                """),
+                {"id": str(quiz_id), "message": error_message[:500]},
             )
     return get_quiz(quiz_id, student_id)
+
+
+def import_paper(
+    student_id: UUID, *, style: str, title: str, instructions: str = "",
+    requested_question_count: int, requested_question_types: list[str],
+    target_skill_slugs: list[str] | None = None, target_concept_slugs: list[str] | None = None,
+    difficulty_band: str | None = None, generated_by: str, exam_mode: bool = True,
+    time_limit_seconds: int | None = None, questions: list[dict],
+) -> dict:
+    """Back-compat, single-call wrapper over start_paper + finalize_paper — persists a
+    fully-formed, already-critic-approved paper in one shot. Prefer the split calls for
+    any caller that wants the quiz_id before generation finishes (requirements/64
+    continued's live-progress design); this wrapper exists for any simpler caller that
+    generates everything up front and just wants one call. Validates everything (style,
+    count, non-empty questions) up front, before any row is written — preserving the
+    original all-or-nothing behavior: a validation failure here must never leave a
+    stray GENERATING paper shell behind."""
+    if style not in STYLES:
+        raise QuizError("INVALID_STYLE", f"style must be one of {STYLES}")
+    if not 1 <= requested_question_count <= 20:
+        raise QuizError("INVALID_QUESTION_COUNT", "requested_question_count must be between 1 and 20")
+    if not questions:
+        raise QuizError("NO_QUESTIONS", "at least one question is required")
+    quiz_id = start_paper(
+        student_id, style=style, title=title, instructions=instructions,
+        requested_question_count=requested_question_count,
+        requested_question_types=requested_question_types,
+        target_skill_slugs=target_skill_slugs, target_concept_slugs=target_concept_slugs,
+        difficulty_band=difficulty_band, generated_by=generated_by, exam_mode=exam_mode,
+        time_limit_seconds=time_limit_seconds,
+    )
+    return finalize_paper(quiz_id, student_id, questions=questions)
+
+
+def post_generation_event(
+    quiz_id: UUID, *, ordinal: int, phase: str, status: str,
+    question_ordinal: int | None = None, detail: str = "",
+) -> None:
+    """Appends one row to the generation-progress log (requirements/64 continued) — the
+    web UI's "what is the agent doing right now" view polls `list_generation_events`
+    below for exactly these rows. Deliberately a plain INSERT, not wrapped in the same
+    transaction as any surrounding generation work, so a progress event is visible to a
+    polling client immediately, not only after the whole generation call finishes."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+            INSERT INTO quiz.generation_event (quiz_id, ordinal, phase, status, question_ordinal, detail)
+            VALUES (:quiz_id, :ordinal, :phase, :status, :question_ordinal, :detail)
+            ON CONFLICT (quiz_id, ordinal) DO NOTHING
+        """),
+            {
+                "quiz_id": str(quiz_id), "ordinal": ordinal, "phase": phase, "status": status,
+                "question_ordinal": question_ordinal, "detail": detail,
+            },
+        )
+
+
+def list_generation_events(quiz_id: UUID, student_id: UUID, *, since_ordinal: int = 0) -> list[dict]:
+    with engine.connect() as conn:
+        _require_owned_paper(conn, quiz_id, student_id)
+        rows = conn.execute(
+            text("""
+            SELECT ordinal, phase, status, question_ordinal, detail, created_at
+            FROM quiz.generation_event WHERE quiz_id=:id AND ordinal > :since ORDER BY ordinal
+        """),
+            {"id": str(quiz_id), "since": since_ordinal},
+        ).mappings().all()
+    return [dict(r) for r in rows]
 
 
 def submit_exam(quiz_id: UUID, student_id: UUID) -> dict:
@@ -770,6 +1171,10 @@ def submit_exam(quiz_id: UUID, student_id: UUID) -> dict:
         conn.execute(
             text("UPDATE quiz.paper SET status='SUBMITTED', "
                  "submitted_at=coalesce(submitted_at, now()) WHERE quiz_id=:id"),
+            {"id": str(quiz_id)},
+        )
+        conn.execute(
+            text("DELETE FROM quiz.response_draft WHERE quiz_id=:id"),
             {"id": str(quiz_id)},
         )
     return get_review(quiz_id, student_id)
@@ -944,6 +1349,11 @@ def log_response_event(
                 "sid": str(student_id), "etype": event_type, "okey": option_key, "cts": client_timestamp_ms,
             },
         )
+        if event_type == "SKIP":
+            conn.execute(
+                text("DELETE FROM quiz.response_draft WHERE quiz_id=:quiz_id AND question_id=:question_id"),
+                {"quiz_id": str(quiz_id), "question_id": str(question_id)},
+            )
     return {"event_id": str(event_id), "event_type": event_type, "option_key": option_key}
 
 
@@ -967,7 +1377,3 @@ def get_response_events(quiz_id: UUID, student_id: UUID) -> list[dict]:
         }
         for r in rows
     ]
-
-
-
-

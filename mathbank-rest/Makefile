@@ -20,6 +20,10 @@ access:                         ## Show REST API and Swagger URLs
 migrate-corpus-authoring:        ## Explicitly apply migration 025 to REST's configured PostgreSQL (no ingestion/models)
 	$(BIN)/python scripts/migrate_corpus_authoring.py --apply
 
+.PHONY: migrate-exam-resume-state
+migrate-exam-resume-state:        ## Explicitly apply migration 051 for durable exam drafts and resume position
+	$(BIN)/python scripts/migrate_exam_resume_state.py --apply --direct
+
 # ── Environment ────────────────────────────────────────────────────────────
 # Uses `uv` (https://docs.astral.sh/uv/) to manage the venv — plain
 # `python3.11 -m venv` can produce a broken interpreter on this machine when

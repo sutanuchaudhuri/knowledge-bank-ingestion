@@ -10,6 +10,32 @@
 - Sources: `mathbank-db/sql/001_schema.sql` through `024_feedback_evidence.sql`; corpus/import/embed ETL under `mathbank-db/etl/`; REST DB and runtime write paths under `mathbank-rest/src/mathbank_rest/`; and `attempt_media.py`, `attempt_media_models.py`, `media_processing.py`, `artifact_runtime.py`, `object_store.py`, `runtime_ai.py`, `routers/attempt_media.py`, `routers/artifacts.py`, `db/learner.py`, and `mastery.py`.
 - No DML was executed for this documentation task.
 
+## Mock-exam session and resume state
+
+Source-derived addition at revision `99b9c503e3ef1abce15fbc681f087401b78227d5`
+with worktree changes included. Traced `quiz_runtime.py`, the exam integration
+router, and the exam-agent REST proxy. Migration 051 is not applied or
+live-verified by this documentation update; it adds source DDL only. See the
+[quiz schema](postgres/quiz.md) and [exam requirement](../64_AWS_BEDROCK_MOCK_EXAM_AGENT.md).
+
+| Operation | Transaction / access | Boundary |
+|---|---|---|
+| Read paper and resume state | `quiz_runtime.get_quiz()` checks `(quiz_id, student_id)` ownership, then reads `quiz.paper`, `quiz.question`, the student's own `quiz.response`, and own `quiz.response_draft`. It returns `resume_question_ordinal` and excludes the correct answer/solution. | Read-only; a missing or differently owned paper is 404. Exam answer withholding remains an application-level gate. |
+| Save current question and optional draft | Admin-key `PUT /v1/quiz-integration/papers/{quiz_id}/progress`, called only by the authenticated exam-agent. One `engine.begin()` transaction checks ownership and READY/IN_PROGRESS status, verifies the ordinal belongs to the paper and optional question UUID matches, validates response fields/type, upserts `quiz.response_draft`, and updates `quiz.paper.resume_question_ordinal`. | Saving a draft never inserts `quiz.response`, grades, or changes mastery. Same `(quiz_id, question_id)` replaces the previous draft. The authenticated agent supplies server-resolved student identity; the browser cannot call the internal endpoint with a student ID. |
+| Confirm answer | Existing response submission inserts the single `quiz.response` row, deletes that question's draft, sets paper status/first `started_at`, and reads the solution in one transaction. MCQs use exact-key grading; written answers use the existing model grader before persistence. | Unique `quiz.response.question_id` is the final-answer guard; racing duplicate submissions are surfaced as 409. Mastery absorption runs after response persistence. |
+| Skip question | `log_response_event()` checks ownership and question membership, then appends `quiz.response_event`; for `SKIP`, it deletes that question's draft in the same transaction. | Event data is telemetry only; it is not a graded answer or mastery signal. |
+| Submit exam | `submit_exam()` checks owner and allowed status, changes status to SUBMITTED and deletes every draft for the paper in one transaction; review is read separately afterwards. | Repeated submission is 409. Existing response rows remain the answer/grading record. |
+
+Drafts are bound by runtime ownership and question-to-paper checks. The DDL's
+separate foreign keys do not encode a composite question/quiz relationship;
+the service verifies that relationship before saving or returning state.
+Question and paper deletion cascade draft rows; deleting a student profile
+does not cascade the draft's student FK. The browser saves position on
+navigation, MCQ changes promptly and written drafts with a short debounce,
+flushing before confirmation/navigation/submission. A named learner can
+resume across devices only after authentication resolves to the same
+`student_id`; no browser-local state is the persistence source.
+
 ## Relation-level access and use cases
 
 ### Full-corpus tutoring routes and operator bulk approval
@@ -66,7 +92,7 @@ The run freezes generation configuration and rejects a mismatched provider on
 resume. It does not relabel old OpenAI jobs. Same-version/source releases are
 reused; v3 can create new enriched versions alongside older releases.
 The staff preview source includes `step_generation_metadata` separately from
-editable program JSON. See [the execution plan](../../requirements.txt).
+editable program JSON. See [the execution plan](../../../requirements.txt).
 
 Incremental source evidence: migration
 [026](../../../mathbank-db/sql/026_tutoring_routes.sql),

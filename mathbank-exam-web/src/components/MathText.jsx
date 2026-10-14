@@ -1,5 +1,6 @@
 import { InlineMath, BlockMath } from "react-katex";
 import "katex/dist/katex.min.css";
+import { normalizeMathText } from "./mathText.js";
 
 // Splits on \( ... \), \[ ... \], $$ ... $$ and $ ... $ delimiters and renders each
 // math span with KaTeX, leaving everything else as plain text. The generator isn't
@@ -11,22 +12,31 @@ import "katex/dist/katex.min.css";
 const SPLIT_RE = /(\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g;
 
 function renderPart(part, key) {
-  const tryRender = (Component, expr) => {
+  const tryRender = (Component, expr, display = false) => {
     try {
-      return <Component key={key} math={expr} />;
+      const math = <Component math={expr} throwOnError={false} />;
+      return display
+        ? <div key={key} className="mb-math-display">{math}</div>
+        : <span key={key} className="mb-math-inline">{math}</span>;
     } catch {
       return <span key={key}>{part}</span>;
     }
   };
-  if (part.startsWith("\\[") && part.endsWith("\\]")) return tryRender(BlockMath, part.slice(2, -2));
+  if (part.startsWith("\\[") && part.endsWith("\\]")) return tryRender(BlockMath, part.slice(2, -2), true);
   if (part.startsWith("\\(") && part.endsWith("\\)")) return tryRender(InlineMath, part.slice(2, -2));
-  if (part.startsWith("$$") && part.endsWith("$$")) return tryRender(BlockMath, part.slice(2, -2));
-  if (part.startsWith("$") && part.endsWith("$")) return tryRender(InlineMath, part.slice(1, -1));
+  if (part.startsWith("$$") && part.endsWith("$$")) return tryRender(BlockMath, part.slice(2, -2), true);
+  if (part.startsWith("$") && part.endsWith("$")) {
+    const expression = part.slice(1, -1);
+    const separatedChoices = (expression.match(/\\qquad/g) || []).length >= 2;
+    return separatedChoices
+      ? tryRender(BlockMath, expression, true)
+      : tryRender(InlineMath, expression);
+  }
   return <span key={key} style={{ whiteSpace: "pre-wrap" }}>{part}</span>;
 }
 
 export function MathText({ text }) {
   if (!text) return null;
-  const parts = text.split(SPLIT_RE);
+  const parts = normalizeMathText(text).split(SPLIT_RE);
   return <>{parts.map((part, i) => renderPart(part, i))}</>;
 }

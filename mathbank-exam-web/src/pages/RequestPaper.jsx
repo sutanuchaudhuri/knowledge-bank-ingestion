@@ -14,21 +14,17 @@ export default function RequestPaper() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [progress, setProgress] = useState(null);
 
   async function onSubmit(e) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    setProgress("Generating your paper — this involves drafting each question and having a critic agent review it, so it can take a minute or two…");
     try {
-      const paper = await api.generatePaper(text, true);
-      navigate(`/exam/${paper.quiz_id}`);
+      const { quiz_id: quizId } = await api.startPaper(text, true);
+      navigate(`/generating/${quizId}`, { state: { nlRequest: text } });
     } catch (err) {
       setError(err.message);
-    } finally {
       setBusy(false);
-      setProgress(null);
     }
   }
 
@@ -63,10 +59,9 @@ export default function RequestPaper() {
             </button>
           ))}
         </div>
-        {progress && <Callout tone="primary" icon="hourglass-split">{progress}</Callout>}
         {error && <Callout tone="danger" icon="exclamation-triangle">{error}</Callout>}
         <Button tone="primary" icon="magic" type="submit" disabled={busy}>
-          {busy ? "Generating…" : "Generate paper"}
+          {busy ? "Starting…" : "Generate paper"}
         </Button>
       </form>
     </div>

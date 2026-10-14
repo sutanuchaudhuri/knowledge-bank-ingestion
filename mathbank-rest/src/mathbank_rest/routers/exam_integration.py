@@ -47,6 +47,12 @@ class DiagramRef(BaseModel):
     sha256: str
 
 
+class InspirationSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    canonical_code: str = Field(min_length=1, max_length=64)
+    note: str = Field(default="", max_length=500)
+
+
 class ImportQuestion(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question_type: str = Field(min_length=1, max_length=20)
@@ -56,14 +62,30 @@ class ImportQuestion(BaseModel):
     correct_answer: dict
     option_explanations: dict[str, str] = Field(default_factory=dict)
     solution_text: str = Field(min_length=1)
+    solution_steps: list[str] = Field(
+        default_factory=list, max_length=30,
+        description="The solution broken into discrete, ordered steps (requirements/64 continued — "
+                    "computed complexity signal: step_count is literally len(solution_steps)).",
+    )
     key_insight: str = ""
     difficulty_band: str | None = None
     revision_log: list[dict] = Field(default_factory=list)
     concept_slugs: list[str] = Field(default_factory=list, max_length=10)
     technique_slugs: list[str] = Field(default_factory=list, max_length=10)
     skill_slugs: list[str] = Field(default_factory=list, max_length=10)
-    inspired_by_problem_id: str | None = None
+    inspiration_sources: list[InspirationSource] = Field(
+        default_factory=list, max_length=5,
+        description="Real corpus problems this question drew on (requirements/64 continued — "
+                    "can be multiple), rank = list order, each with a note on what was actually "
+                    "borrowed/changed.",
+    )
     diagram: DiagramRef | None = None
+    pool_question_id: UUID | None = Field(
+        default=None, description="Set when this question was served from quiz.question_pool (migration 052).",
+    )
+    add_to_pool: bool = Field(
+        default=False, description="Write this (critic-approved) question back into quiz.question_pool.",
+    )
 
 
 class ImportPaperRequest(BaseModel):
@@ -83,6 +105,57 @@ class ImportPaperRequest(BaseModel):
     questions: list[ImportQuestion] = Field(min_length=1, max_length=20)
 
 
+class StartPaperRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    student_id: UUID
+    style: str = Field(min_length=1, max_length=20)
+    title: str = Field(min_length=1, max_length=200)
+    instructions: str = ""
+    requested_question_count: int = Field(ge=1, le=20)
+    requested_question_types: list[str]
+    target_skill_slugs: list[str] = Field(default_factory=list, max_length=10)
+    target_concept_slugs: list[str] = Field(default_factory=list, max_length=10)
+    difficulty_band: str | None = None
+    generated_by: str = Field(min_length=1, max_length=100)
+    exam_mode: bool = True
+    time_limit_seconds: int | None = Field(default=None, ge=60, le=36000)
+
+
+class FinalizePaperRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    student_id: UUID
+    generated_by: str | None = Field(default=None, max_length=100)
+    questions: list[ImportQuestion] = Field(min_length=1, max_length=20)
+    pool_topic: str | None = Field(default=None, max_length=500)
+    pool_concept_slugs: list[str] = Field(default_factory=list, max_length=10)
+
+
+class FailPaperRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    student_id: UUID
+    error_message: str = Field(min_length=1, max_length=500)
+
+
+class MatchPoolRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    student_id: UUID
+    style: str = Field(min_length=1, max_length=20)
+    question_types: list[str] = Field(default_factory=list, max_length=3)
+    difficulty_band: str | None = None
+    topic: str | None = Field(default=None, max_length=500)
+    concept_slugs: list[str] = Field(default_factory=list, max_length=10)
+    limit: int = Field(default=20, ge=1, le=50)
+
+
+class GenerationEventRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ordinal: int = Field(ge=1)
+    phase: str = Field(min_length=1, max_length=40)
+    status: str = Field(min_length=1, max_length=10)
+    question_ordinal: int | None = Field(default=None, ge=1)
+    detail: str = Field(default="", max_length=500)
+
+
 @router.post("/papers")
 def import_paper(body: ImportPaperRequest) -> dict:
     return _call(
@@ -98,6 +171,71 @@ def import_paper(body: ImportPaperRequest) -> dict:
     )
 
 
+@router.post("/papers/start")
+def start_paper(body: StartPaperRequest) -> dict:
+    """Mints a quiz_id immediately, status GENERATING (requirements/64 continued —
+    parallel generation + live progress). The caller (mathbank-exam-agent) gets this id
+    back right away, well before any question is drafted, so it can start polling
+    generation-events for this quiz_id while a later call does the actual work."""
+    quiz_id = _call(
+        quiz_runtime.start_paper,
+        body.student_id,
+        style=body.style, title=body.title, instructions=body.instructions,
+        requested_question_count=body.requested_question_count,
+        requested_question_types=body.requested_question_types,
+        target_skill_slugs=body.target_skill_slugs, target_concept_slugs=body.target_concept_slugs,
+        difficulty_band=body.difficulty_band, generated_by=body.generated_by,
+        exam_mode=body.exam_mode, time_limit_seconds=body.time_limit_seconds,
+    )
+    return {"quiz_id": str(quiz_id)}
+
+
+@router.post("/papers/{quiz_id}/finalize")
+def finalize_paper(quiz_id: UUID, body: FinalizePaperRequest) -> dict:
+    """Inserts every question for an already-start_paper'd quiz_id and flips its status
+    to READY (requirements/64 continued)."""
+    return _call(
+        quiz_runtime.finalize_paper, quiz_id, body.student_id,
+        questions=[q.model_dump() for q in body.questions], generated_by=body.generated_by,
+        pool_topic=body.pool_topic, pool_concept_slugs=body.pool_concept_slugs,
+    )
+
+
+@router.post("/papers/{quiz_id}/fail")
+def fail_paper(quiz_id: UUID, body: FailPaperRequest) -> dict:
+    return _call(quiz_runtime.fail_paper, quiz_id, body.student_id, body.error_message)
+
+
+@router.post("/question-pool/match")
+def match_question_pool(body: MatchPoolRequest) -> list[dict]:
+    """Cached, critic-approved questions (with full solutions) for an "almost the same"
+    request — same style/question type/difficulty plus a similar topic or overlapping
+    concept, never one this student was already served (migration 052). The exam agent
+    fills as many paper slots as possible from here before drafting anything new."""
+    return quiz_runtime.match_pool_questions(
+        body.student_id, style=body.style, question_types=body.question_types,
+        difficulty_band=body.difficulty_band, topic=body.topic,
+        concept_slugs=body.concept_slugs, limit=body.limit,
+    )
+
+
+@router.post("/papers/{quiz_id}/generation-events")
+def post_generation_event(quiz_id: UUID, body: GenerationEventRequest) -> dict:
+    """Appends one row to the generation-progress log (requirements/64 continued) —
+    the web UI's live "what is the agent doing right now" view polls the GET below for
+    exactly these rows."""
+    quiz_runtime.post_generation_event(
+        quiz_id, ordinal=body.ordinal, phase=body.phase, status=body.status,
+        question_ordinal=body.question_ordinal, detail=body.detail,
+    )
+    return {"ok": True}
+
+
+@router.get("/papers/{quiz_id}/generation-events")
+def get_generation_events(quiz_id: UUID, student_id: UUID, since_ordinal: int = 0) -> list[dict]:
+    return _call(quiz_runtime.list_generation_events, quiz_id, student_id, since_ordinal=since_ordinal)
+
+
 @router.get("/papers/mine")
 def list_my_papers(student_id: UUID, limit: int = 20) -> list[dict]:
     """Admin-gated equivalent of /v1/quiz/mine — mathbank-exam-agent resolves identity
@@ -110,6 +248,27 @@ def list_my_papers(student_id: UUID, limit: int = 20) -> list[dict]:
 @router.get("/papers/{quiz_id}")
 def get_paper(quiz_id: UUID, student_id: UUID) -> dict:
     return _call(quiz_runtime.get_quiz, quiz_id, student_id)
+
+
+class SaveExamProgressRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    student_id: UUID
+    current_question_ordinal: int = Field(ge=1, le=20)
+    question_id: UUID | None = None
+    selected_key: str | None = Field(default=None, max_length=10)
+    response_text: str | None = Field(default=None, max_length=10000)
+
+
+@router.put("/papers/{quiz_id}/progress")
+def save_exam_progress(quiz_id: UUID, body: SaveExamProgressRequest) -> dict:
+    raw_response = {k: v for k, v in (
+        ("selected_key", body.selected_key), ("response_text", body.response_text),
+    ) if v is not None}
+    return _call(
+        quiz_runtime.save_exam_progress, quiz_id, body.student_id,
+        current_question_ordinal=body.current_question_ordinal,
+        question_id=body.question_id, raw_response=raw_response or None,
+    )
 
 
 class RespondRequest(BaseModel):

@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| Status | **Fully deployed to AWS and live-verified end-to-end** (EXM-1 through EXM-12 all done). Every item below — local dev *and* the deployed Lambda/S3/CloudFront stacks — was exercised live: signup/login via real AWS Cognito → natural-language request → intake parsing → generator↔critic loop (real critic-caught math errors, real bounded revision) → persisted paper → timed accordion exam-taking with a full interaction-event timeline → explicit submit → auto-grading → per-option explanations → diagnosis report → print/export, run both locally (Playwright, desktop+mobile) and against the real deployed Function URL + CloudFront URL. **Deviations from the original design, confirmed live and necessary**: (1) Bedrock model invocation is blocked account-wide on this AWS account (`ValidationException: Error 002: Access to Bedrock models is not allowed for this account`, reproduced with two different models) — the Strands Agents SDK itself (the actual "AWS agent, not Google ADK" requirement) is unchanged, only the model provider is OpenAI for now (`llm_models.py`, a one-line swap back once Bedrock access is resolved); (2) local dev of this service needs a live AWS SSO session (`aws login`) even though it never touches Bedrock, since Cognito admin-API calls (signup/login/forgot-password) are real AWS calls too — documented in the project `README.md` and `Makefile`'s `run` target (the *deployed* Lambda needs no such thing — its execution role supplies credentials automatically); (3) the frontend deploys to S3+CloudFront, not Amplify Hosting (doc 62/63's recommendation is for this repo's Next.js apps specifically — this is a plain static Vite SPA with no server, a better fit for S3+CloudFront's near-zero cost). |
+| Status | **EXM-1 through EXM-18 are deployed/live-verified as recorded below. EXM-19 is implemented in the current worktree only**: migration 051 has not been applied, running services have not been refreshed, and cross-device resume has not been live-verified. Existing deployed flow: signup/login via real AWS Cognito → natural-language request → intake parsing → generator↔critic loop (real critic-caught math errors, real bounded revision) → persisted paper → one-question-at-a-time timed exam with interaction timeline → explicit submit → auto-grading → per-option explanations → diagnosis → print/export. **Deviations from the original design, confirmed live and necessary**: (1) Bedrock model invocation is blocked account-wide on this AWS account (`ValidationException: Error 002: Access to Bedrock models is not allowed for this account`, reproduced with two different models) — the Strands Agents SDK itself is unchanged, only the model provider is OpenAI for now (`llm_models.py`, a one-line swap back once access is resolved); (2) local dev needs an AWS SSO session for real Cognito admin calls; (3) the frontend deploys to S3+CloudFront, not Amplify Hosting. |
 | Trigger | User request: a new, independent agent that creates a mock-exam question paper from a natural-language request ("how many questions, what kind of paper"), built on an **AWS-native agentic framework with an AWS-provisioned model** (explicitly **not** Google ADK), reusing the **existing MCP server** as a tool source and the **existing quiz generation/grading service** as a data layer, but as a **separate project with its own independent UI** — not a feature bolted onto `mathbank-agent`/`mathbank-web`. Exam answers stay hidden until after submission; a **critic agent** reviews/revises generated questions; a post-exam **diagnosis** step reports time spent, reasoning guidance, and ranked improvement areas; the paper must be **exportable**; deployment is Lambda, "pay-as-you-go least cost," reusing this repo's own proven AWS deployment patterns (requirements/62, requirements/63). |
 | Grounding | Every architectural claim below is checked against this repo's actual code, not assumed: `quiz.*` schema (migration 042) and `quiz_runtime.py`'s real function signatures (§2), the real MCP tool list already exposed by `mathbank-mcp-competitions/server.py` (§3), `mastery.py`'s real difficulty/mastery functions (§5), and the AWS Strands Agents SDK's real, current Bedrock + MCP integration shape (§1, confirmed via web research this session **and then by direct, live code inspection** — `strands.models.openai.OpenAIModel`/`strands.models.bedrock.BedrockModel`, `strands.tools.mcp.mcp_client.MCPClient(url=...)`, and `agent(prompt, structured_output_model=YourPydanticModel)` as the current, non-deprecated structured-output API — deployable directly on Lambda with no additional managed runtime required). `AWS_BEARER_TOKEN_BEDROCK` already exists in the repo-root `.env` (confirmed via `grep`) but Bedrock invocation itself is blocked account-wide (see Status row above). |
 | Scope boundary | This is an **additive, parallel** project — it does not modify `mathbank-agent` (Google ADK), `mathbank-web`'s existing student quiz UI (requirements/53's `QZ-9`), or any currently-deployed Lambda stack. It reuses the `quiz.*` Postgres schema and grading/mastery-absorption code as a **shared data layer**, and the already-deployed `mathbank-mcp-competitions` Function URL as a **shared tool source** — both by calling them, never by copying or forking their logic. `mathbank-exam-agent` never connects to Postgres/Neo4j directly, confirmed in the real code (`rest_client.py` is its one database boundary). |
@@ -17,14 +17,22 @@
 | EXM-2 | Migration `047_mock_exam_extensions.sql` — additive columns on `quiz.paper`/`quiz.question`, new `quiz.exam_diagnosis` table | ✅ IMPLEMENTED — applied live to Neon |
 | EXM-3 | Natural-language intake → generation parameters (style, count, question types, topic/skill targets, difficulty, time limit) | ✅ IMPLEMENTED and live-verified (`intake.py`) |
 | EXM-4 | Generator agent: drafts questions via MCP tools (corpus grounding) + direct REST calls (mastery/theorem/difficulty data) | ✅ IMPLEMENTED and live-verified (`generator_agent.py`, `exam_service.py`'s topic/difficulty resolution) |
-| EXM-5 | Critic agent: reviews each drafted question (correctness, difficulty match, clarity, solvability); bounded revise-and-recheck loop | ✅ IMPLEMENTED and live-verified — caught two real mathematical errors in a live run, correctly triggering REVISE; exhausted-without-APPROVE cases are flagged `needs_human_review`, never silently accepted |
-| EXM-6 | Exam session lifecycle: ephemeral timed session, per-question time tracking, zero mid-exam feedback, answers revealed only after final submission | ✅ IMPLEMENTED and live-verified (`quiz_runtime.get_review`'s exam-mode gate, `submit_exam()`); extended with migration `048` to add a full interaction-event timeline (`quiz.response_event`: VIEW/SELECT_OPTION/DESELECT_OPTION/TEXT_CHANGE/SKIP, each with a server timestamp) and per-option explanations (`quiz.question.option_explanations`), both surfaced in `get_review()` |
+| EXM-5 | Critic agent: reviews each drafted question (correctness, difficulty match, clarity, solvability and math-format validity); bounded revise-and-recheck loop | ✅ Existing critic live-verified; current worktree adds `math_format_ok` checks for delimiters/braces/KaTeX compatibility and rejects APPROVE when false. This addition has not been deployed/live-verified. |
+| EXM-6 | Exam session lifecycle: timed session, per-question time tracking, no mid-exam feedback, answers revealed only after submission, resumable signed-in progress | ✅ Existing answer gate/event timeline/options explanations are live-verified. Migration 051 and owner-scoped draft/current-position persistence are source/worktree changes only; not applied/live-verified. |
 | EXM-7 | Diagnosis agent: post-exam holistic report — time management, reasoning-strategy guidance, ranked improvement areas (tied to real mastery deltas) | ✅ IMPLEMENTED and live-verified (`diagnosis_agent.py`) |
 | EXM-8 | Export: browser-native print/PDF view of the generated paper (and, separately, the post-exam report) | ✅ IMPLEMENTED — `mathbank-exam-web`'s `Review.jsx` page (`window.print()` + `@media print` CSS in `theme.css`), covering every question's full solution, every MCQ option's explanation, and the diagnosis report in one printable view |
-| EXM-9 | Independent UI — `mathbank-exam-web`, a separate deployable frontend, not inside `mathbank-web` | ✅ IMPLEMENTED and live-verified in a real browser (Playwright, desktop 1280px + mobile 390px) — landing/signup/login/forgot-password, natural-language paper request, accordion-based timed exam-taking with full event-timeline logging and per-question answer-locking (`quiz.response`'s `UNIQUE(question_id)` constraint), submit-warning modal, full review with per-option explanations and diagnosis, print/export |
+| EXM-9 | Independent UI — `mathbank-exam-web`, a separate deployable frontend, not inside `mathbank-web` | ✅ Existing UI deployed/live-verified; current worktree uses a one-question navigator, KaTeX display panels and return-to-exam login routing. Durable drafts/resume are not active until migration 051 and service rollout. |
 | EXM-10 | Lambda deployment — new `mathbank-infra-aws` stack(s), reusing the proven cold-start-SSM-secret pattern, Bedrock IAM/bearer-token wiring | ✅ IMPLEMENTED and live-verified — see §10's full rewrite for what was actually built (OpenAI, not Bedrock, so no bearer-token wiring; a Cognito IAM policy instead); backend at `https://rp4tfkonnswyn72i7dvvijao3i0amwxw.lambda-url.us-east-2.on.aws/`, frontend (S3+CloudFront, not Amplify — a plain static SPA, no Next.js) at `https://d1zj6erbhmlgyk.cloudfront.net`; `mathbank-rest` itself was also redeployed (it predated this feature's schema/routes entirely) |
 | EXM-11 | Tests: NL-intake parsing, generator→critic loop, exam session gating, diagnosis synthesis, grading/mastery-absorption reuse | ✅ PARTIAL — 8 fast unit tests (schemas, deterministic topic-resolution logic) + 12 passing `mathbank-rest` tests (5 new, live against Neon, covering import/exam-mode-gate/submit/diagnosis); the full agent↔critic↔diagnosis live flow and the full browser UI flow were both run manually/live, not yet automated pytest/Playwright cases (each run costs real OpenAI tokens and 60-120+ seconds) |
 | EXM-12 | AWS Cognito-backed onboarding (signup, login, forgot-password) — real User Pool, admin-API-only flows, anonymous-or-StudentId identity | ✅ IMPLEMENTED and live-verified — real Cognito User Pool `us-east-2_wQePckX1G`; `cognito_auth.py`/`jwt_verify.py`/`auth_dependency.py`; migration `049_cognito_student_identity.sql`; a real signup → generated-username flow → logout → login-with-generated-username round trip was verified in a live browser |
+| EXM-13 | Parallel per-question generation (ThreadPoolExecutor), each question grounded in its own deterministic graph+RAG retrieval (`search_problems`), with a rotating candidate-pool window so different questions see different real sources | ✅ IMPLEMENTED and live-verified — a real 3-question run showed genuinely interleaved thread execution in the generation-event log (all 3 `DRAFT_QUESTION STARTED` before any `DONE`); confirmed via live Neo4j/Postgres hybrid search, not a mock |
+| EXM-14 | Multiple, explicitly-noted inspiration sources per question ("inspired by, never copied" made concrete) — new `quiz.question_source` junction table, server-side validated against the real retrieved candidate pool (never trusting the model's own citation) | ✅ IMPLEMENTED and live-verified — real competition/year/source_url resolved and surfaced in the review page's "Inspired by" citation |
+| EXM-15 | Whole-paper aggregate diversity/dedup critic pass (cross-question near-duplication, repeated MCQ option text), bounded fix-up regeneration loop | ✅ IMPLEMENTED and live-verified — a real run exercised 2 full aggregate passes with targeted question regeneration |
+| EXM-16 | Computed complexity/difficulty signals (structured `solution_steps`, real step/concept/technique counts fed to the critic as evidence, not just re-read prose) — mirrors the real-corpus precedent (`pedagogy.problem_enrichment.solution_step_count`) | ✅ IMPLEMENTED and live-verified — `quiz.question.complexity_signals`/`quiz.solution.solution_steps`/`step_count`, shown as a pill in the review page |
+| EXM-17 | Live, step-by-step generation-progress UI (durable `quiz.generation_event` log, polled by the frontend) instead of one static spinner message | ✅ IMPLEMENTED and live-verified — split `start`/`run`/`generation-progress` endpoints; a real run produced 90 ordered, correctly-interleaved events, rendered live on a new `GeneratingPaper.jsx` page |
+| EXM-18 | Exam-taking UI redesign: one question at a time (not a stacked accordion), with a clickable status-dot navigator (attempted/skipped/seen-unattempted/not-seen, each with an icon + color + tooltip) | ✅ IMPLEMENTED — `TakeExam.jsx` rewritten; build passes and lint exits successfully with three warnings; logic manually traced and answer/skip/submit/review data contract live-verified via direct API calls; pixel-level visual confirmation pending |
+| EXM-19 | Math-format critic review and clear LaTeX rendering; persist signed-in exam position and unsubmitted answers so a learner can resume after returning, including on another device | 🟡 IMPLEMENTED IN WORKTREE — critic verdict and KaTeX surface changed; migration `051_exam_resume_state.sql`, REST/agent proxy and exam UI persistence/restore added. Focused REST/agent tests and UI build passed. Migration and services have not been activated; no live or cross-device resume verification yet. |
+| EXM-20 | asyncio generation pipeline and a growing, cached question pool (`quiz.question_pool`) consulted before any drafting | 🟡 IMPLEMENTED AND LOCAL-LIVE-VERIFIED — see §16. Migration `052_quiz_question_pool.sql` is applied to Neon; focused agent/REST tests and the web build pass. Local browser runs verified pool lookup, ordered async progress, TeX rendering and fail-closed quality rejection. AWS services are not redeployed. |
 
 ## 1. Why a new, separate AWS-native agent project (not Google ADK, not `mathbank-agent`)
 
@@ -420,6 +428,228 @@ every requirements/53 code path continues to work unchanged against
   discipline): one real natural-language request → a real Bedrock-generated,
   critic-reviewed paper → a real timed exam session → a real diagnosis report, run
   against the live Neon Postgres instance exactly like every other project in this repo.
+
+## 14. Parallel generation, multi-source citation, aggregate diversity, complexity signals, live progress (continued, EXM-13..18)
+
+Four real gaps in the original design, closed in one pass: (1) `generate_exam_paper`
+drafted questions one at a time, sequentially — slow for a 10+ question paper and no
+cross-question check existed at all; (2) a question's real corpus inspiration was never
+actually recorded (`inspired_by_problem_id` existed as a DB column and API field, but
+`exam_service.py` never populated it — confirmed by reading the code, not assumed); (3)
+`difficulty_band` was pure LLM self-report with no computed evidence behind it; (4) the
+frontend showed one static "this can take a minute or two" message for the whole
+generation call, with zero visibility into what was actually happening.
+
+### 14.1 Architecture — "planning" layer is deterministic, not a second LLM agent
+
+Per-question flow: **retrieve → draft → critique**, where retrieval is the corpus's
+existing hybrid (semantic + lexical + graph) `search_problems` call, done
+**deterministically by the orchestrator**, not left to the generator agent's own
+tool-calling judgment (confirmed Strands' `Agent.__call__` cannot be shared/re-entrant
+across threads — `ConcurrencyException` — so every generator/critic call already
+constructs a fresh `Agent` per invocation, which is exactly what parallel execution
+needs). A single, wider-than-needed candidate pool is retrieved once per paper
+(`_retrieve_candidate_pool`), then **rotated into a different window per question slot**
+(`_candidate_window`) so different questions in the same paper cite different real
+sources instead of all converging on the same top-1 match.
+
+```
+parse_intake -> start_paper (mints quiz_id immediately, status GENERATING)
+  -> resolve topic/concept slug, corpus difficulty signal, candidate pool  (once per paper)
+  -> ThreadPoolExecutor: for each question slot IN PARALLEL:
+       candidate_window = rotate(candidate_pool, question_index)
+       loop (bounded): draft_question(candidates) -> critic review_question -> APPROVE/REVISE
+  -> aggregate_critic_agent.review_paper(all drafts) -> flagged ordinals?
+       -> bounded fix-up: regenerate only the flagged question(s), re-check
+  -> finalize_paper (persists questions + quiz.question_source + complexity_signals, status READY)
+```
+
+Confirmed thread-safe via the actual library source, not assumed: `MCPClient.
+call_tool_sync` dispatches onto its own background event loop
+(`_invoke_on_background_thread`), safe for concurrent calls from multiple threads on one
+shared client; `rest_client._request` opens a fresh short-lived `httpx.Client` per call.
+
+### 14.2 Multiple inspiration sources, server-side validated
+
+`GeneratedQuestionDraft.inspiration_sources: list[InspirationSource]` (1-3 typical,
+`canonical_code` + a specific `note` on what was borrowed/changed) — the generator
+prompt requires citing *only* from the candidate pool it was given; `generator_agent.
+draft_question` then drops any `canonical_code` not actually in that pool before
+accepting the draft (never trusts the model's own citation at face value). Persisted via
+a new `quiz.question_source` junction table (migration `050`, additive — the original
+singular `inspired_by_problem_id` column still gets the rank-1 source for any existing
+reader), resolved back to real `canonical_code`/`competition`/`year`/`source_url` in
+`quiz_runtime.get_review()` and shown as an "Inspired by" citation in the review page.
+
+### 14.3 Aggregate diversity/dedup — a second critic pass, over the whole paper
+
+`aggregate_critic_agent.review_paper()` runs once, after every individual question has
+already passed its own per-question critic — checks only what a single-question critic
+structurally cannot: cross-question near-duplication (same core setup reused) and MCQ
+option text repeated verbatim across *different* questions. Flagged questions are
+regenerated with specific feedback, bounded to `_MAX_AGGREGATE_FIX_ROUNDS` (2) full
+passes; anything still flagged after that is kept with `needs_human_review` recorded in
+`revision_log` — the same bounded, observable-failure philosophy the per-question critic
+loop already used, applied one level up.
+
+### 14.4 Computed complexity/difficulty signals, not just LLM self-report
+
+Mirrors the real-corpus precedent (`pedagogy.problem_enrichment.solution_step_count`/
+`technique_ids`, migration 010) rather than inventing a new metric: the generator now
+produces `solution_steps: list[str]` (discrete, ordered reasoning steps) instead of one
+prose blob — `step_count` is literally `len(solution_steps)`, not an estimate.
+`concept_count`/`technique_count` come from the already-drafted `concept_slugs`/
+`technique_slugs`. These are passed to the critic as explicit evidence for its
+`difficulty_match_ok` check, and persisted as `quiz.question.complexity_signals` (jsonb
+snapshot) + `quiz.solution.solution_steps`/`step_count` (migration `050`), surfaced as a
+"6 steps · Hard" pill in the review page. `solution_text` (the human-readable, numbered
+rendering) is now *derived* from `solution_steps`, never the other way around, so it can
+never drift out of sync with the real step count.
+
+### 14.5 Live generation progress — a durable, pollable event log
+
+A new, append-only `quiz.generation_event` table (migration `050`) — one row per
+meaningful step (`INTAKE`/`TOPIC_RESOLVE`/`DIFFICULTY_SIGNAL`/`DRAFT_QUESTION`/
+`CRITIC_REVIEW`/`AGGREGATE_DIVERSITY_CHECK`/`AGGREGATE_FIX`/`PERSIST`/`DONE`, each
+`STARTED`/`DONE`, optionally tagged with a `question_ordinal`), posted by a thread-safe
+`_ProgressLog` every question-generation thread shares. This required splitting the
+previously-synchronous `generate_exam_paper()` into two phases, since the frontend needs
+the `quiz_id` *before* generation finishes to start polling:
+
+- `POST /v1/exam-papers` (now `start_generation`) — parses intake, mints the quiz_id,
+  status GENERATING, returns immediately (one cheap LLM call, not the N-question work).
+- `POST /v1/exam-papers/{quiz_id}/run` (now `run_generation`) — the actual parallel
+  generate+critique+aggregate work; re-parses the same `nl_request` (stateless across
+  the two calls; the intake parse is cheap compared to what this call actually does) to
+  recover fields `start_paper`'s own persisted columns don't carry (like `topic_hint`).
+- `GET /v1/exam-papers/{quiz_id}/generation-progress` — polled by the frontend every
+  ~1.2s while status is GENERATING.
+
+A real 3-question live run produced 90 ordered events with genuinely interleaved thread
+execution (all 3 questions' `DRAFT_QUESTION STARTED` fired before any `DONE`), confirming
+real, not simulated, parallelism. `mathbank-exam-web`'s new `GeneratingPaper.jsx` page
+fires `run` fire-and-forget (a real, complete HTTP request either way — not abandoned
+mid-flight, just not awaited for navigation) and renders the polled event stream live.
+
+### 14.6 Exam-taking UI — one question at a time, status-dot navigator
+
+`TakeExam.jsx`'s accordion (every question's header stacked vertically, only one body
+expanded) is replaced with a single current-question card plus a row of clickable status
+dots — one per question, color + icon + tooltip coded into four states: **attempted**
+(confirmed with a real answer), **skipped** (confirmed with none), **unattempted** (seen,
+not yet confirmed), **not seen** (never opened). Clicking any dot jumps directly to that
+question; Previous/Next buttons also work (a confirmed question, revisited, renders
+read-only — options still shown with the locked-in selection highlighted, but clicks
+no-op, matching the existing "once you move on, your answer is locked in" design intent,
+unchanged). The underlying confirm/submit/event-logging state machine is untouched —
+this was a presentation-layer change over already-correct logic.
+
+### 14.7 What was and wasn't live-verified this pass
+
+Live-verified, not assumed: the full parallel-generation pipeline (real OpenAI + real
+deployed MCP + real Neon) including genuine concurrency, candidate-pool rotation giving
+different questions different real sources, the aggregate fix-up loop actually
+regenerating a flagged question, computed complexity signals, the 90-event progress log,
+and the answer/skip/submit/review data contract via direct API calls against a real
+generated paper. **Not yet pixel-confirmed**: the dot navigator's rendered colors/layout.
+For the current resume/formatting worktree addition, focused REST and exam-agent tests
+pass and the web build passes; lint exits successfully with three warnings. No live
+database migration, service rollout, resume session or browser rendering was exercised.
+
+## 15. Math-format review and durable exam resume (EXM-19; worktree only)
+
+The critic's structured verdict now includes `math_format_ok`. Its review prompt checks
+math delimiters, brace balance and compatibility with the KaTeX renderer. A question
+cannot be accepted as `APPROVE` when this flag is false; the normal bounded revision
+loop is used instead. This is an agent-level notation review, not a formal proof of
+mathematical correctness or a guarantee that every browser font/layout renders without
+overflow.
+
+The exam UI renders math through KaTeX and places display equations in a distinct,
+contrasting, horizontally scrollable surface. Invalid TeX is configured not to throw
+through the page. A browser-level visual pass of this exact change remains outstanding.
+
+For a signed-in learner, exam progress is keyed to the resolved `student_id`, not a
+browser-local device identifier. The UI restores the paper's current question, each
+confirmed answer, unsubmitted drafts and skip/visit state. Navigation and MCQ drafts
+are saved promptly; written drafts are debounced, then flushed before navigation,
+confirmation or submission. The first progress save starts the timed paper once;
+subsequent saves preserve its server timestamp and do not create a graded response.
+A stale or expired login returns to the login page with the exam URL preserved, so a
+successful login resumes the same owned paper. A
+Cognito-backed login on another device resolves to the same learner identity, so the
+same owned paper can be resumed there after authentication.
+
+The browser calls `PUT /v1/exam-papers/{quiz_id}/progress` on
+`mathbank-exam-agent`; the authenticated agent proxies to the admin-key-protected
+`PUT /v1/quiz-integration/papers/{quiz_id}/progress` REST route, supplying its resolved
+student identity. REST checks ownership and that the paper is editable, validates the
+current question and draft shape, then transactionally saves
+`quiz.paper.resume_question_ordinal` and the optional
+`quiz.response_draft` row. The first progress save also initializes `started_at` and
+transitions a `READY` paper to `IN_PROGRESS`, without resetting that timestamp later.
+Confirming an answer removes that question's draft;
+skipping removes its draft; final submission removes all paper drafts. Only the
+existing `quiz.response` row is graded.
+
+Migration `051_exam_resume_state.sql` is additive and idempotent. It and the REST
+migration runner exist in the worktree, but no database target has been migrated or
+inspected for this feature. Running services have not been refreshed, so this behavior
+is not available from the currently running application versions until rollout.
+See the source-derived [quiz schema](reference/postgres/quiz.md), [REST API
+inventory](reference/REST_ENDPOINTS.md) and
+[implementation reference](reference/README.md). No cross-device resume or live
+LaTeX-rendering result is claimed.
+
+## 16. asyncio pipeline and the question pool (EXM-20; worktree only)
+
+**asyncio.** `exam_service.run_generation_async` replaces the ThreadPoolExecutor:
+generator/critic/aggregate/intake calls use `Agent.invoke_async` (`*_async` variants,
+fresh `Agent` per call), blocking MCP/REST calls run in `asyncio.to_thread`. Intake
+re-parsing overlaps MCP start-up and `list_tools`; one `search_problems` call (limit 12)
+now serves both topic-slug resolution and the candidate pool; the difficulty signal and
+the pool lookup run concurrently; all un-pooled slots draft concurrently (semaphore of
+8), and **aggregate fix-ups for flagged slots are also regenerated concurrently** (they
+were sequential). Progress events are enqueued and delivered by one background task in
+ordinal order, so posting never blocks generation and `since_ordinal` polling never
+skips an event. `POST /v1/exam-papers/{quiz_id}/run` is now an `async def` endpoint.
+The aggregate critic now sees 1-based ordinals, matching how its flags are mapped back.
+
+**Question pool** (`quiz.question_pool`, migration `052`): critic-approved generated
+questions with full solutions (the complete finalize payload as jsonb), keyed by the
+*request* inputs — paper style, requested difficulty band, normalized topic text and the
+resolved concept slug — deduplicated by a sha256 `content_hash` of the normalized prompt.
+
+```
+TOPIC_RESOLVE -> POOL_LOOKUP (POST /v1/quiz-integration/question-pool/match)
+  match = same style AND question_type in requested types AND same difficulty band
+          AND (pg_trgm similarity(topic) >= 0.5 OR concept_slugs overlap)
+          AND never already served to this student
+          ORDER BY similarity DESC, times_served ASC, random()
+  -> fill slots by question type from the pool; draft only the remaining slots
+  -> aggregate diversity pass over pooled + fresh questions (a flagged pooled question
+     is replaced by a fresh generation)
+  -> finalize_paper: pooled questions link quiz.question.pool_question_id and bump
+     times_served; fresh questions that reached a clean critic APPROVE carry
+     add_to_pool=true and are written into the pool (needs_human_review ones are not)
+```
+
+A near-identical request is therefore served largely or entirely from the pool, while
+repeat requests by the same student keep drafting new questions, so the pool keeps
+growing. Pool lookup failures (for example before migration 052 is applied) are logged
+and generation falls back to drafting every question.
+
+**Quality gate.** Hard/very-hard is defined by non-trivial interaction of multiple
+concepts, constraints or techniques, never by solution-step count or by extracting one
+easy named operation from a difficult source problem. When multiple corpus candidates
+exist, a hard draft must combine distinct contributions from at least two and state a
+`synthesis_rationale` that the critic independently verifies. Generator and critic
+default to `gpt-4o`, malformed JSON/TeX escape artifacts are normalized before review,
+and deterministic delimiter plus MCQ-structure checks supplement the LLM critic. A
+critic-rejected draft is regenerated up to four times (later attempts must abandon the
+old setup); if no draft passes, `POST /v1/quiz-integration/papers/{quiz_id}/fail` marks
+the paper `FAILED`. Rejected questions are never persisted, served, or added to the
+pool.
 
 ## Open questions to resolve before implementation starts
 

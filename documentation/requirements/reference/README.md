@@ -4,6 +4,23 @@ This folder is the canonical architecture reference for the checked-in MathBank
 implementation and explicitly selected deployment metadata. Current evidence
 is below; older incremental observations are retained as dated history.
 
+## Current worktree source refresh — exam math and resume
+
+Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5` with relevant
+worktree changes included. The exam addition is documented in the
+[quiz schema](postgres/quiz.md), [DML behavior](POSTGRES_DML.md#mock-exam-session-and-resume-state),
+[REST guide](REST_API.md#current-source-snapshot-and-resumable-mock-exams),
+[complete source operation inventory](REST_ENDPOINTS.md), and
+[requirement 64](../64_AWS_BEDROCK_MOCK_EXAM_AGENT.md). The screened source
+OpenAPI is **324 paths / 346 operations / 177 schemas**. The graph projection
+contract is unchanged by the exam feature; no graph query/publication was made.
+
+This is source-derived evidence, not a deployment check. Migration 051 has not
+been applied or live-verified, the running REST/agent services were not
+refreshed, and no cross-device resume/browser-rendering result is claimed. The
+dated PostgreSQL and Neo4j catalogs below remain historical observations and
+are not extended by this worktree refresh.
+
 ## Geometry system incremental source refresh
 
 Source revision `2bb4c2f682bf205556b8d6e895c868b10cdcc7a7` with geometry

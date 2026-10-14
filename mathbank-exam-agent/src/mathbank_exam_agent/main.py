@@ -147,9 +147,47 @@ class GeneratePaperRequest(BaseModel):
 
 
 @app.post("/v1/exam-papers")
-def generate_paper(body: GeneratePaperRequest, student_id: StudentId) -> dict:
+def start_paper(body: GeneratePaperRequest, student_id: StudentId) -> dict:
+    """Phase 1 of 2 (requirements/64 continued — live-progress design): parses the
+    request and mints a quiz_id immediately, status GENERATING. Fast — returns well
+    before any question is drafted, so the caller can start polling
+    generation-progress and then call `/run` (phase 2) separately."""
     try:
-        return exam_service.generate_exam_paper(student_id, body.nl_request, exam_mode=body.exam_mode)
+        quiz_id = exam_service.start_generation(student_id, body.nl_request, exam_mode=body.exam_mode)
+        return {"quiz_id": quiz_id}
+    except rest_client.RestError as exc:
+        raise _rest_error(exc) from exc
+
+
+class RunGenerationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    nl_request: str = Field(min_length=1, max_length=2000)
+
+
+@app.post("/v1/exam-papers/{quiz_id}/run")
+async def run_paper(quiz_id: str, body: RunGenerationRequest, student_id: StudentId) -> dict:
+    """Phase 2 of 2: the actual parallel generate+critique+aggregate-diversity work.
+    Long-running (comfortably within this Lambda's 300s timeout even with the parallel
+    speedup) — the caller doesn't need to wait on this response to navigate; it polls
+    generation-progress and/or GET /v1/exam-papers/{quiz_id} for status instead."""
+    try:
+        return await exam_service.run_generation_async(quiz_id, student_id, body.nl_request)
+    except exam_service.GenerationQualityError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "QUALITY_REJECTED", "message": str(exc)},
+        ) from exc
+    except rest_client.RestError as exc:
+        raise _rest_error(exc) from exc
+
+
+@app.get("/v1/exam-papers/{quiz_id}/generation-progress")
+def generation_progress(quiz_id: str, student_id: StudentId, since_ordinal: int = 0) -> list[dict]:
+    """What the agent/subagent is doing right now (requirements/64 continued) — the web
+    UI polls this every ~1-2s while a paper's status is GENERATING, rendering each
+    phase/question-ordinal step live instead of one static spinner message."""
+    try:
+        return rest_client.list_generation_events(quiz_id, student_id, since_ordinal=since_ordinal)
     except rest_client.RestError as exc:
         raise _rest_error(exc) from exc
 
@@ -166,6 +204,29 @@ def list_my_papers(student_id: StudentId) -> list[dict]:
 def get_paper(quiz_id: str, student_id: StudentId) -> dict:
     try:
         return rest_client.get_paper(quiz_id, student_id)
+    except rest_client.RestError as exc:
+        raise _rest_error(exc) from exc
+
+
+class SaveExamProgressRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    current_question_ordinal: int = Field(ge=1, le=20)
+    question_id: str | None = None
+    selected_key: str | None = Field(default=None, max_length=10)
+    response_text: str | None = Field(default=None, max_length=10000)
+
+
+@app.put("/v1/exam-papers/{quiz_id}/progress")
+def save_exam_progress(
+    quiz_id: str, body: SaveExamProgressRequest, student_id: StudentId,
+) -> dict:
+    try:
+        return rest_client.save_exam_progress(
+            quiz_id, student_id,
+            current_question_ordinal=body.current_question_ordinal,
+            question_id=body.question_id, selected_key=body.selected_key,
+            response_text=body.response_text,
+        )
     except rest_client.RestError as exc:
         raise _rest_error(exc) from exc
 
