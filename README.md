@@ -456,7 +456,7 @@ sequenceDiagram
         EA->>AI: Generate then critique/revise draft
     end
     EA->>R: Finalize approved questions and solutions
-    R->>PG: Persist paper; expand question pool
+    R->>PG: Persist paper and expand question pool
     EW->>EA: Poll generation progress
     EA-->>EW: READY paper
     S->>EW: Answers and submits
