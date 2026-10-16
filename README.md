@@ -1,12 +1,27 @@
-# MathBank Platform
+# MathBank
 
-A competition-math corpus (AMC/AIME/HMMT/SMT/PUMaC/CHMMC/CMM/Math Prize for
-Girls) with hybrid (semantic + lexical) RAG search, a knowledge graph, an
-agentic tutor, and a student-profile web UI — built from independent services,
-each with its own README, Makefile, tests, and `.github/skills/<name>/SKILL.md`
-quick-reference. **This section is the map** — start here, then follow a
-service's own README for its architecture/data-model diagrams, deployment
-notes, roadmap and gotchas.
+MathBank is an open platform for grounded AI competition-math learning.
+
+It combines a competition-math corpus, hybrid lexical and semantic retrieval,
+a Neo4j knowledge graph, an agentic tutor, adaptive learner profiles, live
+classrooms, and natural-language mock-exam generation.
+
+Students can ask for help with AMC, AIME, HMMT, SMT, PUMaC, CHMMC, CMM, and
+Math Prize for Girls problems. The system retrieves relevant mathematical
+knowledge, explains solutions step by step, tracks concepts and techniques,
+and generates personalized mock exams with solutions and post-exam diagnosis.
+
+## Why MathBank?
+
+Most AI math applications are chat interfaces over an unstructured collection
+of documents. MathBank models the relationships between problems, solutions,
+concepts, techniques, misconceptions, learner attempts, and generated exams.
+That structure makes tutoring more grounded, explainable, and reusable.
+
+The repository is organized as independent services, each with its own README,
+Makefile, tests, and `.github/skills/<name>/SKILL.md` quick reference. Start
+with the repository map below, then follow a service README for deeper
+architecture, data-model, deployment, roadmap, and operational guidance.
 
 📖 **Explaining this to a non-technical stakeholder?** Skip the engineering map and
 start with [MathBank in action](documentation/BLOG_USE_CASES.md) — a business-audience
