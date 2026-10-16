@@ -1,7 +1,0 @@
-node_modules
-.next
-.server.log
-.server.pid
-.env
-.env.*
-!.env.example
