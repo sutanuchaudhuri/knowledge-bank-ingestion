@@ -1,0 +1,154 @@
+@startuml
+title MathBank - Low-cost scalable deployment architecture
+
+top to bottom direction
+skinparam backgroundColor #FFFFFF
+skinparam componentStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultTextAlignment center
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 25
+skinparam ranksep 35
+skinparam ArrowColor #475569
+skinparam component {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+skinparam database {
+  BackgroundColor #ECFDF5
+  BorderColor #059669
+}
+skinparam cloud {
+  BackgroundColor #F0F9FF
+  BorderColor #0284C7
+}
+skinparam queue {
+  BackgroundColor #FFF7ED
+  BorderColor #EA580C
+}
+
+actor "Student / Admin" as User
+actor "External MCP client" as ExternalMcp
+actor "Developer / CI" as Developer
+
+rectangle "AWS us-east-2" as AWS {
+  cloud "Public HTTPS entry points\nCloudFront / Function URLs / task public IPs" as PublicEndpoints
+
+  rectangle "Static edge tier - always available, near-zero idle cost" as StaticTier {
+    cloud "CloudFront\nPrice Class 100" as CloudFront
+    storage "Private S3 bucket\nmathbank-exam-web SPA" as ExamSpa
+  }
+
+  rectangle "Lambda ARM64 - automatic concurrency, true scale to zero" as LambdaTier {
+    component "mathbank-rest\nFunction URL" as Rest
+    component "mathbank-agent\nFunction URL" as Agent
+    component "mathbank-exam-agent\nFunction URL" as ExamAgent
+    component "mathbank-mcp-competitions\nHTTP MCP Function URL" as Mcp
+    component "mathbank-ml-inference\nFunction URL" as MlInference
+    component "mathbank-manim-studio API\nFunction URL" as ManimApi
+    component "mathbank-manim-studio worker\nscheduled Lambda" as ManimWorker
+  }
+
+  rectangle "ECS Fargate ARM64 - 0.25 vCPU / 0.5 GB each" as FargateTier {
+    component "mathbank-web\nNext.js :5173\ndesired_count=0" as Web
+    component "mathbank-live\nNext.js + Socket.IO :5174\ndesired_count=0" as Live
+    component "mathbank-ml-frontend\nNext.js :5175\ndesired_count=0" as MlFrontend
+  }
+
+  rectangle "Shared managed components" as AwsSupport {
+    component "Amazon Cognito\nshared user pool" as Cognito
+    component "SSM Parameter Store\nleast-privilege secrets" as Ssm
+    component "ECR\nARM64 container images" as Ecr
+    component "CloudWatch Logs" as Logs
+    component "AWS CDK / CloudFormation" as Cdk
+    queue "EventBridge\n1-minute schedule" as EventBridge
+  }
+}
+
+rectangle "Managed public services - TLS, no AWS VPC or NAT Gateway" as Managed {
+  database "Neon Postgres 16\n+ pgvector + object storage" as Neon
+  database "Neo4j AuraDB\nderived graph" as Aura
+  cloud "OpenAI API" as OpenAI
+  cloud "ElevenLabs\noptional voice" as ElevenLabs
+}
+
+rectangle "Optional production growth path - not deployed; adds fixed cost" as Growth #FFF7ED {
+  component "Application Load Balancer\nHTTPS + stable DNS" as Alb
+  component "ECS Service Auto Scaling\nmulti-AZ, min tasks > 0" as EcsScaling
+}
+
+User --> PublicEndpoints : HTTPS / WebSocket
+ExternalMcp --> PublicEndpoints : HTTPS MCP
+PublicEndpoints --> CloudFront : exam SPA
+PublicEndpoints --> Web : core web
+PublicEndpoints --> Live : live classroom
+PublicEndpoints --> MlFrontend : ML dashboard
+PublicEndpoints --> ExamAgent : exam APIs
+PublicEndpoints --> Mcp : MCP tools
+CloudFront --> ExamSpa : origin access control
+
+Web --> Rest : REST
+Web --> Agent : tutor chat
+Live --> Rest : live events
+MlFrontend --> MlInference : predictions
+Agent --> Rest : tools
+Agent --> OpenAI : tutoring
+ExamAgent --> Rest : quiz + learner APIs
+ExamAgent --> Mcp : corpus grounding
+ExamAgent --> OpenAI : intake / generation / critique
+ExamAgent --> Cognito : account authentication
+Mcp --> Rest : corpus APIs
+ManimApi --> Neon : studio job queue
+EventBridge --> ManimWorker : invoke
+ManimWorker --> Neon : claim jobs / store results
+ManimWorker --> Rest : bundled MCP tools
+ManimWorker --> OpenAI : research
+Rest --> Neon : source of truth / vectors
+Rest --> Aura : graph queries
+Rest --> ElevenLabs : optional voice
+MlInference --> Neon : features / model registry
+
+Developer --> Cdk : synth / deploy / destroy
+Cdk --> Ecr : build and push images
+Cdk --> ExamSpa : deploy Vite assets
+Ssm ..> LambdaTier : cold-start secrets
+Ssm ..> FargateTier : container-start secrets
+Ecr ..> LambdaTier : Lambda images
+Ecr ..> FargateTier : task images
+LambdaTier ..> Logs : execution logs
+FargateTier ..> Logs : container logs
+
+User ..> Alb : future stable ingress
+Alb ..> EcsScaling
+EcsScaling ..> Web : scale same task images
+EcsScaling ..> Live
+EcsScaling ..> MlFrontend
+
+' Layout constraints keep the service inventory readable in a README-width render.
+Rest -[hidden]down-> Agent
+Agent -[hidden]down-> ExamAgent
+Mcp -[hidden]down-> MlInference
+MlInference -[hidden]down-> ManimApi
+ManimApi -[hidden]down-> ManimWorker
+Rest -[hidden]right-> Mcp
+Web -[hidden]down-> Live
+Live -[hidden]down-> MlFrontend
+Cognito -[hidden]down-> Ssm
+Ssm -[hidden]down-> Ecr
+Logs -[hidden]down-> Cdk
+Cdk -[hidden]down-> EventBridge
+Cognito -[hidden]right-> Logs
+
+legend bottom
+  |= Cost / scaling choice |= Effect |
+  | Lambda Function URLs | Automatic concurrency, $0 idle compute, no API Gateway |
+  | Fargate ARM64 tasks | `desired_count=0`; $0 stopped, about $0.0099/hour per running app |
+  | S3 + CloudFront exam SPA | Always available and effectively free at current traffic |
+  | Public Neon / Aura TLS endpoints | No NAT Gateway or private-subnet fixed cost |
+  | Current AWS baseline | Mainly ECR storage, roughly $0.55-$0.70/month |
+  | Optional ALB + ECS autoscaling | Stable ingress and multi-AZ horizontal scale when traffic justifies fixed cost |
+endlegend
+
+@enduml

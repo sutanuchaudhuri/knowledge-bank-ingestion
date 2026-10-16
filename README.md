@@ -95,9 +95,11 @@ planning packs (preserved, not actively maintained) live under
 ## Architecture
 
 This section is the fast path to "what talks to what" for a developer who has never
-opened this repository before. Every diagram below is real **Mermaid** (renders directly
-on GitHub and in VS Code's Markdown preview — no extra plugin). Mermaid's `C4Context`/
-`C4Container` diagram types use the same element/relationship vocabulary as
+opened this repository before. The C1/C2, flow, sequence, and entity diagrams are real
+**Mermaid** (render directly on GitHub and in VS Code's Markdown preview — no extra
+plugin). The deployment view is maintained as PlantUML source and checked in with its
+rendered SVG. Mermaid's `C4Context`/`C4Container` diagram types use the same
+element/relationship vocabulary as
 [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) (`Person`, `System`,
 `Container`, `Rel`, ...), so the C1/C2 diagrams below read the same way whether you know
 the C4 model from PlantUML or from Mermaid. Each sub-project's own README has a deeper,
@@ -289,6 +291,27 @@ C4Container
 
     UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="2")
 ```
+
+### Low-cost scalable deployment — PlantUML component view
+
+The deployed development baseline minimizes fixed cost without blocking a production
+scale-up:
+
+- Lambda container services scale to zero and expose Function URLs, avoiding an API
+  Gateway or always-on compute floor.
+- The static exam SPA uses private S3 plus CloudFront; the three process-based Next.js
+  apps use small ARM64 Fargate tasks with `desired_count=0` and direct public IPs.
+- Neon and AuraDB remain managed public TLS endpoints, so there is no NAT Gateway.
+- The dashed growth path adds an ALB and ECS Service Auto Scaling only when stable DNS,
+  multi-AZ availability, and horizontal UI scaling justify their fixed monthly cost.
+
+![PlantUML component diagram of MathBank's low-cost scalable AWS deployment](documentation/architecture/low-cost-scalable-deployment.svg)
+
+The editable source is
+[`documentation/architecture/low-cost-scalable-deployment.puml`](documentation/architecture/low-cost-scalable-deployment.puml).
+Cost assumptions and operational commands remain in
+[`documentation/requirements/62_AWS_SERVERLESS_DEV_HOSTING_COST_RESEARCH.md`](documentation/requirements/62_AWS_SERVERLESS_DEV_HOSTING_COST_RESEARCH.md)
+and [`mathbank-infra-aws/README.md`](mathbank-infra-aws/README.md).
 
 ### Key flows (sequence diagrams)
 
