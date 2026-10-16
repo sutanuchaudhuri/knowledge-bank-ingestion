@@ -31,6 +31,8 @@ knowledge-bank-ingestion/
 ├── mathbank-web/                 Next.js — student/admin UI, proxies to rest/agent       :5173
 ├── mathbank-live/                Next.js + Socket.IO — separately deployable live class  :5174
 ├── mathbank-agent/                Google ADK + OpenAI tutoring agent, calls rest only     :8001
+├── mathbank-exam-agent/           Strands + OpenAI mock-exam generation/diagnosis API     :8030
+├── mathbank-exam-web/             React + Vite mock-exam student UI                       :5176
 ├── mathbank-widgets/              shared React package (WidgetHost, MathComposer) — not a service
 ├── mathbank-db/                   Postgres 16 + pgvector schema migrations + ETL
 ├── mathbank-graph/                Neo4j projection ETL (derived, rebuildable graph)
@@ -62,6 +64,8 @@ knowledge-bank-ingestion/
 | `mathbank-agent` | Google ADK agent (OpenAI via LiteLLM) — calls `mathbank-rest` as tools, never touches the DBs directly | 8001 | [mathbank-agent/README.md](mathbank-agent/README.md) |
 | `mathbank-web` | Next.js — student chat/login/profile UI + admin ingestion UI, proxies to `mathbank-rest`/`mathbank-agent`/Neo4j server-side | 5173 | [mathbank-web/README.md](mathbank-web/README.md) |
 | `mathbank-live` | Next.js + Socket.IO — **separately deployable** realtime live classroom (instructor console + student classroom); relays the `mathbank-rest` live event log | 5174 | [mathbank-live/README.md](mathbank-live/README.md) |
+| `mathbank-exam-agent` | AWS Strands agent service (OpenAI model backend) — parses natural-language paper requests, reuses the approved question pool, generates and critiques missing questions concurrently, and produces post-exam diagnosis; calls `mathbank-rest` and MCP only | 8030 | [mathbank-exam-agent/README.md](mathbank-exam-agent/README.md) |
+| `mathbank-exam-web` | React + Vite — independent student mock-exam UI for generation progress, timed attempts, review, and diagnosis; calls `mathbank-exam-agent` only | 5176 | [mathbank-exam-web/README.md](mathbank-exam-web/README.md) |
 | `mathbank-widgets` | Shared React package (not a service) — WidgetHost renderer, MathComposer (LaTeX), ElevenLabs voice controls; copied into web and live | — | [mathbank-widgets/README.md](mathbank-widgets/README.md) |
 | `mathbank-data-ingestion` | Crawl/classify/export corpus pipeline feeding `mathbank-db` | — | [mathbank-data-ingestion/README.md](mathbank-data-ingestion/README.md) |
 | `mathbank-geometry-engine` | Independent deterministic geometry scene engine | — | [mathbank-geometry-engine/README.md](mathbank-geometry-engine/README.md) |
@@ -112,15 +116,17 @@ flowchart TB
     subgraph CoreUI["Core UI"]
         Web[mathbank-web :5173]
         Live[mathbank-live :5174]
+        ExamWeb[mathbank-exam-web :5176]
         Widgets[[mathbank-widgets shared package]]
     end
 
     subgraph CoreServices["Core services"]
         Agent[mathbank-agent :8001]
+        ExamAgent[mathbank-exam-agent :8030]
         Rest[mathbank-rest :8000]
     end
 
-    subgraph VideoPipeline["Explainer video pipeline"]
+    subgraph CorpusTools["Corpus tools and explainer video pipeline"]
         Mcp[mathbank-mcp-competitions]
         Manim[mathbank-manim-studio :8020]
     end
@@ -142,14 +148,19 @@ Neo4j)]
 
     Stu --> Web
     Stu --> Live
+    Stu --> ExamWeb
     Adm --> Web
     Web --> Widgets
     Live --> Widgets
     Web --> Agent
     Web --> Rest
     Live --> Rest
+    ExamWeb --> ExamAgent
     Agent --> Rest
     Agent --> OpenAI
+    ExamAgent --> Rest
+    ExamAgent --> Mcp
+    ExamAgent --> OpenAI
     Rest --> Db
     Rest --> Graph
 
@@ -180,17 +191,18 @@ Who uses MathBank, and which external systems does it depend on.
 C4Context
     title C1 - System Context: MathBank Platform
 
-    Person(student, "Student", "Practices problems, chats with the tutor, watches explainer videos, joins live classes")
+    Person(student, "Student", "Practices problems, chats with the tutor, takes generated mock exams, watches explainer videos, joins live classes")
     Person(admin, "Admin / Instructor", "Authors courses, reviews corpus content, approves AI-generated videos, runs the live classroom")
 
     System_Boundary(mathbank, "MathBank Platform") {
-        System(platform, "MathBank", "Competition-math corpus, hybrid RAG search, knowledge graph, agentic tutor, micro-courses, live classroom, ML recommendations")
+        System(platform, "MathBank", "Competition-math corpus, hybrid RAG search, knowledge graph, agentic tutor, generated mock exams, micro-courses, live classroom, ML recommendations")
     }
 
     System_Ext(openai, "OpenAI API", "Chat completions, embeddings - the only LLM provider")
     SystemDb_Ext(neon, "Neon Postgres", "Managed Postgres 16 plus pgvector")
     SystemDb_Ext(aura, "Neo4j AuraDB", "Managed graph - derived, rebuildable projection of the Postgres corpus")
     System_Ext(eleven, "ElevenLabs", "Optional text-to-speech/speech-to-text for voice input")
+    System_Ext(cognito, "Amazon Cognito", "Account authentication for the mock-exam application")
     System_Ext(mcpclient, "Any MCP-capable agent", "Claude Desktop, a custom agent, etc.")
 
     Rel(student, platform, "Uses", "HTTPS")
@@ -199,6 +211,7 @@ C4Context
     Rel(platform, neon, "Reads/writes", "libpq")
     Rel(platform, aura, "Reads/writes", "Bolt")
     Rel(platform, eleven, "Calls (optional)", "HTTPS")
+    Rel(platform, cognito, "Authenticates exam users", "HTTPS")
     Rel(mcpclient, platform, "Queries the competition corpus", "MCP/stdio")
 
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
@@ -216,6 +229,7 @@ C4Container
     Person(admin, "Admin / Instructor")
     System_Ext(openai, "OpenAI API")
     System_Ext(eleven, "ElevenLabs")
+    System_Ext(cognito, "Amazon Cognito")
     System_Ext(mcpclient, "Any MCP-capable agent")
 
     Container_Boundary(core, "Core tutoring platform") {
@@ -226,8 +240,13 @@ C4Container
         Container(rest, "mathbank-rest", "FastAPI :8000", "The only service with direct Postgres/Neo4j access - corpus, search, learner auth, pedagogy, admin APIs")
     }
 
-    Container_Boundary(video, "Explainer video pipeline") {
-        Container(mcp, "mathbank-mcp-competitions", "FastMCP, stdio", "Standalone MCP server exposing the competition corpus to any MCP agent, plus admin scene-promotion tools")
+    Container_Boundary(exams, "Mock-exam platform") {
+        Container(examweb, "mathbank-exam-web", "React + Vite :5176", "Independent student UI for paper generation, timed attempts, review, and diagnosis")
+        Container(examagent, "mathbank-exam-agent", "FastAPI + AWS Strands :8030", "Natural-language intake, pooled-question reuse, concurrent generator-critic loop, grading orchestration, and diagnosis; never connects to a database directly")
+    }
+
+    Container_Boundary(video, "Corpus tools and explainer video pipeline") {
+        Container(mcp, "mathbank-mcp-competitions", "FastMCP, stdio/HTTP", "Standalone MCP server exposing the competition corpus to any MCP agent, plus admin scene-promotion tools")
         Container(manim, "mathbank-manim-studio", "FastAPI :8020", "Research agent (topic to SceneSpec via OpenAI+MCP) and video-render agent (SceneSpec to real manim .mp4), job queue with 1-day TTL")
     }
 
@@ -237,7 +256,7 @@ C4Container
         Container(mlfrontend, "mathbank-ml-frontend", "Next.js :5175", "ML-ops dashboard - model status, cohorts, data readiness")
     }
 
-    ContainerDb(db, "mathbank-db", "Postgres 16 + pgvector", "core/knowledge/learner/pedagogy/visual/studio/ml schemas - the single source of truth")
+    ContainerDb(db, "mathbank-db", "Postgres 16 + pgvector", "core/knowledge/learner/pedagogy/quiz/visual/studio/ml schemas - the single source of truth")
     ContainerDb(graph, "mathbank-graph", "Neo4j", "Derived, rebuildable knowledge-graph projection of the Postgres corpus")
 
     Rel(student, web, "Uses", "HTTPS")
@@ -248,6 +267,12 @@ C4Container
     Rel(live, rest, "Relays events to", "HTTPS/REST")
     Rel(agent, rest, "Calls as tools", "HTTPS/REST")
     Rel(agent, openai, "Calls", "HTTPS")
+    Rel(student, examweb, "Generates and takes mock exams", "HTTPS")
+    Rel(examweb, examagent, "Calls", "HTTPS/REST")
+    Rel(examagent, cognito, "Authenticates accounts", "HTTPS")
+    Rel(examagent, rest, "Reads/writes quiz and learner data", "HTTPS/REST")
+    Rel(examagent, mcp, "Retrieves inspiring competition problems", "MCP/HTTP")
+    Rel(examagent, openai, "Runs intake, generation, criticism, and diagnosis", "HTTPS")
     Rel(rest, db, "Reads/writes", "libpq")
     Rel(rest, graph, "Reads/writes", "Bolt")
     Rel(rest, eleven, "Calls (optional)", "HTTPS")
@@ -267,7 +292,7 @@ C4Container
 
 ### Key flows (sequence diagrams)
 
-Five flows that between them touch every container above.
+Six flows that between them touch every container above.
 
 **1. Student asks the tutor a question** — the core RAG + agent loop.
 
@@ -404,6 +429,44 @@ sequenceDiagram
     Dash-->>Admin: renders status, charts, and explanations
 ```
 
+**6. Student generates and takes a mock exam** — pooled reuse first, then concurrent
+generation and criticism for any missing questions.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor S as Student
+    participant EW as mathbank-exam-web
+    participant EA as mathbank-exam-agent
+    participant MCP as mathbank-mcp-competitions
+    participant R as mathbank-rest
+    participant PG as Postgres quiz schema
+    participant AI as OpenAI API
+
+    S->>EW: Requests "2 hard algebra MCQs"
+    EW->>EA: POST /v1/exam-papers
+    EA->>R: Create GENERATING paper
+    R->>PG: Insert quiz.paper
+    EW->>EA: POST /v1/exam-papers/{id}/run
+    EA->>R: Match approved question pool
+    R->>PG: Query quiz.question_pool
+    par Each missing question slot
+        EA->>MCP: Retrieve distinct inspiring problems
+        MCP->>R: Search competition corpus
+        EA->>AI: Generate then critique/revise draft
+    end
+    EA->>R: Finalize approved questions and solutions
+    R->>PG: Persist paper; expand question pool
+    EW->>EA: Poll generation progress
+    EA-->>EW: READY paper
+    S->>EW: Answers and submits
+    EW->>EA: Submit responses and request diagnosis
+    EA->>R: Grade, absorb mastery, and load diagnosis input
+    EA->>AI: Synthesize holistic diagnosis
+    EA->>R: Persist diagnosis
+    EA-->>EW: Review, solutions, and diagnosis
+```
+
 ## Data model
 
 Everything below was pulled live from the running databases (`information_schema` in
@@ -416,7 +479,7 @@ live system" standard the rest of this README holds itself to. For exhaustive DD
 [`GRAPH_SCHEMA.md`](documentation/requirements/reference/GRAPH_SCHEMA.md) — this section
 is the orientation map, not the reference.
 
-### Postgres — 20 schemas, 207 tables
+### Postgres — 21 schemas, 212 tables
 
 One Postgres 16 + pgvector database (`mathbank-db`), owned exclusively by
 `mathbank-rest` — every other service reaches it only through the REST API.
@@ -431,7 +494,7 @@ One Postgres 16 + pgvector database (`mathbank-db`), owned exclusively by
 | `studio` | `mathbank-manim-studio` job queue — scene-research and video-render jobs, 1-day TTL | 2 |
 | `search` | Hybrid retrieval — chunks, embeddings, embedding jobs/models, retrieval profiles | 7 |
 | `pipeline` | Background-job orchestration, including the Postgres→Neo4j graph projector | 7 |
-| `quiz` | AIME/HMMT-style question-paper generation — papers, questions, responses, solutions | 7 |
+| `quiz` | Generated mock exams — papers, approved question pool, questions/sources/solutions, generation timeline, response drafts/events/final responses, diagnosis | 12 |
 | `artifact_runtime` | Compiled/runtime artifacts for solution routes and rendered widgets | 11 |
 | `attempt_media` | Photographed/handwritten attempt submissions — media, transcription, step assessment | 9 |
 | `agent_sessions` | `mathbank-agent` (Google ADK) session/event state | 5 |
@@ -447,8 +510,8 @@ One Postgres 16 + pgvector database (`mathbank-db`), owned exclusively by
 
 ### Core entity model
 
-A deliberately curated subset — the ~23 tables that tell the "corpus → taxonomy →
-learner → course → interaction → video" story end to end. The `schema` row in each box
+A deliberately curated subset — the tables that tell the "corpus → taxonomy → learner →
+course → interaction → video/mock exam" story end to end. The `schema` row in each box
 is this diagram's own annotation (which Postgres schema the table lives in), not a real
 column.
 
@@ -523,6 +586,30 @@ erDiagram
     VIDEO_RENDER_JOB {
         string schema "studio"
     }
+    QUIZ_PAPER {
+        string schema "quiz"
+    }
+    QUESTION_POOL {
+        string schema "quiz"
+    }
+    QUIZ_QUESTION {
+        string schema "quiz"
+    }
+    QUESTION_SOURCE {
+        string schema "quiz"
+    }
+    QUIZ_SOLUTION {
+        string schema "quiz"
+    }
+    GENERATION_EVENT {
+        string schema "quiz"
+    }
+    QUIZ_RESPONSE {
+        string schema "quiz"
+    }
+    EXAM_DIAGNOSIS {
+        string schema "quiz"
+    }
 
     COMPETITION ||--o{ PAPER : "has"
     PAPER ||--o{ PROBLEM : "contains"
@@ -547,6 +634,20 @@ erDiagram
     SCENE_SPEC |o--|| ASSET : "rendered as"
     SCENE_RESEARCH_JOB |o--o| SCENE_SPEC : "promotes"
     VIDEO_RENDER_JOB |o--o| ASSET : "promotes"
+    STUDENT_PROFILE ||--o{ QUIZ_PAPER : "requests"
+    QUIZ_PAPER ||--o{ QUIZ_QUESTION : "contains"
+    QUIZ_PAPER ||--o{ GENERATION_EVENT : "reports generation"
+    QUIZ_PAPER ||--o| EXAM_DIAGNOSIS : "receives"
+    QUIZ_PAPER |o--o{ QUESTION_POOL : "seeds approved"
+    QUESTION_POOL |o--o{ QUIZ_QUESTION : "reused as"
+    QUIZ_QUESTION ||--o{ QUESTION_SOURCE : "inspired by"
+    QUESTION_SOURCE }o--|| PROBLEM : "references"
+    QUIZ_QUESTION ||--o| QUIZ_SOLUTION : "has"
+    QUIZ_QUESTION ||--o| QUIZ_RESPONSE : "answered by"
+    QUIZ_QUESTION }o--o{ CONCEPT : "question_concept"
+    QUIZ_QUESTION }o--o{ SKILL : "question_skill"
+    QUIZ_QUESTION }o--o{ TECHNIQUE : "question_technique"
+    STUDENT_PROFILE ||--o{ QUIZ_RESPONSE : "submits"
 ```
 
 ### Neo4j — 25 node labels, 34 relationship types
