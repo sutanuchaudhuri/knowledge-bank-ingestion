@@ -5,9 +5,15 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from mathbank_rest import pedagogy, tutor
+from mathbank_rest import pedagogy, route_runtime, tutor
 from mathbank_rest import solution_guidance as guidance
 from mathbank_rest.main import app
+
+
+@pytest.fixture(autouse=True)
+def no_published_route(monkeypatch):
+    monkeypatch.setattr(route_runtime, "plan", lambda code: None)
+
 
 AIME = {
     "canonical_code": "AIME_1985_Q01",

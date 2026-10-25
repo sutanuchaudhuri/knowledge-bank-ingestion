@@ -84,6 +84,14 @@ in this document's scope means refreshing the **derived `ml.*` feature-snapshot 
 a documentation choice made explicit here to avoid the term being misread as a request to
 touch the unrelated, already-working vector-index maintenance path.
 
+The proposed **admin corpus delta/rebuild pipeline** is specified separately in
+[report 66 sections 12-13](66_AWS_STORAGE_DATABASE_COST_AND_MIGRATION_REPORT.md#12-recurring-admin-ingestion-correction-and-batch-reindexing).
+It handles recurring question/document CRUD, chunk metadata proposals and human
+overrides, embeddings and deletion propagation. Its completion may trigger
+these feature-refresh jobs with a source watermark; neither job's completion
+implies the other succeeded. That proposal does not implement this scaffold
+or authorize scheduled jobs.
+
 ## 6. Requirement inventory (MLRX-*)
 
 | ID | Requirement | Acceptance evidence | Status |

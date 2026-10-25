@@ -1,0 +1,9 @@
+FROM public.ecr.aws/lambda/python:3.11
+COPY --from=geometry pyproject.toml /tmp/mathbank-geometry-engine/pyproject.toml
+COPY --from=geometry src /tmp/mathbank-geometry-engine/src
+RUN pip install --no-cache-dir --only-binary=:all: /tmp/mathbank-geometry-engine && rm -rf /tmp/mathbank-geometry-engine
+COPY pyproject.toml /tmp/mathbank-rest/pyproject.toml
+COPY src /tmp/mathbank-rest/src
+RUN pip install --no-cache-dir --only-binary=:all: "/tmp/mathbank-rest[lambda]" && rm -rf /tmp/mathbank-rest
+COPY --from=socratic_ui . /var/task/studio
+CMD ["mathbank_rest.socratic_lambda.handler"]

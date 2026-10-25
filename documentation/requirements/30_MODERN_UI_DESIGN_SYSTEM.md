@@ -18,6 +18,26 @@ requirements and records progress.
 
 ## 1. Requirements
 
+### Socratic Studio implementation increment
+
+The staff shell now labels explicitly local sessions with a token-styled
+**Local testing** warning, distinct from AWS identity or production approval.
+Real non-AWS browser tests verify local sign-in/restoration/logout at 1440px
+and 390px without API interception; workflow/catalog gaps remain visible.
+
+[Socratic Studio](../../mathbank-socratic-admin/README.md) follows the detailed
+[framework UI prototype](../copilot-instructions/mathbank-adaptive-socratic-framework/UI/README.md)
+as a minimum feature/visual baseline, using the shared theme tokens, Inter,
+Bootstrap Icons and canonical MathText normalizer/renderer. Its dark sidebar,
+two-column map/simulator, dotted canvas, separate inspector/current position,
+annotated rule cards, proposal drawer, activity library, current-response/hint
+controls and safe routing trace are implemented at the frontend layer.
+Desktop/mobile checks use intercepted API fixtures, not a deployed runtime.
+The full inspector, all assessment/interaction renderers, reviewer cockpit,
+versions/audit and operations surfaces remain required unfinished work under
+[65](65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md); this increment does not imply
+the global delivery marks below certify those new surfaces.
+
 | ID | Requirement | Status |
 |---|---|---|
 | UI-1 | **Wide layout:** full-width content beside a sidebar; no fixed `max-width` page columns. | ✅ |

@@ -7,12 +7,13 @@ import pytest
 from fastapi.testclient import TestClient
 from neo4j.exceptions import ServiceUnavailable
 
-from mathbank_rest import pedagogy, solution_guidance, tutor
+from mathbank_rest import pedagogy, route_runtime, solution_guidance, tutor
 from mathbank_rest.main import app
 
 
 @pytest.fixture(autouse=True)
 def empty_solution_references(monkeypatch):
+    monkeypatch.setattr(route_runtime, "coaching", lambda code, level: None)
     monkeypatch.setattr(solution_guidance, "load_references", lambda code: solution_guidance.SolutionEvidence(
         PROBLEM, [], None, 0,
     ))
@@ -265,6 +266,20 @@ def test_coaching_reads_private_references_without_returning_them(monkeypatch):
     assert "PRIVATE_SECOND_SOLUTION" in create.call_args.kwargs["messages"][1]["content"]
     assert result["solution_evidence"]["references_considered"] == 2
     assert "PRIVATE" not in str(result) and "384" not in str(result)
+
+
+def test_published_coaching_precedes_generated_guidance(monkeypatch):
+    stored = {"hint": "Reviewed opening hint.", "provenance": {"source": "published-hint-library"}}
+    coaching = MagicMock(return_value=stored)
+    monkeypatch.setattr(route_runtime, "coaching", coaching)
+    monkeypatch.setattr(pedagogy, "learning_context",
+                        lambda code: pytest.fail("Published guidance must not load dynamic context"))
+    monkeypatch.setattr(tutor._client, "with_options",
+                        lambda **kwargs: pytest.fail("Published guidance must not call a model"))
+    assert pedagogy.coach(pedagogy.CoachRequest(
+        problem_code="FIXTURE", diagnosis="strategy", student_attempt="I tried pairing.",
+    )) == stored
+    coaching.assert_called_once_with("FIXTURE", 1)
 
 
 @pytest.mark.parametrize(

@@ -57,6 +57,17 @@ lint:                           ## Run ruff linter
 test:                           ## Run the test suite
 	$(PYTEST)
 
+.PHONY: test-socratic-offline setup-socratic-local
+test-socratic-offline:           ## Test staff sessions/setup locally with synthetic providers; no AWS/database/model calls
+	$(PYTEST) -q tests/test_socratic_auth.py tests/test_socratic_local_auth.py tests/test_socratic_auth_setup.py tests/test_security.py
+
+setup-socratic-local:            ## Configure loopback-only staff login; prompts for a local password, never prints it
+	$(BIN)/python scripts/setup_socratic_auth.py --mode local --origin http://127.0.0.1:5186 --apply
+
+.PHONY: run-socratic-local
+run-socratic-local:              ## Run configured local staff session API on loopback (single process, no reload)
+	$(BIN)/python scripts/run_socratic_local.py --port $(PORT)
+
 # ── Run ──────────────────────────────────────────────────────────────────
 
 .PHONY: run

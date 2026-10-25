@@ -1,5 +1,14 @@
 # 36. Solution-step generator, atomic authoring and attachments
 
+> **Unified admin contract.** This document owns canonical atomic moves, their
+> source lineage, attachments and mathematical release semantics.
+> [Requirement 65](65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md) owns the Socratic
+> Studio, instructional strategy overlay, staff identity and AgentCore/AWS
+> orchestration. They describe **one authoring journey**, not two competing
+> editors, generators or learner runtimes. Section 8.0 defines the integration.
+> Current implementation evidence below remains distinct from proposed features;
+> this reconciliation does not deploy services or apply migrations.
+
 ## 1. Status, evidence and scope
 
 ### Incremental released-route implementation
@@ -27,7 +36,7 @@ atomic-step editor are not implemented today.** Imported textbook steps, safe
 guidance stages, learner-written steps and artifact frames are different things.
 
 Source: `375f3743357cef814c50e3c8752f7f4ce2d6ebe5`; source was clean before
-this documentation task. PostgreSQL and Neo4j metadata were inspected read-only
+the original evidence-gathering task. PostgreSQL and Neo4j metadata were inspected read-only
 on the user's selected REST-configured targets. The exact UTC observation
 timestamps, constraints and coverage are in the
 [PostgreSQL catalog](reference/postgres/README.md) and
@@ -80,6 +89,8 @@ Primary source evidence:
 |---|---|---|---|
 | `core.solution_step` | UUID, `solution_id`, ordinal | Legacy core explanation/formula step | Existing table; no automatic conversion to imported steps found |
 | `pedagogy.solution_step` | Text ID, source ID/occurrence/book, core solution/problem UUIDs | Canonical imported reference move | PostgreSQL; admin preview, hints/evaluator, runtime, step retrieval and graph metadata |
+| `pedagogy.route_step` | Released route UUID + step index; separate unique step ID | Solution-specific mathematical move in the editable-draft/immutable-release layer of requirement 39 | Existing route authoring, review and pinned route attempts; not an in-place rewrite of imported steps |
+| Socratic workflow node | Proposed workflow revision/release + node key | Instructional objective, activity, control operation or binding to reviewed mathematics | Requirement 65 policy overlay on existing course/route services; not another canonical move, scorer or learner position |
 | Guidance stage | Selected solution ID, 3-5 stage strings | Learner-safe high-level plan | Guidance call does not insert canonical steps; agent can keep plan in ADK session JSON |
 | `attempt_media.step_candidate` | Submission/transcription version | Learner-written observed move | Private evidence, explicitly approved and then assessed |
 | `learner.attempt_step_state` | Attempt ID + canonical step ID | Learner response/progress/help evidence | Durable per-learner runtime state, not authored reference text |
@@ -279,6 +290,11 @@ only with authorization. Documentation does not delete/rebuild these caches.
 
 ### UI and API surfaces
 
+- `/admin/tutoring-routes`: existing solution-specific route draft editor,
+  full preview, expected-hash edits and separate review/publication under
+  [requirement 39](39_PRECOMPILED_TUTORING_ROUTES.md). Reuse this service for the
+  incremental canonical-move path in the Studio; it does not remove the
+  imported-step limitations below.
 - `/admin/textbooks/problems/{code}`: full statement/reference solution, source
   book/page metadata, parts and full atomic step text, type/skill/checkpoint,
   hints/vector status, dependencies and diagram provenance.
@@ -395,6 +411,51 @@ This section specifies new work; none of its proposed endpoints/tables are
 part of today's OpenAPI or live schema. It extends, rather than misrepresents,
 the current importer/hint/runtime.
 
+### 8.0 Integration with the Socratic admin
+
+The Studio's Resource library is the entry point. Retain one selection context
+through the following journey:
+
+**Problem + explicit solution revision → Atomic moves / route → Socratic
+strategy and workflow → Synthetic preview → Review and publish → Operations.**
+
+Use a breadcrumb and linked workspaces, not separate copies of the source or
+an editor that loses its selected solution when switching tabs. The Designer,
+Rules by topic and Resource library from requirement 65 remain the top-level
+views. Atomic moves open in the existing route-authoring workspace initially;
+the full editor described here is an extension of that service, not a fourth
+independent content product.
+
+| Concern | Authoritative requirement and implementation boundary |
+|---|---|
+| Question/reference correction, document batches and enriched chunks | [35](35_CORPUS_REPAIR_AND_AUTHORING.md), [65 SOC-DATA-01..08](65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md#31-admin-corpus-batches-and-continuous-metadata-enrichment) and [66 lifecycle](66_AWS_STORAGE_DATABASE_COST_AND_MIGRATION_REPORT.md#12-recurring-admin-ingestion-correction-and-batch-reindexing); do not edit corpus text through a strategy node |
+| Atomic mathematical moves, lineage and attachments | This document; reuse [39 route releases](39_PRECOMPILED_TUTORING_ROUTES.md) where supported; preserve the legacy imported-step model |
+| Instructional strategies, rules and workflow graph | [65](65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md); bind exact reviewed route/claim/activity revisions, do not copy reference explanations into strategy prompts |
+| Composition, interaction and assessment | Existing [40 course](40_MICRO_COURSE_PLATFORM.md), [41 interaction](41_INTERACTION_TEMPLATE_LIBRARY.md) and [46 activity](46_MICRO_COURSE_QUIZ_AUTHORING_API_GAPS.md) services; one scorer and one authoritative progression commit |
+| Identity, proposals and cloud orchestration | Requirement 65; one verified staff boundary, shared job/provenance conventions, bounded AgentCore reasoning, Lambda adapters and Step Functions in the existing CDK app |
+| Student-safe disclosure and attachments | Same runtime/resolver for staff simulated state and learner state; full source comparison stays staff-only |
+
+The following integration requirements apply to both documents:
+
+| ID | Required behavior |
+|---|---|
+| STEP-SOC-01 | Carry problem ID/code, explicit solution ID/revision/hash, selected route release/hash and draft revision/hash where applicable. REST verifies their actual relationships; a matching label or browser selection is insufficient. No silent `LIMIT 1` solution choice in the new flow. |
+| STEP-SOC-02 | Separate **Edit source**, **Edit atomic move** and **Edit strategy** actions. Source changes use corpus repair; move split/merge/order use the canonical authoring service; strategy-node operations change only the instructional overlay. Shared rendering does not imply shared mutable content. |
+| STEP-SOC-03 | Reuse existing route load/edit/review/publish services and hashes before adding new atomic-step endpoints. Never write `pedagogy.solution_step` from the workflow editor or copy route steps into a new Socratic canonical-step table. The legacy uniqueness/versioning gap still needs a separately reviewed migration. |
+| STEP-SOC-04 | Distinguish atomic-decomposition jobs from instructional-rule proposals with typed input/output schemas and least-privilege tools. Both record verified actor, input/base hashes, model/prompt/schema versions, budget, request identity and explicit failure/retry state. A rule job cannot rewrite a reference solution, approve mathematics or publish. |
+| STEP-SOC-05 | A source, route, attachment or strategy change marks affected drafts' validation/reviews stale and blocks their publication until revalidated. A late job result may be retained for comparison but cannot overwrite a newer draft. New immutable releases do not mutate old pinned attempts; withdrawal blocks new assignment according to the applicable release policy. |
+| STEP-SOC-06 | Preview pins the exact draft and dependencies. Inspector selection never advances the synthetic learner. A mocked outcome is labelled **simulated**, not graded; production acceptance requires the shared evaluator/resolver. Synthetic runs do not write real learner state, scores, mastery or private graph evidence. |
+| STEP-SOC-07 | Structural validation, source verification, mathematical review, pedagogical review and operational activation remain separate states. A workflow may publish only against eligible frozen dependencies and hash-bound attributable approvals. Existing imported DAG approval is not a route/workflow publication grant. |
+| STEP-SOC-08 | Attachment picker/reveal policy and source comparison are shared authoring capabilities, not parallel implementations per screen. Removing or changing a source/asset follows the corpus invalidation/tombstone/reindex lifecycle; SQL save, AWS execution success and graph/vector freshness are displayed separately. |
+
+**Delivery boundary:** the first synthetic rule-authoring prototype may offer
+source/reference/route selection and link to existing route editing. It does
+not satisfy this document's full atomic generator, split/merge lineage,
+attachment editor or learner-safe runtime merely by drawing a graph. Those
+features retain the acceptance gates in section 10. Production workflow
+publication remains blocked until its required dependencies, staff roles,
+review and safe runtime are implemented and tested.
+
 ### 8.1 Inputs, jobs and streaming
 
 1. Select an existing canonical problem, **one explicit solution ID/revision**,
@@ -410,6 +471,11 @@ the current importer/hint/runtime.
    counts and public rationale, not hidden solutions before authorization.
 5. Return a versioned draft; do not immediately overwrite PUBLISHED steps.
    Retry must be idempotent and must not double-charge/rewrite a human draft.
+
+Use the AgentCore/job contracts and budgets in requirement 65, not another
+unbounded generator runtime. Manual authoring and uniquely determined runtime
+transitions make no paid calls. DeepSeek/AgentCore access does not itself
+establish mathematical correctness or remove the review gate.
 
 ### 8.2 Atomic draft content and editing
 
@@ -503,8 +569,12 @@ flowchart TD
 
 ### 8.5 Proposed resources and request shapes
 
-**Design examples only; these routes do not exist.** Names are provisional and
-must be finalized with migration/security/ownership design:
+**Design examples only; these routes do not exist.** They are capability
+placeholders, not a mandate to add a second API family. First reuse the existing
+`/v1/admin/tutoring-routes` services for supported operations and the
+`/v1/admin/socratic` proposal/preview contracts in requirement 65 for the policy
+overlay. Add only missing canonical-authoring operations after
+migration/security/ownership review:
 
 | Proposed route | Purpose |
 |---|---|
@@ -723,8 +793,24 @@ Completion requires all of these, not only a plausible model response:
     failure, source-image visibility, frame alignment, video URL rejection,
     attempt resume and disclosure at each help/completion level.
 
+### 10.1 Integrated admin acceptance
+
+Run these with requirement 65's work packages and S01-S22; they supplement,
+not replace, the complete-generator gates above:
+
+| Check | Integration evidence |
+|---|---|
+| STEP-SOC-01..03; WP01/WP02/WP06 | Choose between two solution revisions for one problem; keep the exact selection across library, route and Designer. Reject a route belonging to the other source. Strategy edits leave canonical source/moves unchanged. |
+| STEP-SOC-04..05; WP04/WP07/WP08 | Change the base source/draft while a job runs; retain but reject the stale result, invalidate dependent reviews and do not charge a duplicate retry. Test provider failure explicitly; no local phrase-parser success fallback. |
+| STEP-SOC-06; WP03/WP05/WP06, S18-S20 | Inspect a future node without moving preview position; test current/future answers, hints, asset URLs, accessibility text and staff source panels for disclosure. Synthetic preview leaves real learner tables unchanged. |
+| STEP-SOC-07; WP04/WP11, S15-S17 | Missing mathematics/pedagogy capability, stale approval or changed dependency blocks publish; a valid release remains immutable and existing attempts stay pinned. |
+| STEP-SOC-08; WP12 | Edit/withdraw a bound document or attachment during reindexing; reject stale callbacks and show SQL/graph/vector states separately, following SOC-DATA and report 66 acceptance. |
+
 ## Related references
 
+- [Unified Socratic admin, AgentCore and delivery gates](65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md)
+- [Reviewed route authoring and releases](39_PRECOMPILED_TUTORING_ROUTES.md)
+- [Admin corpus batches, reindexing and storage trade-offs](66_AWS_STORAGE_DATABASE_COST_AND_MIGRATION_REPORT.md)
 - [Complete PostgreSQL inventory](reference/postgres/README.md)
 - [PostgreSQL relationships/DDL](reference/POSTGRES_SCHEMA.md)
 - [DML and transaction boundaries](reference/POSTGRES_DML.md)

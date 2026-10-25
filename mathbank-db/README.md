@@ -1,5 +1,16 @@
 # mathbank-db
 
+## Socratic draft increment
+
+[Migration 053](sql/053_socratic_drafts.sql) adds four isolated
+`orchestration.socratic_*` tables with immutable revisions/command receipts and
+canonical source references. Applied/repeated on the explicitly authorized
+REST-configured Neon target on 2026-10-25; no canonical or learner records
+were changed. Runtime reads/writes remain exclusively in REST.
+Use the [REST migration/test runbook](../mathbank-rest/README.md#socratic-draft-schema-and-persistence)
+and [schema/access catalog](../documentation/requirements/reference/postgres/orchestration.md).
+This does not assert that every earlier migration is deployed.
+
 ## Active local snapshot
 
 The user-approved remote replacement now runs PostgreSQL 18 on port 5433 with

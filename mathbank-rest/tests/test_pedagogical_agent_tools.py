@@ -34,7 +34,8 @@ def test_pedagogical_tools_use_rest_only(monkeypatch):
     tools.get_prerequisite_path("select", 3)
     tools.find_easier_same_skill_problems("FIXTURE", 2)
     tools.get_next_hint("FIXTURE", "strategy", "I tried counting subsets.", 2)
-    assert requests[0].url.raw_path == b"/v1/tutor/learning-context/AIME%20Code"
+    assert requests[0].url.raw_path.split(b"?")[0] == b"/v1/tutor/learning-context/AIME%20Code"
+    assert dict(requests[0].url.params) == {"enrich": "false"}
     assert requests[1].url.path == "/v1/tutor/prerequisites/select"
     assert requests[1].url.params["max_depth"] == "3"
     assert requests[2].url.path == "/v1/tutor/practice/FIXTURE"
@@ -90,6 +91,7 @@ def test_agent_registers_all_teaching_tools_and_diagnostic_first_instruction():
         for keyword in agent.keywords
         if keyword.arg == "tools"
         for item in keyword.value.elts
+        if isinstance(item.value if isinstance(item, ast.Starred) else item, ast.Name)
     }
     assert {
         "get_problem_learning_context",
@@ -99,5 +101,6 @@ def test_agent_registers_all_teaching_tools_and_diagnostic_first_instruction():
         "STEP_RUNTIME_TOOLS",
     } <= registered
     assert "FIRST call get_problem_learning_context" in instruction
-    assert "Do not fetch get_problem_by_code or full solutions" in instruction
+    assert "Do not fetch get_problem_by_code in this guided mode" in instruction
+    assert "Never reveal an official answer during coaching" in instruction
     assert "new attempt" in instruction and "generated/provisional" in instruction

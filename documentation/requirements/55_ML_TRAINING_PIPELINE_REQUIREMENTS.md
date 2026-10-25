@@ -108,6 +108,12 @@ hint/solution reveal, time+student-based splits) are each a named `# TODO` in
 
 ## Cross-document relationship
 
+For the AWS feasibility/cost extension, see
+[report 66 section 17](66_AWS_STORAGE_DATABASE_COST_AND_MIGRATION_REPORT.md#17-sagemaker-scope-for-a-custom-intellitutor-model):
+small-model baselines versus custom tutor LLMs, dataset/rights/leakage gates,
+SageMaker training/hosting options and pros/cons. It does not implement this
+scaffold or authorize training/deployment.
+
 Part of the [54](54_ML_RL_PLATFORM_ARCHITECTURE_AND_SCAFFOLDING.md) plan. Feeds
 [56](56_ML_INFERENCE_SERVICE_REQUIREMENTS.md) (trained-model consumer) and
 [57](57_ML_NIGHTLY_REINDEXING_REQUIREMENTS.md) (shares extraction code).

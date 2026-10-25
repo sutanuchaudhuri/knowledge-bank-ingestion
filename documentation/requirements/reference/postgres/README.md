@@ -27,6 +27,11 @@ in the index is therefore marked as source-only, not as a live observation.
 
 ## Schema index
 
+Later scoped addition: [orchestration](orchestration.md) documents four Socratic
+draft tables from migration 053, applied and metadata-verified on the selected
+Neon target on 2026-10-25 UTC. This does not change the historical full-catalog
+counts below. Existing audit/outbox relations are reused, not recreated.
+
 | Schema | Tables | Views | Sequences | Purpose and access |
 |---|---:|---:|---:|---|
 | [activity](activity.md) | 3 | 0 | 0 | Live activities and responses; Live activity start/respond/close/result routes; `/v1/live/*`, mathbank-live classroom widgets. |

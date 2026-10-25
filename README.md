@@ -39,6 +39,17 @@ PUMaC, with live-counted problems attributed to each.
 
 ## Repository map
 
+**Proposed next projects, not yet created:** the
+[Adaptive Socratic Studio requirements](documentation/requirements/65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md)
+recommend a separate admin SPA and AgentCore agent package while reusing REST,
+PostgreSQL and the existing AWS CDK project. The separate
+[AWS database/storage cost report](documentation/requirements/66_AWS_STORAGE_DATABASE_COST_AND_MIGRATION_REPORT.md)
+evaluates recurring admin batch ingestion/reindexing, enriched chunk metadata,
+managed S3 knowledge, DynamoDB/Aurora/Neptune, AWS analytics and SageMaker without
+changing current providers. Its
+[table placement appendix](documentation/requirements/66A_POSTGRES_TABLE_MIGRATION_ASSESSMENT.md)
+covers every source-defined table and the dated framework/provider additions.
+
 ```text
 knowledge-bank-ingestion/
 ├── README.md                    you are here — start here, then follow a service's own README

@@ -34,11 +34,13 @@ from mathbank_rest.routers.exam_integration import router as exam_integration_ro
 from mathbank_rest.routers.notifications import router as notifications_router
 from mathbank_rest.routers.theorems import admin_router as theorems_admin_router
 from mathbank_rest.routers.theorems import student_router as theorems_student_router
+from mathbank_rest.routers.socratic import router as socratic_router
 
 # One line per tag actually used by any operation (doc 45 APID-2): what it covers + which auth
 # scheme applies. Admin-gated tags are prefixed `admin-`; everything else is anonymous or learner
 # JWT, named in the description below rather than inferred from the prefix.
 OPENAPI_TAGS = [
+    {"name": "admin-socratic", "description": "Socratic Studio staff sessions. HttpOnly cookies, Cognito identity/groups by default or explicit loopback-only local testing; origin and CSRF on mutations. Not the legacy shared admin-key boundary."},
     {"name": "ops", "description": "Health/connectivity checks. Anonymous."},
     {"name": "corpus", "description": "Public read-only competitions/problems. Anonymous."},
     {"name": "taxonomy", "description": "Public read-only concepts/techniques. Anonymous."},
@@ -75,9 +77,11 @@ app = FastAPI(
     version="0.1.0",
     summary="The only direct PostgreSQL/Neo4j boundary in the MathBank platform.",
     description=(
-        "FastAPI service backing mathbank-web, mathbank-live and mathbank-agent. Two auth "
-        "schemes: a shared `X-Admin-Api-Key` header (configured via `ADMIN_API_KEY`) for every "
-        "`/v1/admin/*` operation, and a learner `Authorization: Bearer` JWT (obtained from "
+        "FastAPI service backing mathbank-web, mathbank-live and mathbank-agent. Three auth "
+        "boundaries: a shared `X-Admin-Api-Key` header (configured via `ADMIN_API_KEY`) for legacy "
+        "`/v1/admin/*` operations, staff cookies for `/v1/admin/socratic/*` "
+        "(Cognito by default; explicit loopback-only local testing available), "
+        "and a learner `Authorization: Bearer` JWT (obtained from "
         "`POST /v1/learner/login`) for student-owned operations. Most of `/v1` is anonymous "
         "read access. See `documentation/requirements/reference/REST_API.md` for the prose "
         "reference and `documentation/requirements/45_REST_API_DOCUMENTATION_AND_ADMIN_CRUD_GAPS.md` "
@@ -88,6 +92,7 @@ app = FastAPI(
 app.include_router(v1_router)
 app.include_router(learner_router)
 app.include_router(admin_router)
+app.include_router(socratic_router)
 app.include_router(admin_corpus_router)
 app.include_router(tutor_router)
 app.include_router(tutoring_routes_router)

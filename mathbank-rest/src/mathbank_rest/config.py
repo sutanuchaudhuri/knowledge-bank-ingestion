@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import warnings
+from typing import Literal
 
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 INSECURE_DEFAULT_JWT_SECRET = "dev-only-insecure-secret-change-me"
@@ -34,9 +36,29 @@ class Settings(BaseSettings):
 
     # Admin endpoints (routers/admin.py) — register competitions/papers,
     # retry pipeline stages. Single shared key via X-Admin-Api-Key header;
-    # no per-admin-user accounts yet (tracked as a follow-up, see
+    # Socratic Studio has a separate staff boundary; legacy routes retain this key (see
     # requirements/11_SYSTEM_DIAGRAMS_TESTING_AND_METRICS.md).
     admin_api_key: str = INSECURE_DEFAULT_ADMIN_API_KEY
+
+    cognito_region: str = "us-east-2"
+    cognito_user_pool_id: str = ""
+    cognito_client_id: str = ""
+    cognito_client_secret: SecretStr = SecretStr("")
+    cognito_admin_group: str = "Admins"
+    socratic_math_reviewer_group: str = ""
+    socratic_pedagogy_reviewer_group: str = ""
+    socratic_publisher_group: str = ""
+    socratic_csrf_secret: SecretStr = SecretStr("")
+    socratic_allowed_origins: list[str] = Field(default_factory=list)
+    socratic_cookie_secure: bool = True
+    socratic_session_seconds: int = Field(default=900, ge=60, le=3600)
+    socratic_auth_mode: Literal["cognito", "local"] = "cognito"
+    socratic_aws_profile: str = ""
+    socratic_local_username: str = ""
+    socratic_local_password_hash: SecretStr = SecretStr("")
+    socratic_local_capabilities: list[
+        Literal["author", "review_mathematics", "review_pedagogy", "publish"]
+    ] = Field(default_factory=lambda: ["author"])
 
     # requirements/60 §7 — the Manim Video Studio is a peer service, not a sibling
     # Python package; promotion calls its REST API (list candidates, fetch the

@@ -1,5 +1,17 @@
 # PostgreSQL schema reference
 
+## Socratic draft increment — migration 053
+
+Source revision `a0041e2bc53818b9d06e67d836a5b6d701872fb0` plus relevant
+worktree changes. The [orchestration catalog](postgres/orchestration.md)
+documents all four new tables, columns, version/source relationships,
+constraints/indexes and immutable evidence triggers. Migration 053 was
+explicitly applied and repeated on the authorized REST-configured Neon
+target on 2026-10-25; scoped read-only metadata confirmed its column sets and
+protections. No full-database parity or updated graph inventory is claimed.
+Canonical/learner data was not changed. See the
+[acceptance ledger](../67_SOCRATIC_IMPLEMENTATION_HANDOFF.md).
+
 ## Current source-derived mock-exam addition
 
 Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5` plus relevant

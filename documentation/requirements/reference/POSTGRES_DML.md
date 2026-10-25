@@ -1,5 +1,30 @@
 # PostgreSQL DML and query behavior reference
 
+## Socratic draft/source transactions
+
+Source revision `a0041e2bc53818b9d06e67d836a5b6d701872fb0` plus worktree
+changes: [service](../../../mathbank-rest/src/mathbank_rest/socratic_service.py),
+[contracts](../../../mathbank-rest/src/mathbank_rest/socratic_contracts.py),
+[router](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py) and
+[schema/access catalog](postgres/orchestration.md).
+
+| Operation | Access and transaction |
+|---|---|
+| Strategies/resources | Staff `author`; paginated source statements/IDs/revisions and published route references, never solution bodies or answer keys. Resource filtering escapes SQL wildcard characters. |
+| Owned draft list/read/history | Staff actor derived from verified session; `(workflow_id, owner_id)` checks, nonowner 404; list limit 25 default/100 maximum, offset bounded 0–100000, `has_more` from one extra row. |
+| Create | Strict title/domain, registry validation, caller idempotency key. Advisory command lock; one transaction inserts workflow, initial immutable revision, receipt and existing audit/outbox evidence. |
+| Save | Same-key/input replay returns exact prior response. Distinct-key saves lock workflow first, then read the current revision in a fresh statement and compare expected hash. Sources locked FOR SHARE; mismatched/stale dependencies return 409. Append revision/evidence/receipt and update current pointer atomically. |
+| Validate | Read-only draft/dependency check in a transaction; exact expected hash, explicit solution pin and reachability. `DRAFT_STRUCTURE_ONLY`, not mathematical/pedagogical/publication approval. |
+
+API idempotency keys are 1–128 ASCII alphanumeric/underscore/hyphen characters.
+Different input under the same owner/operation/key is 409. Storage errors are
+safe 503s, with an explicit rollback log but no raw provider/credential bodies.
+An injected outbox error verified rollback of all save effects. Separate-connection
+tests verified one create for simultaneous duplicate commands and one CAS save
+winner with a 409 loser. All ordinary test writes were rolled back; one opted-in
+concurrency fixture remains as disclosed in the ledger. No graph/vector refresh
+or agent invocation follows `SOCRATIC_DRAFT_SAVED` in this increment.
+
 ## Evidence
 
 - Evidence mode: source-derived access/transaction behavior; complete selected

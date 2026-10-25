@@ -2,6 +2,13 @@
 
 ## 0. Status and scope
 
+**Later, separate research:** [requirement 66](66_AWS_STORAGE_DATABASE_COST_AND_MIGRATION_REPORT.md)
+evaluates the newly requested Neon/Aura replacement options (S3 Vectors, DynamoDB,
+Aurora and Neptune). It does not change this document's original compute-only
+scope or establish that a database migration saves money. The proposed
+[Socratic Studio/AgentCore architecture](65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md)
+is requirements-only and has not been deployed.
+
 | | |
 |---|---|
 | Status | **Fully superseded by real deployment — every service this document originally scoped is now live, including the three that were still "not yet deployed" as of the previous revision.** See requirements/63 (the 5-service core Lambda deployment), requirements/64 §9-10 (`mathbank-exam-agent` + `mathbank-exam-web`), and §5/§6/§8 below (this revision) for `mathbank-web`, `mathbank-live`, and `mathbank-ml-frontend` — all three deployed to **Fargate** (not Amplify Hosting, which this revision explains was blocked, and not Lightsail), **live-verified** including real Cognito logins against the deployed Lambda `mathbank-rest`, not localhost. §8 has real measured costs; §5/§6 document the actual deployed architecture plus two real bugs hit and fixed along the way (CPU-architecture mismatch, missing Cognito IAM grant) worth keeping for any future Fargate work in this repo. Every price/limit elsewhere in this document is from a live web search; every claim about *this* project's own setup was confirmed by reading this repo's actual `.env`/README/Makefiles/deployed stacks. |
@@ -475,4 +482,3 @@ is actually up for interactive dev/testing.
 ## Cross-document relationship
 
 Complements the root [README.md](../../README.md)'s Architecture section (service inventory/ports) and `Makefile`'s `up-windows`/`up-app` targets (this session's local-dev convenience work) — this document is about *where* those same services could run for less money, not a replacement for local dev. See requirements/63 for the full build log and real operational evidence (make commands, GOTCHAS, redeploy/destroy instructions) of the 5-service core deployment this document's §3-§5 recommended, and requirements/64 §9-§10 for the two services added afterward (`mathbank-exam-agent`/`mathbank-exam-web`), including the real Cognito integration §6a above describes. This revision's own build log (the Fargate deployment of `mathbank-web`/`mathbank-live`/`mathbank-ml-frontend`, §5/§6/§8 above) lives in this document directly — there is no separate requirements/65 for it.
-

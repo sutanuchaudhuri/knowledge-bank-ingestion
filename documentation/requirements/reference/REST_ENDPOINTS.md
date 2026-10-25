@@ -1,8 +1,8 @@
 # Complete REST operation inventory
 
-Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the checked-in `mathbank_rest.main:app.openapi()` plus registered FastAPI handler metadata. Worktree changes are included.
+Source revision `a0041e2bc53818b9d06e67d836a5b6d701872fb0`; generated from the checked-in `mathbank_rest.main:app.openapi()` plus registered FastAPI handler metadata. Worktree changes are included.
 
-**324 paths / 346 HTTP operations / 177 schemas.** No endpoint handlers were invoked, no server was started, and no live API/database parity is claimed.
+**333 paths / 359 HTTP operations / 202 schemas.** No endpoint handlers were invoked, no server was started, and no live API/database parity is claimed.
 
 [Readable REST contracts and security caveats](REST_API.md) | [OpenAPI snapshot](openapi.json) | [PostgreSQL schema/access catalog](postgres/README.md) | [DML behavior](POSTGRES_DML.md)
 
@@ -17,7 +17,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Health
 **Tags:** `ops`
 **OpenAPI security:** none declared (implementation may enforce dependencies/ownership).
-**Handler:** [`health`](../../../mathbank-rest/src/mathbank_rest/main.py#L119)
+**Handler:** [`health`](../../../mathbank-rest/src/mathbank_rest/main.py#L124)
 **Operation ID:** `health_health_get`
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Health Health Get","type":"object"}`
 
@@ -25,7 +25,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Health Neo4J
 **Tags:** `ops`
 **OpenAPI security:** none declared (implementation may enforce dependencies/ownership).
-**Handler:** [`health_neo4j`](../../../mathbank-rest/src/mathbank_rest/main.py#L136)
+**Handler:** [`health_neo4j`](../../../mathbank-rest/src/mathbank_rest/main.py#L141)
 **Operation ID:** `health_neo4j_health_neo4j_get`
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Health Neo4J Health Neo4J Get","type":"object"}`
 
@@ -33,7 +33,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Health Postgres
 **Tags:** `ops`
 **OpenAPI security:** none declared (implementation may enforce dependencies/ownership).
-**Handler:** [`health_postgres`](../../../mathbank-rest/src/mathbank_rest/main.py#L128)
+**Handler:** [`health_postgres`](../../../mathbank-rest/src/mathbank_rest/main.py#L133)
 **Operation ID:** `health_postgres_health_postgres_get`
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Health Postgres Health Postgres Get","type":"object"}`
 
@@ -376,6 +376,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Edit Step
 **Tags:** `admin-imports`
 **OpenAPI security:** `APIKeyHeader`
+**Handler:** [`edit_step`](../../../mathbank-rest/src/mathbank_rest/routers/admin_imports.py#L140)
 **Operation ID:** `edit_step_v1_admin_imports_steps__step_id__patch`
 **Parameters:** `step_id` (path, required; `{"title":"Step Id","type":"string"}`)
 **Request body:** required; `application/json`: `StepEdit` (in [OpenAPI snapshot](openapi.json))
@@ -945,6 +946,107 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Operation ID:** `admin_recovery_plan_v1_admin_recovery_plans__plan_id__get`
 **Parameters:** `plan_id` (path, required; `{"format":"uuid","title":"Plan Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Admin Recovery Plan V1 Admin Recovery Plans  Plan Id  Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
+
+### GET `/v1/admin/socratic/resources`
+**Purpose:** Resources
+**Tags:** `admin-socratic`
+**OpenAPI security:** `SocraticStaffCookie`
+**Handler:** [`resources`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L124)
+**Operation ID:** `resources_v1_admin_socratic_resources_get`
+**Parameters:** `q` (query, optional; `{"default":"","maxLength":200,"title":"Q","type":"string"}`); `limit` (query, optional; `{"default":25,"maximum":100,"minimum":1,"title":"Limit","type":"integer"}`); `offset` (query, optional; `{"default":0,"maximum":100000,"minimum":0,"title":"Offset","type":"integer"}`)
+**Documented responses:** `200` Successful Response: `application/json` `ResourcePage` (in [OpenAPI snapshot](openapi.json)); `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
+
+### DELETE `/v1/admin/socratic/session`
+**Purpose:** Logout
+**Tags:** `admin-socratic`
+**OpenAPI security:** `SocraticStaffCookie` OR `SocraticRefreshCookie`
+**Handler:** [`logout`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L95)
+**Operation ID:** `logout_v1_admin_socratic_session_delete`
+**Parameters:** `Origin` (header, required; `{"type":"string"}`; Exact explicitly configured Studio origin; cross-site requests are denied.); `X-CSRF-Token` (header, required; `{"type":"string"}`; CSRF token returned by the current staff session.)
+**Documented responses:** `204` Successful Response: no response schema declared; `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
+
+### GET `/v1/admin/socratic/session`
+**Purpose:** Session
+**Tags:** `admin-socratic`
+**OpenAPI security:** `SocraticStaffCookie`
+**Handler:** [`session`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L89)
+**Operation ID:** `session_v1_admin_socratic_session_get`
+**Documented responses:** `200` Successful Response: `application/json` `StaffSession` (in [OpenAPI snapshot](openapi.json)); `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
+
+### POST `/v1/admin/socratic/session`
+**Purpose:** Login
+**Tags:** `admin-socratic`
+**OpenAPI security:** none declared (implementation may enforce dependencies/ownership).
+**Handler:** [`login`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L75)
+**Operation ID:** `login_v1_admin_socratic_session_post`
+**Parameters:** `Origin` (header, required; `{"type":"string"}`; Exact explicitly configured Studio origin; cross-site requests are denied.)
+**Request body:** required; `application/json`: `mathbank_rest__routers__socratic__LoginRequest` (in [OpenAPI snapshot](openapi.json))
+**Documented responses:** `200` Successful Response: `application/json` `StaffSession` (in [OpenAPI snapshot](openapi.json)); `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
+
+### GET `/v1/admin/socratic/strategies`
+**Purpose:** Strategies
+**Tags:** `admin-socratic`
+**OpenAPI security:** `SocraticStaffCookie`
+**Handler:** [`strategies`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L117)
+**Operation ID:** `strategies_v1_admin_socratic_strategies_get`
+**Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":{"items":{"$ref":"#/components/schemas/Strategy"},"type":"array"},"title":"Response Strategies V1 Admin Socratic Strategies Get","type":"object"}`; `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
+
+### GET `/v1/admin/socratic/workflows`
+**Purpose:** Workflows
+**Tags:** `admin-socratic`
+**OpenAPI security:** `SocraticStaffCookie`
+**Handler:** [`workflows`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L133)
+**Operation ID:** `workflows_v1_admin_socratic_workflows_get`
+**Parameters:** `limit` (query, optional; `{"default":25,"maximum":100,"minimum":1,"title":"Limit","type":"integer"}`); `offset` (query, optional; `{"default":0,"maximum":100000,"minimum":0,"title":"Offset","type":"integer"}`)
+**Documented responses:** `200` Successful Response: `application/json` `WorkflowPage` (in [OpenAPI snapshot](openapi.json)); `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
+
+### POST `/v1/admin/socratic/workflows`
+**Purpose:** Create Workflow
+**Tags:** `admin-socratic`
+**OpenAPI security:** `SocraticStaffCookie`
+**Handler:** [`create_workflow`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L140)
+**Operation ID:** `create_workflow_v1_admin_socratic_workflows_post`
+**Parameters:** `Idempotency-Key` (header, required; `{"maxLength":128,"minLength":1,"pattern":"^[A-Za-z0-9_-]+$","title":"Idempotency-Key","type":"string"}`); `Origin` (header, required; `{"type":"string"}`; Exact explicitly configured Studio origin; cross-site requests are denied.); `X-CSRF-Token` (header, required; `{"type":"string"}`; CSRF token returned by the current staff session.)
+**Request body:** required; `application/json`: `CreateWorkflow` (in [OpenAPI snapshot](openapi.json))
+**Documented responses:** `201` Successful Response: `application/json` `Workflow` (in [OpenAPI snapshot](openapi.json)); `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
+
+### GET `/v1/admin/socratic/workflows/{workflow_id}`
+**Purpose:** Workflow
+**Tags:** `admin-socratic`
+**OpenAPI security:** `SocraticStaffCookie`
+**Handler:** [`workflow`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L147)
+**Operation ID:** `workflow_v1_admin_socratic_workflows__workflow_id__get`
+**Parameters:** `workflow_id` (path, required; `{"format":"uuid","title":"Workflow Id","type":"string"}`)
+**Documented responses:** `200` Successful Response: `application/json` `Workflow` (in [OpenAPI snapshot](openapi.json)); `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
+
+### PUT `/v1/admin/socratic/workflows/{workflow_id}`
+**Purpose:** Update Workflow
+**Tags:** `admin-socratic`
+**OpenAPI security:** `SocraticStaffCookie`
+**Handler:** [`update_workflow`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L159)
+**Operation ID:** `update_workflow_v1_admin_socratic_workflows__workflow_id__put`
+**Parameters:** `workflow_id` (path, required; `{"format":"uuid","title":"Workflow Id","type":"string"}`); `Idempotency-Key` (header, required; `{"maxLength":128,"minLength":1,"pattern":"^[A-Za-z0-9_-]+$","title":"Idempotency-Key","type":"string"}`); `Origin` (header, required; `{"type":"string"}`; Exact explicitly configured Studio origin; cross-site requests are denied.); `X-CSRF-Token` (header, required; `{"type":"string"}`; CSRF token returned by the current staff session.)
+**Request body:** required; `application/json`: `UpdateWorkflow` (in [OpenAPI snapshot](openapi.json))
+**Documented responses:** `200` Successful Response: `application/json` `Workflow` (in [OpenAPI snapshot](openapi.json)); `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
+
+### GET `/v1/admin/socratic/workflows/{workflow_id}/revisions/{revision}`
+**Purpose:** Workflow Revision
+**Tags:** `admin-socratic`
+**OpenAPI security:** `SocraticStaffCookie`
+**Handler:** [`workflow_revision`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L153)
+**Operation ID:** `workflow_revision_v1_admin_socratic_workflows__workflow_id__revisions__revision__get`
+**Parameters:** `workflow_id` (path, required; `{"format":"uuid","title":"Workflow Id","type":"string"}`); `revision` (path, required; `{"minimum":1,"title":"Revision","type":"integer"}`)
+**Documented responses:** `200` Successful Response: `application/json` `Workflow` (in [OpenAPI snapshot](openapi.json)); `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
+
+### POST `/v1/admin/socratic/workflows/{workflow_id}/validate`
+**Purpose:** Validate Workflow
+**Tags:** `admin-socratic`
+**OpenAPI security:** `SocraticStaffCookie`
+**Handler:** [`validate_workflow`](../../../mathbank-rest/src/mathbank_rest/routers/socratic.py#L165)
+**Operation ID:** `validate_workflow_v1_admin_socratic_workflows__workflow_id__validate_post`
+**Parameters:** `workflow_id` (path, required; `{"format":"uuid","title":"Workflow Id","type":"string"}`); `Origin` (header, required; `{"type":"string"}`; Exact explicitly configured Studio origin; cross-site requests are denied.); `X-CSRF-Token` (header, required; `{"type":"string"}`; CSRF token returned by the current staff session.)
+**Request body:** required; `application/json`: `ValidateWorkflow` (in [OpenAPI snapshot](openapi.json))
+**Documented responses:** `200` Successful Response: `application/json` `Validation` (in [OpenAPI snapshot](openapi.json)); `401` Unauthorized: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `403` Forbidden: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `404` Not Found: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `409` Conflict: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `422` Unprocessable Entity: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `429` Too Many Requests: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json)); `503` Service Unavailable: `application/json` `StaffError` (in [OpenAPI snapshot](openapi.json))
 
 ### GET `/v1/admin/students/{student_id}/knowledge-gaps`
 **Purpose:** Admin Student Gaps
@@ -1732,6 +1834,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Diagnose Step
 **Tags:** `step-runtime`
 **OpenAPI security:** `HTTPBearer`
+**Handler:** [`diagnose_step`](../../../mathbank-rest/src/mathbank_rest/routers/step_runtime.py#L204)
 **Operation ID:** `diagnose_step_v1_attempts__attempt_id__steps__step_id__diagnose_post`
 **Parameters:** `attempt_id` (path, required; `{"format":"uuid","title":"Attempt Id","type":"string"}`); `step_id` (path, required; `{"title":"Step Id","type":"string"}`)
 **Request body:** optional; `application/json`: `{"anyOf":[{"$ref":"#/components/schemas/DiagnoseRequest"},{"type":"null"}],"title":"Body"}`
@@ -1741,6 +1844,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Request Hint
 **Tags:** `step-runtime`
 **OpenAPI security:** `HTTPBearer`
+**Handler:** [`request_hint`](../../../mathbank-rest/src/mathbank_rest/routers/step_runtime.py#L160)
 **Operation ID:** `request_hint_v1_attempts__attempt_id__steps__step_id__hint_post`
 **Parameters:** `attempt_id` (path, required; `{"format":"uuid","title":"Attempt Id","type":"string"}`); `step_id` (path, required; `{"title":"Step Id","type":"string"}`); `Idempotency-Key` (header, optional; `{"anyOf":[{"maxLength":200,"type":"string"},{"type":"null"}],"title":"Idempotency-Key"}`)
 **Request body:** required; `application/json`: `VersionedRequest` (in [OpenAPI snapshot](openapi.json))
@@ -1750,6 +1854,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** List Hints
 **Tags:** `step-runtime`
 **OpenAPI security:** `HTTPBearer`
+**Handler:** [`list_hints`](../../../mathbank-rest/src/mathbank_rest/routers/step_runtime.py#L178)
 **Operation ID:** `list_hints_v1_attempts__attempt_id__steps__step_id__hints_get`
 **Parameters:** `attempt_id` (path, required; `{"format":"uuid","title":"Attempt Id","type":"string"}`); `step_id` (path, required; `{"title":"Step Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response List Hints V1 Attempts  Attempt Id  Steps  Step Id  Hints Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -1758,6 +1863,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Record Step Outcome
 **Tags:** `step-runtime`
 **OpenAPI security:** `APIKeyHeader`
+**Handler:** [`record_step_outcome`](../../../mathbank-rest/src/mathbank_rest/routers/step_runtime.py#L190)
 **Operation ID:** `record_step_outcome_v1_attempts__attempt_id__steps__step_id__outcome_post`
 **Parameters:** `attempt_id` (path, required; `{"format":"uuid","title":"Attempt Id","type":"string"}`); `step_id` (path, required; `{"title":"Step Id","type":"string"}`); `Idempotency-Key` (header, optional; `{"anyOf":[{"maxLength":200,"type":"string"},{"type":"null"}],"title":"Idempotency-Key"}`)
 **Request body:** required; `application/json`: `StepOutcomeRequest` (in [OpenAPI snapshot](openapi.json))
@@ -1767,6 +1873,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Submit Step Response
 **Tags:** `step-runtime`
 **OpenAPI security:** `HTTPBearer`
+**Handler:** [`submit_step_response`](../../../mathbank-rest/src/mathbank_rest/routers/step_runtime.py#L116)
 **Operation ID:** `submit_step_response_v1_attempts__attempt_id__steps__step_id__responses_post`
 **Parameters:** `attempt_id` (path, required; `{"format":"uuid","title":"Attempt Id","type":"string"}`); `step_id` (path, required; `{"title":"Step Id","type":"string"}`); `Idempotency-Key` (header, optional; `{"anyOf":[{"maxLength":200,"type":"string"},{"type":"null"}],"title":"Idempotency-Key"}`)
 **Request body:** required; `application/json`: `StepResponseRequest` (in [OpenAPI snapshot](openapi.json))
@@ -2159,7 +2266,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **OpenAPI security:** none declared (implementation may enforce dependencies/ownership).
 **Handler:** [`login`](../../../mathbank-rest/src/mathbank_rest/routers/learner.py#L90)
 **Operation ID:** `login_v1_learner_login_post`
-**Request body:** required; `application/json`: `LoginRequest` (in [OpenAPI snapshot](openapi.json))
+**Request body:** required; `application/json`: `mathbank_rest__routers__learner__LoginRequest` (in [OpenAPI snapshot](openapi.json))
 **Documented responses:** `200` Successful Response: `application/json` `AuthResponse` (in [OpenAPI snapshot](openapi.json)); `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
 
 ### GET `/v1/learner/mastery`
@@ -2567,7 +2674,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Difficulty Distribution
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`difficulty_distribution`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L295)
+**Handler:** [`difficulty_distribution`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L339)
 **Operation ID:** `difficulty_distribution_v1_quiz_integration_difficulty_distribution_get`
 **Parameters:** `concept_slug` (query, optional; `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Concept Slug"}`); `technique_slug` (query, optional; `{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Technique Slug"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Difficulty Distribution V1 Quiz Integration Difficulty Distribution Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2576,7 +2683,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Import Paper
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`import_paper`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L134)
+**Handler:** [`import_paper`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L159)
 **Operation ID:** `import_paper_v1_quiz_integration_papers_post`
 **Request body:** required; `application/json`: `ImportPaperRequest` (in [OpenAPI snapshot](openapi.json))
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Import Paper V1 Quiz Integration Papers Post","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2585,7 +2692,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** List My Papers
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`list_my_papers`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L195)
+**Handler:** [`list_my_papers`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L239)
 **Operation ID:** `list_my_papers_v1_quiz_integration_papers_mine_get`
 **Parameters:** `student_id` (query, required; `{"format":"uuid","title":"Student Id","type":"string"}`); `limit` (query, optional; default `20`; `{"default":20,"title":"Limit","type":"integer"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"items":{"additionalProperties":true,"type":"object"},"title":"Response List My Papers V1 Quiz Integration Papers Mine Get","type":"array"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2594,7 +2701,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Start Paper
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`start_paper`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L149)
+**Handler:** [`start_paper`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L174)
 **Operation ID:** `start_paper_v1_quiz_integration_papers_start_post`
 **Request body:** required; `application/json`: `StartPaperRequest` (in [OpenAPI snapshot](openapi.json))
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Start Paper V1 Quiz Integration Papers Start Post","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2603,7 +2710,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Get Paper
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`get_paper`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L204)
+**Handler:** [`get_paper`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L248)
 **Operation ID:** `get_paper_v1_quiz_integration_papers__quiz_id__get`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`); `student_id` (query, required; `{"format":"uuid","title":"Student Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Get Paper V1 Quiz Integration Papers  Quiz Id  Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2612,7 +2719,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Get Diagnosis
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`get_diagnosis`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L329)
+**Handler:** [`get_diagnosis`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L373)
 **Operation ID:** `get_diagnosis_v1_quiz_integration_papers__quiz_id__diagnosis_get`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`); `student_id` (query, required; `{"format":"uuid","title":"Student Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Get Diagnosis V1 Quiz Integration Papers  Quiz Id  Diagnosis Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2621,7 +2728,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Write Diagnosis
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`write_diagnosis`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L276)
+**Handler:** [`write_diagnosis`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L320)
 **Operation ID:** `write_diagnosis_v1_quiz_integration_papers__quiz_id__diagnosis_post`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`)
 **Request body:** required; `application/json`: `WriteDiagnosisRequest` (in [OpenAPI snapshot](openapi.json))
@@ -2631,7 +2738,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Diagnosis Input
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`diagnosis_input`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L261)
+**Handler:** [`diagnosis_input`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L305)
 **Operation ID:** `diagnosis_input_v1_quiz_integration_papers__quiz_id__diagnosis_input_get`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`); `student_id` (query, required; `{"format":"uuid","title":"Student Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Diagnosis Input V1 Quiz Integration Papers  Quiz Id  Diagnosis Input Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2640,16 +2747,26 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Get Events
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`get_events`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L418)
+**Handler:** [`get_events`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L462)
 **Operation ID:** `get_events_v1_quiz_integration_papers__quiz_id__events_get`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`); `student_id` (query, required; `{"format":"uuid","title":"Student Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"items":{"additionalProperties":true,"type":"object"},"title":"Response Get Events V1 Quiz Integration Papers  Quiz Id  Events Get","type":"array"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
+
+### POST `/v1/quiz-integration/papers/{quiz_id}/fail`
+**Purpose:** Fail Paper
+**Tags:** `quiz-integration`
+**OpenAPI security:** `APIKeyHeader`
+**Handler:** [`fail_paper`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L204)
+**Operation ID:** `fail_paper_v1_quiz_integration_papers__quiz_id__fail_post`
+**Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`)
+**Request body:** required; `application/json`: `FailPaperRequest` (in [OpenAPI snapshot](openapi.json))
+**Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Fail Paper V1 Quiz Integration Papers  Quiz Id  Fail Post","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
 
 ### POST `/v1/quiz-integration/papers/{quiz_id}/finalize`
 **Purpose:** Finalize Paper
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`finalize_paper`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L168)
+**Handler:** [`finalize_paper`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L193)
 **Operation ID:** `finalize_paper_v1_quiz_integration_papers__quiz_id__finalize_post`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`)
 **Request body:** required; `application/json`: `FinalizePaperRequest` (in [OpenAPI snapshot](openapi.json))
@@ -2659,7 +2776,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Get Generation Events
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`get_generation_events`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L190)
+**Handler:** [`get_generation_events`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L234)
 **Operation ID:** `get_generation_events_v1_quiz_integration_papers__quiz_id__generation_events_get`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`); `student_id` (query, required; `{"format":"uuid","title":"Student Id","type":"string"}`); `since_ordinal` (query, optional; default `0`; `{"default":0,"title":"Since Ordinal","type":"integer"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"items":{"additionalProperties":true,"type":"object"},"title":"Response Get Generation Events V1 Quiz Integration Papers  Quiz Id  Generation Events Get","type":"array"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2668,7 +2785,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Post Generation Event
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`post_generation_event`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L178)
+**Handler:** [`post_generation_event`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L222)
 **Operation ID:** `post_generation_event_v1_quiz_integration_papers__quiz_id__generation_events_post`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`)
 **Request body:** required; `application/json`: `GenerationEventRequest` (in [OpenAPI snapshot](openapi.json))
@@ -2678,7 +2795,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Save Exam Progress
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`save_exam_progress`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L218)
+**Handler:** [`save_exam_progress`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L262)
 **Operation ID:** `save_exam_progress_v1_quiz_integration_papers__quiz_id__progress_put`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`)
 **Request body:** required; `application/json`: `SaveExamProgressRequest` (in [OpenAPI snapshot](openapi.json))
@@ -2688,7 +2805,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Log Event
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`log_event`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L409)
+**Handler:** [`log_event`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L453)
 **Operation ID:** `log_event_v1_quiz_integration_papers__quiz_id__questions__question_id__events_post`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`); `question_id` (path, required; `{"format":"uuid","title":"Question Id","type":"string"}`)
 **Request body:** required; `application/json`: `LogEventRequest` (in [OpenAPI snapshot](openapi.json))
@@ -2698,7 +2815,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Respond
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`respond`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L238)
+**Handler:** [`respond`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L282)
 **Operation ID:** `respond_v1_quiz_integration_papers__quiz_id__questions__question_id__respond_post`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`); `question_id` (path, required; `{"format":"uuid","title":"Question Id","type":"string"}`)
 **Request body:** required; `application/json`: `mathbank_rest__routers__exam_integration__RespondRequest` (in [OpenAPI snapshot](openapi.json))
@@ -2708,7 +2825,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Review
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`review`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L251)
+**Handler:** [`review`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L295)
 **Operation ID:** `review_v1_quiz_integration_papers__quiz_id__review_get`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`); `student_id` (query, required; `{"format":"uuid","title":"Student Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Review V1 Quiz Integration Papers  Quiz Id  Review Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2717,16 +2834,25 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Submit Exam
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`submit_exam`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L256)
+**Handler:** [`submit_exam`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L300)
 **Operation ID:** `submit_exam_v1_quiz_integration_papers__quiz_id__submit_post`
 **Parameters:** `quiz_id` (path, required; `{"format":"uuid","title":"Quiz Id","type":"string"}`); `student_id` (query, required; `{"format":"uuid","title":"Student Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Submit Exam V1 Quiz Integration Papers  Quiz Id  Submit Post","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
+
+### POST `/v1/quiz-integration/question-pool/match`
+**Purpose:** Match Question Pool
+**Tags:** `quiz-integration`
+**OpenAPI security:** `APIKeyHeader`
+**Handler:** [`match_question_pool`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L209)
+**Operation ID:** `match_question_pool_v1_quiz_integration_question_pool_match_post`
+**Request body:** required; `application/json`: `MatchPoolRequest` (in [OpenAPI snapshot](openapi.json))
+**Documented responses:** `200` Successful Response: `application/json` `{"items":{"additionalProperties":true,"type":"object"},"title":"Response Match Question Pool V1 Quiz Integration Question Pool Match Post","type":"array"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
 
 ### GET `/v1/quiz-integration/students/by-cognito-sub/{cognito_sub}`
 **Purpose:** Student By Cognito Sub
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`student_by_cognito_sub`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L362)
+**Handler:** [`student_by_cognito_sub`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L406)
 **Operation ID:** `student_by_cognito_sub_v1_quiz_integration_students_by_cognito_sub__cognito_sub__get`
 **Parameters:** `cognito_sub` (path, required; `{"title":"Cognito Sub","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Student By Cognito Sub V1 Quiz Integration Students By Cognito Sub  Cognito Sub  Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2735,7 +2861,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Onboard Student
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`onboard_student`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L348)
+**Handler:** [`onboard_student`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L392)
 **Operation ID:** `onboard_student_v1_quiz_integration_students_onboard_post`
 **Request body:** required; `application/json`: `OnboardStudentRequest` (in [OpenAPI snapshot](openapi.json))
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Onboard Student V1 Quiz Integration Students Onboard Post","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2744,7 +2870,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Student Profile
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`student_profile`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L370)
+**Handler:** [`student_profile`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L414)
 **Operation ID:** `student_profile_v1_quiz_integration_students__student_id__get`
 **Parameters:** `student_id` (path, required; `{"format":"uuid","title":"Student Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Student Profile V1 Quiz Integration Students  Student Id  Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2753,7 +2879,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Mastery Summary
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`mastery_summary`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L286)
+**Handler:** [`mastery_summary`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L330)
 **Operation ID:** `mastery_summary_v1_quiz_integration_students__student_id__mastery_summary_get`
 **Parameters:** `student_id` (path, required; `{"format":"uuid","title":"Student Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Mastery Summary V1 Quiz Integration Students  Student Id  Mastery Summary Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2762,7 +2888,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Mint Session Token
 **Tags:** `quiz-integration`
 **OpenAPI security:** `APIKeyHeader`
-**Handler:** [`mint_session_token`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L378)
+**Handler:** [`mint_session_token`](../../../mathbank-rest/src/mathbank_rest/routers/exam_integration.py#L422)
 **Operation ID:** `mint_session_token_v1_quiz_integration_students__student_id__mint_session_token_post`
 **Parameters:** `student_id` (path, required; `{"format":"uuid","title":"Student Id","type":"string"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Mint Session Token V1 Quiz Integration Students  Student Id  Mint Session Token Post","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))
@@ -2891,6 +3017,7 @@ Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5`; generated from the c
 **Purpose:** Practice For Step
 **Tags:** `step-runtime`
 **OpenAPI security:** `HTTPBearer`
+**Handler:** [`practice_for_step`](../../../mathbank-rest/src/mathbank_rest/routers/step_runtime.py#L373)
 **Operation ID:** `practice_for_step_v1_solution_steps__step_id__practice_get`
 **Parameters:** `step_id` (path, required; `{"title":"Step Id","type":"string"}`); `limit` (query, optional; default `5`; `{"default":5,"maximum":20,"minimum":1,"title":"Limit","type":"integer"}`); `same_skill` (query, optional; default `True`; `{"default":true,"title":"Same Skill","type":"boolean"}`)
 **Documented responses:** `200` Successful Response: `application/json` `{"additionalProperties":true,"title":"Response Practice For Step V1 Solution Steps  Step Id  Practice Get","type":"object"}`; `422` Validation Error: `application/json` `HTTPValidationError` (in [OpenAPI snapshot](openapi.json))

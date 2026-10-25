@@ -2,7 +2,98 @@
 
 ## Evidence
 
+### Socratic Studio drafts and staff session boundary
+
+Source revision `a0041e2bc53818b9d06e67d836a5b6d701872fb0` plus worktree
+changes: **333 paths / 359 HTTP operations / 202 schemas**, generated from
+`app.openapi()` and registered handler metadata without executing handlers.
+See the [complete inventory](REST_ENDPOINTS.md), [screened snapshot](openapi.json)
+and [sequential acceptance ledger](../67_SOCRATIC_IMPLEMENTATION_HANDOFF.md).
+Pre-existing pool-matching/paper-failure changes are also now in the snapshot;
+their inclusion is not new implementation or live verification in this step.
+
+| Method/path | Contract |
+|---|---|
+| `POST /v1/admin/socratic/session` | Strict username/password body, exact trusted `Origin`. Existing Cognito confidential-client flow by default, or explicitly configured loopback-only local mode. Returns stable actor/capabilities, CSRF and `auth_mode`; sets scoped HttpOnly/Strict, secure-by-default cookies. |
+| `GET /v1/admin/socratic/session` | Access cookie required. Rechecks actual token with Cognito and current paginated groups, issuer/pool/client/token-use restriction and stable subject. Returns current actor/capabilities and CSRF. |
+| `DELETE /v1/admin/socratic/session` | Both cookies, trusted `Origin` and current `X-CSRF-Token`. Revokes this refresh-token family, then clears cookies; 204. Provider failure does not fabricate successful logout. No global sign-out. |
+
+This boundary does not accept a learner JWT, shared admin API key or a
+caller-declared identity/role. `Admins` grants authoring only; explicitly
+configured review/publish groups independently grant those capabilities.
+Future protected mutation routes must use `require_staff`; review/publication
+must additionally enforce the appropriate `require_capability` and exact-hash
+attestations. Merely including a router under an admin prefix is not protection.
+The draft endpoints below use this boundary. Review/publication remain pending.
+
+Errors use `{detail: {code, message, correlation_id, retryable}}`, no-store and
+sanitized validation: 401 invalid/missing session or credentials; 403 missing
+staff/capability, Origin/CSRF failure or unsupported MFA/password-change
+challenge; 422 invalid request; 429 provider throttling; 503 incomplete
+configuration/provider failure. No provider error bodies or invalid passwords
+are echoed. Cookies expire after the configured lifetime (900 seconds by
+default, bounded by provider expiry); session refresh and challenge completion
+are not implemented. Do not weaken pool MFA to bypass an explicit challenge.
+
+[Configuration and provider prerequisites](../../../mathbank-rest/README.md#socratic-studio-staff-authentication)
+are required before live login. Offline tests pass. Pool/client/CSRF/
+origin settings now validate in the selected local REST environment, and
+read-only AWS metadata confirms existing-client flow/revocation prerequisites.
+Real local browser login/CSRF/restore/logout/replay passed without AWS.
+Successful **Cognito** sign-in/revocation and protected hosted persistence
+remain pending. The separate isolated draft API/SPA is deployed and its exact
+source schema, readiness and denials verified; this does not update the shared
+REST Lambda. Existing admin/learner boundaries and graph storage are unchanged;
+the additive draft schema is documented separately.
+
+Explicit `SOCRATIC_AUTH_MODE=local` uses a bcrypt-hashed local password,
+loopback-only origin/peer/hostname checks and namespaced `local:` identities;
+it never follows a failed Cognito request as a fallback. Known AWS runtimes
+reject local mode. Local tokens live hashed in a bounded single-process
+in-memory store; expiry, logout, credential/capability/CSRF changes and restart
+invalidate them. `auth_mode` is returned as `local` for the UI warning.
+The standalone local auth server exposes sessions only; unfinished catalogs
+remain visible errors. This is not a distributed/hosted authentication design
+or proof of model/database integration. See the
+[non-AWS runbook](../../../mathbank-rest/README.md#interactive-non-aws-testing).
+
+#### Implemented draft endpoints
+
+All paths below are under `/v1/admin/socratic`; staff cookies and `author`
+capability are required. Mutations also require exact Origin and CSRF.
+
+| Method/path | Contract |
+|---|---|
+| `GET /strategies` | Immutable DRAFT candidate strategy DTOs; not approved policies. |
+| `GET /resources?q=&limit=25&offset=0` | `ResourcePage`: source statements, exact solution IDs/revisions and published route references with solution IDs; never solution bodies/answer keys. |
+| `GET /workflows?limit=25&offset=0` | `WorkflowPage`: only owned summaries plus `has_more`. Limit 1–100; offset 0–100000. |
+| `POST /workflows` | `CreateWorkflow {title,domain}`, mandatory `Idempotency-Key`; 201 `Workflow`. |
+| `GET /workflows/{workflow_id}` | Current owned immutable revision; nonowner/missing 404. |
+| `GET /workflows/{workflow_id}/revisions/{revision}` | Historical exact owned revision; positive revision number. |
+| `PUT /workflows/{workflow_id}` | `UpdateWorkflow {expected_hash,program}`, mandatory `Idempotency-Key`; 200 `Workflow`. |
+| `POST /workflows/{workflow_id}/validate` | Exact expected hash; 200 `{valid,findings,scope:"DRAFT_STRUCTURE_ONLY"}`; not mathematics/runtime/release approval. |
+
+Strict IR preserves all 18 prototype/framework node kinds, topic/objective,
+source/activity/accessibility references, annotated typed rules and bounded
+transition policy. Full runtime behavior for those kinds is **not** delivered.
+Malformed fields are safe 422; changed input under an idempotency key, stale
+draft/source or incompatible route are safe 409; storage failure is safe 503.
+Replayed create/update returns the original exact revision, including after a
+later save. Historical reads do not silently return the current revision.
+See [transaction rules](POSTGRES_DML.md#socratic-draftsource-transactions) and
+[schema](postgres/orchestration.md).
+
+The standalone auth launcher remains database-independent by default;
+`--with-drafts` explicitly enables real storage. The hosted isolated app serves
+only these routes, session endpoints and `/health`, plus static SPA files.
+Its `/openapi.json` matched the isolated source app exactly. Swagger CDN pages
+are disabled there; the shared REST OpenAPI snapshot above is larger and is
+not evidence of a shared-service deployment.
+
 ### Current source snapshot and resumable mock exams
+
+Historical exam-only refresh (superseded for API counts by the staff-session
+snapshot above):
 
 Source revision `99b9c503e3ef1abce15fbc681f087401b78227d5` with relevant
 worktree changes included. Screened `app.openapi()` contains **324 paths /

@@ -2,6 +2,17 @@ PYTHON ?= .venv/bin/python3
 CDK := npx -y aws-cdk
 AWS_PROFILE ?= aws-sutanu-admin
 AWS_REGION ?= us-east-2
+.DEFAULT_GOAL := install
+
+.PHONY: synth-socratic deploy-socratic seed-socratic
+synth-socratic: clean-cdk-out ensure-colima ## Synthesize only isolated Socratic API/SPA (build frontend first)
+	AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) CDK_DEFAULT_ACCOUNT=848941468793 CDK_DEFAULT_REGION=$(AWS_REGION) $(CDK) --app "$(PYTHON) socratic_app.py" synth MathBankSocraticStack --quiet
+
+deploy-socratic: clean-cdk-out ensure-colima ## Deploy only isolated Socratic API/SPA, never shared REST
+	AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) CDK_DEFAULT_ACCOUNT=848941468793 CDK_DEFAULT_REGION=$(AWS_REGION) $(CDK) --app "$(PYTHON) socratic_app.py" deploy MathBankSocraticStack --require-approval never
+
+seed-socratic:                    ## Seed just the three isolated Socratic SSM secrets from REST's private config
+	$(PYTHON) seed_socratic.py
 
 .PHONY: install
 install:                           ## Create the CDK venv and install aws-cdk-lib/boto3

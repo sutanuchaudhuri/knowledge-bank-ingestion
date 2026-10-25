@@ -7,6 +7,61 @@ recommendations. Full implementation status, real measured cold-start/cost numbe
 every bug found along the way are in
 [documentation/requirements/63](../documentation/requirements/63_AWS_SERVERLESS_DEPLOYMENT_IMPLEMENTATION.md).
 
+## Isolated Socratic draft deployment
+
+[Requirement 65](../documentation/requirements/65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md)
+specifies AgentCore, Lambda, Step Functions and static admin-hosting
+additions to **this existing CDK app**, not a second infrastructure project.
+The opt-in [socratic_app.py](socratic_app.py) entrypoint now deploys only
+`MathBankSocraticStack`: the `mathbank-socratic-api` Lambda serves the Vite SPA
+and isolated staff/draft API on one HTTPS origin. This does **not** redeploy
+`MathBankRestStack`, expose legacy learner/shared-key admin routes, or implement
+AgentCore/Step Functions/evaluation. Current readiness and remaining successful
+staff-login acceptance are tracked in
+[handoff 67](../documentation/requirements/67_SOCRATIC_IMPLEMENTATION_HANDOFF.md#step-02-execution-record).
+
+```sh
+cd mathbank-socratic-admin && npm run build
+cd ../mathbank-infra-aws
+make seed-socratic       # only 3 selected secrets; never print values
+make synth-socratic      # explicit isolated entrypoint, never default app
+.venv/bin/python -m unittest discover -s tests -v
+make deploy-socratic
+cd ../mathbank-rest
+.venv/bin/python scripts/verify_socratic_deployment.py \
+  --url https://tzgysffipx6fiomvaqpcxzlxqu0gozfp.lambda-url.us-east-2.on.aws/
+```
+
+Seed reads only Postgres password, Cognito client secret and dedicated CSRF
+secret from REST's private configuration, verifies the authorized account and
+writes selected SSM SecureStrings. The public origin is a separate non-secret
+SSM parameter derived from the Function URL to avoid a CloudFormation cycle.
+Cold start fetches those exact parameters; IAM grants only selected SSM reads
+and pool-scoped Cognito staff actions. Secure Cognito cookies are mandatory;
+local credentials and workstation AWS profiles are never deployed.
+
+Memory 512 MB, request timeout 30 seconds and logs retained one week. Initial
+deployment failed because account concurrency is 10 and AWS requires at least
+10 unreserved executions. **The user explicitly approved deployment without
+a function reservation**, sharing the existing account limit. There is no
+per-function concurrency cap, quota increase, provisioned capacity, or hard
+$20 billing cap. No model/AgentCore/Step Functions permissions are granted.
+Lambda scales to zero; ECR/log storage and requests remain billable. The
+authorized $20 prototype limit still requires operator monitoring.
+
+Builds stage only the service directory plus named UI/geometry contexts;
+external-context content contributes to the asset hash. Docker copies selected
+source/manifests and built UI, not `.env`/workstation credentials. Security
+headers include a same-origin CSP with local/data fonts for bundled KaTeX/icon
+fonts. Swagger CDN pages are disabled on this isolated surface; JSON OpenAPI
+remains available. The shared REST documentation remains unchanged.
+
+[Report 66](../documentation/requirements/66_AWS_STORAGE_DATABASE_COST_AND_MIGRATION_REPORT.md)
+separately evaluates S3 Vectors/DynamoDB and Aurora/Neptune provider alternatives;
+current Neon/Aura configuration remains unchanged. Existing status tables below
+are historical; consult the current CDK entrypoint and dated deployment records
+before inferring live state.
+
 ## Status
 
 | Service | Status |

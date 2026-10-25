@@ -1,0 +1,23 @@
+# 03 — PostgreSQL learning graph, Neo4j projection and migration plan
+
+## Two graphs, two purposes
+Postgres is authoritative for release-owned educational workflow nodes/edges and private learner attempts. Neo4j contains derived, published semantic edges linking strategies, claims, skills, techniques, prerequisites, and published activities. Do not expose private progress in Neo4j.
+
+## Proposed migration groups (names provisional; reconcile real PKs)
+A. `pedagogy.socratic_domain(code PK, parent_code FK self, label, status)`; `pedagogy.socratic_strategy(id uuid PK, code UNIQUE, domain_code FK, owner, created_at)`; `pedagogy.socratic_strategy_version(id uuid PK, strategy_id FK, version, status, content_hash, phases_json, created_by, reviewed_by, math_reviewed_at, pedagogy_reviewed_at, published_at, UNIQUE(strategy_id,version))`; semantic bindings separate FK-backed junction tables to canonical knowledge IDs.
+B. `orchestration.workflow(id, code, owner, domain_code)`; `workflow_release(id, workflow_id, version, route_release_id nullable FK actual, strategy_version_id FK, content_hash, status, entry_node_key, fallback_node_key, deployed_state_machine_version_arn, reviewer metadata, UNIQUE(workflow_id,version))`; `workflow_node(id, workflow_release_id, node_key, type, activity_binding_id, interaction_binding_id, config_json, hidden_config_ref, UNIQUE(workflow_release_id,node_key))`; `workflow_edge(id, workflow_release_id, from_node_id, to_node_id, condition_type, condition_json, priority, UNIQUE(...))`; `workflow_audit(id, release_id, action, before_hash, after_hash, actor, note, created_at)`; `workflow_validation(id, release_id, compiler_version, findings_json, status)`.
+C. `learner.workflow_execution(id, student_id FK, release_id FK, current_node_id, state_version, status, started_at, updated_at, last_event_id)`; `learner.workflow_event(id, execution_id, event_seq, event_type, node_id, evaluated_activity_id?, assessment_result_ref?, action_payload_ref?, idempotency_key, timestamp, UNIQUE(execution_id,event_seq), UNIQUE(execution_id,idempotency_key))`; `learner.workflow_decision(id, execution_id, prior_state_version, approved_candidate_ids jsonb, selected_node_id, decision_source, reason_code, evidence_refs jsonb, model_ref nullable, prompt_hash nullable, validation_result, fallback_used, aws_execution_ref, created_at)`.
+D. `orchestration.agent_policy` and `orchestration.node_policy` constrain candidate set, maximum hint/reveal, model budgets, fallback, output schema and allowed tools. Sensitive answer keys remain in server-only activity tables or references, never in public node config.
+
+## DB invariants / transactions
+- No PUBLISHED release row/children mutation; new draft instead. Route/source and strategy hashes pinned at publication.
+- Validate every edge stays in same release; one valid entry; reachable terminal; no uncontrolled cycles; bounded remediation with exit. DB FK plus compiler graph validation.
+- Student execution can reference only PUBLISHED release and only owned student identity derived from bearer. Update `state_version` using compare-and-swap; event + assessment pointer + decision + new node in same transaction. External Step Functions call coordinated through outbox, not inside SQL transaction. Retry-safe idempotency.
+- Split/merge/reorder edits affect drafts only; rebinding assessments and visuals validated before commit; audit previous IDs and content hash. Reference constraints block deleting in-use published elements.
+- Index workflow release/status; node(release,key); learner execution(student,status), event(execution,seq), decision(execution,time), outbox pending.
+
+## Neo4j projector
+Own `projection_kind='socratic_workflow'`; MERGE only PUBLISHED `SocraticStrategyVersion`, `WorkflowRelease`, `DiscoveryNode`, `MathematicalClaim` (if canonically modeled and approved), references to existing Concept/Skill/Technique/InteractionInstance/RouteRelease. Edges `USES_STRATEGY`, `HAS_DISCOVERY`, `REQUIRES`, `PRACTICES`, `PRODUCES_CLAIM`, `USES_INTERACTION`, `MAY_TRANSITION_TO` with policy IDs only, never hidden predicates. Verify counts/edges; if required canonical endpoint missing, fail without fabricating one. Prune solely owned projection entries; graph lag reported, not silently treated as mastery.
+
+## Migration method
+Read-only inventory and exact DDL plan → tests for constraints/immutability → additive migrations → backfill default semantics only when sourced → shadow projection → parity check → gated rollout → rollback application flag (do not drop published records). Use SQL transaction boundaries and shared lock order established in GOTCHAS.

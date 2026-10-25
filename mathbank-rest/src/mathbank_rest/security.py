@@ -21,7 +21,7 @@ _admin_api_key_scheme = APIKeyHeader(
     name="X-Admin-Api-Key",
     auto_error=False,
     description="Shared admin key configured in ADMIN_API_KEY (root .env). Required on every "
-    "/v1/admin/* operation; there is no per-admin-user account yet.",
+    "legacy /v1/admin/* operation. Socratic Studio uses its separate staff cookies.",
 )
 
 

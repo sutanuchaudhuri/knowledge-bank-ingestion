@@ -2,6 +2,13 @@
 
 ## 0. Status and scope
 
+**Later access update (2026-10-25):** the user now reports AgentCore access.
+[Requirement 65](65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md) records that input
+for the proposed Socratic project. It does not verify a specific Bedrock model
+invocation or change this exam service's provider. The access failure and OpenAI
+workaround below remain historical deployment evidence, not a current
+account-wide access diagnosis.
+
 | | |
 |---|---|
 | Status | **EXM-1 through EXM-18 are deployed/live-verified as recorded below. EXM-19 is implemented in the current worktree only**: migration 051 has not been applied, running services have not been refreshed, and cross-device resume has not been live-verified. Existing deployed flow: signup/login via real AWS Cognito → natural-language request → intake parsing → generator↔critic loop (real critic-caught math errors, real bounded revision) → persisted paper → one-question-at-a-time timed exam with interaction timeline → explicit submit → auto-grading → per-option explanations → diagnosis → print/export. **Deviations from the original design, confirmed live and necessary**: (1) Bedrock model invocation is blocked account-wide on this AWS account (`ValidationException: Error 002: Access to Bedrock models is not allowed for this account`, reproduced with two different models) — the Strands Agents SDK itself is unchanged, only the model provider is OpenAI for now (`llm_models.py`, a one-line swap back once access is resolved); (2) local dev needs an AWS SSO session for real Cognito admin calls; (3) the frontend deploys to S3+CloudFront, not Amplify Hosting. |
