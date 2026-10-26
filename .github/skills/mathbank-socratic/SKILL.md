@@ -65,6 +65,13 @@ A start failure prints the exact path; read it before guessing.
 - **REST is the only database boundary.** The SPA calls only same-origin `/v1/admin/socratic/*`
   with `credentials: include`; no browser API key, localStorage, mock fallback, embedded answer
   key or client-side grading. Unavailable routes must fail visibly.
+- **Roles are server-enforced and only narrow access.** Studio entry requires `Admins`;
+  `student` role (capability `preview` only) is offered to Admins who are also in `Students`.
+  Active role = HttpOnly `mathbank_socratic_role` cookie, validated against current groups on every
+  request. `manage_users` routes (`/users*`) call Cognito with the Lambda role (pool-scoped IAM) and
+  guard self-lockout. Access events go to `audit.action_log` (entity `STAFF_USER`) only when
+  `SOCRATIC_ACCESS_AUDIT=true` (hosted, `DRAFTS=1`) — keep it off in offline tests; never log
+  passwords or full IPs. Cognito's own auth-event history needs the Plus tier (pool is Essentials).
 - **Local auth is explicit, loopback-only, never a Cognito fallback.** It rejects non-loopback
   hosts and Lambda/ECS runtimes; `local:` principals are not Cognito attestations. Never set,
   ask for a staff password in chat or print it in tool output. `make socratic-password` saves a

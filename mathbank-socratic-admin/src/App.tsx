@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { api, ApiError, checkPreview, checkWorkflow, pathId, pollJob } from "./api";
-import type { Edge, Job, Outcome, Preview, PreviewAnswer, Program, Session, Strategy, Validation, Workflow, WorkflowSummary } from "./contracts";
-import { actorName, isDirty } from "./contracts";
+import type { Capability, Edge, Job, Outcome, Preview, PreviewAnswer, Program, Role, Session, Strategy, Validation, Workflow, WorkflowSummary } from "./contracts";
+import { actorName, can, isDirty, roleLabels } from "./contracts";
 import { Coauthor } from "./Coauthor";
 import { Designer } from "./Designer";
 import type { Representation } from "./Designer";
@@ -11,18 +11,22 @@ import { NewRulePanel, NewStepPanel, NewWorkflowPanel, RulePanel, SettingsPanel,
 import { RulesView } from "./RulesView";
 import { Sidebar } from "./Sidebar";
 import { Simulator } from "./Simulator";
+import { AccountPanel, UserPanel, Users } from "./Users";
 import { Drawer, Empty, Hero, Icon, IconButton, MathText, Pill } from "./ui";
 
 const views = [
-  { key: "designer", label: "Workflow designer", icon: "bezier2" },
-  { key: "rules", label: "Rules by topic", icon: "signpost-split" },
-  { key: "library", label: "Templates & sources", icon: "grid" },
-  { key: "student", label: "Student simulator", icon: "person-video3" },
-] as const;
+  { key: "designer", label: "Workflow designer", icon: "bezier2", needs: "author" },
+  { key: "rules", label: "Rules by topic", icon: "signpost-split", needs: "author" },
+  { key: "library", label: "Templates & sources", icon: "grid", needs: "author" },
+  { key: "student", label: "Student simulator", icon: "person-video3", needs: "preview" },
+  { key: "users", label: "Users & access", icon: "people", needs: "manage_users" },
+] as const satisfies readonly { key: string; label: string; icon: string; needs: Capability }[];
 type View = typeof views[number]["key"];
+const allowedViews = (session: Session | null) => views.filter(item => can(session, item.needs));
 type Panel =
   | { kind: "step"; key: string } | { kind: "rule"; index: number } | { kind: "new-rule"; from?: string }
-  | { kind: "new-step" } | { kind: "new-workflow"; strategy?: Strategy | null } | { kind: "settings" } | { kind: "ai" };
+  | { kind: "new-step" } | { kind: "new-workflow"; strategy?: Strategy | null } | { kind: "settings" } | { kind: "ai" }
+  | { kind: "user"; username: string } | { kind: "account" };
 type Proposal = { job: Job; workflowId: string; baseHash: string };
 const viewFromHash = (): View => {
   const key = window.location.hash.slice(1).split("-")[0];
@@ -61,6 +65,8 @@ export function App() {
   const [pollRetry, setPollRetry] = useState(0);
   const [polling, setPolling] = useState(false);
   const [pendingOpen, setPendingOpen] = useState<string | null>(null);
+  const [manageableGroups, setManageableGroups] = useState<string[]>([]);
+  const [usersRefresh, setUsersRefresh] = useState(0);
   const dirty = isDirty(workflow, program);
   const disabled = busy || conflict;
 
@@ -91,11 +97,12 @@ export function App() {
   }, [onError]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!session || !can(session, "preview")) return;
     const controller = new AbortController();
     setCatalogLoading(true); setCatalogFailed(false);
     Promise.all([
-      api.request<{ strategies: Strategy[] }>("/strategies", { signal: controller.signal }),
+      can(session, "author") ? api.request<{ strategies: Strategy[] }>("/strategies", { signal: controller.signal })
+        : Promise.resolve({ strategies: [] as Strategy[] }),
       api.request<{ workflows: WorkflowSummary[]; has_more: boolean }>(
         `/workflows?limit=25&offset=${workflowPage * 25}`, { signal: controller.signal }),
     ]).then(([registry, drafts]) => {
@@ -117,6 +124,12 @@ export function App() {
     return () => { controller.abort(); setPolling(false); };
     // Status updates must not restart or extend the bounded polling window.
   }, [proposal?.job.job_id, pollRetry, onError]);
+
+  useEffect(() => {
+    if (!session) return;
+    const allowed = allowedViews(session);
+    if (allowed.length && !allowed.some(item => item.key === view)) { window.location.hash = allowed[0].key; setView(allowed[0].key); }
+  }, [session, view]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -162,7 +175,8 @@ export function App() {
   async function open(id: string) {
     const detail = checkWorkflow(await request<Workflow>(`/workflows/${pathId(id)}`));
     remember(detail); setSelected(""); setPreview(null); setProposal(null); setPendingOpen(null); setPanel(null);
-    if (view === "library" || view === "student") navigate("designer");
+    if (!can(session, "author")) navigate("student");
+    else if (view === "library" || view === "student" || view === "users") navigate("designer");
   }
   async function save(): Promise<Workflow> {
     if (!workflow || !program) throw new Error("Open a workflow first.");
@@ -235,6 +249,17 @@ export function App() {
     if (preview) { setPreview(checkPreview(await request<Preview>(`/previews/${pathId(preview.preview_id)}`))); setConflict(false); }
   });
 
+  const switchRole = (role: Role) => void run(async () => {
+    if (dirty) throw new Error("Save or discard the draft before switching role.");
+    const value = await request<Session>("/session/role", "PUT", { role });
+    if (!value.csrf_token || !value.actor) throw new Error("Invalid administrator session response.");
+    api.setSession(value); setSession(value);
+    setWorkflow(null); setProgram(null); setPreview(null); setProposal(null); setSelected(""); setPanel(null);
+    setWorkflows([]); setStrategies([]); setWorkflowPage(0);
+    const first = allowedViews(value)[0];
+    if (first) navigate(first.key);
+    setNotice(`Switched to the ${roleLabels[role]} role.`);
+  });
   const openStep = (key: string) => { setSelected(key); setPanel({ kind: "step", key }); setSidebarOpen(false); if (view !== "designer") navigate("designer"); };
   const openRule = (index: number) => setPanel({ kind: "rule", index });
   const saveButton = <button type="button" className="sc-primary" disabled={disabled || !dirty} onClick={() => void run(async () => { await save(); })}>Save changes</button>;
@@ -242,7 +267,17 @@ export function App() {
   let drawer: ReactNode = null;
   if (session && panel) {
     const close = () => setPanel(null);
-    if (panel.kind === "new-workflow") {
+    if (panel.kind === "account") {
+      drawer = <Drawer title="Your account" onClose={close}>
+        <AccountPanel session={session} disabled={disabled} onSwitch={switchRole} onError={onError} onChanged={setNotice} />
+      </Drawer>;
+    } else if (panel.kind === "user") {
+      drawer = <Drawer title="User" onClose={close}>
+        <UserPanel key={panel.username} username={panel.username} self={panel.username === actorName(session.actor)}
+          groups={manageableGroups} disabled={disabled} onError={onError}
+          onChanged={message => { setNotice(message); setUsersRefresh(value => value + 1); }} />
+      </Drawer>;
+    } else if (panel.kind === "new-workflow") {
       drawer = <Drawer title="New workflow" onClose={close} footer={<button className="sc-primary" form="new-workflow" disabled={disabled}>Create workflow</button>}>
         <NewWorkflowPanel strategies={strategies} initial={panel.strategy} onCreate={(title, domain, strategy) => void run(async () => {
           if (dirty) throw new Error("Save or discard the current draft before creating another.");
@@ -320,8 +355,11 @@ export function App() {
   </main>;
 
   const name = actorName(session.actor);
+  const author = can(session, "author");
   let canvas: ReactNode;
-  if (view === "rules") canvas = <RulesView program={program} disabled={disabled} onRule={openRule} onDescribe={() => setPanel({ kind: "ai" })} />;
+  if (view === "users" && can(session, "manage_users")) canvas = <Users selected={panel?.kind === "user" ? panel.username : null} refresh={usersRefresh}
+    onError={onError} onOpen={(username) => setPanel({ kind: "user", username })} onGroups={setManageableGroups} />;
+  else if (view === "rules") canvas = <RulesView program={program} disabled={disabled} onRule={openRule} onDescribe={() => setPanel({ kind: "ai" })} />;
   else if (view === "library") canvas = <Library strategies={strategies} program={program} domain={workflow?.domain || ""} disabled={disabled} onError={onError}
     onUseStrategy={strategy => { if (program) { edit({ ...program, strategy_code: strategy.code }); setNotice(`Strategy set to ${strategy.label}. Save to keep it.`); } }}
     onStartFrom={strategy => setPanel({ kind: "new-workflow", strategy })}
@@ -340,10 +378,12 @@ export function App() {
     <a className="sc-skip" href="#main-content">Skip to content</a>
     <nav className="sc-rail" aria-label="Studio navigation">
       <div className="sc-logo" aria-hidden="true">M</div>
-      {views.map(item => <a key={item.key} href={`#${item.key}`} className={view === item.key ? "sc-active" : ""} aria-label={item.label} title={item.label}
+      {allowedViews(session).map(item => <a key={item.key} href={`#${item.key}`} className={view === item.key ? "sc-active" : ""} aria-label={item.label} title={item.label}
         aria-current={view === item.key ? "page" : undefined} onClick={() => navigate(item.key)}><Icon name={item.icon} /></a>)}
       <div className="sc-spacer" />
-      <span className="sc-avatar" title={name} aria-label={`Signed in as ${name}`}>{name.slice(0, 2).toUpperCase()}</span>
+      <button type="button" className="sc-avatar" title={`${name} · ${roleLabels[session.role || "admin"]} — account`}
+        aria-label={`Account: ${name}, ${roleLabels[session.role || "admin"]} role`} aria-pressed={panel?.kind === "account"}
+        onClick={() => setPanel(panel?.kind === "account" ? null : { kind: "account" })}>{name.slice(0, 2).toUpperCase()}</button>
       <IconButton icon="box-arrow-right" label="Sign out" disabled={busy} onClick={() => {
         if (dirty) { setError("Save or discard the draft before signing out."); return; }
         void run(async () => { await request<void>("/session", "DELETE"); reset(); });
@@ -353,20 +393,24 @@ export function App() {
       loading={catalogLoading} failed={catalogFailed} page={workflowPage} hasMore={workflowsHaveMore} disabled={busy}
       onPage={setWorkflowPage} onRetry={() => setCatalogRetry(value => value + 1)} onOpen={requestOpen} onStep={openStep}
       onStrategy={strategy => { setPanel({ kind: "new-workflow", strategy }); setSidebarOpen(false); }}
-      onNew={() => { setPanel({ kind: "new-workflow" }); setSidebarOpen(false); }} onExport={exportJson} />
+      onNew={() => { setPanel({ kind: "new-workflow" }); setSidebarOpen(false); }} onExport={exportJson} author={author} />
     <div className="sc-main">
       <header className="sc-top">
         <IconButton icon="layout-sidebar" label="Toggle workspace search" className="sc-sidebar-toggle" active={sidebarOpen} onClick={() => setSidebarOpen(value => !value)} />
         <nav aria-label="Breadcrumb" className="sc-crumb"><span>Socratic Studio</span><span aria-hidden="true"> / </span>
           <strong aria-current="page">{workflow ? <MathText text={workflow.title} /> : views.find(item => item.key === view)!.label}</strong></nav>
         <div className="sc-spacer" />
+        <button type="button" className="sc-role" title="Active role — click to switch or manage your account"
+          aria-label={`Active role: ${roleLabels[session.role || "admin"]}. Switch role or manage your account`}
+          onClick={() => setPanel({ kind: "account" })}><Pill tone={session.role === "student" ? "warning" : "primary"}>
+            <Icon name={session.role === "student" ? "mortarboard" : "shield-check"} />{roleLabels[session.role || "admin"]}</Pill></button>
         {session.auth_mode === "local" && <span className="sc-local" title="Loopback-only local staff session; not a cloud identity"><Pill tone="warning">
           <span className="sc-hide-narrow">Local test session</span><span className="sc-show-narrow">Local</span></Pill></span>}
         {workflow && <Pill tone={dirty ? "warning" : "success"}>{dirty ? "Unsaved changes" : `Saved · r${workflow.revision}`}</Pill>}
         {workflow && dirty && <button type="button" className="sc-light" disabled={disabled} onClick={() => void run(async () => { await save(); })}>Save</button>}
-        {workflow && <IconButton icon="sliders" label="Workflow settings" active={panel?.kind === "settings"} onClick={() => setPanel({ kind: "settings" })} />}
-        {workflow && view !== "student" && <button type="button" className="sc-light sc-hide-narrow" disabled={disabled} onClick={() => navigate("student")}><Icon name="person-video3" />Student view</button>}
-        {workflow && <button type="button" className="sc-primary" disabled={disabled} onClick={() => setPanel({ kind: "ai" })}><Icon name="stars" />Ask AI</button>}
+        {workflow && author && <IconButton icon="sliders" label="Workflow settings" active={panel?.kind === "settings"} onClick={() => setPanel({ kind: "settings" })} />}
+        {workflow && author && view !== "student" && <button type="button" className="sc-light sc-hide-narrow" disabled={disabled} onClick={() => navigate("student")}><Icon name="person-video3" />Student view</button>}
+        {workflow && author && <button type="button" className="sc-primary" disabled={disabled} onClick={() => setPanel({ kind: "ai" })}><Icon name="stars" />Ask AI</button>}
       </header>
       {(error || conflict || pendingOpen) && <div className="sc-banners">
         {error && <div className="sc-alert" role="alert"><Icon name="exclamation-circle" /><MathText text={error} />

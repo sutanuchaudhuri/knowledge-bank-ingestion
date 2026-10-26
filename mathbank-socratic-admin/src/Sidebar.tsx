@@ -5,11 +5,12 @@ import { searchWorkspace } from "./search";
 import { Icon, MathText, Pager } from "./ui";
 
 export function Sidebar({ query, setQuery, workflows, strategies, program, activeId, loading, failed, page, hasMore, disabled,
-  onPage, onRetry, onOpen, onStep, onStrategy, onNew, onExport }: {
+  onPage, onRetry, onOpen, onStep, onStrategy, onNew, onExport, author = true }: {
   query: string; setQuery: (value: string) => void; workflows: WorkflowSummary[]; strategies: Strategy[];
   program: Program | null; activeId?: string; loading: boolean; failed: boolean; page: number; hasMore: boolean;
   disabled: boolean; onPage: (page: number) => void; onRetry: () => void; onOpen: (id: string) => void;
   onStep: (key: string) => void; onStrategy: (strategy: Strategy) => void; onNew: () => void; onExport: () => void;
+  author?: boolean;
 }) {
   const results = useMemo(() => searchWorkspace(query, { workflows, strategies, program }), [query, workflows, strategies, program]);
   const searching = !!query.trim();
@@ -45,8 +46,10 @@ export function Sidebar({ query, setQuery, workflows, strategies, program, activ
         <Icon name="grid" /><span className="sc-ellipsis">{item.label}</span><small>{item.domain}</small>
       </button>)}
     </>}
-    <div className="sc-micro">Quick actions</div>
-    <button className="sc-topic" disabled={disabled} onClick={onNew}><Icon name="plus-lg" />New workflow</button>
-    <button className="sc-topic" disabled={!program} onClick={onExport}><Icon name="download" />Export draft JSON</button>
+    {author && <>
+      <div className="sc-micro">Quick actions</div>
+      <button className="sc-topic" disabled={disabled} onClick={onNew}><Icon name="plus-lg" />New workflow</button>
+      <button className="sc-topic" disabled={!program} onClick={onExport}><Icon name="download" />Export draft JSON</button>
+    </>}
   </aside>;
 }

@@ -59,7 +59,7 @@ test:                           ## Run the test suite
 
 .PHONY: test-socratic-offline setup-socratic-local
 test-socratic-offline:           ## Test staff sessions/setup locally with synthetic providers; no AWS/database/model calls
-	$(PYTEST) -q tests/test_socratic_auth.py tests/test_socratic_local_auth.py tests/test_socratic_auth_setup.py tests/test_security.py
+	$(PYTEST) -q tests/test_socratic_auth.py tests/test_socratic_local_auth.py tests/test_socratic_auth_setup.py tests/test_socratic_users.py tests/test_security.py
 
 setup-socratic-local:            ## Configure loopback-only staff login; prompts for a local password, never prints it
 	$(BIN)/python scripts/setup_socratic_auth.py --mode local --origin http://127.0.0.1:5186 --apply
@@ -92,7 +92,7 @@ status-socratic-local:           ## Show whether the local staff API is listenin
 
 .PHONY: test-socratic migrate-socratic-drafts verify-socratic-deployment
 test-socratic:                   ## All Socratic REST tests; Postgres cases skip unless SOCRATIC_DB_TESTS=1 (rolled back)
-	$(PYTEST) -q tests/test_socratic_auth.py tests/test_socratic_local_auth.py tests/test_socratic_auth_setup.py tests/test_socratic_drafts.py tests/test_socratic_postgres.py tests/test_socratic_preview.py tests/test_socratic_preview_postgres.py tests/test_activity_scoring.py tests/test_security.py
+	$(PYTEST) -q tests/test_socratic_auth.py tests/test_socratic_local_auth.py tests/test_socratic_auth_setup.py tests/test_socratic_drafts.py tests/test_socratic_postgres.py tests/test_socratic_preview.py tests/test_socratic_preview_postgres.py tests/test_activity_scoring.py tests/test_socratic_users.py tests/test_security.py
 
 migrate-socratic-drafts:         ## Explicitly apply additive migration 053 (orchestration.socratic_*) to configured Postgres
 	$(BIN)/python scripts/migrate_socratic_drafts.py --apply --direct

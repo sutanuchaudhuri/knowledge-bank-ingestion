@@ -12,7 +12,7 @@ from mathbank_rest.routers.socratic import router
 
 app = FastAPI(title="Socratic local staff authentication", description=__doc__)
 app.include_router(APIRouter(routes=[
-    route for route in router.routes if isinstance(route, APIRoute) and route.path.endswith("/session")
+    route for route in router.routes if isinstance(route, APIRoute) and "/session" in route.path
 ]))
 
 
@@ -29,6 +29,8 @@ def main() -> None:
     if args.with_drafts:
         from mathbank_rest.socratic_app import app as drafts_app
         target = drafts_app
+        from mathbank_rest.config import settings
+        settings.socratic_access_audit = True  # sign-ins/role switches are audited like the hosted Studio
         print("LOCAL AUTH + REAL DRAFT STORAGE: uses configured Postgres. No model/AWS orchestration. Ctrl-C to stop.")
     else:
         print("LOCAL AUTH ONLY: no workflow persistence, model or AWS integrations. Ctrl-C to stop.")

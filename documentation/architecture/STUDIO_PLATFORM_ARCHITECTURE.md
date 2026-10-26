@@ -165,7 +165,8 @@ flowchart TB
 ```
 
 Why some items are **partial**: the simulator, preview runtime, shared scorer and migration 054 are
-done locally and on Neon but **not deployed to the hosted Studio**; *Ask AI* has a finished UI with
+done and **deployed to the hosted Studio (2026-10-26, `socratic-verify` PASS)**, but a real Cognito
+staff sign-in and staff approval of the AR golden cases are still pending; *Ask AI* has a finished UI with
 no proposal backend; legacy admin routes work but use the shared admin key, so the Studio cannot
 call them until adapters exist.
 
@@ -361,7 +362,7 @@ sequenceDiagram
     end
 ```
 
-### 4.3 Synthetic student preview — partial (done locally on Neon, not yet deployed)
+### 4.3 Synthetic student preview — partial (deployed 2026-10-26; Cognito sign-in and AR approval pending)
 
 ```mermaid
 sequenceDiagram
@@ -705,8 +706,9 @@ sequenceDiagram
 |---|---|---|
 | Staff sessions (Cognito + explicit local) | 🟩 Done | Ledger 67 step 01; hosted Cognito login acceptance pending |
 | Draft persistence, migration 053 | 🟩 Done, deployed | Ledger 67 step 02; `MathBankSocraticStack` |
-| Studio UI rebuild (rail, search, drawer, flow/NL/JSON) | 🟨 Partial | 34 unit + 10 e2e passing locally; not deployed |
-| Synthetic preview, migration 054, shared scorer | 🟨 Partial | Ledger 67 step 03; 872 REST tests; deploy + AR approval pending |
+| Studio UI rebuild (rail, search, drawer, flow/NL/JSON) | 🟩 Done (hosted 2026-10-26) | 34 unit + 10 e2e locally; hosted sign-in page verified 1440/390; Cognito sign-in still to be exercised |
+| Roles (Admin ⇄ Student switch), user management (search, groups, password reset, global sign-out, disable), self password change, Studio access audit | 🟩 Done (hosted 2026-10-26) | Ledger 67 roles record; real Cognito sign-in by the user pending |
+| Synthetic preview, migration 054, shared scorer | 🟨 Partial | Ledger 67 step 03; deployed + `socratic-verify` PASS 2026-10-26; AR golden-case approval and hosted Cognito run pending |
 | Local operator tooling (`make socratic-*`, password) | 🟩 Done | Root Makefile, `mathbank-socratic` skill |
 | Ask AI proposals (AgentCore, Step Functions) | ⬜ Pending | Ledger 67 steps 04–05 |
 | Live Neon/AWS vertical acceptance | ⬜ Pending | Ledger 67 step 06 |
@@ -720,6 +722,11 @@ sequenceDiagram
 | Audience module: student groups, content EXCLUDE (exam, question, video, step, course item), feature APPLY/EXCLUDE | ⬜ Pending | Plan 68 P7 (before P6) |
 | Finder: unit vector index (incl. Socratic steps, sequences, video segments), hybrid + graph fusion, find-similar/dedupe, where-used, lineage, link/fork/insert-sequence, full-width UI with wire mode | ⬜ Pending (corpus hybrid search 🟩; `search.embedding` has no ANN index) | Plan 68 §4.13, P2b |
 | AI query understanding + rerank on the Finder | ⬜ Pending | Plan 68 P8, D-16 |
+| Student phone/tablet layouts (bottom tabs, sheets, split view), PWA, offline answer queue | ⬜ Pending (desktop-first responsive 🟨) | [Req 69](../requirements/69_MOBILE_TABLET_VOICE_STUDENT_EXPERIENCE.md) V0–V2 |
+| Real-time voice agent (session service, policy/tool dispatcher, confirm card, exam read-aloud); providers assessed ElevenLabs → Nova Sonic → OpenAI | ⬜ Pending (turn-based ElevenLabs STT/TTS 🟩) | Req 69 V3–V6, [69A §2–3](../requirements/69A_MOBILE_VOICE_TECH_SPEC.md) |
+| Per-student token/cost metering, budgets (minutes + USD), abuse flags, reconciliation, staff Usage view | ⬜ Pending | 69A §4, migration 064, phase V3a |
+| Twilio notifications (SMS, WhatsApp, Verify, webhooks; in-app events exist 🟩) | ⬜ Pending | 69A §5, migration 065, phase V7 |
+| Native app: local DB initializer, content packs, sync, on-device models, later camera/gesture | ⬜ Pending | 69A §6, migration 066, phases N0–N4 |
 | Studio AI assistant with tools | ⬜ Pending | Plan 68 P9 |
 | Micro chat scoped to one step / quiz item (separate module) | ⬜ Pending | Plan 68 §4.11, P9b |
 | Workspace look consistent across all modules | 🟨 Partial (Studio done) | modern-ui-design `WORKSPACE_SHELL.md`; requirement 30 UI-23–UI-27 |

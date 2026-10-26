@@ -77,12 +77,14 @@ def test_login_returns_stable_actor_and_scoped_http_only_cookies(client, provide
     response = sign_in(client)
     assert response.status_code == 200
     assert response.json()["actor"] == {
-        "actor_id": "stable-staff-sub", "username": "canonical-staff", "capabilities": ["author"],
+        "actor_id": "stable-staff-sub", "username": "canonical-staff",
+        "capabilities": ["author", "manage_users", "preview"],
     }
+    assert response.json()["role"] == "admin" and response.json()["roles"] == ["admin"]
     assert ACCESS not in response.text and REFRESH not in response.text
     assert response.headers["Cache-Control"] == "no-store"
     cookies = response.headers.get_list("set-cookie")
-    assert len(cookies) == 2
+    assert len(cookies) == 3  # access, refresh, active role
     for cookie in cookies:
         assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=strict" in cookie
         assert "Path=/v1/admin/socratic" in cookie and "Max-Age=900" in cookie
@@ -112,7 +114,7 @@ def test_group_pagination_and_separate_review_publish_capabilities(provider):
         {"Groups": [{"GroupName": "MathReviewers"}, {"GroupName": "Publishers"}]},
     ]
     session = auth.load_session(ACCESS)
-    assert session.actor.capabilities == ["author", "review_mathematics", "publish"]
+    assert session.actor.capabilities == ["author", "review_mathematics", "publish", "manage_users", "preview"]
     assert provider.admin_list_groups_for_user.call_args.kwargs["NextToken"] == "next"
     assert auth.require_capability(session, "publish").actor_id == "stable-staff-sub"
     with pytest.raises(auth.HTTPException) as exc:
@@ -317,5 +319,5 @@ def test_router_is_mounted_with_documented_cookie_scheme():
     schema = app.openapi()
     assert set(schema["paths"]["/v1/admin/socratic/session"]) == {"post", "get", "delete"}
     get = schema["paths"]["/v1/admin/socratic/session"]["get"]
-    assert get["security"] == [{"SocraticStaffCookie": []}]
+    assert get["security"] == [{"SocraticStaffCookie": []}, {"SocraticRoleCookie": []}]
     assert get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("StaffSession")

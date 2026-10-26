@@ -29,7 +29,23 @@ export interface Resource {
   solutions: { solution_id: string; revision: number; verification_status: string }[];
   routes: { route_release_id: string; solution_id?: string; status: string; approach_name: string }[];
 }
-export interface Session { actor: string | { username?: string; name?: string; actor_id?: string }; csrf_token: string; auth_mode?: "cognito" | "local" }
+export type Role = "admin" | "student";
+export type Capability = "author" | "review_mathematics" | "review_pedagogy" | "publish" | "manage_users" | "preview";
+export interface Session {
+  actor: string | { username?: string; name?: string; actor_id?: string; capabilities?: Capability[] };
+  csrf_token: string; auth_mode?: "cognito" | "local"; role?: Role; roles?: Role[];
+}
+export interface UserSummary {
+  username: string; email: string | null; email_verified: boolean; name: string | null;
+  status: string; enabled: boolean; created_at: string | null; updated_at: string | null; groups: string[];
+}
+export interface AccessEvent { action: string; actor_type: string; actor_id: string | null; occurred_at: string; detail: Record<string, unknown> }
+export interface UserDetail extends UserSummary {
+  mfa: string[];
+  access: { last_sign_in_at: string | null; sign_ins_30d: number; failed_sign_ins_30d: number; role_switches_30d: number; admin_actions_30d: number; audit_enabled: boolean };
+  events: AccessEvent[];
+}
+export interface UserPage { users: UserSummary[]; next_token: string | null; manageable_groups: string[]; role_matrix: Record<string, string[]> }
 export interface Job {
   job_id: string; status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED"; error: string | null;
   result: (Edge & { explanation: string; model_id: string }) | null;
@@ -54,6 +70,14 @@ export interface Preview {
 export type PreviewAnswer = { selected_keys: string[] } | { text: string };
 export interface Validation { valid: boolean; findings: string[] }
 
+export const roleLabels: Record<Role, string> = { admin: "Admin", student: "Student" };
+export function can(session: Session | null, capability: Capability): boolean {
+  if (!session) return false;
+  const actor = session.actor;
+  // Older sessions without capabilities are author sessions (pre-roles contract).
+  if (typeof actor === "string" || !actor.capabilities) return capability === "author" || capability === "preview";
+  return actor.capabilities.includes(capability);
+}
 export function actorName(actor: Session["actor"]): string {
   return typeof actor === "string" ? actor : actor.name || actor.username || actor.actor_id || "Administrator";
 }

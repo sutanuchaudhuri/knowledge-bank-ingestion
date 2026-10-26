@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     cognito_client_id: str = ""
     cognito_client_secret: SecretStr = SecretStr("")
     cognito_admin_group: str = "Admins"
+    # Optional second Studio role ("view as student"); only honoured for members of the admin group.
+    cognito_student_group: str = "Students"
     socratic_math_reviewer_group: str = ""
     socratic_pedagogy_reviewer_group: str = ""
     socratic_publisher_group: str = ""
@@ -57,8 +59,11 @@ class Settings(BaseSettings):
     socratic_local_username: str = ""
     socratic_local_password_hash: SecretStr = SecretStr("")
     socratic_local_capabilities: list[
-        Literal["author", "review_mathematics", "review_pedagogy", "publish"]
+        Literal["author", "review_mathematics", "review_pedagogy", "publish", "manage_users", "preview"]
     ] = Field(default_factory=lambda: ["author"])
+    # Best-effort Studio access audit into audit.action_log (sign-ins, role switches, admin user
+    # actions). Off by default so offline tests never write; the hosted stack and DRAFTS=1 enable it.
+    socratic_access_audit: bool = False
 
     # requirements/60 §7 — the Manim Video Studio is a peer service, not a sibling
     # Python package; promotion calls its REST API (list candidates, fetch the

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MathBank · student mobile, tablet and voice wireframes</title>
+<!-- Low-fidelity wireframes for requirement 69. Static, fake data, no network or microphone access.
+     Pick a screen and a device; the voice session is simulated. -->
+<style>
+:root{font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;--line:#e2e8f0;--muted:#64748b;--p:#4f46e5;--ps:#eef2ff;--pi:#3730a3;--ok:#dcfce7;--okt:#065f46;--warn:#fef3c7;--warnt:#92400e;--bad:#ffe4e6;--bg:#f6f7fb}
+*{box-sizing:border-box}body{margin:0;background:#eef0f6}[hidden]{display:none!important}button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+header.page{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 22px;background:#fff;border-bottom:1px solid var(--line)}
+header.page h1{font-size:18px;margin:0 12px 0 0;letter-spacing:-.02em}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}.seg button{border:0;background:none;padding:7px 11px;font-size:13px}.seg button[aria-pressed=true]{background:var(--ps);color:var(--pi);font-weight:650}
+.stage{display:flex;gap:28px;justify-content:center;align-items:flex-start;padding:24px;flex-wrap:wrap}
+.note{max-width:300px;font-size:13px;color:var(--muted);display:grid;gap:8px}.note b{color:#0f172a}
+.device{background:#111827;border-radius:38px;padding:12px;box-shadow:0 20px 50px #0f172a33;flex-shrink:0}
+.device.tablet{border-radius:26px;padding:14px}
+.screen{position:relative;background:#fff;border-radius:28px;overflow:hidden;display:flex;flex-direction:column}
+.tablet .screen{border-radius:14px}
+/* device sizes are CSS px of the real device scaled for display */
+.phone .screen{width:390px;height:844px;transform-origin:top left}
+.tp .screen{width:820px;height:1180px}.tl .screen{width:1180px;height:820px}
+.scale{overflow:hidden}
+.status{height:28px;display:flex;justify-content:space-between;padding:6px 22px 0;font-size:11px;color:var(--muted)}
+.appbar{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);min-height:52px}
+.appbar .t{font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{min-width:44px;min-height:44px;border:0;background:none;border-radius:12px;font-size:18px}
+.body{flex:1;overflow:auto;padding:16px;display:grid;gap:12px;align-content:start}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);padding-bottom:16px;background:#fff}
+.tabs button{border:0;background:none;min-height:54px;font-size:11px;color:var(--muted);display:grid;place-items:center;gap:0}.tabs button span{font-size:18px}
+.tabs button.on{color:var(--p);font-weight:650}
+.card{border:1px solid var(--line);border-radius:14px;padding:13px;background:#fff;display:grid;gap:6px}
+.card.hero{background:var(--ps);border-color:#c7d2fe}
+.kicker{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--p)}
+.h{font-size:22px;font-weight:720;letter-spacing:-.02em;margin:0}.sub{font-size:12px;color:var(--muted)}
+.choice{display:flex;gap:10px;align-items:center;border:1.5px solid var(--line);border-radius:14px;padding:12px;min-height:52px;background:#fff;text-align:left;width:100%}
+.choice b{width:28px;height:28px;border-radius:9px;background:var(--bg);display:grid;place-items:center;flex-shrink:0}
+.choice.on{border-color:var(--p);background:var(--ps)}.choice.on b{background:var(--p);color:#fff}
+.bar{display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--line);background:#fff}
+.btn{border:1px solid var(--line);background:#fff;border-radius:12px;min-height:46px;padding:0 16px;font-weight:600}
+.btn.pri{background:var(--p);border-color:var(--p);color:#fff;flex:1}
+.fab{position:absolute;right:16px;bottom:96px;width:58px;height:58px;border-radius:50%;border:0;background:var(--p);color:#fff;font-size:22px;box-shadow:0 10px 24px #4f46e555}
+.progress{height:6px;border-radius:9px;background:var(--bg);overflow:hidden}.progress i{display:block;height:100%;width:50%;background:var(--p)}
+.pill{display:inline-block;border-radius:99px;padding:2px 9px;font-size:11px;font-weight:650;background:#f1f5f9}
+.pill.ok{background:var(--ok);color:var(--okt)}.pill.warn{background:var(--warn);color:var(--warnt)}.pill.bad{background:var(--bad);color:#9f1239}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -12px 40px #0f172a33;padding:8px 16px 24px;display:grid;gap:10px;z-index:4}
+.sheet .handle{width:40px;height:5px;border-radius:9px;background:#cbd5e1;margin:2px auto 4px}
+.scrim{position:absolute;inset:0;background:#0f172a55;z-index:3}
+.voice{background:linear-gradient(180deg,#eef2ff,#fff 45%)}
+.orb{width:120px;height:120px;border-radius:50%;margin:10px auto;background:radial-gradient(circle at 35% 35%,#a5b4fc,#4f46e5);box-shadow:0 0 0 14px #4f46e522,0 0 0 30px #4f46e511;animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 20px #4f46e522,0 0 0 40px #4f46e50d}}
+@media (prefers-reduced-motion:reduce){.orb{animation:none}}
+.turn{border-radius:14px;padding:9px 12px;max-width:85%}.turn.a{background:#fff;border:1px solid var(--line)}.turn.u{background:var(--p);color:#fff;justify-self:end}
+.confirm{border:2px solid var(--p);border-radius:16px;padding:12px;background:#fff;display:grid;gap:8px}
+.dock{border:1px solid #c7d2fe;background:var(--ps);border-radius:16px;padding:10px 12px;display:flex;gap:10px;align-items:center}
+.dot{width:36px;height:36px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#a5b4fc,#4f46e5);flex-shrink:0}
+.split{flex:1;display:grid;grid-template-columns:72px minmax(0,1fr) 360px;min-height:0}
+.rail{border-right:1px solid var(--line);display:grid;align-content:start;gap:8px;padding:12px 0;justify-items:center}
+.rail button{width:48px;height:48px;border:0;border-radius:12px;background:none;font-size:18px;color:var(--muted)}.rail button.on{background:var(--ps);color:var(--p)}
+.companion{border-left:1px solid var(--line);background:var(--bg);display:flex;flex-direction:column;min-height:0}
+.nav{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.nav span{border:1px solid var(--line);border-radius:10px;text-align:center;padding:8px 0;background:#fff;font-size:12px}
+.nav span.a{background:var(--ok)}.nav span.f{background:var(--warn)}.nav span.c{border-color:var(--p);border-width:2px}
+.composer{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:16px;padding:6px 6px 6px 12px;background:#fff}
+.composer span{flex:1;color:var(--muted)}
+.video{aspect-ratio:16/9;border-radius:14px;background:#1e293b;color:#cbd5e1;display:grid;place-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.legend{font-size:12px;color:var(--muted)}
+.meter{height:8px;border-radius:9px;background:var(--bg);overflow:hidden}.meter i{display:block;height:100%;background:var(--p)}.meter.warn i{background:#f59e0b}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.tog{width:44px;height:26px;border-radius:99px;background:#cbd5e1;position:relative;border:0;flex-shrink:0}.tog::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}
+.tog[aria-pressed=true]{background:var(--p)}.tog[aria-pressed=true]::after{left:21px}
+table.t{width:100%;border-collapse:collapse;font-size:13px}table.t th,table.t td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}table.t th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums;text-align:right!important}
+details.api summary{cursor:pointer;font-size:12px;color:var(--muted);font-weight:600}details.api pre{white-space:pre-wrap;font-size:12px;background:#0f172a;color:#e2e8f0;border-radius:10px;padding:10px;margin:6px 0 0}
+select.lang{border:1px solid var(--line);border-radius:99px;padding:3px 8px;font:inherit;font-size:12px;background:#fff}
+</style>
+</head>
+<body>
+<header class="page">
+  <h1>Student · mobile, tablet &amp; voice — wireframes (req 69)</h1>
+  <span class="seg" role="group" aria-label="Device" id="devices"></span>
+  <span class="seg" role="group" aria-label="Screen" id="screens"></span>
+</header>
+<div class="stage"><div id="frame"></div><aside class="note" id="note"></aside></div>
+<script>
+const DEVICES = [["phone", "Phone 390×844"], ["tp", "Tablet portrait 820×1180"], ["tl", "Tablet landscape 1180×820"]];
+const SCREENS = [["today", "Today"], ["practice", "Practice item"], ["voice", "Voice session"], ["exam", "Exam"], ["tutor", "Tutor chat"], ["course", "Course step"], ["me", "Me · voice & alerts"], ["offline", "Downloads (native)"], ["staff", "Staff · usage & cost"], ["na", "Not on phone"]];
+const S = { device: "phone", screen: "today", choice: null, sheet: null, voiceStep: 0, lang: "en", tog: { sms: true, wa: false, guardian: true, captions: true }, staffTab: "usage" };
+const $ = id => document.getElementById(id);
+const CHOICES = ["Both true; R explains A", "Both true; R does not explain A", "A true; R false", "A false; R true", "Both false"];
+const NOTES = {
+  today: "<b>Today</b> is the small-device home: one Continue card, what is due, and a voice drill. Bottom tab bar on phone/tablet portrait; icon rail on tablet landscape. BR-M2, BR-M4.",
+  practice: "<b>Practice item</b>: large choice cards, sticky Check, hint in a bottom sheet, 🎙 to answer by voice. BR-P1, BR-P2, BR-V3.",
+  voice: "<b>Voice session</b> (hands-free): captions on, barge-in, every spoken answer becomes a <b>confirm card</b>; grading by the REST scorer only. Click the orb to step through. BR-V1–V7.",
+  exam: "<b>Exam</b>: timer always visible, navigator sheet, read-aloud and spoken answer entry only — no hints or tutoring by voice. Phones only if the assignment allows. BR-P5, BR-V8.",
+  tutor: "<b>Tutor chat</b>: composer with Σ and 🎙 inside; <b>Talk</b> switches to the voice session in the same thread. BR-P4.",
+  course: "<b>Course step</b>: one unit per screen (video → check → next). Tablet shows the voice dock under the content; landscape uses the split view with the tutor transcript. BR-P6, BR-P7, BR-P9.",
+  me: "<b>Me · voice &amp; alerts</b>: minutes left today (20 min/day, D-V3), language (multilingual, D-V10), default push-to-talk (D-V2), and Twilio SMS/WhatsApp with verified numbers, guardian contact and quiet hours (D-V7). Students see minutes, not dollars. BR-V11, BR-V14, BR-V15, BR-P10.",
+  offline: "<b>Downloads (native app)</b>: content packs installed by the local database initializer, sync status, and small on-device models (voice activity, offline dictation, keyword commands, offline read-aloud). Exams stay online-only. D-V6, BR-P11, 69A §6.",
+  staff: "<b>Staff · usage &amp; cost</b> (tablet review / desktop): per-student seconds and USD from the metering ledger, budget overrides, abuse flags, provider scorecard and reconciliation drift. Phones show the larger-screen card. BR-V14, 69A §4 and §7.4.",
+  na: "<b>Not available</b> on this device class: a calm card with hand-off, never a broken layout. Phone: graph explorer, artifacts, Studio, admin, JSON views. BR-M9.",
+};
+const API = {
+  today: "GET /v1/me/features\nGET /v1/me/voice/usage?period=day\nGET /v1/notifications/me (existing)",
+  practice: "Existing quiz runtime routes (student bearer)\nPOST /api/voice/session {context:{kind:'quiz_item', id}} (🎙)",
+  voice: "POST /api/voice/session → POST /v1/me/voice/sessions {context, mode:'PUSH_TO_TALK', language, device}\nPOST /v1/me/voice/sessions/{id}/tools/record_answer_draft {call_id, args:{choice:'B'}}\nPOST /v1/me/voice/sessions/{id}/confirm {draft_id, via:'TAP'|'VOICE'}\nPOST /v1/me/voice/sessions/{id}/tools/submit_answer\nPOST /v1/me/voice/sessions/{id}/heartbeat → {remaining_today_seconds, warn, stop}\nPOST /v1/me/voice/sessions/{id}/usage {events:[{provider_event_id, units}]}\nPOST /v1/me/voice/sessions/{id}/end {reason}",
+  exam: "Existing exam routes (exam-web)\nPOST /v1/me/voice/sessions {context:{kind:'exam_item'}} → policy tools: read_item, record_answer_draft, navigate, time_left",
+  tutor: "POST /api/agent/run (existing)\nPOST /api/voice/stt (existing, dictation)\nTalk → POST /api/voice/session {context:{kind:'tutor'}}",
+  course: "Existing micro-course routes\nPOST /api/voice/session {context:{kind:'course_step'|'socratic_step', id}}",
+  me: "GET /v1/me/voice/usage?period=day|month\nGET/PUT /v1/me/preferences/voice {language, default_mode, speed, captions, data_saver}\nGET/POST/DELETE /v1/me/contacts · POST /v1/me/contacts/{id}/verify {code} (Twilio Verify)\nGET/PUT /v1/me/notification-preferences {channels, types, quiet_hours}",
+  offline: "POST /v1/me/devices {platform, model, app_version, push_token, attestation}\nGET /v1/me/device/bootstrap → {schema_version, packs, features, budgets}\nGET /v1/me/content-packs/{pack_id} → {url, sha256, signature, encrypted_keys_for_device}\nPOST /v1/me/sync {device_id, cursor, outbox[]} → {accepted, rejected, changes, next_cursor}",
+  staff: "GET /v1/admin/studio/usage?scope=student&from&to&group_by=provider\nGET /v1/admin/studio/usage/flags?status=OPEN · POST /flags/{id}/resolve\nGET/POST /v1/admin/studio/budgets\nGET/POST /v1/admin/studio/rate-cards (append-only)\nGET/POST /v1/admin/studio/voice/assessments\nGET /v1/admin/studio/reconciliation?date",
+  na: "— (client-side device class check; handoff link)",
+};
+const apiBox = k => `<details class="api"><summary>API this screen calls</summary><pre>${API[k].replace(/&/g, "&amp;").replace(/</g, "&lt;")}</pre></details>`;
+const LANGS = [["en", "English"], ["es", "Español"], ["hi", "हिन्दी"], ["bn", "বাংলা"], ["fr", "Français"]];
+const langSel = () => `<select class="lang" data-lang aria-label="Language">${LANGS.map(([k, l]) => `<option value="${k}" ${S.lang === k ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+const tog = (k, label, sub = "") => `<div class="row"><div><div>${label}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div><button class="tog" data-tog="${k}" aria-pressed="${S.tog[k]}" aria-label="${label}"></button></div>`;
+function tabs(active) { return `<nav class="tabs" aria-label="Main">${[["⌂", "Today", "today"], ["▤", "Learn", "course"], ["✎", "Practice", "practice"], ["⏱", "Exams", "exam"], ["◔", "Me", "me"]].map(([i, l, k]) => `<button data-screen="${k}" class="${k === active ? "on" : ""}" ${k === active ? 'aria-current="page"' : ""}><span>${i}</span>${l}</button>`).join("")}</nav>`; }
+function rail(active) { return `<nav class="rail" aria-label="Main">${[["⌂", "today"], ["▤", "course"], ["✎", "practice"], ["⏱", "exam"], ["◔", "me"]].map(([i, k]) => `<button data-screen="${k}" class="${k === active ? "on" : ""}" aria-label="${k}">${i}</button>`).join("")}</nav>`; }
+function appbar(title, right = "") { return `<div class="appbar"><button class="ib" aria-label="Back">←</button><div class="t">${title}</div>${right}</div>`; }
+const choices = () => CHOICES.map((c, i) => `<button class="choice${S.choice === i ? " on" : ""}" data-choice="${i}"><b>${"ABCDE"[i]}</b>${c}</button>`).join("");
+const arCards = `<div class="card"><span class="kicker">Assertion</span>x + y + z = 5 has 21 non-negative integer solutions.</div><div class="card"><span class="kicker">Reason</span>Each solution matches an arrangement of 5 stars and 2 bars.</div>`;
+function voiceTurns() {
+  const t = [["a", "Question 3. Assertion: x plus y plus z equals 5 has 21 solutions. Reason: … Which option do you pick?"]];
+  if (S.voiceStep >= 1) t.push(["u", "I think it's B"]);
+  if (S.voiceStep >= 3) t.push(["a", "Not quite — the reason does explain the assertion. Want a hint about why?"]);
+  return t.map(([r, x]) => `<div class="turn ${r}">${x}</div>`).join("") +
+    (S.voiceStep === 1 || S.voiceStep === 2 ? `<div class="confirm"><b>You chose B.</b><span class="sub">“Both true; R does not explain A”</span><div class="grid2"><button class="btn" data-v="0">Change</button><button class="btn pri" data-v="3">Submit ✓</button></div><span class="sub">Or say “yes, submit”</span></div>` : "") +
+    (S.voiceStep >= 3 ? '<span class="pill bad" style="justify-self:start">Scored by REST · Incorrect</span>' : "");
+}
+function sheet() {
+  if (S.sheet === "hint") return `<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-label="Hint"><div class="handle"></div><b>Hint 1 of 3</b><span>Count the arrangements of 5 stars and 2 bars in a row of 7 symbols.</span><div class="grid2"><button class="btn" data-close>Close</button><button class="btn">🔊 Read</button></div></div>`;
+  if (S.sheet === "nav") return `<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-label="Questions"><div class="handle"></div><b>Questions</b><div class="nav">${Array.from({ length: 20 }, (_, i) => `<span class="${i === 6 ? "c" : i === 3 ? "f" : i < 6 ? "a" : ""}">${i + 1}</span>`).join("")}</div><span class="legend">green answered · amber flagged · outlined current</span><button class="btn pri" data-close>Back to question 7</button></div>`;
+  return "";
+}
+function content(screen, cls) {
+  const wide = cls !== "phone";
+  switch (screen) {
+    case "today": return { bar: `<div class="appbar"><div class="t">MathBank</div><button class="ib" data-screen="me" aria-label="Me">◔</button></div>`, body: `<span class="sub">Good evening, Asha</span>
+      <div class="card hero"><span class="kicker">Continue</span><b>Stars and bars · Lesson 2</b><span class="sub">Step 2 of 5 · about 6 min</span><button class="btn pri" data-screen="course">▶ Continue</button></div>
+      <div class="${wide ? "grid2" : ""}" style="display:grid;gap:10px"><div class="card"><span class="kicker">Due</span><span>⏱ Checkpoint exam · Fri <span class="pill warn">Assigned</span></span><span>✎ Bijections quiz · 3 min</span></div>
+      <div class="card"><span class="kicker">Practice by voice</span><span class="sub">Hands-free drill, headphones recommended</span><button class="btn" data-screen="voice">🎙 5-minute voice drill</button></div></div>`, fab: true };
+    case "practice": return { bar: appbar("Stars and bars · 3 of 6", '<button class="ib" aria-label="More">⋯</button>'), body: `<div class="progress"><i></i></div>${arCards}<div style="display:grid;gap:8px${wide ? ";grid-template-columns:1fr 1fr" : ""}">${choices()}</div>`, foot: `<div class="bar"><button class="btn" data-sheet="hint">Hint</button><button class="btn" data-screen="voice" aria-label="Answer by voice">🎙</button><button class="btn pri" ${S.choice === null ? "disabled" : ""}>Check ▸</button></div>`, fab: false };
+    case "voice": return { bar: `<div class="appbar"><button class="ib" data-screen="practice" aria-label="Close">↓</button><div class="t">Tutor · Quiz item 3</div>${langSel()}<span class="pill ok">CC</span></div>`, body: `<div style="display:grid;gap:10px">${voiceTurns()}</div><button class="orb" data-orb aria-label="Voice orb — click to simulate the next turn" style="border:0"></button><div style="text-align:center" class="sub">${S.voiceStep >= 3 ? "Speaking…" : "Listening… (click the orb to simulate)"}</div>`, foot: `<div class="bar"><button class="btn">⏸ Pause</button><button class="btn">⌨ Type</button><button class="btn pri" data-screen="practice">✕ End</button></div><div style="padding:0 16px 14px;background:#fff;display:grid;gap:4px"><div class="meter"><i style="width:20%"></i></div><div class="sub" style="text-align:center">16 of 20 min left today · push-to-talk default</div></div>`, cls: "voice" };
+    case "exam": return { bar: appbar("Checkpoint exam", '<span class="pill warn">⏱ 24:10</span>'), body: `<div class="sub">Question 7 of 20 · <button class="btn" style="min-height:32px">⚑ Flag</button></div><b>How many non-negative integer solutions does a + b + c = 5 have?</b><div style="display:grid;gap:8px${wide ? ";grid-template-columns:1fr 1fr" : ""}">${["15", "21", "28", "35"].map((c, i) => `<button class="choice${S.choice === i ? " on" : ""}" data-choice="${i}"><b>${"ABCD"[i]}</b>${c}</button>`).join("")}</div>${cls === "tl" ? "" : `<div class="card"><span class="kicker">Voice · exam mode</span><div class="grid2"><button class="btn">🔊 Read aloud</button><button class="btn">🎙 Say answer</button></div><span class="sub">No hints or explanations during exams.</span></div>`}`, foot: `<div class="bar"><button class="btn">◂ Prev</button>${cls === "tl" ? '<span style="flex:1"></span>' : '<button class="btn" data-sheet="nav" style="flex:1">Questions</button>'}<button class="btn">Next ▸</button></div>` };
+    case "tutor": return { bar: appbar("Tutor", '<button class="btn" data-screen="voice">🎙 Talk</button>'), body: `<div class="turn u">Why is it 7 choose 2?</div><div class="turn a">Think of a row of 7 slots. You choose which 2 hold bars — the other 5 are stars. So C(7,2) = 21. Which part feels unclear?</div><div class="turn u">Why 7 slots?</div>`, foot: `<div class="bar"><div class="composer" style="flex:1"><span>Ask…</span><button class="ib" aria-label="Math">Σ</button><button class="ib" aria-label="Dictate">🎙</button><button class="ib" aria-label="Send">➤</button></div></div>` };
+    case "course": return { bar: appbar("Stars and bars · Lesson 2"), body: `<div class="video">▶ Explainer · 2:14</div><span class="kicker">Step 2 of 5 · Check the justification</span>${arCards}${wide ? `<div class="dock"><div class="dot"></div><div style="flex:1"><b>Tutor is listening</b><div class="sub">“Which option do you pick?”</div></div><button class="btn">Pause</button><button class="btn">✕</button></div>` : ""}`, foot: `<div class="bar"><button class="btn" data-sheet="hint">Hint</button><button class="btn pri" data-screen="practice">Answer ▸</button></div>`, fab: !wide };
+    case "me": return { bar: `<div class="appbar"><div class="t">Me</div></div>`, body: `<div class="card"><span class="kicker">Voice today</span><div class="meter warn"><i style="width:82%"></i></div><div class="row"><span>16.4 of 20 min used</span><span class="pill warn">82%</span></div><span class="sub">Resets at midnight · text tutoring still available after the limit</span></div>
+      <div class="card"><span class="kicker">Voice</span><div class="row"><span>Language</span>${langSel()}</div><div class="row"><span>Default mode</span><span class="pill">Push-to-talk</span></div>${tog("captions", "Captions", "On by default")}</div>
+      <div class="card"><span class="kicker">Alerts (Twilio)</span>${tog("sms", "SMS", "+1 ••• ••• 4821 · verified")}${tog("wa", "WhatsApp", "Uses approved templates")}${tog("guardian", "Copy my guardian", "+1 ••• ••• 1907 · school consent on file")}<div class="row"><span>Quiet hours</span><span class="pill">21:00 – 07:30</span></div><button class="btn">＋ Add phone number</button></div>`, fab: false };
+    case "offline": return { bar: appbar("Downloads & offline", '<span class="pill ok">Synced 2 min ago</span>'), body: `<div class="card"><span class="kicker">Course packs (local database)</span><div class="row"><span>Stars and bars · v7</span><span class="pill ok">Installed · 38 MB</span></div><div class="row"><span>Bijections · v3</span><button class="btn" style="min-height:36px">⬇ 22 MB</button></div><span class="sub">Videos download on Wi-Fi only · exams need a connection</span></div>
+      <div class="card"><span class="kicker">On-device models</span><div class="row"><span>Voice activity detection</span><span class="pill ok">Ready · 2 MB</span></div><div class="row"><span>Offline dictation (small STT)</span><button class="btn" style="min-height:36px">⬇ 75 MB</button></div><div class="row"><span>Voice commands (next, repeat, submit)</span><span class="pill ok">Ready</span></div><div class="row"><span>Offline read-aloud</span><span class="pill">System voice</span></div></div>
+      <div class="card"><span class="kicker">Waiting to sync</span><span>3 practice answers · 1 voice transcript</span><span class="sub">Scored on the device for practice; re-checked by the server on sync</span></div>`, fab: false };
+    case "staff": return cls === "phone" ? { bar: appbar("Usage & cost"), body: `<div class="card" style="text-align:center;margin-top:40px"><div style="font-size:34px">▭</div><b>Staff view — use a tablet or desktop</b><button class="btn">Email me the link</button></div>` } : { bar: `<div class="appbar"><div class="t">Studio · Usage &amp; cost</div><span class="pill">Oct 2026</span></div>`, body: `<div class="seg" role="group" aria-label="Staff view">${[["usage", "Usage"], ["flags", "Flags (2)"], ["providers", "Providers"]].map(([k, l]) => `<button data-stab="${k}" aria-pressed="${S.staffTab === k}">${l}</button>`).join("")}</div>${S.staffTab === "usage" ? `<div class="grid2"><div class="card"><span class="sub">Voice cost this month</span><b style="font-size:20px">$41.20</b><span class="sub">1,912 min · 214 students</span></div><div class="card"><span class="sub">Reconciliation drift</span><b style="font-size:20px">1.8%</b><span class="pill ok">Within 5%</span></div></div>
+      <table class="t"><thead><tr><th>Student</th><th class="num">Min today</th><th class="num">$ today</th><th class="num">$ month</th><th>Provider</th><th></th></tr></thead><tbody>
+      <tr><td>st-102 · Grade 9A</td><td class="num">19.6</td><td class="num">0.71</td><td class="num">6.40</td><td>ElevenLabs</td><td><span class="pill warn">95%</span></td></tr>
+      <tr><td>st-110</td><td class="num">20.0</td><td class="num">0.74</td><td class="num">9.80</td><td>ElevenLabs</td><td><span class="pill bad">Capped</span></td></tr>
+      <tr><td>st-104</td><td class="num">4.2</td><td class="num">0.15</td><td class="num">1.10</td><td>Cascade</td><td></td></tr></tbody></table><button class="btn">Budget override for a group or student…</button>` : S.staffTab === "flags" ? `<div class="card"><div class="row"><b>st-110 · Cost spike</b><span class="pill bad">Open</span></div><span class="sub">Today $0.74 = 4.1× 14-day median · 63% idle streaming</span><div class="grid2"><button class="btn">Dismiss</button><button class="btn pri">Reduce budget</button></div></div><div class="card"><div class="row"><b>st-131 · Rapid restarts</b><span class="pill warn">Soft-blocked 1 h</span></div><span class="sub">15 session starts in 40 min</span></div>` : `<table class="t"><thead><tr><th>Criterion (weight)</th><th class="num">ElevenLabs</th><th class="num">Nova Sonic</th><th class="num">OpenAI</th></tr></thead><tbody>${[["Multilingual (20)", "—", "—", "—"], ["Latency p95 (15)", "—", "—", "—"], ["$ / student-min (15)", "—", "—", "—"], ["Tool reliability (15)", "—", "—", "—"], ["Minors' privacy gate (10)", "pass?", "pass?", "pass?"], ["Weighted total", "—", "—", "—"]].map(r => `<tr>${r.map((c, i) => `<td class="${i ? "num" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table><span class="sub">Preference order ElevenLabs → Nova Sonic → OpenAI; preferred wins if within 10% and passes the privacy gate. Filled by the spike.</span>`}` };
+    case "na": return { bar: appbar("Knowledge graph"), body: cls === "phone" ? `<div class="card" style="text-align:center;margin-top:40px"><div style="font-size:34px">▭</div><b>Best on a larger screen</b><span class="sub">The graph explorer needs a tablet or desktop.</span><button class="btn">Email me the link</button><button class="btn">Show QR for desktop</button></div>` : `<div class="card"><span class="pill">Read-only on tablets</span><div class="video" style="background:#f1f5f9;color:var(--muted)">graph canvas (pinch to zoom)</div></div>` };
+  }
+}
+function render() {
+  $("devices").innerHTML = DEVICES.map(([k, l]) => `<button data-device="${k}" aria-pressed="${S.device === k}">${l}</button>`).join("");
+  $("screens").innerHTML = SCREENS.map(([k, l]) => `<button data-screen="${k}" aria-pressed="${S.screen === k}">${l}</button>`).join("");
+  const c = content(S.screen, S.device), dev = S.device;
+  c.body += apiBox(S.screen);
+  let inner;
+  if (dev === "tl") {
+    const companion = S.screen === "exam"
+      ? `<div class="appbar"><div class="t">Questions</div></div><div class="body"><div class="nav">${Array.from({ length: 20 }, (_, i) => `<span class="${i === 6 ? "c" : i === 3 ? "f" : i < 6 ? "a" : ""}">${i + 1}</span>`).join("")}</div><div class="card"><span class="kicker">Voice · exam mode</span><button class="btn">🔊 Read question</button><div class="sub">🎙 “I heard: B” <button class="btn" style="min-height:32px">Confirm</button></div></div></div>`
+      : `<div class="appbar"><div class="t">Tutor</div><span class="pill ok">Voice on</span></div><div class="body">${voiceTurns()}</div><div class="bar"><div class="composer" style="flex:1"><span>Ask…</span><button class="ib">🎙</button></div></div>`;
+    const noComp = ["me", "offline", "staff", "na"].includes(S.screen);
+    inner = `<div class="status"><span>9:41</span><span>Wi-Fi · 82%</span></div><div class="split" ${noComp ? 'style="grid-template-columns:72px minmax(0,1fr)"' : ""}>${rail(S.screen)}<div style="display:flex;flex-direction:column;min-height:0">${c.bar}<div class="body">${c.body}</div>${c.foot || ""}</div>${noComp ? "" : `<aside class="companion" aria-label="Companion">${companion}</aside>`}</div>${sheet()}`;
+  } else {
+    inner = `<div class="status"><span>9:41</span><span>5G · 82%</span></div>${c.bar}<div class="body">${c.body}</div>${c.foot || ""}${S.screen === "voice" ? "" : tabs(S.screen)}${c.fab ? '<button class="fab" data-screen="voice" aria-label="Start voice">🎙</button>' : ""}${sheet()}`;
+  }
+  const scale = dev === "phone" ? .82 : dev === "tp" ? .56 : .62;
+  const [w, h] = dev === "phone" ? [390, 844] : dev === "tp" ? [820, 1180] : [1180, 820];
+  $("frame").innerHTML = `<div class="device ${dev === "phone" ? "phone" : "tablet " + dev}"><div class="scale" style="width:${w * scale}px;height:${h * scale}px"><div class="screen ${c.cls || ""}" style="width:${w}px;height:${h}px;transform:scale(${scale});transform-origin:top left">${inner}</div></div></div>`;
+  $("note").innerHTML = `<span>${NOTES[S.screen]}</span><span class="legend">Layout: ${dev === "phone" ? "bottom tab bar, one column, bottom sheets, voice FAB" : dev === "tp" ? "bottom tab bar, one column (≤ 720 reading width), voice dock" : ["me", "offline", "staff", "na"].includes(S.screen) ? "icon rail, full-width content (no companion)" : "icon rail, split view: content + companion (tutor/voice or exam navigator)"}.</span><span class="legend">Touch targets ≥ 44 px · safe areas · one primary action in thumb reach.</span>`;
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest("button,[data-close]"); if (!t) return;
+  if (t.dataset.device) S.device = t.dataset.device;
+  else if (t.dataset.screen) { S.screen = t.dataset.screen; S.sheet = null; S.choice = null; if (t.dataset.screen === "voice") S.voiceStep = 0; }
+  else if (t.dataset.choice !== undefined) S.choice = +t.dataset.choice;
+  else if (t.dataset.sheet) S.sheet = t.dataset.sheet;
+  else if (t.dataset.close !== undefined) S.sheet = null;
+  else if (t.dataset.orb !== undefined) S.voiceStep = S.voiceStep >= 3 ? 0 : S.voiceStep + 1;
+  else if (t.dataset.v) S.voiceStep = +t.dataset.v;
+  else if (t.dataset.tog) S.tog[t.dataset.tog] = !S.tog[t.dataset.tog];
+  else if (t.dataset.stab) S.staffTab = t.dataset.stab;
+  else return;
+  render();
+});
+document.addEventListener("change", e => { if (e.target.dataset.lang !== undefined) { S.lang = e.target.value; render(); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && S.sheet) { S.sheet = null; render(); } });
+render();
+</script>
+</body>
+</html>

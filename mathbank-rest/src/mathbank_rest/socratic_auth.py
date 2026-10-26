@@ -24,7 +24,12 @@ logger = logging.getLogger(__name__)
 COOKIE_PATH = "/v1/admin/socratic"
 ACCESS_COOKIE = "mathbank_socratic_access"
 REFRESH_COOKIE = "mathbank_socratic_refresh"
-Capability = Literal["author", "review_mathematics", "review_pedagogy", "publish"]
+ROLE_COOKIE = "mathbank_socratic_role"
+Capability = Literal["author", "review_mathematics", "review_pedagogy", "publish", "manage_users", "preview"]
+Role = Literal["admin", "student"]
+ROLES: tuple[Role, ...] = ("admin", "student")
+# The active role can only narrow what group membership already grants; it never adds access.
+STUDENT_CAPABILITIES: list[Capability] = ["preview"]
 
 
 class StaffActor(BaseModel):
@@ -39,6 +44,8 @@ class StaffSession(BaseModel):
     actor: StaffActor
     csrf_token: str
     auth_mode: Literal["cognito", "local"] = "cognito"
+    role: Role = "admin"
+    roles: list[Role] = ["admin"]
 
 
 @dataclass(frozen=True)
@@ -144,15 +151,28 @@ def check_local_request(request: Request | None) -> None:
             raise local.reject(exc) from None
 
 
-def local_session(access: str) -> StaffSession:
+def active_role(roles: list[Role], requested: str | None) -> Role:
+    return requested if requested in roles else roles[0]  # type: ignore[return-value]
+
+
+def role_capabilities(role: Role, admin_capabilities: list[Capability]) -> list[Capability]:
+    if role == "student":
+        return list(STUDENT_CAPABILITIES)
+    return [*admin_capabilities, *(c for c in ("preview",) if c not in admin_capabilities)]
+
+
+def local_session(access: str, requested_role: str | None = None) -> StaffSession:
     actor_id = "local:" + str(uuid5(NAMESPACE_URL, "mathbank-socratic-local:" + settings.socratic_local_username))
+    roles: list[Role] = ["admin", "student"]
+    role = active_role(roles, requested_role)
     return StaffSession(actor=StaffActor(
         actor_id=actor_id, username=settings.socratic_local_username,
-        capabilities=settings.socratic_local_capabilities,
-    ), csrf_token=csrf_token(access), auth_mode="local")
+        capabilities=role_capabilities(role, list(settings.socratic_local_capabilities)),
+    ), csrf_token=csrf_token(access), auth_mode="local", role=role, roles=roles)
 
 
-def load_session(access_token: str, provider=None, *, request: Request | None = None) -> StaffSession:
+def load_session(access_token: str, provider=None, *, request: Request | None = None,
+                 role: str | None = None) -> StaffSession:
     configured()
     if not access_token or len(access_token) > 8192:
         raise fail(401, "STAFF_SESSION_REQUIRED", "Staff sign-in is required.")
@@ -162,7 +182,7 @@ def load_session(access_token: str, provider=None, *, request: Request | None = 
             local.store.load(access_token)
         except local.LocalAuthError as exc:
             raise local.reject(exc) from None
-        return local_session(access_token)
+        return local_session(access_token, role)
     try:
         claims = jwt.decode(access_token, options={"verify_signature": False})
     except jwt.PyJWTError:
@@ -209,9 +229,14 @@ def load_session(access_token: str, provider=None, *, request: Request | None = 
     for group, capability in capability_groups:
         if group and group in groups:
             capabilities.append(capability)
+    capabilities.append("manage_users")
+    roles: list[Role] = ["admin"]
+    if settings.cognito_student_group and settings.cognito_student_group in groups:
+        roles.append("student")
+    current = active_role(roles, role)
     return StaffSession(actor=StaffActor(
-        actor_id=attributes["sub"], username=username, capabilities=capabilities,
-    ), csrf_token=csrf_token(access_token))
+        actor_id=attributes["sub"], username=username, capabilities=role_capabilities(current, capabilities),
+    ), csrf_token=csrf_token(access_token), role=current, roles=roles)
 
 
 def login(username: str, password: str, *, request: Request | None = None) -> LoginResult:
@@ -245,6 +270,27 @@ def login(username: str, password: str, *, request: Request | None = None) -> Lo
     return LoginResult(session, access, refresh, min(expires, settings.socratic_session_seconds))
 
 
+def change_password(request: Request, access_token: str, current: str, new: str) -> None:
+    """Self-service password change for the signed-in Cognito user (verifies the current password)."""
+    check_csrf(request, access_token)
+    if settings.socratic_auth_mode == "local":
+        raise fail(409, "LOCAL_PASSWORD_CHANGE_UNSUPPORTED",
+                   "Local test passwords are managed with make socratic-password, not in the Studio.")
+    try:
+        client().change_password(PreviousPassword=current, ProposedPassword=new, AccessToken=access_token)
+    except ClientError as exc:
+        code = exc.response.get("Error", {}).get("Code")
+        if code == "NotAuthorizedException":
+            raise fail(401, "CURRENT_PASSWORD_INVALID", "The current password is incorrect.") from None
+        if code in ("InvalidPasswordException", "InvalidParameterException"):
+            raise fail(422, "PASSWORD_POLICY_FAILED", "The new password does not meet the password policy.") from None
+        if code in ("TooManyRequestsException", "LimitExceededException"):
+            raise fail(429, "STAFF_AUTH_THROTTLED", "Too many attempts. Try again later.") from None
+        raise fail(503, "STAFF_IDENTITY_UNAVAILABLE", "Staff identity provider is unavailable.") from None
+    except BotoCoreError:
+        raise fail(503, "STAFF_IDENTITY_UNAVAILABLE", "Staff identity provider is unavailable.") from None
+
+
 def logout(request: Request, access_token: str, refresh_token: str) -> None:
     if not access_token or not refresh_token:
         raise fail(401, "STAFF_SESSION_REQUIRED", "Staff sign-in is required.")
@@ -262,5 +308,11 @@ def logout(request: Request, access_token: str, refresh_token: str) -> None:
 
 def require_capability(session: StaffSession, capability: Capability) -> StaffActor:
     if capability not in session.actor.capabilities:
+        raise fail(403, "STAFF_CAPABILITY_REQUIRED", "This staff capability is required.")
+    return session.actor
+
+
+def require_any(session: StaffSession, *capabilities: Capability) -> StaffActor:
+    if not any(capability in session.actor.capabilities for capability in capabilities):
         raise fail(403, "STAFF_CAPABILITY_REQUIRED", "This staff capability is required.")
     return session.actor

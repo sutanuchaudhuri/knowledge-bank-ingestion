@@ -47,7 +47,7 @@ once (plus the rail); opening a fourth hides the least relevant one.
 | Previewing while editing | Rail · Canvas · Drawer · Sidecar (sidebar hidden) |
 | Searching / selecting (**focus view**) | Rail · Focus view (facets 220 + results) · optional Sidecar |
 | Finding & wiring at scale (**Finder**, §7a) | Rail · Facets 220 · Results (flex) · Inspector **or** target mini-map 380 · sticky tray |
-| Phone (< 760px) | Rail · Canvas; sidebar slides in over a scrim; drawer/sidecar/micro chat are full-height overlays; focus view hides facets behind a *Filters* button |
+| Phone (< 760px), **staff tools** | Rail · Canvas; sidebar slides in over a scrim; drawer/sidecar/micro chat are full-height overlays; focus view hides facets behind a *Filters* button. **Student apps use the separate device layouts in §2b.** |
 
 Rules:
 - Reading text caps at ~80ch; cards/flows cap at ~720–860px and centre in the canvas.
@@ -55,6 +55,38 @@ Rules:
 - A hidden zone must be truly hidden (`display:none` / `visibility:hidden`), not just moved
   off-screen, so it can't take focus or intercept clicks.
 - Sticky elements: top bar, drawer footer, focus-view tray. Nothing else is sticky.
+
+## 2b. Device classes for student apps (phone, tablet, desktop)
+
+Student apps (mathbank-web `/learn`, exam-web, live student view) get **separate compositions per
+device class**, not a squeezed desktop. Requirement and wireframes:
+[69](../../../documentation/requirements/69_MOBILE_TABLET_VOICE_STUDENT_EXPERIENCE.md),
+[student-mobile-voice-wireframes.html](../../../documentation/architecture/prototype/student-mobile-voice-wireframes.html).
+
+| Class | Width | Navigation | Zones | Detail | Voice entry |
+|---|---|---|---|---|---|
+| Phone | < 600 | **Bottom tab bar** (Today · Learn · Practice · Exams · Me) + app bar (back · title · ≤ 1 action) | 1 column | **Bottom sheet** (half → full) | Floating 🎙 button above the tab bar → full-screen voice session |
+| Tablet portrait | 600–899 | Bottom tab bar | 1 column, reading width ≤ 720 | Bottom or right sheet ≤ 50% | **Voice dock** under the content |
+| Tablet landscape | 900–1199 | Icon rail (no sidebar) | **Split view**: content + companion 360 (tutor/voice transcript or exam navigator) | Right sheet | Voice in the companion |
+| Desktop | ≥ 1200 | Rail + sidebar | §2 zones | Drawer | Mic in composer + voice dock |
+
+```
+PHONE                     TABLET PORTRAIT                 TABLET LANDSCAPE
+┌──────────────┐          ┌────────────────────────┐      ┌──┬──────────────┬────────┐
+│ ← Title    ⋯ │          │ ← Title              ◔ │      │⌂ │ ← Title      │Companion│
+│              │          │ content ≤ 720          │      │▤ │ content      │ tutor / │
+│ one column   │          │                        │      │✎ │              │ voice / │
+│              │          │ ┌ voice dock ────────┐ │      │⏱ │              │ exam nav│
+│         (🎙) │          │ └────────────────────┘ │      │◔ │ [◂]    [▸]   │         │
+│ [2nd] [Pri ▸]│          │ [2nd]          [Pri ▸] │      └──┴──────────────┴────────┘
+│ ⌂ ▤ ✎ ⏱ ◔    │          │ ⌂  ▤  ✎  ⏱  ◔          │
+└──────────────┘          └────────────────────────┘
+```
+
+Rules: touch targets ≥ 44 px; `env(safe-area-inset-*)`; inputs ≥ 16 px; `100dvh`; no hover-only
+actions; the **one primary action sits bottom-right in thumb reach**; the keyboard hides the tab bar;
+features that don't fit a class show a calm *Best on a larger screen* card with *Email me the link*,
+never a broken layout (availability matrix in req 69 §3).
 
 ## 3. Typography and spacing
 
@@ -239,12 +271,39 @@ a video, an exam question or (for students) the current problem step. It is a re
 `POST …/threads/{id}/messages {text}` (streams); `POST …/proposals/{id}/apply {expected_hash}`.
 Student micro chat reuses the tutor agent with a step/question-scoped context.
 
+## 8a. Voice session (real-time voice agent, separate module)
+
+Anatomy (phone full-screen; tablet as a dock; landscape inside the companion):
+
+```
+┌──────────────────────────┐
+│ ↓  Tutor · Quiz item 3   │  context chip + [Captions] (on by default)
+│ Tutor: Which option…?    │  live transcript, math rendered
+│ You: I think B           │
+│ ┌──────────────────────┐ │  CONFIRM CARD — every spoken answer, before submit
+│ │ You chose B. Submit? │ │  [Change] [Submit ✓] · "or say yes, submit"
+│ └──────────────────────┘ │
+│         ( ◉ )            │  orb = state: listening / thinking / speaking (reduced-motion aware)
+│ [⏸ Pause] [⌨ Type] [✕ End]│
+│ 16 min of voice left     │  budget, never hidden
+└──────────────────────────┘
+```
+
+- **Modes**: Read-aloud · Push-to-talk · Hands-free; automatic fallback to turn-based or text.
+- **Policies per context** (tutor, course step, practice, exam, live) decide the tools; the exam
+  policy only reads aloud and records answers — no hints or tutoring.
+- **Never grade by voice**: answers go through the confirm card to the REST scorer.
+- Captions on, barge-in allowed, haptic + audio cues for listening/speaking, idle auto-pause.
+- Same component in all student apps: `<VoiceSession context audience policy onConfirm onEnd />`.
+
 ## 9. Do / don't
 
 | Do | Don't |
 |---|---|
 | Put editing in a drawer and keep the canvas for reading | Inline-edit everything on the canvas |
 | Use a focus view for search/select with a sticky tray | Show a cramped search list inside a 420px drawer |
+| Give phones and tablets their own layout (tabs, sheets, split view) | Shrink the desktop sidebar layout onto a phone |
+| Confirm every spoken answer on screen before submitting | Let the voice model grade or submit silently |
 | Offer *find similar* / reuse before *Create new* | Let staff create a near-duplicate without seeing existing matches |
 | Use one segmented control for alternative representations | Add tabs + toggles + dropdowns for the same switch |
 | Show status as pills from server truth | Write "This draft has been saved successfully on the server." |
@@ -322,6 +381,8 @@ Student micro chat reuses the tutor agent with a step/question-scoped context.
 - [ ] One hero (`h1`) per view; segmented control for representations.
 - [ ] Editing in a drawer; search/select in a focus view with a tray; previews in a sidecar.
 - [ ] Esc closes the top-most layer and focus returns to the opener.
+- [ ] Student screens: phone / tablet-portrait / tablet-landscape layouts per §2b; 44 px targets; safe areas; unavailable features show the larger-screen card.
+- [ ] Voice: session per §8a with captions, confirm card and budget; exam policy has no tutoring tools.
 - [ ] Large libraries use the Finder (§7a): full width, inspector or target mini-map, link vs fork shown, *find similar* before *Create new*.
 - [ ] Pills follow §6 tones; ≤ 3 per row; no prose status.
 - [ ] Micro chat available on item drawers where AI help is enabled (staff) or on the current

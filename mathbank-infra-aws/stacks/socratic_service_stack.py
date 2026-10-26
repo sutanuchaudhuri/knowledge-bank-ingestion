@@ -1,4 +1,4 @@
-"""Opt-in isolated draft API. Secrets from SSM, no Bedrock/AgentCore privileges."""
+"""Opt-in isolated draft API. Secrets from SSM, no Bedrock/AgentCore privileges; Cognito admin actions scoped to the one user pool."""
 from __future__ import annotations
 
 import hashlib
@@ -20,7 +20,7 @@ SERVICE = "mathbank-socratic-api"
 SECRET_KEYS = ("POSTGRES_PASSWORD", "COGNITO_CLIENT_SECRET", "SOCRATIC_CSRF_SECRET")
 PLAIN_KEYS = (
     "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_SSLMODE",
-    "COGNITO_REGION", "COGNITO_USER_POOL_ID", "COGNITO_CLIENT_ID", "COGNITO_ADMIN_GROUP",
+    "COGNITO_REGION", "COGNITO_USER_POOL_ID", "COGNITO_CLIENT_ID", "COGNITO_ADMIN_GROUP", "COGNITO_STUDENT_GROUP",
     "SOCRATIC_MATH_REVIEWER_GROUP", "SOCRATIC_PEDAGOGY_REVIEWER_GROUP", "SOCRATIC_PUBLISHER_GROUP",
 )
 
@@ -47,7 +47,7 @@ class SocraticServiceStack(Stack):
         origin_name = f"{prefix}/STUDIO_ORIGIN"
         environment = {key: values[key] for key in PLAIN_KEYS if values.get(key)}
         environment.update({
-            "SOCRATIC_AUTH_MODE": "cognito", "SOCRATIC_COOKIE_SECURE": "true",
+            "SOCRATIC_AUTH_MODE": "cognito", "SOCRATIC_COOKIE_SECURE": "true", "SOCRATIC_ACCESS_AUDIT": "true",
             "SOCRATIC_AWS_PROFILE": "", "SOCRATIC_SESSION_SECONDS": "900",
             "SOCRATIC_ORIGIN_PARAMETER": origin_name,
             "MATHBANK_SSM_PREFIX": prefix,
@@ -73,7 +73,12 @@ class SocraticServiceStack(Stack):
             ],
         ))
         fn.add_to_role_policy(iam.PolicyStatement(
-            actions=["cognito-idp:AdminInitiateAuth", "cognito-idp:AdminListGroupsForUser"],
+            actions=["cognito-idp:AdminInitiateAuth", "cognito-idp:AdminListGroupsForUser",
+                     # Studio user management (manage_users capability, enforced in the API).
+                     "cognito-idp:ListUsers", "cognito-idp:ListUsersInGroup", "cognito-idp:AdminGetUser",
+                     "cognito-idp:AdminAddUserToGroup", "cognito-idp:AdminRemoveUserFromGroup",
+                     "cognito-idp:AdminResetUserPassword", "cognito-idp:AdminUserGlobalSignOut",
+                     "cognito-idp:AdminDisableUser", "cognito-idp:AdminEnableUser"],
             resources=[self.format_arn(service="cognito-idp", resource="userpool",
                                        resource_name=values["COGNITO_USER_POOL_ID"])],
         ))

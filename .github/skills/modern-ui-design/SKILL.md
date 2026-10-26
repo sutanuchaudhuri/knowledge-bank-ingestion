@@ -118,6 +118,11 @@ Full templates, examples and code skeletons: [WORKSPACE_SHELL.md](WORKSPACE_SHEL
   sidebar, drawer, sidecar and micro chat become overlays.
 - **One job per surface:** canvas = read/overview, **drawer** = edit one item, **focus view** =
   search/select at full width with a sticky **selection tray**, **sidecar** = preview or micro chat.
+- **Student device classes:** phone (bottom tabs, one column, bottom sheets, voice FAB), tablet
+  portrait (tabs, voice dock), tablet landscape (rail + split view with companion); separate
+  compositions, not a shrunk desktop ([WORKSPACE_SHELL §2b](WORKSPACE_SHELL.md)).
+- **Voice session:** captions, orb state, confirm card before any spoken answer is submitted, budget
+  shown, exam policy read-aloud only ([WORKSPACE_SHELL §8a](WORKSPACE_SHELL.md)).
 - **Finder for large libraries (reuse first):** full-width facets · results · inspector/target
   mini-map, families collapsed, match reason shown, link vs fork chosen at wire time, *find
   similar* before *Create new* ([WORKSPACE_SHELL §7a](WORKSPACE_SHELL.md)).

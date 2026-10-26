@@ -68,6 +68,8 @@ the global delivery marks below certify those new surfaces.
 | UI-26 | **Typography roles and pill tones:** micro label / kicker / hero / section / body / meta roles only; pill tones carry fixed meaning (success, warning, danger, primary, neutral); ≤ 3 pills per row. | ✅ Studio; ⏳ sweep other modules |
 | UI-27 | **Micro chat:** separate module; AI chat scoped to one item (step, quiz item, video, exam question; student current step) in the sidecar or bottom sheet, context chip, quick-prompt pills, `MathComposer`, proposal cards only, thread per item. | ⏳ planned — [68 §4.11](68_UNIFIED_STUDIO_PORTAL_PLAN.md), phase P9b |
 | UI-28 | **Finder (reuse-first search & wire):** full-width facets · results · inspector or target mini-map; families collapsed; match reason; link vs fork at wire time; *find similar* before *Create new*; keyboard `/ ↑↓ Space Enter W Esc`. | ⏳ planned — [68 §4.13](68_UNIFIED_STUDIO_PORTAL_PLAN.md), [WORKSPACE_SHELL §7a](../../.github/skills/modern-ui-design/WORKSPACE_SHELL.md), phase P2b |
+| UI-29 | **Student device classes:** separate phone (bottom tabs, sheets, voice FAB), tablet-portrait (tabs, voice dock) and tablet-landscape (rail + split view) compositions; 44 px targets, safe areas, larger-screen card for unavailable features. | ⏳ planned — [69](69_MOBILE_TABLET_VOICE_STUDENT_EXPERIENCE.md) V0–V1, [WORKSPACE_SHELL §2b](../../.github/skills/modern-ui-design/WORKSPACE_SHELL.md) |
+| UI-30 | **Voice session component:** captions, orb state, confirm card before submit, budget, per-context policy (exam read-aloud only). | ⏳ planned — [69](69_MOBILE_TABLET_VOICE_STUDENT_EXPERIENCE.md) V3–V4, [WORKSPACE_SHELL §8a](../../.github/skills/modern-ui-design/WORKSPACE_SHELL.md) |
 
 ## 2. Building blocks
 

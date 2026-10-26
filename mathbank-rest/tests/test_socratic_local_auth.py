@@ -64,10 +64,11 @@ def test_local_login_restore_csrf_logout_and_replay_without_cognito(client):
     session = signed_in.json()
     assert session["auth_mode"] == "local"
     assert session["actor"]["actor_id"].startswith("local:")
-    assert session["actor"]["capabilities"] == ["author"]
+    assert session["actor"]["capabilities"] == ["author", "preview"]
+    assert session["role"] == "admin" and session["roles"] == ["admin", "student"]
     assert PASSWORD not in signed_in.text
     cookies = client.cookies.get_dict() if hasattr(client.cookies, "get_dict") else dict(client.cookies)
-    assert len(cookies) == 2
+    assert len(cookies) == 3  # access, refresh, active role
     for cookie in signed_in.headers.get_list("set-cookie"):
         assert "HttpOnly" in cookie and "SameSite=strict" in cookie
         assert "Secure" not in cookie and "Path=/v1/admin/socratic" in cookie
@@ -101,7 +102,7 @@ def test_local_capabilities_are_explicit_and_changes_invalidate_sessions(client,
     monkeypatch.setattr(settings, "socratic_local_capabilities", ["author", "review_mathematics"])
     assert client.get("/v1/admin/socratic/session").status_code == 401
     session = login(client).json()
-    assert session["actor"]["capabilities"] == ["author", "review_mathematics"]
+    assert session["actor"]["capabilities"] == ["author", "review_mathematics", "preview"]
     assert "publish" not in session["actor"]["capabilities"]
 
 

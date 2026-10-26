@@ -37,7 +37,7 @@ not remove requirements to fit an initial implementation.
 | 00 Baseline and UI preservation | COMPLETE (offline frontend increment) | Not integrated with workflow backend | 24 unit tests, 8 prototype Playwright checks at 1440/390, TypeScript/build passed. Required unfinished UI remains in scope. |
 | 01 REST staff session authentication | **COMPLETE (offline + real local-browser auth)** | **Cognito config/read-only preflight verified; successful staff login/revocation pending** | Explicit loopback-only non-AWS login added; 57 focused auth/setup/security tests, 2 real local-auth browser cases, Ruff and mypy pass. Full REST suite now 804 passed/134 skipped after fixture repairs. No cloud deployment or account mutation. |
 | 02 Draft/source persistence | **COMPLETE (implementation, Neon schema/tests and isolated deployment)** | **Hosted readiness/schema/SPA/denial verified; successful Cognito staff/protected-cloud round trip pending** | Migration 053 applied/repeated; owned immutable drafts, source pins, CAS/replay, atomic audit/outbox and concurrent writers tested. 824 REST tests passed/135 skipped; 25 UI unit, 8 prototype browser, 2 real local-auth browser, 3 infra tests passed. Shared REST stack unchanged. |
-| 03 Synthetic response/evaluation/help | **COMPLETE (implementation, Neon migration 054, local live acceptance)** | **Local browser → local API → Neon verified; hosted stack not yet redeployed; AR golden cases await staff approval** | Shared `activity_scoring` (micro-course refactored onto it), AR1–AR5, pinned private activity snapshots, CAS/idempotent preview events, hints/reveal as assisted. 872 REST passed/135 skipped; 10 preview DB + 12 offline + 23 scorer tests; 25 UI unit; live desktop/mobile browser run. |
+| 03 Synthetic response/evaluation/help | **COMPLETE (implementation, Neon migration 054, local live acceptance, hosted deploy 2026-10-26)** | **Local browser → local API → Neon verified; hosted `MathBankSocraticStack` redeployed and `make socratic-verify` PASS (2026-10-26); Cognito staff sign-in and AR golden-case approval still pending** | Shared `activity_scoring` (micro-course refactored onto it), AR1–AR5, pinned private activity snapshots, CAS/idempotent preview events, hints/reveal as assisted. 872 REST passed/135 skipped; 10 preview DB + 12 offline + 23 scorer tests; 25 UI unit; live desktop/mobile browser run. |
 | 04 AgentCore proposal package | PENDING; depends on 02 | Pending | Bounded DeepSeek typed proposals, minimal context, exact eligibility, prompt/model provenance, explicit staff acceptance, stale-result rejection. |
 | 05 Step Functions/Lambda/CDK | PENDING; depends on 04 | Pending | Isolated optional stack in existing CDK app, scoped IAM, durable intent/reconciliation, token/time/job limits and pause switch; selected-stack synth/test/deploy. |
 | 06 Live Neon/AWS vertical acceptance | PENDING; depends on 03 and 05 | Pending | Real authenticated browser → REST → Neon → Step Functions/AgentCore → persisted proposal → explicit accept; receipts, bounded spend, failed-job/replay tests. |
@@ -396,9 +396,80 @@ Persistent synthetic evidence from the live run: one draft "Live step 03 accepta
   still required** (SOC-ASMT-02) and is not claimed.
 - No AR/MULTISELECT `activity.definition` rows exist yet; authoring them writes the shared
   activity table and needs explicit approval (the admin activity API accepts the policy).
-- **Hosted stack not redeployed**: the deployed Lambda still serves step 02 and its `/health`
-  will not match the updated verifier until `make socratic-deploy` and `make socratic-verify`.
+- ~~Hosted stack not redeployed~~ — **done 2026-10-26** (see the hosted deploy record below).
+- A real Cognito staff sign-in on the hosted URL (and a hosted preview run) is still unverified.
+
+### Step 03 hosted deploy record (2026-10-26)
+
+| Command | Result |
+|---|---|
+| `make socratic-test` | 108 passed, 18 skipped (UI vitest + typecheck + REST Socratic) |
+| `aws login --profile aws-sutanu-admin` | session renewed (it had expired) |
+| `make socratic-diff` | only change: `SocraticFunction` container `ImageUri` (no IAM/URL/other resource changes) |
+| `make socratic-deploy` | ✅ `MathBankSocraticStack` updated in 53 s; StudioUrl unchanged `https://tzgysffipx6fiomvaqpcxzlxqu0gozfp.lambda-url.us-east-2.on.aws/` |
+| `make socratic-verify` | **PASS**: hosted readiness, exact isolated source OpenAPI/SPA, no-store 401, foreign-origin 403, safe 422, legacy-route absence. **NOT VERIFIED**: Cognito staff sign-in/groups, protected cloud persistence, logout/revocation, model/orchestration jobs |
+| `GET /health` | `evaluation_available: true`, `evaluation_scope: SYNTHETIC_PREVIEW_DETERMINISTIC`, `model_jobs_available: false` |
+| Unauthenticated `POST /v1/admin/socratic/previews/{id}/respond` | 403 (denied) |
+| Playwright 1440/390 on the hosted URL | rebuilt sign-in page renders, one `h1`, no overflow, no page errors |
+
+The hosted Studio now serves the step 03 API and the rebuilt UI (rail, searchable sidebar, drawer,
+Flow / Natural language / JSON).
 - Free-form rubric assistance, AI decisions and proposal jobs remain steps 04–05.
+
+## Roles, role switching and user management record (2026-10-26)
+
+**Request:** create an admin and a student group in Cognito, add `sutanu.chaudhuri@gmail.com` to
+both, let the user see and switch role (switching changes access), and add a user-management screen
+for access patterns and admin password/security actions.
+
+**Cognito (pool `us-east-2_wQePckX1G`, "mathbank-exam-students")**
+- Reused the existing **`Admins`** group (already the Studio/mathbank-web/live admin group — a second
+  admin group would split access). Created **`Students`** (precedence 10).
+- `sutanu.chaudhuri@gmail.com` (CONFIRMED) added to **Admins** and **Students**. Note: Admins also
+  grants mathbank-web/live admin UI access.
+
+**Design (server-enforced)**
+- Studio sign-in still requires `Admins`. Roles: `admin` (author + `manage_users` + `preview`, plus
+  reviewer/publisher capabilities from their groups) and `student` (`preview` only: list/open
+  workflows and run the simulator — no authoring, strategies, sources, AI or users). `student` is
+  offered only to Admins who are also in `Students`; Students-only users cannot enter the Studio.
+- Active role lives in an HttpOnly `mathbank_socratic_role` cookie; it can only **narrow** what
+  current group membership grants (forged values fall back to the first granted role).
+- `PUT /session/role` (CSRF), `POST /session/password` (Cognito `ChangePassword`, current password
+  required), `/users*` routes (capability `manage_users`): search, detail, group add/remove,
+  password reset (Cognito emails a code), global sign-out, disable/enable. Self-lockout guarded
+  (cannot remove own Admins, disable, reset or sign out yourself).
+- Access patterns: Cognito sign-in history needs the Plus tier (pool is Essentials), so the Studio
+  appends sign-in success/failure, sign-out, role switch, password change and every admin action to
+  the existing **`audit.action_log`** (entity `STAFF_USER`, `after_state` has role/group, a /24 or /48
+  IP prefix and a truncated user agent; never passwords). Enabled by `SOCRATIC_ACCESS_AUDIT=true`
+  (hosted stack, local `DRAFTS=1`); off for offline tests. No migration needed.
+- UI: rail shows only views the role allows (Users & access for `manage_users`); top-bar role pill and
+  avatar open the **Your account** drawer (role segmented switch, change password); Users view with
+  search, group chips, status pills, role matrix and a user drawer (groups, 30-day access stats,
+  recent activity, confirm-gated security actions).
+- IAM (Socratic stack only, scoped to the one pool): `ListUsers`, `ListUsersInGroup`, `AdminGetUser`,
+  `AdminAdd/RemoveUserToGroup`, `AdminResetUserPassword`, `AdminUserGlobalSignOut`,
+  `AdminDisable/EnableUser` (plus existing `AdminInitiateAuth`, `AdminListGroupsForUser`).
+
+**Files:** `mathbank-rest/src/mathbank_rest/{config.py,socratic_auth.py,socratic_users.py (new),routers/socratic.py}`,
+`scripts/run_socratic_local.py`, `tests/test_socratic_users.py` (new) + updated auth tests, Makefile
+targets; `mathbank-socratic-admin/src/{contracts.ts,App.tsx,Sidebar.tsx,Users.tsx (new),styles.css}`,
+`tests/Users.test.tsx` (new), `e2e/local-auth.spec.ts`, `e2e/local_auth_server.py`;
+`mathbank-infra-aws/stacks/socratic_service_stack.py`.
+
+| Verification | Result |
+|---|---|
+| `make socratic-test` | UI 38 passed (+4) + typecheck; REST **121 passed**, 18 skipped (+13 role/user tests) |
+| `make socratic-e2e` | prototype 8 passed (one mobile case flaked once, passed 3/3 on rerun); local-auth 2 passed incl. real role switch surviving reload |
+| `make socratic-diff` | IAM statement + image only |
+| `make socratic-deploy` | ✅ 73 s, same StudioUrl |
+| `make socratic-verify` | PASS (same scope as before) |
+| Hosted unauthenticated `GET /users` / `PUT /session/role` without CSRF / foreign-origin reset | 401 `STAFF_SESSION_REQUIRED` / 403 / 403 |
+
+**Not verified by the agent:** a real Cognito sign-in (needs the user's password), role switch and
+user actions on the hosted URL. Admin password reset makes Cognito email a code; the user completes it
+through a "forgot password" flow (mathbank-web has one; the Studio sign-in does not yet).
 
 ## UI re-baseline record (2026-10-25)
 

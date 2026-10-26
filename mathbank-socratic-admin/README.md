@@ -139,9 +139,15 @@ embedded answer key, scoring or frontend routing authority**.
 
 | Endpoint | UI use |
 | --- | --- |
-| `POST /session {username,password}` | Sign in → `{actor,csrf_token,auth_mode}` |
-| `GET /session` | Restore server cookie session → `{actor,csrf_token,auth_mode}` |
+| `POST /session {username,password}` | Sign in → `{actor,csrf_token,auth_mode,role,roles}` |
+| `GET /session` | Restore server cookie session → `{actor,csrf_token,auth_mode,role,roles}` |
 | `DELETE /session` | Sign out (CSRF protected) |
+| `PUT /session/role {role:"admin"\|"student"}` | Switch the active role (role pill / account drawer); must be granted by group membership |
+| `POST /session/password {current_password,new_password}` | Change your own Cognito password (account drawer) |
+| `GET /users?q=&limit=&next_token=` | Users & access view: pool search, groups, role matrix (`manage_users`) |
+| `GET /users/{username}` | User drawer: status, groups, MFA, 30-day access summary and recent events |
+| `PUT`/`DELETE /users/{username}/groups/{group}` | Add/remove Admins, Students (and configured reviewer groups) |
+| `POST /users/{username}/password-reset` · `/sign-out` · `PUT /users/{username}/enabled {enabled}` | Admin security actions (confirm step in the UI; never on your own account) |
 | `GET /strategies` | `{strategies:[{code,domain,label,status,phases}]}` |
 | `GET /resources?q=&limit=25&offset=0` | Source problem / solution revision / route references and `has_more` |
 | `GET /workflows?limit=25&offset=0` | Server-paginated owned summaries and `has_more`; at most 25 visible rows |

@@ -194,3 +194,17 @@ button.sc-list-row:hover:not(:disabled) { border-color: var(--mb-primary); }
   .sc-branch { margin-left: 18px; }
   .sc-banners { padding: 8px 10px 0; }
 }
+
+/* Roles, account and user management */
+.sc-role { border: 0; background: none; padding: 0; cursor: pointer; }
+.sc-role .mb-pill { display: inline-flex; align-items: center; gap: 5px; }
+button.sc-avatar { border: 0; cursor: pointer; }
+button.sc-avatar[aria-pressed="true"] { outline: 2px solid var(--mb-primary); outline-offset: 2px; }
+.sc-list { display: grid; gap: 8px; }
+.sc-list .sc-list-row { justify-content: flex-start; flex-wrap: wrap; }
+.sc-list .sc-list-row .sc-name { flex: 1 1 220px; display: grid; min-width: 0; }
+.sc-list .sc-list-row .sc-name strong { overflow-wrap: anywhere; }
+.sc-list-row.sc-active { border-color: var(--mb-primary); box-shadow: 0 0 0 3px var(--mb-primary-soft); }
+.sc-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sc-stats > div { border: 1px solid var(--mb-border); border-radius: 10px; padding: 8px 10px; display: grid; gap: 2px; min-width: 0; }
+.sc-drawer .sc-name { display: grid; min-width: 0; }

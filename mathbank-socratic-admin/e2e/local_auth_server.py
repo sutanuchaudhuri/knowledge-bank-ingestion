@@ -31,5 +31,5 @@ def loopback_connect(sock, address):
 
 socket.socket.connect = loopback_connect
 app = FastAPI(title="Offline local staff auth test server")
-app.include_router(APIRouter(routes=[route for route in router.routes if route.path.endswith("/session")]))
+app.include_router(APIRouter(routes=[route for route in router.routes if "/session" in route.path]))
 uvicorn.run(app, host="127.0.0.1", port=8018, proxy_headers=False, access_log=False)

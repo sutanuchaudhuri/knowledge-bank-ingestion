@@ -444,7 +444,7 @@ GROUP|STUDENTS, audience_ids[], reason, valid_from/to, created_by)` where:
 | `FEATURE` | Feature disabled (see below) |
 
 **Feature access** keeps APPLY *and* EXCLUDE because some features are off by default:
-`audience.feature` catalog (D-5 list) and `audience.feature_policy(scope GLOBAL|COURSE|GROUP|STUDENT,
+`audience.feature` catalog (D-5 list; includes `voice_agent` and `voice_exam_readaloud` with minute budgets for [69](69_MOBILE_TABLET_VOICE_STUDENT_EXPERIENCE.md)) and `audience.feature_policy(scope GLOBAL|COURSE|GROUP|STUDENT,
 scope_ids, feature_key, effect APPLY|EXCLUDE, …)`. Resolution (D-6): most specific wins (student >
 group > course > global > catalog default); EXCLUDE beats APPLY at the same level; expired rules
 ignored. Content rules are exclusion-only, so there is no precedence to resolve: a student is
@@ -511,6 +511,10 @@ policy editor. Capability `manage_access`.
   `/v1/admin/studio` plus existing `/v1/admin/socratic`).
 - Capabilities (Cognito groups → capabilities, as today): `author`, `review_mathematics`,
   `review_pedagogy`, `publish`, **new** `manage_exams`, `manage_access`, `ai_generate` (spend).
+- ✅ **Implemented 2026-10-26:** `manage_users` (Users & access view), `preview`, and **roles** —
+  `admin` / `student` with a server-enforced role switch (HttpOnly role cookie that only narrows
+  group-granted access); Cognito groups `Admins` + `Students`; access audit in `audit.action_log`
+  (ledger 67 "Roles, role switching and user management record").
 - Hosted Studio stays the isolated `MathBankSocraticStack` (renamed later); REST adapters for legacy
   services are added to the isolated app, keeping the shared REST stack untouched until **D-9**.
 
@@ -759,7 +763,7 @@ Status: **E** = exists today, **N** = new in this plan (phase in brackets).
 
 | UI action | Call | Status |
 |---|---|---|
-| Start preview / answer / hint / reveal / test routing | `POST /workflows/{id}/simulate`, `POST /previews/{id}/respond` · `/assist` · `/reveal` · `/transition`, `GET /previews/{id}` (socratic prefix) | E (local; deploy pending) |
+| Start preview / answer / hint / reveal / test routing | `POST /workflows/{id}/simulate`, `POST /previews/{id}/respond` · `/assist` · `/reveal` · `/transition`, `GET /previews/{id}` (socratic prefix) | E (deployed 2026-10-26) |
 | Preview as a group or student (exclusions applied) | `POST /workflows/{id}/simulate` `{expected_hash, as:{group_id or student_id}}` | N (P7) |
 | Finder search (⌘K, *Search & attach*) | `POST /v1/admin/studio/search` `{query, context?:{workflow_id, step_key \| course_id}, kinds?, topics?, status?, owner?, used?, limit, cursor}` → `{results[{unit:{kind,id,revision}, title, meta, pills, match_reason, family_size, used_count}], facets, next_cursor}` | N (P2b lexical+vector; P8 AI query/rerank) |
 | Find similar / duplicate check before create | `POST /v1/admin/studio/search/similar` `{unit?:{kind,id}, draft?:{kind, text}, threshold}` → near matches | N (P2b) |
