@@ -62,6 +62,8 @@ Neo4j-*-Created-*.txt
 # Background dev-server state (make start/stop pidfiles + logs)
 .server.pid
 .server.log
+.socratic.pid
+.socratic.log
 
 # Pipeline runtime artefacts
 data/

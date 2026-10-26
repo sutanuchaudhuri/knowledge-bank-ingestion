@@ -1,7 +1,7 @@
 ---
 name: mathbank-local-services
 description: 'Working across the MathBank repo''s locally-running dev services: start/stop/restart/status for any service, list every service and its URL/port, check logs on failure, and change a service''s port. Use when asked to start, stop, restart, or check the status of mathbank-rest/agent/web/live or any extra service, to show what''s currently running and its URL, to debug why a service won''t come up, or to run a service on a non-default port.'
-argument-hint: 'Optional: service short name (rest, agent, web, live, db, graph, manim, ml-inference, ml-frontend, mcp) to focus on'
+argument-hint: 'Optional: service short name (rest, agent, web, live, db, graph, manim, ml-inference, ml-frontend, mcp, socratic) to focus on'
 ---
 
 # mathbank-local-services conventions
@@ -30,6 +30,8 @@ background daemon on this machine — one shared pidfile/logfile/port convention
 | `mathbank-manim-studio` | `manim` | 8020 | ✅ |
 | `mathbank-ml-inference` | `ml-inference` | 8010 | ✅ |
 | `mathbank-ml-frontend` | `ml-frontend` | 5175 | ✅ |
+| `mathbank-socratic-admin` (Studio UI) | `socratic-ui` | 5186 | ✅ |
+| Socratic local staff API (`mathbank-rest/scripts/run_socratic_local.py`) | `socratic-api` | 8019 | ✅ (pid/log: `mathbank-rest/.socratic.pid`/`.socratic.log`) |
 | `mathbank-mcp-competitions` | `mcp` | stdio by default (no daemon) | ❌ — `make mcp-demo`/`mcp-test` only |
 | `mathbank-exam-agent` | — | 8030 | ❌ — `make exam-agent-run` only (foreground; deployed via Lambda for real use) |
 
@@ -103,6 +105,9 @@ make graph-start / graph-stop / graph-status                          # :7687/:7
 make manim-start / manim-stop / manim-restart / manim-status          # :8020
 make ml-inference-start / -stop / -restart / -status                  # :8010
 make ml-frontend-start / -stop / -restart / -status                   # :5175
+make socratic-start / socratic-stop / socratic-restart / socratic-status  # staff API :8019 + Studio UI :5186
+make socratic-api-start / -stop / -status                              # :8019 (DRAFTS=1 = real Postgres drafts)
+make socratic-ui-start / -stop / -status                               # :5186 (proxies /v1 to :8000 unless SOCRATIC_REST_TARGET)
 ```
 
 Or `cd` into the service's own directory and drop the `<svc>-` prefix (`cd mathbank-rest && make
@@ -119,6 +124,7 @@ make status           # status of rest/agent/web/live
 make up-extra         # start manim-studio + ml-inference + ml-frontend
 make down-extra       # stop those three
 make status-extra     # status of those three
+make socratic-start   # Socratic Studio: local staff API :8019 + UI :5186 (socratic-stop / socratic-status)
 ```
 
 ## See what's running and its URL (read-only, no restart)
@@ -163,7 +169,13 @@ make live-start LIVE_PORT=6174
 make manim-start PORT=8021
 make ml-inference-start PORT=8011
 make ml-frontend-start WEB_PORT=5185
+make socratic-start SOCRATIC_API_PORT=8029 SOCRATIC_UI_PORT=5196
 ```
+
+The Socratic local staff API needs one-time `make socratic-setup-local` (the operator types the
+password); `LOCAL_STAFF_NOT_CONFIGURED` in `mathbank-rest/.socratic.log` means it was never run.
+Socratic `stop` targets kill only their recorded pidfile process, never another port listener.
+Details: the `mathbank-socratic` skill.
 
 This only changes the port for **that one invocation** (a plain Make variable override, not a
 persisted `.env` edit) — re-running `make <svc>-start` without the override goes back to the

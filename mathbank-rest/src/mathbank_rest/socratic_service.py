@@ -293,6 +293,9 @@ def validate_workflow(workflow_id: UUID, expected_hash: str, actor: StaffActor) 
                 findings.append("Every authored node must be reachable from START.")
             if not any(node.key in reachable and node.type == "COMPLETE" for node in program.nodes):
                 findings.append("No reachable completion.")
+            from mathbank_rest.socratic_preview import activity_findings
+
+            findings += activity_findings(conn, program, row["dependencies"]["source"].get("problem_id"))
             return Validation(valid=not findings, findings=findings)
     except SQLAlchemyError:
         raise database_error() from None

@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from mathbank_rest import socratic_auth as auth
 from mathbank_rest import socratic_contracts as contracts
+from mathbank_rest import socratic_preview as preview
 from mathbank_rest import socratic_service as service
 from mathbank_rest.config import settings
 
@@ -167,3 +168,40 @@ def update_workflow(workflow_id: UUID, body: contracts.UpdateWorkflow, staff: St
 def validate_workflow(workflow_id: UUID, body: contracts.ValidateWorkflow, staff: Staff):
     """Check draft structure/dependency freshness only, never mathematical/release approval."""
     return service.validate_workflow(workflow_id, body.expected_hash, auth.require_capability(staff, "author"))
+
+
+@router.post("/workflows/{workflow_id}/simulate", response_model=contracts.Preview, status_code=201,
+             openapi_extra=mutation_headers)
+def simulate(workflow_id: UUID, body: contracts.Simulate, staff: Staff):
+    """Start a synthetic preview pinned to the exact saved hash and a private activity snapshot."""
+    return preview.start_preview(workflow_id, body, auth.require_capability(staff, "author"))
+
+
+@router.get("/previews/{preview_id}", response_model=contracts.Preview)
+def get_preview(preview_id: UUID, staff: Staff):
+    """Current safe screen and decision history; never answer keys, hidden hints or future nodes."""
+    return preview.get_preview(preview_id, auth.require_capability(staff, "author"))
+
+
+@router.post("/previews/{preview_id}/respond", response_model=contracts.Preview, openapi_extra=mutation_headers)
+def respond_preview(preview_id: UUID, body: contracts.Respond, staff: Staff):
+    """Score the current activity with the shared deterministic evaluator and route; no learner writes."""
+    return preview.respond(preview_id, body, auth.require_capability(staff, "author"))
+
+
+@router.post("/previews/{preview_id}/assist", response_model=contracts.Preview, openapi_extra=mutation_headers)
+def assist_preview(preview_id: UUID, body: contracts.PreviewCommand, staff: Staff):
+    """Disclose the next approved hint for the current activity; recorded as assisted."""
+    return preview.assist(preview_id, body, auth.require_capability(staff, "author"))
+
+
+@router.post("/previews/{preview_id}/reveal", response_model=contracts.Preview, openapi_extra=mutation_headers)
+def reveal_preview(preview_id: UUID, body: contracts.PreviewCommand, staff: Staff):
+    """Explicitly reveal the current explanation; later correct answers are not independent success."""
+    return preview.reveal(preview_id, body, auth.require_capability(staff, "author"))
+
+
+@router.post("/previews/{preview_id}/transition", response_model=contracts.Preview, openapi_extra=mutation_headers)
+def transition_preview(preview_id: UUID, body: contracts.Transition, staff: Staff):
+    """Staff routing test with a simulated outcome; explicitly not a grade."""
+    return preview.transition(preview_id, body, auth.require_capability(staff, "author"))

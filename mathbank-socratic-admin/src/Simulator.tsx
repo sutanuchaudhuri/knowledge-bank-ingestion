@@ -1,9 +1,10 @@
 import { useState } from "react";
 import type { Outcome, Preview, PreviewAnswer } from "./contracts";
-import { MathText, Pill } from "./ui";
+import { outcomeLabels } from "./narrative";
+import { Empty, Hero, Icon, MathText, Pill } from "./ui";
 
-export function Simulator({ preview, disabled, onRestart, onRefresh, onTransition, onRespond, onAssist, onReveal }: {
-  preview: Preview | null; disabled: boolean; onRestart: () => void; onRefresh: () => void;
+export function Simulator({ title, preview, canStart, disabled, onRestart, onRefresh, onTransition, onRespond, onAssist, onReveal }: {
+  title: string; preview: Preview | null; canStart: boolean; disabled: boolean; onRestart: () => void; onRefresh: () => void;
   onTransition: (outcome: Outcome) => void; onRespond: (answer: PreviewAnswer) => void;
   onAssist: () => void; onReveal: () => void;
 }) {
@@ -16,69 +17,70 @@ export function Simulator({ preview, disabled, onRestart, onRefresh, onTransitio
   if (currentActivity !== activityKey) {
     setCurrentActivity(activityKey); setText(""); setSelected([]); setConfirmReveal(false);
   }
-  const activity = preview?.activity;
+  const restart = <button type="button" className="sc-light" disabled={disabled || !canStart} onClick={onRestart}>
+    <Icon name="arrow-counterclockwise" />{preview ? "Save & restart" : "Save & start preview"}</button>;
+  if (!preview) return <div className="sc-canvas-inner sc-narrow">
+    <Hero kicker="Student simulation" title="Try the journey as a student" description="A synthetic student. Real progress is never changed." actions={restart} />
+    <Empty icon="person-video3">{canStart ? "Start a preview to answer each step as a student would." : "Open a workflow from the sidebar first."}</Empty>
+  </div>;
+  const activity = preview.activity;
   const choice = activity && ["SINGLE_CHOICE", "MULTI_SELECT", "ASSERTION_REASON"].includes(activity.kind);
-  const active = preview?.status === "ACTIVE";
-  const latest = preview?.history.at(-1);
-  return <div className="sc-stack">
-    <section className="sc-card sc-preview sc-stack" aria-label="Synthetic simulator">
-      <div className="sc-toolbar sc-between"><div><h2>Student Simulator</h2><p className="sc-muted">Preview identity · Synthetic session · No mastery write</p></div><Pill tone="success">Student view · Synthetic</Pill></div>
-      <div className="sc-toolbar sc-between"><Pill>{preview?.current_node.type || "Preview ready"}</Pill>
-        <button disabled={disabled} onClick={onRestart}>{preview ? "Save draft & restart preview" : "Save draft & start preview"}</button></div>
-      {!preview ? <p className="sc-callout">Start the saved draft to try its current activity, request hints and see which rule activates.</p> : <>
-        <div className="sc-toolbar"><Pill tone={active ? "primary" : "success"}>{preview.status}</Pill><Pill>State {preview.state_version}</Pill></div>
-        <h3 className="sc-student-title"><MathText text={preview.current_node.label} /></h3>
-        <p className="sc-muted">Current node: {preview.current_node.key} · {preview.current_node.type}</p>
-        <div className="sc-callout sc-reading"><MathText text={preview.current_node.prompt} /></div>
-        {activity ? <form className="sc-stack" onSubmit={event => {
-          event.preventDefault(); onRespond(choice ? { selected_keys: selected } : { text: text.trim() });
-        }}>
-          {choice ? <fieldset className="sc-answers"><legend>Your answer</legend>
-            {activity.options?.map((option, index) => <label key={option.key} className={`sc-answer${selected.includes(option.key) ? " sc-answer-selected" : ""}`}>
-              <input type={activity.kind === "MULTI_SELECT" ? "checkbox" : "radio"} name="preview-answer" value={option.key}
-                checked={selected.includes(option.key)} disabled={disabled || !active} onChange={() => setSelected(current =>
-                  activity.kind === "MULTI_SELECT" ? current.includes(option.key) ? current.filter(key => key !== option.key) : [...current, option.key] : [option.key])} />
-              <span>{String.fromCharCode(65 + index)}.</span><MathText text={option.text} />
-            </label>)}
-          </fieldset> : <label>Your thinking<textarea value={text} disabled={disabled || !active} onChange={event => setText(event.target.value)}
-            maxLength={8000} placeholder="Describe an observation or justification…" /></label>}
-          <div className="sc-toolbar">
-            <button className="sc-primary" disabled={disabled || !active || (choice ? !selected.length : !text.trim())}>
-              {choice ? "Submit answer" : "Submit thinking"}
-            </button>
-            <button type="button" disabled={disabled || !active} onClick={() => { setShowHint(true); onAssist(); }}>Request hint</button>
-            {preview.help && <button type="button" onClick={() => setShowHint(value => !value)}>{showHint ? "Hide hint" : "Show hint"}</button>}
-          </div>
-        </form> : <p className="sc-muted">No response activity is bound to this node. Use the explicit routing test below; no grade is inferred.</p>}
-        {showHint && preview.help && <div className="sc-callout" aria-label="Current hint"><Pill>Hint H{preview.help.level} · Assisted</Pill><MathText text={preview.help.text} /></div>}
-        {preview.feedback && <div className="sc-feedback" role="status"><MathText text={preview.feedback} /></div>}
-        {activity && active && <details><summary>Explicit reveal · assisted path</summary>
-          <p className="sc-muted">Reveal only the authorized current explanation. This is not independent success.</p>
-          {!confirmReveal ? <button disabled={disabled} onClick={() => setConfirmReveal(true)}>Reveal current explanation…</button> :
-            <div className="sc-toolbar"><button disabled={disabled} onClick={() => { setConfirmReveal(false); onReveal(); }}>Confirm assisted reveal</button><button onClick={() => setConfirmReveal(false)}>Cancel</button></div>}
-        </details>}
-        <details className="sc-routing-test"><summary>Test routing with a simulated outcome</summary>
-          <p className="sc-muted">Staff test controls, not student grading. REST chooses the eligible edge and owns the state.</p>
-          <div className="sc-toolbar" aria-label="Simulated outcomes">{(["ALWAYS", "SUCCESS", "RETRY", "UNCERTAIN"] as const).map(outcome =>
-            <button key={outcome} disabled={disabled || !active} onClick={() => onTransition(outcome)}>Simulate {outcome}</button>)}</div>
-        </details>
-        <section className="sc-stack" aria-label="Student journey"><h3>Student journey</h3>
-          {!preview.history.length ? <p className="sc-muted">Submit an answer to see which instructor rule activates.</p> :
-            <ol className="sc-trace">{preview.history.map((item, index) => <li className="sc-path" key={index}>
-              <strong>{item.from_key || item.node_key}</strong> {item.outcome && <>— {item.outcome}</>} {item.to_key && <>→ {item.to_key}</>}
-              <div><Pill>{item.decision_source}</Pill> {item.rule_id && <code>{item.rule_id}</code>}</div>
-              <MathText text={item.reason} />
-            </li>)}</ol>}
-        </section>
-        <button disabled={disabled} onClick={onRefresh}>Reload preview state</button>
-      </>}
+  const active = preview.status === "ACTIVE";
+  const latest = preview.history.at(-1);
+  return <div className="sc-canvas-inner sc-narrow">
+    <Hero kicker="Student simulation" title={<MathText text={preview.current_node.label} />}
+      description={<><MathText text={title} /> · Synthetic student · No real progress changes</>} actions={restart} />
+    <section className="sc-student-box" aria-label="Synthetic simulator">
+      <div className="sc-row">
+        <Pill tone={active ? "primary" : "success"}>{active ? preview.current_node.type.toLowerCase() : "Complete"}</Pill>
+        {preview.max_transitions !== undefined && <span className="sc-tiny">Move {preview.transitions_used ?? 0} of {preview.max_transitions}</span>}
+      </div>
+      <div className="sc-question"><MathText text={preview.current_node.prompt} /></div>
+      {activity?.prompt && <div className="sc-reading" aria-label="Activity question"><MathText text={activity.prompt} /></div>}
+      {activity && active ? <form className="sc-form" onSubmit={event => {
+        event.preventDefault(); onRespond(choice ? { selected_keys: selected } : { text: text.trim() });
+      }}>
+        {choice ? <fieldset className="sc-answers"><legend className="sc-visually-hidden">Your answer</legend>
+          {activity.options?.map((option, index) => <label key={option.key} className={`sc-option${selected.includes(option.key) ? " sc-active" : ""}`}>
+            <input type={activity.kind === "MULTI_SELECT" ? "checkbox" : "radio"} name="preview-answer" value={option.key}
+              checked={selected.includes(option.key)} disabled={disabled} onChange={() => setSelected(current =>
+                activity.kind === "MULTI_SELECT" ? current.includes(option.key) ? current.filter(key => key !== option.key) : [...current, option.key] : [option.key])} />
+            <span className="sc-option-key">{String.fromCharCode(65 + index)}</span><MathText text={option.text} />
+          </label>)}
+        </fieldset> : <label className="sc-visually-labelled">Your thinking<textarea value={text} disabled={disabled} onChange={event => setText(event.target.value)}
+          maxLength={8000} inputMode={activity.kind === "NUMERIC_EXACT" ? "decimal" : undefined}
+          placeholder={activity.kind === "NUMERIC_EXACT" ? "Enter a number, e.g. 21, -0.5 or 3/4" : "Think through the question here…"} /></label>}
+        <div className="sc-row">
+          <button className="sc-primary" disabled={disabled || (choice ? !selected.length : !text.trim())}>{choice ? "Submit answer" : "Submit thinking"}</button>
+          <button type="button" className="sc-light" disabled={disabled} onClick={() => { setShowHint(true); onAssist(); }}><Icon name="lightbulb" />Hint</button>
+          {preview.help && <button type="button" className="sc-link" onClick={() => setShowHint(value => !value)}>{showHint ? "Hide hint" : "Show hint"}</button>}
+        </div>
+      </form> : active && <p className="sc-tiny">No question on this step. Use “Test routing” below to continue.</p>}
+      {showHint && preview.help && <div className="sc-hint" aria-label="Current hint"><Icon name="lightbulb" /> <strong>Hint {preview.help.level}</strong> · <MathText text={preview.help.text} /></div>}
+      {preview.feedback && <div className="sc-result" role="status"><MathText text={preview.feedback} /></div>}
+      {activity && active && <div className="sc-reveal">{!confirmReveal
+        ? <button type="button" className="sc-link" disabled={disabled} onClick={() => setConfirmReveal(true)}>Reveal explanation…</button>
+        : <div className="sc-row"><span className="sc-tiny">Counts as assisted, not independent success.</span>
+          <button type="button" className="sc-light" disabled={disabled} onClick={() => { setConfirmReveal(false); onReveal(); }}>Confirm reveal</button>
+          <button type="button" className="sc-link" onClick={() => setConfirmReveal(false)}>Cancel</button></div>}</div>}
     </section>
-    <section className="sc-card sc-stack" aria-label="Latest routing decision"><h2>Latest routing decision</h2>
-      {latest ? <div className="sc-debug"><dl className="sc-reference">
-        <dt>From</dt><dd>{latest.from_key || latest.node_key}</dd><dt>Outcome</dt><dd>{latest.outcome || "Recorded by server"}</dd>
-        <dt>To</dt><dd>{latest.to_key || preview?.current_node.key}</dd><dt>Decision</dt><dd>{latest.decision_source}</dd>
-        <dt>Reason</dt><dd><MathText text={latest.reason} /></dd>
-      </dl></div> : <p className="sc-debug">No submission yet. The matching edge will highlight after the server returns a routing decision.</p>}
-    </section>
+    {latest && <section className="sc-decision" aria-label="Latest routing decision">
+      <Icon name="signpost-split" /> <span><strong>{latest.from_key || latest.node_key}</strong>{latest.outcome && <> · {outcomeLabels[latest.outcome]}</>} → <strong>{latest.to_key || preview.current_node.key}</strong>
+        <span className="sc-tiny"> · {latest.decision_source}{latest.assisted ? " · assisted" : ""}</span>
+        <span className="sc-sub"><MathText text={latest.reason} /></span></span>
+    </section>}
+    <details className="sc-more"><summary>Test routing</summary><div className="sc-form">
+      <p className="sc-tiny">Staff controls, not grading. The server picks the matching rule.</p>
+      <div className="sc-row sc-wrap" aria-label="Simulated outcomes">{(["ALWAYS", "SUCCESS", "RETRY", "UNCERTAIN"] as const).map(outcome =>
+        <button type="button" key={outcome} className="sc-light" disabled={disabled || !active} onClick={() => onTransition(outcome)}>Simulate {outcome}</button>)}</div>
+      <button type="button" className="sc-link" disabled={disabled} onClick={onRefresh}>Reload preview state</button>
+    </div></details>
+    <details className="sc-more"><summary>Student journey · {preview.history.length}</summary>
+      {!preview.history.length ? <p className="sc-tiny">No moves yet.</p> : <ol className="sc-trace" aria-label="Student journey">{preview.history.map((item, index) => <li key={index}>
+        <strong>{item.from_key || item.node_key}</strong>{item.outcome && <> · {item.outcome}</>}{item.to_key && <> → {item.to_key}</>}
+        {item.assisted && <Pill tone="warning">Assisted</Pill>} <span className="sc-tiny">{item.decision_source}{item.rule_id ? ` · ${item.rule_id}` : ""}</span>
+        <div className="sc-sub"><MathText text={item.reason} /></div>
+      </li>)}</ol>}
+    </details>
   </div>;
 }

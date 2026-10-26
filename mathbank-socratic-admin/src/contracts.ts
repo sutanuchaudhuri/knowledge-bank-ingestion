@@ -36,17 +36,19 @@ export interface Job {
 }
 export interface Preview {
   preview_id: string; workflow_id: string; state_version: number;
+  workflow_revision?: number; content_hash?: string; transitions_used?: number; max_transitions?: number;
   current_node: WorkflowNode; status: "ACTIVE" | "COMPLETE"; synthetic: true;
   activity?: {
     activity_id: string; revision: string;
     kind: "SINGLE_CHOICE" | "MULTI_SELECT" | "ASSERTION_REASON" | "FREE_FORM_REASONING" | "NUMERIC_EXACT";
+    prompt?: string;
     options?: { key: string; text: string }[];
-  };
-  feedback?: string;
-  help?: { level: number; text: string; assisted: boolean };
+  } | null;
+  feedback?: string | null;
+  help?: { level: number; text: string; assisted: boolean } | null;
   history: {
     node_key: string; decision_source: string; reason: string;
-    from_key?: string; to_key?: string; outcome?: Outcome; rule_id?: string;
+    from_key?: string; to_key?: string; outcome?: Outcome; rule_id?: string; assisted?: boolean;
   }[];
 }
 export type PreviewAnswer = { selected_keys: string[] } | { text: string };

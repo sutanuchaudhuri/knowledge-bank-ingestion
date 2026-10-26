@@ -193,3 +193,86 @@ def initial_program(strategy_code: str) -> Program:
             Edge(from_key="review", to_key="complete", outcome="ALWAYS", priority=0),
         ],
     )
+
+
+# ---- Synthetic preview (ledger step 03) -------------------------------------------------
+Outcome = Literal["ALWAYS", "SUCCESS", "RETRY", "UNCERTAIN"]
+ActivityKind = Literal["SINGLE_CHOICE", "MULTI_SELECT", "ASSERTION_REASON", "FREE_FORM_REASONING", "NUMERIC_EXACT"]
+CommandKey = Annotated[str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]
+
+
+class Simulate(StrictModel):
+    expected_hash: Digest
+    start_node_key: Key | None = None
+
+
+class PreviewCommand(StrictModel):
+    expected_version: int = Field(strict=True, ge=1)
+    idempotency_key: CommandKey
+
+
+class Transition(PreviewCommand):
+    outcome: Outcome
+
+
+class SelectedKeys(StrictModel):
+    selected_keys: list[Key] = Field(min_length=1, max_length=20)
+
+
+class WrittenResponse(StrictModel):
+    text: str = Field(min_length=1, max_length=8000)
+
+
+class Respond(PreviewCommand):
+    current_node_key: Key
+    activity_id: str = Field(min_length=1, max_length=200)
+    activity_revision: str = Field(min_length=1, max_length=200)
+    response: SelectedKeys | WrittenResponse
+
+
+class PreviewOption(StrictModel):
+    key: str
+    text: str
+
+
+class PreviewActivity(StrictModel):
+    """Pre-answer allowlist (SOC-ASMT-08): prompt, safe options and contract only."""
+    activity_id: str
+    revision: str
+    kind: ActivityKind
+    prompt: str
+    options: list[PreviewOption] | None = None
+
+
+class PreviewHelp(StrictModel):
+    level: int = Field(ge=1, le=5)
+    text: str
+    assisted: Literal[True] = True
+
+
+class PreviewHistory(StrictModel):
+    node_key: str
+    decision_source: str
+    reason: str
+    from_key: str | None = None
+    to_key: str | None = None
+    outcome: Outcome | None = None
+    rule_id: str | None = None
+    assisted: bool = False
+
+
+class Preview(StrictModel):
+    preview_id: UUID
+    workflow_id: UUID
+    workflow_revision: int
+    content_hash: Digest
+    state_version: int
+    current_node: Node
+    status: Literal["ACTIVE", "COMPLETE"]
+    synthetic: Literal[True] = True
+    activity: PreviewActivity | None = None
+    feedback: str | None = None
+    help: PreviewHelp | None = None
+    history: list[PreviewHistory]
+    transitions_used: int
+    max_transitions: int

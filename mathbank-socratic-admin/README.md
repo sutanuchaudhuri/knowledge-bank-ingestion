@@ -40,6 +40,9 @@ not a browser credential. The REST owner must permit this development origin and
 session cookie appropriately; HTTPS and secure cookie policy remain mandatory
 for hosted environments. Do not put credentials in Vite environment variables.
 `make dev` is operator-invoked; no server is left running by implementation tests.
+`make start`/`stop`/`status` run the same Vite server in the background (`.server.log`);
+from the repository root `make socratic-start` pairs it with the local staff API on
+`:8019`, and `make socratic-ui-start` uses the full REST on `:8000`.
 
 `make build` runs TypeScript checking and produces `dist/`. The hosting/infra
 owner must route `/v1/admin/socratic/*` to REST on the **same origin**, enforce
@@ -49,7 +52,12 @@ hosting assumes this SPA is mounted at `/`; the three views use hash navigation.
 
 ### Local staff login without AWS
 
-From `mathbank-rest`, run `make setup-socratic-local` and enter your own password
+Quickest path, from the repository root: `make socratic-password` generates a random
+password and saves it as `SOCRATIC_LOCAL_PASSWORD` (plus its bcrypt hash) in the gitignored
+`mathbank-rest/.env`, leaving REST's Cognito mode unchanged; read it there, then
+`make socratic-start DRAFTS=1` and sign in as `local-author`. Re-running rotates it.
+
+Alternatively, from `mathbank-rest`, run `make setup-socratic-local` and enter your own password
 at the terminal prompt, then `make run-socratic-local`. In this frontend run
 `npm run dev`; open `http://127.0.0.1:5186` and sign in as `local-author`.
 The explicit **Local testing** notice marks the session. See
@@ -68,29 +76,43 @@ disabled for that suite so session tokens are not saved in trace artifacts.
 The separate prototype suite still intercepts synthetic workflow APIs for
 full UI regression checks; neither suite claims live Cognito/Neon/AgentCore.
 
-## Unified authoring workflow
+## Layout and authoring workflow
 
-1. Sign in using the REST administrator session.
-2. Create/open a server draft in **Designer + Simulator**.
-3. In **Resource Library**, select a canonical problem, explicitly choose a
-   reference solution revision and optionally a published route reference.
-4. Attach these references to the draft, then select a strategy overlay and edit
-   node prompts and typed transition rules. **Rules by topic** filters by the
-   actual source-node topic and keeps editable instructor annotations beside
-   typed rules, fallback and transition budget; the strategy registry is retained.
-5. Save and structurally validate; inspect a model-proposed edge comparison and
-   edit source/outcome/destination/priority, then explicitly accept or reject.
-   Acceptance changes a draft only.
-6. Save/start a synthetic preview. Answer the current public activity (five-choice
-   Assertion–Reason, single/multiple choice, numeric or written response), request
-   an authorized hint, or explicitly confirm assisted reveal. REST evaluates and
-   returns the current safe screen and journey/decision trace. Separate collapsed
-   staff controls **simulate** outcomes without pretending they are grades.
-   Inspector selection and preview position are independent; graph nodes support
-   Arrow Up/Down, Home/End and Tab/Enter. Previous/Next inspect content only.
-7. Resource cards retain quizzes, lessons, topics and transfer prompts. **View in
-   simulator** requests a new server preview from that resource; it does not move
-   an existing session or bypass prerequisites locally.
+The Studio follows the clean prototype
+[`UI/index (1).html`](../documentation/copilot-instructions/mathbank-adaptive-socratic-framework/UI/index%20(1).html):
+an **icon rail** (Designer, Rules by topic, Templates & sources, Student simulator, sign-out),
+a **searchable sidebar**, one calm **canvas** and a right **detail drawer** where all editing
+happens. Colours and type come from the shared MathBank tokens, not the prototype's palette.
+Escape closes the open sidebar (narrow screens) or drawer; edits stay in the unsaved draft.
+
+- **Sidebar search** ([search.ts](src/search.ts), a separate pure module): one box matches all
+  words, accent- and case-insensitively, across draft titles/domains (grouped by domain),
+  the open workflow's step titles/prompts/topics/rule descriptions and strategy templates.
+  Quick actions: *New workflow* and *Export draft JSON*.
+- **Designer canvas** has three read representations of the same typed program:
+  **Flow** (step cards with their plain-language rules), **Natural language**
+  ([narrative.ts](src/narrative.ts): a generated summary plus each step and rule as sentences,
+  instructor annotations in parentheses) and **JSON** (read-only typed program with copy).
+  Switching never changes the draft; edits go through the drawer.
+- **Detail drawer:** *Edit step* (title, student-facing content with rendered math, type,
+  connections, add branching rule; topic/objective/activity reference/source claim/accessible
+  alternative/remove under *More settings*), *Edit rule* (plain-language description first,
+  then from/when/go-to/priority), *Add step*, *Add branching rule*, *New workflow*,
+  *Workflow settings* (strategy, entry, fallback, move budget, source, save & validate,
+  discard edits, draft identity) and *Ask AI*.
+
+1. Sign in with the REST staff session.
+2. Pick or search a workflow in the sidebar, or *New workflow* (title, domain, optional strategy).
+3. *Templates & sources → Sources*: choose a canonical problem, explicitly a reference solution
+   revision, and optionally a published route, then *Use in current draft*.
+4. Click a step or rule card to edit it in the drawer; save from the drawer or the top bar.
+5. *Ask AI*: describe a rule, review the proposed sentence, optionally *Compare and adjust*
+   source/outcome/destination/priority, then explicitly *Accept into draft* or *Dismiss*.
+6. *Student view*: *Save & start preview*, answer the current activity (five-choice
+   Assertion–Reason, single/multiple choice, numeric or written), ask for a *Hint*, or confirm
+   *Reveal explanation* (assisted). REST scores and routes; *Test routing* and *Student journey*
+   are collapsed staff tools. *Preview as student* in a step drawer, or *Steps* in the library,
+   starts a new server preview from that step.
 
 The intended chain is **source problem → existing reference-solution / reviewed
 route authoring → strategy/workflow overlay** (requirements 36, 39 and 65).
@@ -145,10 +167,14 @@ responses contain `{selected_keys}` or `{text}`, never a grade, score, mastery,
 arbitrary ASL or hidden assessment definition.
 
 This table describes the **frontend's required contracts**. Sessions,
-strategies, resources, draft create/read/update/history and structural
-validation are implemented in REST. Evaluation/simulation/help/proposals
-and job endpoints remain missing and must not be mistaken for delivered
-behavior because their controls exist. See the
+strategies, resources, draft create/read/update/history, structural
+validation and **synthetic preview simulate/respond/assist/reveal/transition**
+(ledger step 03, deterministic shared scorer, migration 054) are implemented
+in REST. A node binds an activity by setting `activity_ref` to an
+`activity.definition` UUID; the preview pins a private snapshot of it and the
+current activity DTO adds its `prompt`. Proposal and job endpoints remain
+missing and must not be mistaken for delivered behavior because their
+controls exist. See the
 [screened source OpenAPI](../documentation/requirements/reference/openapi.json).
 An unavailable route must fail visibly; there is no runtime test-data fallback.
 
@@ -187,18 +213,18 @@ unvalidated JSON in PostgreSQL.
 
 ### Prototype feature traceability
 
-| Reference surface | Retained/enhanced surface |
+| Reference surface (`UI/index (1).html`) | Studio surface |
 | --- | --- |
-| Dark sidebar, three views, soft cards/pills | Token-based dark shell, breadcrumbs/avatar, responsive navigation |
-| Dotted map with selected/current/route states | Two-column map + simulator; independent inspector; text and green selected-edge cue |
-| Selected-node outgoing rules | Shared rule editor in inspector and topic view; full source/outcome/destination/priority and editable annotation |
-| Natural-language rule + Example | Coauthor on Designer and Rules; example instruction, before/after drawer, editable candidate, Accept/Reject |
-| Answer choices / Your thinking / Submit | Safe current-activity renderer and REST response request, not browser answer keys |
-| Hint toggle and restart | Server hint request, Hide/Show, assisted reveal confirmation, new hash-pinned preview |
-| Journey and latest decision debug | Visible safe trace plus decision panel; no private reasoning/provider dump |
-| Quizzes, lessons, topics and View in simulator | Filtered activity cards plus canonical source/solution/route picker |
-| Reset example | Explicit discard of unsaved draft edits; no automatic replacement of a durable server draft with demonstration data |
-| “Log in as student · Demo” | Explicit synthetic preview identity; never real-student impersonation |
+| Icon rail + searchable topic sidebar | Rail views + domain-grouped draft search that also finds steps and strategies |
+| Designer step cards, arrows and branch sentences | Flow view; selected step and last server-selected branch highlighted |
+| Edit step drawer with connections | Step drawer with typed fields, rendered math and connection list |
+| Plain-language rule editor | Rule drawer: editable description beside the authoritative typed rule |
+| “Describe a rule” / Ask AI | Ask AI drawer with server proposal, adjust, explicit accept/dismiss |
+| Rules by topic | Topic chips and readable rule rows opening the rule drawer |
+| Templates | Strategies (by domain), Sources (problem/solution/route) and Steps tabs |
+| Student simulation | Student canvas with server-scored answers, hints, assisted reveal |
+| Export draft JSON | Sidebar quick action plus the read-only JSON representation |
+| Reset demo | Explicit *Discard unsaved edits* in workflow settings; no demo data |
 
 The offline phrase parser and browser answer keys are replaced by their required
 server contracts, **not by removal of the corresponding UI**. Real AgentCore
@@ -254,9 +280,10 @@ browser cases, 2 real local-auth browser cases**, TypeScript and build pass.
 
 REST staff sessions and explicit capabilities are implemented and tested offline
 and through the real local-auth browser suite; successful Cognito staff
-login/revocation and deployed IAM remain pending. Server-side reference validation, authoritative draft
-and preview persistence, model jobs, exact patch acceptance semantics, optimistic
-locking/idempotency, safe current-node serialization and all AWS/Neon integration
+login/revocation and deployed IAM remain pending. Draft persistence, synthetic preview
+persistence, optimistic locking/idempotency and safe current-node serialization are
+implemented in REST (steps 02–03). Model jobs, exact patch acceptance semantics,
+free-form rubric assistance and the remaining AWS integration
 must be supplied and verified by their owning packages. Browser layout/interaction
 acceptance with test fixtures is not live integration, real-device certification,
 source content rights verification or a production review/release lifecycle. Full course

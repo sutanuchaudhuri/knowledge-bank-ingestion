@@ -129,3 +129,62 @@ labeled synthetic workflow with two revisions**, two command receipts and
 matching audit/outbox evidence. No canonical or learner record was written.
 See the [execution/handoff ledger](../../67_SOCRATIC_IMPLEMENTATION_HANDOFF.md)
 for commands, counts and hosted acceptance limits.
+
+## Migration 054 — synthetic previews (ledger step 03)
+
+[Migration 054](../../../../mathbank-db/sql/054_socratic_previews.sql) was applied to the same
+authorized Neon target on **2026-10-25** (053 re-applied idempotently). Service:
+[socratic_preview.py](../../../../mathbank-rest/src/mathbank_rest/socratic_preview.py); scorer:
+[activity_scoring.py](../../../../mathbank-rest/src/mathbank_rest/activity_scoring.py).
+Previews are staff-owned and synthetic; no learner, course or activity rows are written.
+
+### `orchestration.socratic_preview`
+
+| Column | Type/default/constraints |
+|---|---|
+| `preview_id` | uuid PK |
+| `owner_id` | text, 1–200 chars; staff principal |
+| `workflow_id`, `workflow_revision`, `content_hash` | composite FK → `socratic_revision(workflow_id,revision,content_hash)` ON DELETE RESTRICT (pins the exact saved hash) |
+| `activity_snapshot` | jsonb object; **private** per-node scoring snapshot (type, prompt, options, policy, kind, sha256 revision); never returned |
+| `state_version` | integer > 0; CAS version |
+| `current_node_key` | text 1–100 |
+| `status` | `ACTIVE` or `COMPLETE` |
+| `transitions_used` | integer ≥ 0, default 0 |
+| `hint_level` | integer 0–5, default 0 |
+| `revealed` | boolean default false |
+| `feedback` | nullable text ≤ 12000 |
+| `synthetic` | boolean default true; CHECK true |
+| `created_at`, `updated_at` | `clock_timestamp()` |
+
+Index `socratic_preview_owner_idx(owner_id, workflow_id, created_at DESC)`. The row is the
+single authoritative position; it is updated in the same transaction as each event insert.
+
+### `orchestration.socratic_preview_event`
+
+| Column | Type/default/constraints |
+|---|---|
+| `preview_id` | uuid FK → `socratic_preview` ON DELETE RESTRICT |
+| `state_version` | integer > 0; PK with `preview_id` (version after the action) |
+| `action` | `START`, `RESPOND`, `ASSIST`, `REVEAL`, `TRANSITION` |
+| `idempotency_key` | nullable text 1–128; UNIQUE with `preview_id` |
+| `request_hash` | sha256 hex of action + normalized body (excluding the key) |
+| `node_key`, `from_key`, `to_key`, `rule_id` | text (nullable except `node_key`) |
+| `outcome` | nullable `ALWAYS`/`SUCCESS`/`RETRY`/`UNCERTAIN` |
+| `decision_source`, `reason` | text |
+| `assisted` | boolean default false |
+| `response` | nullable jsonb; synthetic response |
+| `evidence` | jsonb object; private scorer evidence (verdict, AR truth/entailment judgments, hint/reveal state) |
+| `result` | jsonb object; exact DTO returned, replayed for an identical retry |
+| `created_at` | `clock_timestamp()` |
+
+Rows are immutable through the shared `orchestration.socratic_immutable()` BEFORE UPDATE OR
+DELETE trigger.
+
+### Activity policy conventions used by the shared scorer
+
+`activity.definition` is unchanged (no DDL). Scoreable policies: `MCQ.correct_index`;
+`MCQ.assertion_reason{assertion_true,reason_true,reason_explains}` with five options and a
+`correct_index` matching the derived AR case; `MULTISELECT.correct_indices`;
+`NUMERIC.correct_value`; `SHORT_RESPONSE` (never auto-scored). Optional `hints` (≤ 5
+strings) and `explanation` drive assist/reveal. `LIVE_POLL` and other types are unscoreable
+for previews.

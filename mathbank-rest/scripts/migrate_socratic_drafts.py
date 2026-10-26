@@ -1,4 +1,4 @@
-"""Inspect or explicitly apply additive Socratic draft migration 053."""
+"""Inspect or explicitly apply additive Socratic migrations 053 (drafts) and 054 (previews)."""
 from __future__ import annotations
 
 import argparse
@@ -24,16 +24,19 @@ def main() -> None:
                 parser.error("--direct supports only the configured Neon target.")
             target = create_engine(engine.url.set(host=host.replace("-pooler", "")),
                                    pool_pre_ping=True)
-    path = Path(__file__).resolve().parents[2] / "mathbank-db/sql/053_socratic_drafts.sql"
+    sql = Path(__file__).resolve().parents[2] / "mathbank-db/sql"
     if args.apply:
-        with target.begin() as conn:
-            conn.execute(text("SET LOCAL lock_timeout = '5s'"))
-            conn.execute(text("SET LOCAL statement_timeout = '60s'"))
-            conn.execute(text("SELECT pg_advisory_xact_lock(hashtextextended('socratic-migration-053',0))"))
-            conn.exec_driver_sql(path.read_text())
-        print("Applied additive migration 053; no canonical or learner row writes.")
+        for number, name in (("053", "053_socratic_drafts.sql"), ("054", "054_socratic_previews.sql")):
+            with target.begin() as conn:
+                conn.execute(text("SET LOCAL lock_timeout = '5s'"))
+                conn.execute(text("SET LOCAL statement_timeout = '60s'"))
+                conn.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:scope,0))"),
+                             {"scope": f"socratic-migration-{number}"})
+                conn.exec_driver_sql((sql / name).read_text())
+            print(f"Applied additive migration {number}; no canonical or learner row writes.")
     with target.connect() as conn:
-        for name in ("socratic_strategy", "socratic_workflow", "socratic_revision", "socratic_command"):
+        for name in ("socratic_strategy", "socratic_workflow", "socratic_revision", "socratic_command",
+                     "socratic_preview", "socratic_preview_event"):
             present = conn.execute(text("SELECT to_regclass(:name) IS NOT NULL"),
                                    {"name": "orchestration." + name}).scalar_one()
             print(f"orchestration.{name}: {'EXISTS' if present else 'MISSING'}")

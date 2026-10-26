@@ -39,10 +39,15 @@ PUMaC, with live-counted problems attributed to each.
 
 ## Repository map
 
-**Proposed next projects, not yet created:** the
-[Adaptive Socratic Studio requirements](documentation/requirements/65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md)
-recommend a separate admin SPA and AgentCore agent package while reusing REST,
-PostgreSQL and the existing AWS CDK project. The separate
+**Adaptive Socratic Studio (in progress):** the
+[requirements](documentation/requirements/65_ADAPTIVE_SOCRATIC_ADMIN_AND_AGENTCORE.md)
+add a separate staff SPA (`mathbank-socratic-admin`, delivered as a draft-authoring
+prototype) and an AgentCore agent package (`mathbank-socratic-agent`, placeholder until
+ledger step 04), reusing REST, PostgreSQL and the existing AWS CDK project. Step-by-step
+status, evidence and the next handoff live in the
+[implementation ledger](documentation/requirements/67_SOCRATIC_IMPLEMENTATION_HANDOFF.md);
+operations are in the [Socratic Studio quick start](#socratic-studio-admin-authoring--local-and-aws).
+The separate
 [AWS database/storage cost report](documentation/requirements/66_AWS_STORAGE_DATABASE_COST_AND_MIGRATION_REPORT.md)
 evaluates recurring admin batch ingestion/reindexing, enriched chunk metadata,
 managed S3 knowledge, DynamoDB/Aurora/Neptune, AWS analytics and SageMaker without
@@ -59,6 +64,8 @@ knowledge-bank-ingestion/
 ├── mathbank-agent/                Google ADK + OpenAI tutoring agent, calls rest only     :8001
 ├── mathbank-exam-agent/           Strands + OpenAI mock-exam generation/diagnosis API     :8030
 ├── mathbank-exam-web/             React + Vite mock-exam student UI                       :5176
+├── mathbank-socratic-admin/       React + Vite Socratic Studio staff SPA (draft authoring) :5186
+├── mathbank-socratic-agent/       AgentCore proposal-agent package (placeholder, step 04)
 ├── mathbank-widgets/              shared React package (WidgetHost, MathComposer) — not a service
 ├── mathbank-db/                   Postgres 16 + pgvector schema migrations + ETL
 ├── mathbank-graph/                Neo4j projection ETL (derived, rebuildable graph)
@@ -92,6 +99,8 @@ knowledge-bank-ingestion/
 | `mathbank-live` | Next.js + Socket.IO — **separately deployable** realtime live classroom (instructor console + student classroom); relays the `mathbank-rest` live event log | 5174 | [mathbank-live/README.md](mathbank-live/README.md) |
 | `mathbank-exam-agent` | AWS Strands agent service (OpenAI model backend) — parses natural-language paper requests, reuses the approved question pool, generates and critiques missing questions concurrently, and produces post-exam diagnosis; calls `mathbank-rest` and MCP only | 8030 | [mathbank-exam-agent/README.md](mathbank-exam-agent/README.md) |
 | `mathbank-exam-web` | React + Vite — independent student mock-exam UI for generation progress, timed attempts, review, and diagnosis; calls `mathbank-exam-agent` only | 5176 | [mathbank-exam-web/README.md](mathbank-exam-web/README.md) |
+| `mathbank-socratic-admin` | React + Vite — **Socratic Studio** staff SPA: icon rail, searchable sidebar, Designer canvas (flow / natural language / JSON), detail drawer for steps and rules, Rules by topic, Templates & sources, Ask AI proposals and a server-scored synthetic student simulator. Calls only `/v1/admin/socratic/*` (cookie session + CSRF). Hosted by the isolated `MathBankSocraticStack` Lambda; drafts only, no publishing yet | 5186 | [mathbank-socratic-admin/README.md](mathbank-socratic-admin/README.md) |
+| `mathbank-socratic-agent` | **Placeholder.** AgentCore proposal-agent package (DeepSeek V3.2, typed proposals, explicit staff acceptance) — ledger steps 04–05 | — | [ledger 67](documentation/requirements/67_SOCRATIC_IMPLEMENTATION_HANDOFF.md) |
 | `mathbank-widgets` | Shared React package (not a service) — WidgetHost renderer, MathComposer (LaTeX), ElevenLabs voice controls; copied into web and live | — | [mathbank-widgets/README.md](mathbank-widgets/README.md) |
 | `mathbank-data-ingestion` | Crawl/classify/export corpus pipeline feeding `mathbank-db` | — | [mathbank-data-ingestion/README.md](mathbank-data-ingestion/README.md) |
 | `mathbank-geometry-engine` | Independent deterministic geometry scene engine | — | [mathbank-geometry-engine/README.md](mathbank-geometry-engine/README.md) |
@@ -131,6 +140,10 @@ element/relationship vocabulary as
 the C4 model from PlantUML or from Mermaid. Each sub-project's own README has a deeper,
 component-level diagram for its internals — this page stops at the container level.
 
+Socratic Studio and the unified staff-portal roadmap have their own architecture, sequence and
+deployment diagrams with **done / partial / pending** marking:
+[documentation/architecture/STUDIO_PLATFORM_ARCHITECTURE.md](documentation/architecture/STUDIO_PLATFORM_ARCHITECTURE.md).
+
 ### At a glance (flowchart)
 
 ```mermaid
@@ -145,6 +158,7 @@ flowchart TB
         Web[mathbank-web :5173]
         Live[mathbank-live :5174]
         ExamWeb[mathbank-exam-web :5176]
+        SocAdmin[mathbank-socratic-admin :5186]
         Widgets[[mathbank-widgets shared package]]
     end
 
@@ -152,6 +166,14 @@ flowchart TB
         Agent[mathbank-agent :8001]
         ExamAgent[mathbank-exam-agent :8030]
         Rest[mathbank-rest :8000]
+        SocApi[Socratic API
+isolated mathbank-rest app]
+    end
+
+    subgraph SocraticAWS["Socratic orchestration (planned, steps 04-05)"]
+        SocAgent[mathbank-socratic-agent
+AgentCore + DeepSeek V3.2]
+        SFN[Step Functions proposal jobs]
     end
 
     subgraph CorpusTools["Corpus tools and explainer video pipeline"]
@@ -192,6 +214,13 @@ Neo4j)]
     Rest --> Db
     Rest --> Graph
 
+    Adm --> SocAdmin
+    SocAdmin --> SocApi
+    SocApi --> Db
+    SocApi -.planned.-> SFN
+    SFN -.planned.-> SocAgent
+    Web -.planned student Socratic runtime.-> SocApi
+
     MCPAgent --> Mcp
     Mcp --> Rest
     Manim --> Mcp
@@ -204,12 +233,15 @@ Neo4j)]
     Web -.planned.-> MlInfer
 
     classDef scaffolded stroke-dasharray: 5 5
-    class MlTrain,MlInfer,MlFront scaffolded
+    class MlTrain,MlInfer,MlFront,SocAgent,SFN scaffolded
 ```
 
-Dashed boxes = the ML/RL platform (docs 54–58), **scaffolded only**: every endpoint
-exists and responds correctly, but no model has been trained yet (see
-[Machine Learning](#machine-learning-intellitutor-mlrl-platform) below).
+Dashed boxes = scaffolded or planned work: the ML/RL platform (docs 54–58) has endpoints
+but no trained model (see [Machine Learning](#machine-learning-intellitutor-mlrl-platform)),
+and Socratic AgentCore/Step Functions orchestration is ledger steps
+04–05. The Socratic API is the `mathbank-rest` codebase packaged as a separate, smaller
+app (`mathbank_rest.socratic_app`) — the same REST database boundary, not a second data
+service. Locally the full REST daemon also serves `/v1/admin/socratic/*`.
 
 ### C1 — System context
 
@@ -220,7 +252,7 @@ C4Context
     title C1 - System Context: MathBank Platform
 
     Person(student, "Student", "Practices problems, chats with the tutor, takes generated mock exams, watches explainer videos, joins live classes")
-    Person(admin, "Admin / Instructor", "Authors courses, reviews corpus content, approves AI-generated videos, runs the live classroom")
+    Person(admin, "Admin / Instructor", "Authors courses and Socratic workflows, reviews corpus content, approves AI-generated videos, runs the live classroom")
 
     System_Boundary(mathbank, "MathBank Platform") {
         System(platform, "MathBank", "Competition-math corpus, hybrid RAG search, knowledge graph, agentic tutor, generated mock exams, micro-courses, live classroom, ML recommendations")
@@ -230,7 +262,7 @@ C4Context
     SystemDb_Ext(neon, "Neon Postgres", "Managed Postgres 16 plus pgvector")
     SystemDb_Ext(aura, "Neo4j AuraDB", "Managed graph - derived, rebuildable projection of the Postgres corpus")
     System_Ext(eleven, "ElevenLabs", "Optional text-to-speech/speech-to-text for voice input")
-    System_Ext(cognito, "Amazon Cognito", "Account authentication for the mock-exam application")
+    System_Ext(cognito, "Amazon Cognito", "Account authentication for the mock-exam application and Socratic Studio staff sessions")
     System_Ext(mcpclient, "Any MCP-capable agent", "Claude Desktop, a custom agent, etc.")
 
     Rel(student, platform, "Uses", "HTTPS")
@@ -239,7 +271,7 @@ C4Context
     Rel(platform, neon, "Reads/writes", "libpq")
     Rel(platform, aura, "Reads/writes", "Bolt")
     Rel(platform, eleven, "Calls (optional)", "HTTPS")
-    Rel(platform, cognito, "Authenticates exam users", "HTTPS")
+    Rel(platform, cognito, "Authenticates exam users and Socratic staff", "HTTPS")
     Rel(mcpclient, platform, "Queries the competition corpus", "MCP/stdio")
 
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
@@ -271,6 +303,12 @@ C4Container
     Container_Boundary(exams, "Mock-exam platform") {
         Container(examweb, "mathbank-exam-web", "React + Vite :5176", "Independent student UI for paper generation, timed attempts, review, and diagnosis")
         Container(examagent, "mathbank-exam-agent", "FastAPI + AWS Strands :8030", "Natural-language intake, pooled-question reuse, concurrent generator-critic loop, grading orchestration, and diagnosis; never connects to a database directly")
+    }
+
+    Container_Boundary(socratic, "Adaptive Socratic Studio") {
+        Container(socadmin, "mathbank-socratic-admin", "React + Vite :5186", "Staff designer (flow, natural language, JSON), searchable sidebar, detail drawer, rules, sources, AI proposal review and synthetic student preview")
+        Container(socapi, "Socratic API", "FastAPI on Lambda Function URL", "Isolated mathbank-rest app: staff cookie sessions, CSRF, owned immutable drafts, idempotent CAS saves; also serves the SPA same-origin")
+        Container(socagent, "mathbank-socratic-agent", "AgentCore + Step Functions (planned)", "Bounded DeepSeek V3.2 typed proposals; never writes drafts without explicit staff acceptance")
     }
 
     Container_Boundary(video, "Corpus tools and explainer video pipeline") {
@@ -314,6 +352,11 @@ C4Container
     Rel(mlinference, db, "Reads registry/features", "libpq")
     Rel(mlfrontend, mlinference, "Calls", "HTTPS/REST")
     Rel(web, mlinference, "Calls (planned)", "HTTPS/REST")
+    Rel(admin, socadmin, "Authors Socratic workflows", "HTTPS")
+    Rel(socadmin, socapi, "Calls /v1/admin/socratic", "HTTPS, cookie + CSRF")
+    Rel(socapi, cognito, "Verifies staff and groups", "HTTPS")
+    Rel(socapi, db, "Reads sources, writes drafts/audit/outbox", "libpq")
+    Rel(socapi, socagent, "Starts proposal jobs (planned)", "Step Functions")
 
     UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="2")
 ```
@@ -341,7 +384,7 @@ and [`mathbank-infra-aws/README.md`](mathbank-infra-aws/README.md).
 
 ### Key flows (sequence diagrams)
 
-Six flows that between them touch every container above.
+Eight flows that between them touch every container above.
 
 **1. Student asks the tutor a question** — the core RAG + agent loop.
 
@@ -516,6 +559,83 @@ sequenceDiagram
     EA-->>EW: Review, solutions, and diagnosis
 ```
 
+**7. Admin authors a Socratic workflow in Socratic Studio** — staff experience in
+`mathbank-socratic-admin` (requirements/65, ledger 67). Solid arrows are delivered
+(ledger steps 01–02); `opt` blocks are the planned steps 04–05 and 08.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Staff author
+    participant UI as mathbank-socratic-admin
+    participant API as Socratic API (mathbank-rest)
+    participant C as Amazon Cognito
+    participant PG as Postgres orchestration.*
+    participant SF as Step Functions + AgentCore
+
+    A->>UI: Sign in (Cognito or explicit loopback-only local mode)
+    UI->>API: POST /v1/admin/socratic/session
+    API->>C: Authenticate, GetUser, live group lookup
+    API-->>UI: HttpOnly session cookie + in-memory CSRF token + capabilities
+    A->>UI: Designer: create a draft (title, domain)
+    UI->>API: POST /workflows (Idempotency-Key, X-CSRF-Token)
+    API->>PG: workflow + revision 1 + command receipt + audit/outbox (one transaction)
+    A->>UI: Templates & sources: pick problem, solution revision, published route
+    UI->>API: GET /resources, GET /strategies
+    A->>UI: Edit nodes, typed transition rules and annotations, pick strategy overlay
+    UI->>API: PUT /workflows/{id} (expected_hash, Idempotency-Key)
+    API->>PG: lock, re-read, reject stale hash/route (409), append immutable revision
+    UI->>API: POST /workflows/{id}/validate
+    API-->>UI: structural findings (not mathematical approval)
+    opt Planned: proposals (steps 04-05)
+        A->>UI: Natural-language instruction
+        UI->>API: POST /workflows/{id}/proposals
+        API->>SF: Bounded job, minimal context
+        SF-->>API: Typed edge proposal + provenance
+        A->>UI: Edit candidate, explicitly Accept or Reject
+        UI->>API: POST .../proposals/{job}/accept (REST revalidates)
+    end
+    opt Planned: review and publish (step 08)
+        A->>UI: Separate reviewer/publisher attest exact hash, release
+    end
+```
+
+**8. Student experience of a Socratic workflow** — today staff see it only as a
+**synthetic preview** inside the Studio Simulator, which REST evaluates with the shared
+deterministic activity scorer (ledger step 03, delivered).
+The real student runtime in `mathbank-web` comes after review and publishing (requirement
+65 §6, WP10). Both paths use the same safe runtime serializer and evaluator.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor P as Staff (synthetic student)
+    actor S as Student (planned)
+    participant UI as Studio Simulator
+    participant W as mathbank-web (planned host)
+    participant API as mathbank-rest Socratic runtime
+    participant PG as Postgres
+
+    P->>UI: Start preview from a saved draft (or a resource card)
+    UI->>API: POST /workflows/{id}/simulate (expected_hash)
+    API-->>UI: Current safe screen only (no answer keys or future nodes)
+    P->>UI: Answer Assertion-Reason / choice / numeric / written
+    UI->>API: POST /previews/{id}/respond (expected_version, Idempotency-Key)
+    API->>PG: Score against pinned activity snapshot, route, CAS + immutable event (one transaction)
+    API-->>UI: Server feedback, next node, journey + decision trace
+    P->>UI: Ask for a hint, or confirm assisted reveal
+    UI->>API: POST /previews/{id}/assist or /reveal
+    API-->>UI: Approved hint level (assisted = true), no mastery credit
+    Note over UI,API: Preview pinned to the saved hash, synthetic principal, no learner writes
+    opt Planned: published runtime (WP10)
+        S->>W: Open an assigned Socratic activity
+        W->>API: POST /v1/learning/workflows/{release_id}/start (bearer-derived owner)
+        S->>W: Respond, request help, resume later
+        W->>API: /respond, /assist, /reveal, /transition (CAS)
+        API->>PG: Execution state + learner evidence (PostgreSQL owns resume)
+    end
+```
+
 ## Data model
 
 Everything below was pulled live from the running databases (`information_schema` in
@@ -556,6 +676,7 @@ One Postgres 16 + pgvector database (`mathbank-db`), owned exclusively by
 | `tutor` | Micro-course runtime/session state consumed by the tutoring agent | 2 |
 | `analytics` | Aggregate learner-activity reporting | 1 |
 | `audit` | Cross-schema action log | 1 |
+| `orchestration` | **Added by migrations 053–054 after the live snapshot above** — Socratic Studio drafts (candidate strategies, owned workflows, immutable revisions, idempotent command receipts) and synthetic previews (pinned position/CAS row, immutable decision events) | 6 |
 
 ### Core entity model
 
@@ -697,6 +818,118 @@ erDiagram
     QUIZ_QUESTION }o--o{ SKILL : "question_skill"
     QUIZ_QUESTION }o--o{ TECHNIQUE : "question_technique"
     STUDENT_PROFILE ||--o{ QUIZ_RESPONSE : "submits"
+```
+
+### Socratic Studio draft and preview model (`orchestration`, migrations 053–054)
+
+Additive and isolated: drafts **reference** canonical content but never modify it, and
+no learner rows are written. Revisions, strategies and command receipts are immutable
+(`BEFORE UPDATE OR DELETE` triggers). `socratic_workflow` points at its current revision
+through a deferred composite FK, so the workflow pointer and the new revision commit
+together with the existing `audit.action_log` and `pipeline.outbox_event` rows. Column
+detail: [reference/postgres/orchestration.md](documentation/requirements/reference/postgres/orchestration.md).
+Synthetic previews (migration 054) pin the exact saved revision hash plus a **private**
+snapshot of each bound `activity.definition`, so later activity edits cannot change an
+in-flight preview; every accepted action appends an immutable event carrying its idempotency
+key and the exact DTO it returned. Proposal jobs, review attestations, releases and student
+executions are **not tables yet** (ledger steps 04–10).
+
+```mermaid
+erDiagram
+    SOCRATIC_STRATEGY {
+        text code PK
+        text domain
+        text label
+        text status "DRAFT only"
+        jsonb phases
+        text provenance
+    }
+    SOCRATIC_WORKFLOW {
+        uuid workflow_id PK
+        text owner_id "staff principal"
+        text title
+        text domain
+        int revision "current"
+        text content_hash "sha256 hex"
+        bool prototype_only "always true"
+    }
+    SOCRATIC_REVISION {
+        uuid workflow_id PK, FK
+        int revision PK
+        text content_hash
+        text author_id
+        text strategy_code FK
+        jsonb program "socratic.prototype.v1"
+        jsonb dependencies
+        uuid problem_id FK "nullable"
+        uuid solution_id FK "nullable"
+        int solution_revision "pinned"
+        uuid route_release_id FK "nullable"
+    }
+    SOCRATIC_COMMAND {
+        text owner_id PK
+        text operation PK
+        text idempotency_key PK
+        text request_hash
+        uuid workflow_id FK
+        int revision FK
+    }
+    PROBLEM {
+        string schema "core"
+    }
+    SOLUTION {
+        string schema "core"
+    }
+    SOLUTION_ROUTE_RELEASE {
+        string schema "pedagogy"
+    }
+    ACTION_LOG {
+        string schema "audit"
+    }
+    OUTBOX_EVENT {
+        string schema "pipeline"
+    }
+    ACTIVITY_DEFINITION {
+        string schema "activity"
+    }
+    SOCRATIC_PREVIEW {
+        uuid preview_id PK
+        text owner_id
+        int workflow_revision FK
+        jsonb activity_snapshot "private"
+        int state_version "CAS"
+        text current_node_key
+        text status "ACTIVE or COMPLETE"
+        int transitions_used
+        int hint_level
+        bool revealed
+        bool synthetic "always true"
+    }
+    SOCRATIC_PREVIEW_EVENT {
+        uuid preview_id PK, FK
+        int state_version PK
+        text action
+        text idempotency_key "unique per preview"
+        text outcome
+        text decision_source
+        bool assisted
+        jsonb evidence "private"
+        jsonb result "replayed DTO"
+    }
+
+    SOCRATIC_WORKFLOW ||--|{ SOCRATIC_REVISION : "immutable history"
+    SOCRATIC_WORKFLOW |o--|| SOCRATIC_REVISION : "current (deferred FK)"
+    SOCRATIC_STRATEGY ||--o{ SOCRATIC_REVISION : "overlay"
+    SOCRATIC_REVISION ||--o{ SOCRATIC_COMMAND : "replay receipt"
+    SOCRATIC_WORKFLOW ||--o{ SOCRATIC_COMMAND : "idempotent create/save"
+    PROBLEM |o--o{ SOCRATIC_REVISION : "source problem"
+    SOLUTION |o--o{ SOCRATIC_REVISION : "pinned solution revision"
+    SOLUTION_ROUTE_RELEASE |o--o{ SOCRATIC_REVISION : "published route"
+    SOCRATIC_REVISION ||--|| ACTION_LOG : "same transaction"
+    SOCRATIC_REVISION ||--|| OUTBOX_EVENT : "same transaction"
+    SOCRATIC_REVISION ||--o{ SOCRATIC_PREVIEW : "pinned exact hash"
+    SOCRATIC_PREVIEW ||--|{ SOCRATIC_PREVIEW_EVENT : "immutable decisions"
+    ACTIVITY_DEFINITION |o--o{ SOCRATIC_PREVIEW : "private snapshot"
 ```
 
 ### Neo4j — 25 node labels, 34 relationship types
@@ -1593,6 +1826,53 @@ Python venv (`mathbank-data-ingestion`, `mathbank-db`, `mathbank-graph`,
 package; it needs no install of its own), syncs the OpenAI/ElevenLabs keys
 and writes `mathbank-live/.env` — then tells you exactly which `.env` files still need real
 secrets filled in before `make up` will work.
+
+### Socratic Studio (admin authoring) — local and AWS
+
+Root `make socratic-*` targets wrap `mathbank-socratic-admin`, `mathbank-rest` and
+`mathbank-infra-aws`; `make help | grep socratic` lists them all. Status and acceptance
+evidence: [ledger 67](documentation/requirements/67_SOCRATIC_IMPLEMENTATION_HANDOFF.md).
+Agent conventions: [.github/skills/mathbank-socratic](.github/skills/mathbank-socratic/SKILL.md).
+
+```bash
+# Install / test (no AWS, no paid model calls)
+make rest-install && make socratic-install
+make socratic-test            # UI unit + typecheck + REST Socratic tests (DB cases opt-in: SOCRATIC_DB_TESTS=1)
+make socratic-e2e             # Playwright prototype regression + real loopback local-auth, desktop/mobile
+
+# Local, non-AWS: loopback-only local staff login (user local-author)
+make socratic-password        # generate a random password into mathbank-rest/.env as SOCRATIC_LOCAL_PASSWORD
+                              # (bcrypt hash alongside; REST stays in Cognito mode; rerun to rotate)
+make socratic-setup-local     # alternative: prompts for YOUR password at the terminal, never printed
+make socratic-start           # staff API :8019 (auth only) + UI :5186 proxied to it
+make socratic-start DRAFTS=1  # also real draft + preview storage in REST's configured Postgres (migrations 053-054)
+make socratic-status          # also: socratic-access, socratic-stop, socratic-restart
+#   logs: mathbank-rest/.socratic.log and mathbank-socratic-admin/.server.log
+
+# Local UI against the full REST daemon (Cognito mode, as configured in mathbank-rest/.env)
+make rest-start && make socratic-ui-start      # UI proxies /v1 to :8000
+
+# Database (additive, idempotent; isolated orchestration.* tables only)
+make socratic-migrate        # 053 drafts + 054 synthetic previews
+
+# AWS (profile aws-sutanu-admin, us-east-2; isolated MathBankSocraticStack only)
+make socratic-seed            # three SSM SecureStrings from mathbank-rest/.env, values hidden
+make socratic-diff            # build SPA, show the change set
+make socratic-deploy          # build SPA, deploy, print StudioUrl (never redeploys shared REST)
+make socratic-verify          # read-only hosted acceptance; resolves StudioUrl automatically
+make socratic-outputs
+make socratic-destroy         # teardown: deletes only this stack; Neon tables + seeded SSM secrets remain
+```
+
+`make sync-env` rewrites `mathbank-rest/.env` from the root `.env` (keeping a `.bak`), so rerun
+`make socratic-password` afterwards. Previews score responses against a node's `activity_ref`
+(an `activity.definition` UUID) and never write learner rows.
+
+Local mode is **explicit** and refuses non-loopback hosts or Lambda/ECS runtimes; it is
+never a fallback when Cognito fails. `make infra-destroy`/`infra-outputs` use the shared
+CDK app and do **not** include the Socratic stack; use the `socratic-*` targets for it.
+To remove migration 053 data, a separately authorized SQL change is required: the
+revision/command tables are immutable by design.
 
 ### Individual services
 

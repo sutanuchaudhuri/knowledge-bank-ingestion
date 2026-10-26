@@ -37,7 +37,7 @@ not remove requirements to fit an initial implementation.
 | 00 Baseline and UI preservation | COMPLETE (offline frontend increment) | Not integrated with workflow backend | 24 unit tests, 8 prototype Playwright checks at 1440/390, TypeScript/build passed. Required unfinished UI remains in scope. |
 | 01 REST staff session authentication | **COMPLETE (offline + real local-browser auth)** | **Cognito config/read-only preflight verified; successful staff login/revocation pending** | Explicit loopback-only non-AWS login added; 57 focused auth/setup/security tests, 2 real local-auth browser cases, Ruff and mypy pass. Full REST suite now 804 passed/134 skipped after fixture repairs. No cloud deployment or account mutation. |
 | 02 Draft/source persistence | **COMPLETE (implementation, Neon schema/tests and isolated deployment)** | **Hosted readiness/schema/SPA/denial verified; successful Cognito staff/protected-cloud round trip pending** | Migration 053 applied/repeated; owned immutable drafts, source pins, CAS/replay, atomic audit/outbox and concurrent writers tested. 824 REST tests passed/135 skipped; 25 UI unit, 8 prototype browser, 2 real local-auth browser, 3 infra tests passed. Shared REST stack unchanged. |
-| 03 Synthetic response/evaluation/help | PENDING; depends on 02 | Pending | Reuse existing scorer/runtime; safe current-node DTO, five AR cases, hints/reveal assistance, preview hash pinning, CAS/idempotency and failure tests. |
+| 03 Synthetic response/evaluation/help | **COMPLETE (implementation, Neon migration 054, local live acceptance)** | **Local browser → local API → Neon verified; hosted stack not yet redeployed; AR golden cases await staff approval** | Shared `activity_scoring` (micro-course refactored onto it), AR1–AR5, pinned private activity snapshots, CAS/idempotent preview events, hints/reveal as assisted. 872 REST passed/135 skipped; 10 preview DB + 12 offline + 23 scorer tests; 25 UI unit; live desktop/mobile browser run. |
 | 04 AgentCore proposal package | PENDING; depends on 02 | Pending | Bounded DeepSeek typed proposals, minimal context, exact eligibility, prompt/model provenance, explicit staff acceptance, stale-result rejection. |
 | 05 Step Functions/Lambda/CDK | PENDING; depends on 04 | Pending | Isolated optional stack in existing CDK app, scoped IAM, durable intent/reconciliation, token/time/job limits and pause switch; selected-stack synth/test/deploy. |
 | 06 Live Neon/AWS vertical acceptance | PENDING; depends on 03 and 05 | Pending | Real authenticated browser → REST → Neon → Step Functions/AgentCore → persisted proposal → explicit accept; receipts, bounded spend, failed-job/replay tests. |
@@ -45,6 +45,9 @@ not remove requirements to fit an initial implementation.
 | 08 Mathematical/pedagogical review cockpit | PENDING; depends on 06 and 07 | Pending | Separate verified capabilities, exact-hash attestations, no stale/self-authorized publish, immutable release/retirement and operational activation. |
 | 09 Visual/attachment integration | PENDING; depends on 03 and 07 | Pending | Reuse widgets/scene/artifact services, immutable reviewed refs, before/after disclosure, source rights/accessibility, safe video adapter; same student/preview resolver. |
 | 10 Remaining framework and pilot | PENDING; depends on 08 and 09 | Pending | All node/assessment kinds, published structural graph, operations/projection/reindex controls, eight domains/20 strategies, S01-S22 and independent SME acceptance. |
+
+Unified-portal steps 11–20 (quizzes, videos, exams, student feature access, search, assistant) are proposed in
+[68](68_UNIFIED_STUDIO_PORTAL_PLAN.md) and are **not started** until its decisions D-1–D-12 are reviewed.
 
 Steps 07 and 09 may later proceed independently once their listed prerequisites
 are satisfied; list order alone does not imply an additional dependency.
@@ -329,9 +332,132 @@ repository/paid integration suites green.
   existing shared local build runtime; it was left available, not billed AWS
   compute. No commits made; preserve the dirty worktree.
 
+## Step 03 execution record
+
+- Date **2026-10-25**. Scope: synthetic preview evaluation/help only; no learner,
+  mastery, course-progress or activity-response writes; no model or AWS calls.
+- **Local password provisioning (user request):** `make socratic-password` runs
+  [setup_socratic_auth.py](../../mathbank-rest/scripts/setup_socratic_auth.py)
+  `--generate-password --credentials-only`: a random `secrets.token_urlsafe(18)` password is
+  saved as `SOCRATIC_LOCAL_PASSWORD` plus its bcrypt hash in the gitignored, mode-600
+  `mathbank-rest/.env`, without changing `SOCRATIC_AUTH_MODE` (REST stays Cognito; the local
+  launcher forces local mode for its own process). Re-running rotates it. `.env` is
+  excluded from Docker assets and never seeded to SSM. `sync-env.sh` rewrites
+  `mathbank-rest/.env` (with backup) — rerun `make socratic-password` afterwards.
+- **Scorer (SOC-ASMT-01/02/03):** [activity_scoring.py](../../mathbank-rest/src/mathbank_rest/activity_scoring.py)
+  is now the single deterministic evaluator; `micro_course_service.submit_activity_response`
+  calls it with unchanged semantics (MCQ `correct_index`, NUMERIC exact within 1e-9).
+  Added MULTISELECT (`correct_indices`) and Assertion–Reason as a five-option MCQ whose key
+  is derived from `assertion_reason.{assertion_true,reason_true,reason_explains}`; truth and
+  entailment judgments are retained separately as private evidence. Inconsistent policies are
+  unscoreable. SHORT_RESPONSE abstains (`UNCERTAIN`); rubric assistance is step 04.
+  `live_runtime` poll scoring (`correct_option`) was not changed.
+- **Migration [054](../../mathbank-db/sql/054_socratic_previews.sql)** applied (and 053
+  re-applied idempotently) on the authorized Neon target: `orchestration.socratic_preview`
+  (owner, pinned workflow revision/hash FK, private `activity_snapshot`, CAS `state_version`,
+  position, budget, hint/reveal state) and immutable `socratic_preview_event` (idempotency
+  key + request hash, decision, private response/evidence, exact returned DTO for replay).
+- **API** ([service](../../mathbank-rest/src/mathbank_rest/socratic_preview.py), router):
+  `POST /workflows/{id}/simulate`, `GET /previews/{id}`, `POST /previews/{id}/respond|assist|
+  reveal|transition`. Pre-answer DTO allowlists node, activity prompt, safe option keys
+  (`AR1`–`AR5` or positional), kind and pinned snapshot revision — never keys, policies,
+  hints not yet disclosed or future nodes. Routing: exact outcome, else ALWAYS; lowest
+  priority number wins; RETRY without a rule stays; otherwise fallback; budget exhaustion ends
+  at fallback. CORRECT→SUCCESS, INCORRECT→RETRY, abstain→UNCERTAIN; after an explicit reveal a
+  correct answer is capped at UNCERTAIN (assisted, not independent). Hints come from the
+  activity's `hints` (≤5) and mark later decisions `assisted`. Same key+payload replays the
+  stored result; changed payload, stale version, saved-draft change, stale screen or ended
+  preview → 409. Structural validation now reports unbindable `activity_ref`s.
+  `/health` now reports `evaluation_available: true` with scope `SYNTHETIC_PREVIEW_DETERMINISTIC`.
+- **UI:** renders the activity prompt, numeric input hint, transition budget and assisted
+  history pills; contract allows server `null`s.
+
+### Step 03 verification
+
+| Command / check | Result |
+|---|---|
+| `make socratic-migrate` | 053+054 applied; six `orchestration.socratic_*` tables EXIST |
+| `pytest tests/test_activity_scoring.py` | **23 passed** incl. five AR golden cases (AR1–AR5) |
+| `pytest tests/test_socratic_preview.py` | **12 passed** offline (routing, DTO allowlist, client-grade rejection, OpenAPI/CSRF) |
+| `SOCRATIC_DB_TESTS=1 pytest tests/test_socratic_preview_postgres.py` | **10 passed**, all rolled back: full journey, no learner writes, replay/conflict/stale/owner, snapshot pinning, reveal cap, budget, unsupported bindings, start rules, immutable events |
+| `SOCRATIC_DB_TESTS=1 pytest -q` (full REST) | **872 passed, 135 skipped** |
+| micro-course regression | 15 passed, 17 skipped (unchanged behavior) |
+| `npm test`; `npm run typecheck` | **25 passed**; clean |
+| Live: `make socratic-start DRAFTS=1`, API via Vite proxy | login → create/save draft bound to an existing MCQ (read-only) → simulate → respond (STAY_ON_NODE) → no-hint 409 → reveal → capped UNCERTAIN → fallback; no key leakage |
+| Live Playwright browser, 1440/390 | question + 4 options + server feedback; no overflow or page errors |
+
+Persistent synthetic evidence from the live run: one draft "Live step 03 acceptance
+(synthetic)" owned by the `local:` principal with its preview rows (immutable by design).
+
+### Step 03 remaining gates
+
+- The five AR golden cases are self-checking test fixtures; **staff mathematical approval is
+  still required** (SOC-ASMT-02) and is not claimed.
+- No AR/MULTISELECT `activity.definition` rows exist yet; authoring them writes the shared
+  activity table and needs explicit approval (the admin activity API accepts the policy).
+- **Hosted stack not redeployed**: the deployed Lambda still serves step 02 and its `/health`
+  will not match the updated verifier until `make socratic-deploy` and `make socratic-verify`.
+- Free-form rubric assistance, AI decisions and proposal jobs remain steps 04–05.
+
+## UI re-baseline record (2026-10-25)
+
+User direction: make the Studio clean and simplified like
+[`UI/index (1).html`](../copilot-instructions/mathbank-adaptive-socratic-framework/UI/index%20(1).html),
+with a searchable left navigation backed by a separate search module, a detail view where the
+admin works, and the flow viewable as JSON or natural language.
+
+- Rebuilt [mathbank-socratic-admin](../../mathbank-socratic-admin/README.md#layout-and-authoring-workflow)
+  as icon rail · searchable sidebar · canvas · detail drawer. New modules:
+  [search.ts](../../mathbank-socratic-admin/src/search.ts) (pure multi-term search across
+  drafts, open-workflow steps/rules and strategies), [narrative.ts](../../mathbank-socratic-admin/src/narrative.ts)
+  (plain-language flow), `Sidebar`, `Panels` (step/rule/new-rule/new-step/new-workflow/settings
+  drawers), `RulesView`, `Library` (strategies/sources/steps). Removed the cluttered
+  `RuleEditor`, `Rules` and `Resources` screens. **No capability was removed**: every
+  previous action (draft paging, create/open/save/discard/validate, strategy/entry/fallback/budget,
+  source linking with explicit revision, node/edge CRUD and annotations, AI proposal adjust/accept,
+  preview start/respond/hint/reveal/simulate/refresh/history, conflict reload, sign-out) is
+  reachable from the drawer, settings or a collapsed section. API calls are unchanged; no backend
+  change. Added Escape to close the sidebar/drawer; fixed an off-canvas sidebar that stayed
+  focusable on phones.
+- Verification: `npm test` **34 passed** (incl. 5 new search/narrative tests and rewritten App
+  tests); typecheck and production build pass; `npm run test:e2e` **8 passed** and
+  `npm run test:e2e:local-auth` **2 passed** at 1440/390; live browser run against local
+  API + Neon at 1440/390: one h1 per view, no horizontal overflow, no console errors. Hosted
+  stack not redeployed.
+
+## Operator tooling and documentation record (2026-10-25)
+
+Status: **COMPLETE (tooling/docs; no deployment, migration or AWS mutation performed).**
+Step 03 remains the next implementation step and was not started.
+
+- Root [Makefile](../../Makefile) `socratic-*` targets delegate to
+  [Studio](../../mathbank-socratic-admin/Makefile), [REST](../../mathbank-rest/Makefile) and
+  [infra](../../mathbank-infra-aws/Makefile): install/test/e2e/build; local
+  `socratic-setup-local`, `socratic-start|stop|restart|status|access` (staff API `:8019`
+  pidfile `.socratic.pid`, UI `:5186`, `DRAFTS=1` for real Postgres drafts);
+  `socratic-migrate`; AWS `socratic-seed|synth|diff|deploy|verify|outputs|destroy`.
+  New infra targets `diff-socratic`, `outputs-socratic`, `destroy-socratic` exist because the
+  shared `destroy`/`outputs` use `app.py` and never covered this stack.
+- New [mathbank-socratic skill](../../.github/skills/mathbank-socratic/SKILL.md); Socratic
+  sections added to the `mathbank-local-services` and `mathbank-infra-aws` skills. Root
+  [README](../../README.md) now includes the Studio in the repository map, flowchart, C1/C2,
+  admin authoring flow 7, student/synthetic-preview flow 8, the `orchestration` schema row
+  and ER diagram, and a Socratic quick start. All changed Mermaid blocks render (mmdc).
+- Verification: `make socratic-test` → UI **25 passed** + typecheck, REST **70 passed /
+  8 skipped** (DB opt-in); `make socratic-e2e` → **8 + 2 passed**; `make socratic-ui-start`
+  → HTTP 200, then `socratic-ui-stop` released `:5186`; `make socratic-access` resolved the
+  deployed StudioUrl read-only. `make socratic-start` correctly failed with
+  `LOCAL_STAFF_NOT_CONFIGURED` because local staff credentials are operator-set
+  (`make socratic-setup-local`); no password was created. Deploy/destroy targets were
+  dry-run (`make -n`) only.
+
+Current done/partial/pending architecture and deployment diagrams:
+[STUDIO_PLATFORM_ARCHITECTURE.md](../architecture/STUDIO_PLATFORM_ARCHITECTURE.md) — update its status
+classes and matrix whenever a step changes state.
+
 ## Resumption checklist
 
-1. Read this ledger, requirement 65, affected project README/skill and source.
+1. Read this ledger, requirement 65, the `mathbank-socratic` skill, affected project README and source.
 2. Inspect `git status`; do not assume the last agent committed its changes.
 3. Reproduce the smallest relevant baseline; distinguish unrelated failures.
 4. Mark the selected step `IN PROGRESS` and record concrete scope/files.

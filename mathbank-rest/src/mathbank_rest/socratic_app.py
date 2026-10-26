@@ -45,14 +45,16 @@ def health():
                 SELECT bool_and(to_regclass(name) IS NOT NULL)
                 FROM unnest(ARRAY[
                     'orchestration.socratic_strategy','orchestration.socratic_workflow',
-                    'orchestration.socratic_revision','orchestration.socratic_command'
+                    'orchestration.socratic_revision','orchestration.socratic_command',
+                    'orchestration.socratic_preview','orchestration.socratic_preview_event'
                 ]) AS names(name)
             """)).scalar_one()
         if not ready:
             raise HTTPException(503, "Socratic schema is not ready.")
     except SQLAlchemyError:
         raise socratic_auth.fail(503, "SOCRATIC_STORAGE_UNAVAILABLE", "Draft storage is unavailable.") from None
-    return {"ok": True, "prototype_only": True, "evaluation_available": False, "model_jobs_available": False}
+    return {"ok": True, "prototype_only": True, "evaluation_available": True,
+            "evaluation_scope": "SYNTHETIC_PREVIEW_DETERMINISTIC", "model_jobs_available": False}
 
 
 static_dir = Path(os.environ.get("SOCRATIC_STATIC_DIR", "/var/task/studio"))

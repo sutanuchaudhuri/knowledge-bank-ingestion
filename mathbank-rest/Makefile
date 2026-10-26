@@ -64,9 +64,42 @@ test-socratic-offline:           ## Test staff sessions/setup locally with synth
 setup-socratic-local:            ## Configure loopback-only staff login; prompts for a local password, never prints it
 	$(BIN)/python scripts/setup_socratic_auth.py --mode local --origin http://127.0.0.1:5186 --apply
 
+.PHONY: socratic-password
+socratic-password:               ## Generate/rotate local staff password into .env (SOCRATIC_LOCAL_PASSWORD + hash); keeps auth mode
+	$(BIN)/python scripts/setup_socratic_auth.py --mode local --origin http://127.0.0.1:5186 --generate-password --credentials-only --apply
+
 .PHONY: run-socratic-local
 run-socratic-local:              ## Run configured local staff session API on loopback (single process, no reload)
 	$(BIN)/python scripts/run_socratic_local.py --port $(PORT)
+
+# Background copy of run-socratic-local on its own port/pidfile so it never collides with
+# the full REST daemon on :$(PORT). DRAFTS=1 adds real draft storage in configured Postgres.
+SOCRATIC_PORT     ?= 8019
+SOCRATIC_PID_FILE := .socratic.pid
+SOCRATIC_LOG_FILE := .socratic.log
+
+.PHONY: start-socratic-local stop-socratic-local status-socratic-local
+start-socratic-local:            ## Start local staff API on :$(SOCRATIC_PORT) in background (DRAFTS=1 = real Postgres drafts)
+	@bash ../mathbank-scripts/start-service.sh mathbank-socratic-api "$(SOCRATIC_PORT)" "$(SOCRATIC_PID_FILE)" "$(SOCRATIC_LOG_FILE)" \
+	  "http://127.0.0.1:$(SOCRATIC_PORT)/openapi.json" "$(BIN)/python" scripts/run_socratic_local.py --port $(SOCRATIC_PORT) $(if $(filter 1,$(DRAFTS)),--with-drafts,)
+
+stop-socratic-local:             ## Stop the background local staff API (pidfile only; never kills other listeners)
+	@if [ -f $(SOCRATIC_PID_FILE) ]; then kill $$(cat $(SOCRATIC_PID_FILE)) 2>/dev/null || true; rm -f $(SOCRATIC_PID_FILE); fi
+	@echo "mathbank-socratic-api stopped"
+
+status-socratic-local:           ## Show whether the local staff API is listening on :$(SOCRATIC_PORT)
+	@lsof -ti:$(SOCRATIC_PORT) >/dev/null 2>&1 && echo "mathbank-socratic-api: running on :$(SOCRATIC_PORT)" || echo "mathbank-socratic-api: not running"
+
+.PHONY: test-socratic migrate-socratic-drafts verify-socratic-deployment
+test-socratic:                   ## All Socratic REST tests; Postgres cases skip unless SOCRATIC_DB_TESTS=1 (rolled back)
+	$(PYTEST) -q tests/test_socratic_auth.py tests/test_socratic_local_auth.py tests/test_socratic_auth_setup.py tests/test_socratic_drafts.py tests/test_socratic_postgres.py tests/test_socratic_preview.py tests/test_socratic_preview_postgres.py tests/test_activity_scoring.py tests/test_security.py
+
+migrate-socratic-drafts:         ## Explicitly apply additive migration 053 (orchestration.socratic_*) to configured Postgres
+	$(BIN)/python scripts/migrate_socratic_drafts.py --apply --direct
+
+verify-socratic-deployment:      ## Read-only hosted check: make verify-socratic-deployment URL=https://...lambda-url...
+	@test -n "$(URL)" || (echo "Usage: make verify-socratic-deployment URL=<Studio URL>" && exit 1)
+	$(BIN)/python scripts/verify_socratic_deployment.py --url "$(URL)"
 
 # ── Run ──────────────────────────────────────────────────────────────────
 

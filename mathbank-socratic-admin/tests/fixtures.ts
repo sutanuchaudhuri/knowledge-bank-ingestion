@@ -24,6 +24,7 @@ export const assessmentPreview: Preview = {
     prompt: "Assertion: The number of nonnegative solutions of \\(x+y+z=5\\) is 21. Reason: Each solution corresponds uniquely to five stars and two separators." },
   activity: {
     activity_id: "approved-ar", revision: "1", kind: "ASSERTION_REASON",
+    prompt: "Judge the assertion and the reason separately.",
     options: [
       { key: "AR1", text: "Both true; reason explains assertion" },
       { key: "AR2", text: "Both true; reason does not explain assertion" },

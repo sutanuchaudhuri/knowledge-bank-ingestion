@@ -74,6 +74,13 @@ For local password authentication **with real draft storage**, first use
 .venv/bin/python scripts/run_socratic_local.py --with-drafts --port 8000
 ```
 
+Background equivalent on its own port/pidfile (logs in `.socratic.log`), so it never
+collides with the full REST daemon: `make start-socratic-local DRAFTS=1` /
+`make stop-socratic-local` / `make status-socratic-local` (default `SOCRATIC_PORT=8019`).
+From the repository root, `make socratic-start DRAFTS=1` also starts the Studio UI
+proxied to it. Other targets: `make test-socratic`, `make migrate-socratic-drafts`,
+`make verify-socratic-deployment URL=...`.
+
 This enables only the isolated API, with loopback binding and proxy headers
 disabled; it uses the configured database. Point REST's Postgres settings at
 an operator-provided local PostgreSQL with the required migrations for fully
@@ -140,12 +147,30 @@ cd ../mathbank-socratic-admin
 npm run test:e2e:local-auth
 ```
 
+### Socratic synthetic preview and shared activity scoring
+
+Ledger step 03 adds `POST /v1/admin/socratic/workflows/{id}/simulate`,
+`GET /previews/{id}` and `POST /previews/{id}/respond|assist|reveal|transition`
+([service](src/mathbank_rest/socratic_preview.py)), persisted by additive migration
+[054](../mathbank-db/sql/054_socratic_previews.sql) (`make migrate-socratic-drafts` applies
+053 and 054). Responses are scored by [activity_scoring.py](src/mathbank_rest/activity_scoring.py),
+the single deterministic evaluator that the micro-course runtime now also calls, against a
+private snapshot of each bound `activity.definition` pinned at preview start. Policies:
+`MCQ.correct_index`, Assertion–Reason (`MCQ` + `assertion_reason` judgments, five options),
+`MULTISELECT.correct_indices`, `NUMERIC.correct_value`; `SHORT_RESPONSE` is never auto-scored.
+Optional `hints` (≤5) and `explanation` drive assist/reveal, recorded as assisted. Previews
+never write learner, mastery, course or activity-response rows. Tests:
+`tests/test_activity_scoring.py`, `tests/test_socratic_preview.py` (offline) and
+`SOCRATIC_DB_TESTS=1 ... tests/test_socratic_preview_postgres.py` (rolled back).
+Details: [schema reference](../documentation/requirements/reference/postgres/orchestration.md#migration-054--synthetic-previews-ledger-step-03).
+
 ### Interactive non-AWS testing
 
 Run from `mathbank-rest`:
 
 ```bash
-make setup-socratic-local  # writes private .env settings, prompts for your own local password
+make socratic-password     # generate a random local password into .env (SOCRATIC_LOCAL_PASSWORD); keeps Cognito mode
+# or: make setup-socratic-local  # writes private .env settings, prompts for your own local password
 make run-socratic-local   # loopback :8000, single process, foreground; Ctrl-C stops it
 # In another terminal:
 cd mathbank-socratic-admin # from repository root

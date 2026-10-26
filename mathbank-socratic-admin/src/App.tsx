@@ -1,23 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { api, ApiError, checkPreview, checkWorkflow, pathId, pollJob } from "./api";
-import type { Edge, Job, Preview, PreviewAnswer, Program, Session, Strategy, Validation, Workflow, WorkflowSummary } from "./contracts";
+import type { Edge, Job, Outcome, Preview, PreviewAnswer, Program, Session, Strategy, Validation, Workflow, WorkflowSummary } from "./contracts";
 import { actorName, isDirty } from "./contracts";
 import { Coauthor } from "./Coauthor";
 import { Designer } from "./Designer";
-import { Resources } from "./Resources";
-import { Rules } from "./Rules";
-import { Icon, MathText, PageHeader, Pager, Pill } from "./ui";
+import type { Representation } from "./Designer";
+import { Library } from "./Library";
+import { NewRulePanel, NewStepPanel, NewWorkflowPanel, RulePanel, SettingsPanel, StepPanel } from "./Panels";
+import { RulesView } from "./RulesView";
+import { Sidebar } from "./Sidebar";
+import { Simulator } from "./Simulator";
+import { Drawer, Empty, Hero, Icon, IconButton, MathText, Pill } from "./ui";
 
 const views = [
-  { key: "designer", label: "Designer + Simulator", icon: "bezier2", subtitle: "Author draft journeys and inspect server-owned synthetic transitions." },
-  { key: "rules", label: "Rules by topic", icon: "diagram-3", subtitle: "Review plain-language explanations beside their authoritative typed rules." },
-  { key: "resources", label: "Resource Library", icon: "database", subtitle: "Link canonical sources and released step-authoring references." },
+  { key: "designer", label: "Workflow designer", icon: "bezier2" },
+  { key: "rules", label: "Rules by topic", icon: "signpost-split" },
+  { key: "library", label: "Templates & sources", icon: "grid" },
+  { key: "student", label: "Student simulator", icon: "person-video3" },
 ] as const;
 type View = typeof views[number]["key"];
+type Panel =
+  | { kind: "step"; key: string } | { kind: "rule"; index: number } | { kind: "new-rule"; from?: string }
+  | { kind: "new-step" } | { kind: "new-workflow"; strategy?: Strategy | null } | { kind: "settings" } | { kind: "ai" };
 type Proposal = { job: Job; workflowId: string; baseHash: string };
 const viewFromHash = (): View => {
-  const key = window.location.hash.slice(1);
+  const key = window.location.hash.slice(1).split("-")[0];
   return views.some(view => view.key === key) ? key as View : "designer";
 };
 
@@ -31,7 +39,10 @@ export function App() {
   const lock = useRef(false);
   const lifecycle = useRef(new AbortController());
   const [view, setView] = useState<View>(viewFromHash);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [panel, setPanel] = useState<Panel | null>(null);
+  const [representation, setRepresentation] = useState<Representation>("flow");
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -49,22 +60,21 @@ export function App() {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [pollRetry, setPollRetry] = useState(0);
   const [polling, setPolling] = useState(false);
-  const [title, setTitle] = useState("");
-  const [domain, setDomain] = useState("");
   const [pendingOpen, setPendingOpen] = useState<string | null>(null);
   const dirty = isDirty(workflow, program);
-  const activeView = views.find(item => item.key === view)!;
+  const disabled = busy || conflict;
 
+  const reset = useCallback(() => {
+    api.setSession(null); setSession(null);
+    setWorkflow(null); setProgram(null); setPreview(null); setProposal(null); setPanel(null);
+    setWorkflows([]); setStrategies([]);
+  }, []);
   const onError = useCallback((cause: unknown) => {
     if (cause instanceof DOMException && cause.name === "AbortError") return;
     setError(cause instanceof Error ? cause.message : "Unexpected failure. No changes have been assumed.");
     if (cause instanceof ApiError && cause.status === 409) setConflict(true);
-    if (cause instanceof ApiError && cause.status === 401) {
-      api.setSession(null); setSession(null);
-      setWorkflow(null); setProgram(null); setPreview(null); setProposal(null);
-      setWorkflows([]); setStrategies([]);
-    }
-  }, []);
+    if (cause instanceof ApiError && cause.status === 401) reset();
+  }, [reset]);
 
   useEffect(() => {
     lifecycle.current = new AbortController();
@@ -75,7 +85,7 @@ export function App() {
     }).catch(cause => {
       if (!(cause instanceof ApiError && cause.status === 401) && !controller.signal.aborted) onError(cause);
     }).finally(() => { if (!controller.signal.aborted) setChecking(false); });
-    const navigation = () => { setView(viewFromHash()); setMenuOpen(false); };
+    const navigation = () => setView(viewFromHash());
     window.addEventListener("hashchange", navigation);
     return () => { controller.abort(); window.removeEventListener("hashchange", navigation); };
   }, [onError]);
@@ -89,8 +99,7 @@ export function App() {
       api.request<{ workflows: WorkflowSummary[]; has_more: boolean }>(
         `/workflows?limit=25&offset=${workflowPage * 25}`, { signal: controller.signal }),
     ]).then(([registry, drafts]) => {
-      setStrategies(registry.strategies); setWorkflows(drafts.workflows);
-      setWorkflowsHaveMore(drafts.has_more);
+      setStrategies(registry.strategies); setWorkflows(drafts.workflows); setWorkflowsHaveMore(drafts.has_more);
     }).catch(cause => { if (!controller.signal.aborted) { setCatalogFailed(true); onError(cause); } })
       .finally(() => { if (!controller.signal.aborted) setCatalogLoading(false); });
     return () => controller.abort();
@@ -116,10 +125,25 @@ export function App() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  function navigate(next: View) { window.location.hash = next; setView(next); setMenuOpen(false); }
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (sidebarOpen) setSidebarOpen(false); else setPanel(null);
+    };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  function navigate(next: View) { window.location.hash = next; setView(next); setSidebarOpen(false); }
   async function run(action: () => Promise<void>) {
     if (lock.current) return;
-    lock.current = true; setBusy(true); setError(""); setNotice("");
+    lock.current = true; setBusy(true); setError("");
     try { await action(); } catch (cause) { if (!lifecycle.current.signal.aborted) onError(cause); }
     finally { lock.current = false; if (!lifecycle.current.signal.aborted) setBusy(false); }
   }
@@ -137,7 +161,8 @@ export function App() {
   }
   async function open(id: string) {
     const detail = checkWorkflow(await request<Workflow>(`/workflows/${pathId(id)}`));
-    remember(detail); setSelected(detail.program.entry); setPreview(null); setProposal(null); setPendingOpen(null);
+    remember(detail); setSelected(""); setPreview(null); setProposal(null); setPendingOpen(null); setPanel(null);
+    if (view === "library" || view === "student") navigate("designer");
   }
   async function save(): Promise<Workflow> {
     if (!workflow || !program) throw new Error("Open a workflow first.");
@@ -145,10 +170,24 @@ export function App() {
     const detail = checkWorkflow(await request<Workflow>(`/workflows/${pathId(workflow.workflow_id)}`, "PUT", {
       expected_hash: workflow.content_hash, program,
     }));
-    remember(detail); setNotice("Draft saved on the server.");
+    remember(detail); setNotice("Draft saved.");
     return detail;
   }
-  function edit(next: Program) { setProgram(next); setValidation(null); setNotice(""); }
+  function edit(next: Program) { setProgram(next); setValidation(null); }
+  function requestOpen(id: string) {
+    setSidebarOpen(false);
+    if (id === workflow?.workflow_id) return;
+    if (dirty) setPendingOpen(id); else void run(() => open(id));
+  }
+  function exportJson() {
+    if (!program || !workflow) return;
+    const blob = new Blob([JSON.stringify({ title: workflow.title, domain: workflow.domain, revision: workflow.revision, program }, null, 2)], { type: "application/json" });
+    if (typeof URL.createObjectURL !== "function") return;
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${workflow.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "workflow"}-r${workflow.revision}.json`;
+    link.click(); URL.revokeObjectURL(link.href);
+  }
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -161,10 +200,22 @@ export function App() {
     });
   }
 
+  const startPreview = (startKey?: string) => void run(async () => {
+    const saved = await save();
+    setPreview(checkPreview(await request<Preview>(`/workflows/${pathId(saved.workflow_id)}/simulate`, "POST", {
+      expected_hash: saved.content_hash, ...(startKey ? { start_node_key: startKey } : {}),
+    })));
+    previewBaseHash.current = saved.content_hash;
+    if (startKey) setSelected(startKey);
+    navigate("student");
+  });
+  function guardPreview(current: Preview | null): asserts current is Preview {
+    if (!current || !workflow) throw new Error("Start a synthetic preview first.");
+    if (dirty || previewBaseHash.current !== workflow.content_hash) throw new Error("The draft changed. Save and restart the preview before continuing.");
+  }
   function previewAction(action: "respond" | "assist" | "reveal", answer?: PreviewAnswer) {
     void run(async () => {
-      if (!preview || !workflow) throw new Error("Start a synthetic preview first.");
-      if (dirty || previewBaseHash.current !== workflow.content_hash) throw new Error("The draft changed. Save and restart the preview before continuing.");
+      guardPreview(preview);
       setPreview(checkPreview(await request<Preview>(`/previews/${pathId(preview.preview_id)}/${action}`, "POST", {
         expected_version: preview.state_version, idempotency_key: crypto.randomUUID(),
         ...(action === "respond" ? {
@@ -174,163 +225,165 @@ export function App() {
       })));
     });
   }
-  const coauthor = workflow && program ? <Coauthor key={`proposal-${proposal?.job.job_id || workflow.workflow_id}`} program={workflow.program}
-    instruction={instruction} setInstruction={setInstruction} job={proposal?.job} baseHash={proposal?.baseHash}
-    stale={!!proposal && (dirty || workflow.content_hash !== proposal.baseHash || workflow.workflow_id !== proposal.workflowId)}
-    disabled={busy || conflict} polling={polling}
-    onRequest={() => void run(async () => {
-      const saved = await save();
-      const started = await request<{ job_id: string; status: Job["status"]; execution_arn: string }>(`/workflows/${pathId(saved.workflow_id)}/proposals`, "POST", { expected_hash: saved.content_hash, instruction: instruction.trim() });
-      if (!["QUEUED", "RUNNING", "SUCCEEDED", "FAILED"].includes(started.status)) throw new Error("Unsupported proposal job status.");
-      const job: Job = ["SUCCEEDED", "FAILED"].includes(started.status)
-        ? await request<Job>(`/jobs/${pathId(started.job_id)}`) : { job_id: started.job_id, status: started.status, error: null, result: null };
-      setProposal({ workflowId: saved.workflow_id, baseHash: saved.content_hash, job });
-    })}
-    onAccept={(candidate?: Edge) => void run(async () => {
-      if (!proposal) return;
-      const accepted = checkWorkflow(await request<Workflow>(`/workflows/${pathId(workflow.workflow_id)}/proposals/${pathId(proposal.job.job_id)}/accept`, "POST", {
-        expected_hash: proposal.baseHash, ...(candidate ? { candidate } : {}),
-      }));
-      remember(accepted); setPreview(null); setProposal(null); setNotice("Proposed edge accepted into the server draft. Not published.");
-    })}
-    onReject={() => setProposal(null)} onResume={() => { setError(""); setPollRetry(value => value + 1); }} /> : null;
+  const transition = (outcome: Outcome) => void run(async () => {
+    guardPreview(preview);
+    setPreview(checkPreview(await request<Preview>(`/previews/${pathId(preview.preview_id)}/transition`, "POST", {
+      expected_version: preview.state_version, idempotency_key: crypto.randomUUID(), outcome,
+    })));
+  });
+  const refreshPreview = () => void run(async () => {
+    if (preview) { setPreview(checkPreview(await request<Preview>(`/previews/${pathId(preview.preview_id)}`))); setConflict(false); }
+  });
 
-  let content: ReactNode;
-  if (checking) content = <p role="status">Checking administrator session…</p>;
-  else if (!session) content = <section className="sc-card sc-login">
-    <h2>Administrator sign in</h2><p className="sc-muted">An HTTP-only cookie secures this session. No browser API keys.</p>
-    <form className="sc-stack" onSubmit={login}>
-      <label>Username<input name="username" autoComplete="username" required disabled={busy} /></label>
-      <label>Password<input name="password" type="password" autoComplete="current-password" required disabled={busy} /></label>
-      <button className="sc-primary" disabled={busy}>Sign in</button>
-    </form>
-  </section>;
-  else content = <>
-    {view === "designer" && <>
-      <details className="sc-card" open={!workflow}>
-        <summary>Workflow drafts · {workflow?.title || "Choose or create a journey"}</summary>
-        <div className="sc-stack">
-        <div className="sc-toolbar sc-between"><h2>Server drafts</h2><button disabled={busy || catalogLoading} onClick={() => setCatalogRetry(value => value + 1)}>Refresh catalog</button></div>
-        {catalogLoading ? <p role="status">Loading strategies and workflows…</p> : catalogFailed ? <p>Catalog unavailable. Retry before creating or choosing strategies.</p> : <>
-          {workflows.length === 0 ? <p>No server drafts on this page.</p> : <div className="sc-draft-list">{workflows.slice(0, 25).map(item =>
-            <button key={item.workflow_id} disabled={busy} aria-pressed={workflow?.workflow_id === item.workflow_id} onClick={() => {
-              if (dirty) setPendingOpen(item.workflow_id); else void run(() => open(item.workflow_id));
-            }}><MathText text={item.title} /><span className="sc-muted">{item.domain} · revision {item.revision}</span></button>)}</div>}
-          <Pager page={workflowPage} hasMore={workflowsHaveMore} onChange={setWorkflowPage} disabled={busy || catalogLoading} />
-          <form className="sc-config" onSubmit={event => {
-            event.preventDefault();
-            void run(async () => {
-              if (dirty) throw new Error("Save or explicitly discard the current draft before creating another.");
-              const detail = checkWorkflow(await request<Workflow>("/workflows", "POST", { title: title.trim(), domain }));
-              remember(detail); setSelected(detail.program.entry); setPreview(null); setProposal(null); setTitle("");
-            });
-          }}>
-            <label>New workflow title<input required maxLength={200} value={title} disabled={busy} onChange={event => setTitle(event.target.value)} /></label>
-            <label>Domain<select required value={domain} disabled={busy} onChange={event => setDomain(event.target.value)}>
-              <option value="">Choose domain…</option>{[...new Set(strategies.map(item => item.domain))].sort().map(value => <option key={value}>{value}</option>)}
-            </select></label>
-            <button className="sc-primary" disabled={busy || dirty || !title.trim() || !domain}>Create server draft</button>
-          </form>
-        </>}
-        {pendingOpen && <div className="sc-callout" role="alert">Unsaved draft changes will be discarded.
-          <div className="sc-toolbar"><button className="sc-danger" disabled={busy} onClick={() => void run(() => open(pendingOpen))}>Discard changes & open</button><button onClick={() => setPendingOpen(null)}>Keep editing</button></div>
-        </div>}
-        </div>
-      </details>
-    </>}
-    {workflow && program && <section className="sc-card sc-toolbar sc-between sc-workflow-status" aria-label="Current draft">
-      <div><strong><MathText text={workflow.title} /></strong><div className="sc-toolbar"><Pill>{workflow.domain}</Pill><Pill>Revision {workflow.revision}</Pill><Pill tone={dirty ? "warning" : "success"}>{dirty ? "Unsaved changes" : "Server saved"}</Pill></div></div>
-      <div className="sc-toolbar">
-        <button className="sc-primary" disabled={busy || conflict || !dirty} onClick={() => void run(async () => { await save(); })}>Save draft</button>
-        <button disabled={busy || conflict} onClick={() => void run(async () => {
-          const saved = await save();
-          setValidation(await request<Validation>(`/workflows/${pathId(saved.workflow_id)}/validate`, "POST", { expected_hash: saved.content_hash }));
-        })}>Save & validate</button>
-      </div>
-      <details className="sc-full"><summary>Draft identity</summary><code>{workflow.workflow_id}<br />{workflow.content_hash}</code></details>
-    </section>}
-    {validation && <section className="sc-callout" aria-label="Structural validation">
-      <h2>{validation.valid ? "Structural validation passed" : "Structural validation requires changes"}</h2>
-      <p>Not mathematical attestation, pedagogical review or publication approval.</p>
-      <ul>{validation.findings.map((finding, index) => <li key={index}><MathText text={finding} /></li>)}</ul>
-    </section>}
-    {view === "designer" && workflow && program && <Designer key={workflow.workflow_id} program={program} strategies={strategies} selected={selected} setSelected={setSelected}
-      preview={preview} disabled={busy || conflict} edit={edit} onSources={() => navigate("resources")}
-      onPropose={() => { setInstruction(`After ${program.nodes.find(node => node.key === selected)?.label || selected}, continue to the next approved discovery.`); navigate("rules"); }}
-      onRespond={answer => previewAction("respond", answer)} onAssist={() => previewAction("assist")} onReveal={() => previewAction("reveal")}
-      onSimulate={() => void run(async () => {
-        const saved = await save();
-        setPreview(checkPreview(await request<Preview>(`/workflows/${pathId(saved.workflow_id)}/simulate`, "POST", { expected_hash: saved.content_hash })));
-        previewBaseHash.current = saved.content_hash;
-      })}
-      onTransition={outcome => void run(async () => {
-        if (!preview) return;
-        if (dirty || previewBaseHash.current !== workflow.content_hash) throw new Error("The draft changed. Save and restart the preview before simulating outcomes.");
-        setPreview(checkPreview(await request<Preview>(`/previews/${pathId(preview.preview_id)}/transition`, "POST", {
-          expected_version: preview.state_version, idempotency_key: crypto.randomUUID(), outcome,
-        })));
-      })}
-      onRefreshPreview={() => void run(async () => {
-        if (preview) setPreview(checkPreview(await request<Preview>(`/previews/${pathId(preview.preview_id)}`)));
-      })} />}
-    {view === "designer" && coauthor}
-    {view === "rules" && <Rules key={workflow?.workflow_id || "none"} program={program} strategies={strategies} domain={workflow?.domain || ""} edit={edit} disabled={busy || conflict}
-      coauthor={coauthor} onInspect={key => { setSelected(key); navigate("designer"); }} />}
-    {view === "resources" && <Resources disabled={busy || conflict} canAttach={!!workflow} program={program} onError={onError}
-      onPreview={key => void run(async () => {
-        const saved = await save();
-        const next = checkPreview(await request<Preview>(`/workflows/${pathId(saved.workflow_id)}/simulate`, "POST", {
-          expected_hash: saved.content_hash, start_node_key: key,
-        }));
-        setPreview(next); previewBaseHash.current = saved.content_hash; setSelected(key); navigate("designer");
-      })} onAttach={source => {
-      if (program) { edit({ ...program, source }); setNotice("Source references attached to the unsaved draft. Save to persist."); navigate("designer"); }
-    }} />}
-  </>;
+  const openStep = (key: string) => { setSelected(key); setPanel({ kind: "step", key }); setSidebarOpen(false); if (view !== "designer") navigate("designer"); };
+  const openRule = (index: number) => setPanel({ kind: "rule", index });
+  const saveButton = <button type="button" className="sc-primary" disabled={disabled || !dirty} onClick={() => void run(async () => { await save(); })}>Save changes</button>;
 
-  return <div className={`sc-shell${menuOpen ? " sc-menu-open" : ""}`}>
+  let drawer: ReactNode = null;
+  if (session && panel) {
+    const close = () => setPanel(null);
+    if (panel.kind === "new-workflow") {
+      drawer = <Drawer title="New workflow" onClose={close} footer={<button className="sc-primary" form="new-workflow" disabled={disabled}>Create workflow</button>}>
+        <NewWorkflowPanel strategies={strategies} initial={panel.strategy} onCreate={(title, domain, strategy) => void run(async () => {
+          if (dirty) throw new Error("Save or discard the current draft before creating another.");
+          const created = checkWorkflow(await request<Workflow>("/workflows", "POST", { title, domain }));
+          remember(created); setPreview(null); setProposal(null); setSelected("");
+          if (strategy && strategy !== created.program.strategy_code) setProgram({ ...structuredClone(created.program), strategy_code: strategy });
+          setPanel(null); navigate("designer"); setNotice("Workflow created.");
+        })} />
+      </Drawer>;
+    } else if (workflow && program) {
+      if (panel.kind === "step") drawer = <Drawer title="Edit step" onClose={close} footer={<>
+        <button type="button" className="sc-light" disabled={disabled} onClick={() => startPreview(panel.key)}>Preview as student</button>{saveButton}</>}>
+        <StepPanel key={panel.key} program={program} nodeKey={panel.key} disabled={disabled} edit={edit} onRule={openRule}
+          onAddRule={() => setPanel({ kind: "new-rule", from: panel.key })} onRemoved={() => { setSelected(""); setPanel(null); }} />
+      </Drawer>;
+      else if (panel.kind === "rule") drawer = <Drawer title="Edit rule" onClose={close} footer={<>
+        {program.edges[panel.index] && <button type="button" className="sc-light" onClick={() => openStep(program.edges[panel.index].from_key)}>Open step</button>}{saveButton}</>}>
+        <RulePanel key={panel.index} program={program} index={panel.index} disabled={disabled} edit={edit} onRemoved={() => setPanel(null)} />
+      </Drawer>;
+      else if (panel.kind === "new-rule") drawer = <Drawer title="Add branching rule" onClose={close} footer={<button className="sc-primary" form="new-rule" disabled={disabled}>Add rule</button>}>
+        <NewRulePanel program={program} from={panel.from} disabled={disabled} onAdd={edge => {
+          edit({ ...program, edges: [...program.edges, edge] }); setPanel({ kind: "rule", index: program.edges.length });
+        }} />
+      </Drawer>;
+      else if (panel.kind === "new-step") drawer = <Drawer title="New step" onClose={close} footer={<button className="sc-primary" form="new-step" disabled={disabled}>Create step</button>}>
+        <NewStepPanel program={program} onAdd={node => { edit({ ...program, nodes: [...program.nodes, node] }); setSelected(node.key); setPanel({ kind: "step", key: node.key }); }} />
+      </Drawer>;
+      else if (panel.kind === "settings") drawer = <Drawer title="Workflow settings" onClose={close} footer={saveButton}>
+        <SettingsPanel workflow={workflow} program={program} strategies={strategies} validation={validation} disabled={disabled} dirty={dirty} edit={edit}
+          onSources={() => { window.location.hash = "library-sources"; setView("library"); setPanel(null); }}
+          onDiscard={() => { setProgram(structuredClone(workflow.program)); setValidation(null); setNotice("Unsaved edits discarded."); }}
+          onValidate={() => void run(async () => {
+            const saved = await save();
+            setValidation(await request<Validation>(`/workflows/${pathId(saved.workflow_id)}/validate`, "POST", { expected_hash: saved.content_hash }));
+          })} />
+      </Drawer>;
+      else if (panel.kind === "ai") drawer = <Drawer title="Ask AI" onClose={close}>
+        <Coauthor key={`proposal-${proposal?.job.job_id || workflow.workflow_id}`} program={workflow.program}
+          instruction={instruction} setInstruction={setInstruction} job={proposal?.job} baseHash={proposal?.baseHash}
+          stale={!!proposal && (dirty || workflow.content_hash !== proposal.baseHash || workflow.workflow_id !== proposal.workflowId)}
+          disabled={disabled} polling={polling}
+          onRequest={() => void run(async () => {
+            const saved = await save();
+            const started = await request<{ job_id: string; status: Job["status"]; execution_arn: string }>(`/workflows/${pathId(saved.workflow_id)}/proposals`, "POST", { expected_hash: saved.content_hash, instruction: instruction.trim() });
+            if (!["QUEUED", "RUNNING", "SUCCEEDED", "FAILED"].includes(started.status)) throw new Error("Unsupported proposal job status.");
+            const job: Job = ["SUCCEEDED", "FAILED"].includes(started.status)
+              ? await request<Job>(`/jobs/${pathId(started.job_id)}`) : { job_id: started.job_id, status: started.status, error: null, result: null };
+            setProposal({ workflowId: saved.workflow_id, baseHash: saved.content_hash, job });
+          })}
+          onAccept={(candidate?: Edge) => void run(async () => {
+            if (!proposal) return;
+            const accepted = checkWorkflow(await request<Workflow>(`/workflows/${pathId(workflow.workflow_id)}/proposals/${pathId(proposal.job.job_id)}/accept`, "POST", {
+              expected_hash: proposal.baseHash, ...(candidate ? { candidate } : {}),
+            }));
+            remember(accepted); setPreview(null); setProposal(null); setNotice("Proposed rule accepted into the draft. Not published.");
+          })}
+          onReject={() => setProposal(null)} onResume={() => { setError(""); setPollRetry(value => value + 1); }} />
+      </Drawer>;
+    }
+  }
+
+  if (checking) return <main className="sc-center"><p role="status">Checking your session…</p></main>;
+  if (!session) return <main className="sc-center">
+    <section className="sc-login" aria-label="Sign in">
+      <div className="sc-logo" aria-hidden="true">M</div>
+      <h1 className="sc-hero">Socratic Studio</h1>
+      <p className="sc-desc">Sign in with your staff account.</p>
+      {error && <div className="sc-alert" role="alert"><MathText text={error} /></div>}
+      <form className="sc-form" onSubmit={login}>
+        <label>Username<input name="username" autoComplete="username" required disabled={busy} /></label>
+        <label>Password<input name="password" type="password" autoComplete="current-password" required disabled={busy} /></label>
+        <button className="sc-primary" disabled={busy}>Sign in</button>
+      </form>
+    </section>
+  </main>;
+
+  const name = actorName(session.actor);
+  let canvas: ReactNode;
+  if (view === "rules") canvas = <RulesView program={program} disabled={disabled} onRule={openRule} onDescribe={() => setPanel({ kind: "ai" })} />;
+  else if (view === "library") canvas = <Library strategies={strategies} program={program} domain={workflow?.domain || ""} disabled={disabled} onError={onError}
+    onUseStrategy={strategy => { if (program) { edit({ ...program, strategy_code: strategy.code }); setNotice(`Strategy set to ${strategy.label}. Save to keep it.`); } }}
+    onStartFrom={strategy => setPanel({ kind: "new-workflow", strategy })}
+    onAttach={source => { if (program) { edit({ ...program, source }); setNotice("Source linked. Save to keep it."); navigate("designer"); } }}
+    onPreview={key => startPreview(key)} />;
+  else if (view === "student") canvas = <Simulator key={preview?.preview_id || "none"} title={workflow?.title || ""} preview={preview} canStart={!!workflow}
+    disabled={disabled} onRestart={() => startPreview()} onRefresh={refreshPreview} onTransition={transition}
+    onRespond={answer => previewAction("respond", answer)} onAssist={() => previewAction("assist")} onReveal={() => previewAction("reveal")} />;
+  else if (workflow && program) canvas = <Designer title={workflow.title} program={program} representation={representation} setRepresentation={setRepresentation}
+    selected={selected} preview={preview} disabled={disabled} onStep={openStep} onRule={openRule} onAddStep={() => setPanel({ kind: "new-step" })} />;
+  else canvas = <div className="sc-canvas-inner"><Hero kicker="Designer" title="Choose a workflow" description="Search or pick a workflow in the sidebar, or start a new one." />
+    <Empty icon="bezier2" action={<button className="sc-primary" disabled={disabled} onClick={() => setPanel({ kind: "new-workflow" })}><Icon name="plus-lg" />New workflow</button>}>
+      {catalogLoading ? "Loading your drafts…" : `${workflows.length} draft${workflows.length === 1 ? "" : "s"} available.`}</Empty></div>;
+
+  return <div className={`sc-app${sidebarOpen ? " sc-sidebar-open" : ""}`}>
     <a className="sc-skip" href="#main-content">Skip to content</a>
-    <aside className="sc-sidebar" id="studio-navigation">
-      <a className="sc-brand" href="#designer"><Icon name="infinity" /> MathBank</a>
-      <p className="sc-muted">Socratic Studio</p>
-      <nav aria-label="Studio navigation">{views.map(item => <a key={item.key} href={`#${item.key}`} aria-current={view === item.key ? "page" : undefined} onClick={() => navigate(item.key)}>
-        <Icon name={item.icon} />{item.label}
-      </a>)}</nav>
-      <div className="sc-sidebar-footer"><Pill tone="warning">Prototype only</Pill><p>Production publishing unavailable.</p></div>
-    </aside>
+    <nav className="sc-rail" aria-label="Studio navigation">
+      <div className="sc-logo" aria-hidden="true">M</div>
+      {views.map(item => <a key={item.key} href={`#${item.key}`} className={view === item.key ? "sc-active" : ""} aria-label={item.label} title={item.label}
+        aria-current={view === item.key ? "page" : undefined} onClick={() => navigate(item.key)}><Icon name={item.icon} /></a>)}
+      <div className="sc-spacer" />
+      <span className="sc-avatar" title={name} aria-label={`Signed in as ${name}`}>{name.slice(0, 2).toUpperCase()}</span>
+      <IconButton icon="box-arrow-right" label="Sign out" disabled={busy} onClick={() => {
+        if (dirty) { setError("Save or discard the draft before signing out."); return; }
+        void run(async () => { await request<void>("/session", "DELETE"); reset(); });
+      }} />
+    </nav>
+    <Sidebar query={query} setQuery={setQuery} workflows={workflows} strategies={strategies} program={program} activeId={workflow?.workflow_id}
+      loading={catalogLoading} failed={catalogFailed} page={workflowPage} hasMore={workflowsHaveMore} disabled={busy}
+      onPage={setWorkflowPage} onRetry={() => setCatalogRetry(value => value + 1)} onOpen={requestOpen} onStep={openStep}
+      onStrategy={strategy => { setPanel({ kind: "new-workflow", strategy }); setSidebarOpen(false); }}
+      onNew={() => { setPanel({ kind: "new-workflow" }); setSidebarOpen(false); }} onExport={exportJson} />
     <div className="sc-main">
-      <header className="sc-topbar">
-        <button className="sc-menu-toggle" aria-label="Toggle navigation" title="Toggle navigation" aria-controls="studio-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(value => !value)}><Icon name="list" /></button>
-        <nav aria-label="Breadcrumb"><a href="#designer" onClick={() => navigate("designer")}>Studio</a><span aria-hidden="true"> / </span><span aria-current="page">{activeView.label}</span></nav>
-        {session && <div className="sc-toolbar sc-user"><span className="sc-avatar" aria-hidden="true">{actorName(session.actor).slice(0, 2).toUpperCase()}</span>
-          <span>{actorName(session.actor)}</span><button disabled={busy} onClick={() => {
-            if (dirty) { setError("Save or discard the draft before signing out."); return; }
-            void run(async () => {
-              await request<void>("/session", "DELETE");
-              api.setSession(null); setSession(null); setWorkflow(null); setProgram(null); setPreview(null); setProposal(null); setWorkflows([]); setStrategies([]);
-            });
-          }}>Sign out</button></div>}
+      <header className="sc-top">
+        <IconButton icon="layout-sidebar" label="Toggle workspace search" className="sc-sidebar-toggle" active={sidebarOpen} onClick={() => setSidebarOpen(value => !value)} />
+        <nav aria-label="Breadcrumb" className="sc-crumb"><span>Socratic Studio</span><span aria-hidden="true"> / </span>
+          <strong aria-current="page">{workflow ? <MathText text={workflow.title} /> : views.find(item => item.key === view)!.label}</strong></nav>
+        <div className="sc-spacer" />
+        {session.auth_mode === "local" && <span className="sc-local" title="Loopback-only local staff session; not a cloud identity"><Pill tone="warning">
+          <span className="sc-hide-narrow">Local test session</span><span className="sc-show-narrow">Local</span></Pill></span>}
+        {workflow && <Pill tone={dirty ? "warning" : "success"}>{dirty ? "Unsaved changes" : `Saved · r${workflow.revision}`}</Pill>}
+        {workflow && dirty && <button type="button" className="sc-light" disabled={disabled} onClick={() => void run(async () => { await save(); })}>Save</button>}
+        {workflow && <IconButton icon="sliders" label="Workflow settings" active={panel?.kind === "settings"} onClick={() => setPanel({ kind: "settings" })} />}
+        {workflow && view !== "student" && <button type="button" className="sc-light sc-hide-narrow" disabled={disabled} onClick={() => navigate("student")}><Icon name="person-video3" />Student view</button>}
+        {workflow && <button type="button" className="sc-primary" disabled={disabled} onClick={() => setPanel({ kind: "ai" })}><Icon name="stars" />Ask AI</button>}
       </header>
-      <main id="main-content" className="sc-content sc-stack">
-        <PageHeader title={activeView.label} subtitle={activeView.subtitle} icon={activeView.icon} />
-        {session?.auth_mode === "local" && <div className="sc-callout" role="status">
-          <Pill tone="warning">Local testing</Pill> Loopback-only staff session. No AWS identity or production approval.
-        </div>}
-        {error && <div className="sc-error" role="alert"><MathText text={error} /></div>}
-        {conflict && workflow && <div className="sc-callout">
-          Reload explicitly to resolve the conflict. Reloading the draft discards unsaved edits and any proposal.
-          <div className="sc-toolbar"><button disabled={busy} onClick={() => void run(async () => { await open(workflow.workflow_id); setNotice("Current server draft loaded."); })}>Discard edits & reload server draft</button>
-            {preview && <button disabled={busy} onClick={() => void run(async () => {
-              setPreview(checkPreview(await request<Preview>(`/previews/${pathId(preview.preview_id)}`))); setConflict(false);
-            })}>Reload current preview version</button>}</div>
-        </div>}
-        {notice && <p className="sc-callout" role="status">{notice}</p>}
-        {busy && <p role="status">Saving / contacting server…</p>}
-        {content}
-        {session && dirty && <button className="sc-danger" disabled={busy} onClick={() => {
-          if (workflow) { setProgram(structuredClone(workflow.program)); setValidation(null); setNotice("Unsaved edits discarded; showing the last loaded server draft."); }
-        }}>Discard unsaved edits</button>}
-      </main>
+      {(error || conflict || pendingOpen) && <div className="sc-banners">
+        {error && <div className="sc-alert" role="alert"><Icon name="exclamation-circle" /><MathText text={error} />
+          <IconButton icon="x" label="Dismiss message" onClick={() => setError("")} /></div>}
+        {conflict && workflow && <div className="sc-alert sc-warn">The server has a newer version.
+          <button type="button" className="sc-light" disabled={busy} onClick={() => void run(async () => { await open(workflow.workflow_id); setNotice("Server draft reloaded."); })}>Discard edits & reload</button>
+          {preview && <button type="button" className="sc-light" disabled={busy} onClick={refreshPreview}>Reload preview</button>}</div>}
+        {pendingOpen && <div className="sc-alert sc-warn">Unsaved changes will be lost.
+          <button type="button" className="sc-light sc-danger-text" disabled={busy} onClick={() => void run(() => open(pendingOpen))}>Discard & open</button>
+          <button type="button" className="sc-light" onClick={() => setPendingOpen(null)}>Keep editing</button></div>}
+      </div>}
+      <section className="sc-workspace">
+        <main id="main-content" className="sc-canvas" aria-busy={busy}>{canvas}</main>
+        {drawer}
+      </section>
     </div>
+    {sidebarOpen && <button type="button" className="sc-scrim" aria-label="Close workspace search" onClick={() => setSidebarOpen(false)} />}
+    {(notice || busy) && <div className="sc-toast" role="status">{busy ? "Working…" : notice}</div>}
   </div>;
 }

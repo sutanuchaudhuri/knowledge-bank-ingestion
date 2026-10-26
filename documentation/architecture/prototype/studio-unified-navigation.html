@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MathBank Studio · unified navigation prototype</title>
+<!-- Static navigation prototype for requirement 68 §7. Fake data, no network calls.
+     Each panel shows the API call the real Studio would make ("API" disclosure). -->
+<style>
+:root{font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;--line:#e6e8f0;--muted:#64748b;--p:#4f46e5;--ps:#eef2ff;--pi:#3730a3;--oks:#dcfce7;--warn:#b45309;--warns:#fef3c7;--bads:#ffe4e6;--bg:#f6f7fb}
+*{box-sizing:border-box}body{margin:0}[hidden]{display:none!important}button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer}
+:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.app{display:grid;grid-template-columns:60px 250px minmax(0,1fr);height:100dvh;overflow:hidden}
+.rail{border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 0}
+.logo{width:34px;height:34px;border-radius:11px;background:var(--p);color:#fff;font-weight:800;display:grid;place-items:center;margin-bottom:14px}
+.rail button{width:42px;height:42px;border:0;border-radius:11px;background:none;color:var(--muted);font-size:17px}
+.rail button.on,.rail button:hover{background:var(--ps);color:var(--p)}
+.side{background:var(--bg);border-right:1px solid var(--line);padding:18px 12px;overflow:auto}
+.side h2{font-size:15px;margin:0 8px 12px}.search{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fff}
+.micro{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:20px 8px 6px}
+.item{display:flex;gap:8px;width:100%;text-align:left;border:0;background:none;border-radius:9px;padding:7px 10px}
+.item:hover,.item.on{background:var(--ps);color:var(--pi)}.item small{margin-left:auto;color:var(--muted)}
+.main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.top{height:60px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:0 22px}
+.crumb{color:var(--muted);font-size:13px}.crumb b{color:#0f172a}.sp{flex:1}
+.pill{border-radius:99px;padding:3px 9px;font-size:11px;font-weight:600;background:#f1f5f9;color:#334155;white-space:nowrap}
+.pill.ok{background:var(--oks);color:#065f46}.pill.warn{background:var(--warns);color:var(--warn)}
+.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 11px;white-space:nowrap}.btn:hover{background:var(--bg)}
+.btn.pri{background:var(--p);border-color:var(--p);color:#fff}.btn.pri:disabled{opacity:.45}
+.btn.link{border:0;background:none;color:var(--p);padding:0}
+.work{flex:1;display:flex;min-height:0}
+.canvas{flex:1;overflow:auto;padding:30px clamp(16px,4vw,60px)}.inner{max-width:780px;margin:auto;display:grid;gap:12px}
+.kicker{font-size:12px;color:var(--p);font-weight:650;text-transform:uppercase;letter-spacing:.04em}
+h1{font-size:27px;letter-spacing:-.03em;margin:4px 0}.desc{color:var(--muted);margin:0}
+.node{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:#fff;width:100%;text-align:left}
+.node:hover{border-color:var(--p)}.node.on{border-color:var(--p);box-shadow:0 0 0 3px var(--ps)}
+.glyph{width:34px;height:34px;border-radius:10px;background:var(--ps);color:var(--p);display:grid;place-items:center;flex-shrink:0}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}.chip{font-size:11px;border-radius:7px;padding:2px 7px;background:#f1f5f9;color:#334155}
+.chip.ex{background:var(--bads);color:#9f1239}.arrow{text-align:center;color:#94a3b8}
+.rule{margin:2px 0 2px 34px;padding-left:12px;border-left:2px solid var(--line);color:var(--muted);font-size:13px}
+.drawer{width:min(430px,44vw);border-left:1px solid var(--line);display:flex;flex-direction:column;background:#fff}
+.dh{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+.db{overflow:auto;padding:16px 18px;flex:1;display:grid;gap:12px;align-content:start}
+.df{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+label{display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--muted)}
+input.f,select.f,textarea.f{border:1px solid var(--line);border-radius:9px;padding:8px 10px;width:100%;font-weight:400;color:#0f172a}
+textarea.f{min-height:80px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.three button{border:1px dashed #c7d2fe;background:var(--ps);border-radius:10px;padding:10px 6px;color:var(--pi);font-weight:600}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}
+.res{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start}
+.res.sel{border-color:var(--p);background:var(--ps)}.res .t{font-weight:600}.sub{font-size:12px;color:var(--muted)}
+.api{font-size:12px;background:#0f172a;color:#e2e8f0;border-radius:9px;padding:8px 10px;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace}
+details>summary{cursor:pointer;color:var(--muted);font-size:12px;font-weight:600}
+.sidecar{width:min(420px,40vw);border-left:1px solid var(--line);display:flex;flex-direction:column;background:var(--bg)}
+.sidecar iframe{flex:1;border:0;background:#fff}
+.card{border:1px solid var(--line);border-radius:12px;padding:13px;display:grid;gap:6px;background:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;border-radius:10px;padding:9px 16px;z-index:9}
+.hint{background:var(--ps);color:var(--pi);border-radius:10px;padding:10px 12px;font-size:13px}
+.hint.warn{background:var(--warns);color:var(--warn)}
+.app.focus{grid-template-columns:60px minmax(0,1fr)}.app.focus .side{display:none}
+.focusbar{display:flex;align-items:center;gap:10px;padding:12px 22px;border-bottom:1px solid var(--line);background:#fff}
+.focusbody{flex:1;display:grid;grid-template-columns:220px minmax(0,1fr);min-height:0}
+.facets{border-right:1px solid var(--line);padding:16px;overflow:auto;display:grid;gap:12px;align-content:start;background:var(--bg)}
+.results{overflow:auto;padding:16px 22px;display:grid;gap:10px;align-content:start}
+.tray{position:sticky;bottom:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);background:#fff;padding:12px 22px;box-shadow:0 -6px 18px #0f172a0d}
+.focuswrap{display:flex;flex-direction:column;min-height:0;height:100%}
+.facets label.row{display:flex;flex-wrap:nowrap;align-items:center}
+.target{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:6px}
+.target button{text-align:left}
+@media(max-width:900px){.focusbody{grid-template-columns:1fr}.facets{display:none}}
+@media(max-width:900px){.app{grid-template-columns:52px minmax(0,1fr)}.side{display:none}.drawer,.sidecar{position:fixed;right:0;top:60px;bottom:0;width:min(440px,calc(100vw - 52px));box-shadow:-10px 0 30px #0002;z-index:5}.sidecar{z-index:6}}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="rail" aria-label="Studio navigation">
+    <div class="logo">M</div>
+    <button data-view="designer" title="Designer" aria-label="Designer">◈</button>
+    <button data-view="library" title="Library" aria-label="Library">▦</button>
+    <button data-view="exams" title="Exams" aria-label="Exams">✎</button>
+    <button data-view="groups" title="Students &amp; groups" aria-label="Students and groups">☺</button>
+    <button data-view="sim" title="Student simulator" aria-label="Student simulator">▶</button>
+  </nav>
+  <aside class="side" aria-label="Workspace search">
+    <h2>Socratic Studio</h2>
+    <input class="search" id="q" type="search" placeholder="Search workflows, steps, strategies…" aria-label="Search workspace">
+    <div class="micro">Workspaces</div><div id="wf"></div>
+    <div class="micro" id="stepsHead" hidden>Steps in this workflow</div><div id="stepHits"></div>
+    <div class="micro">Quick actions</div>
+    <button class="item">＋ New workflow</button><button class="item">⇩ Export draft JSON</button>
+  </aside>
+  <div class="main">
+    <header class="top">
+      <span class="crumb">Socratic Studio / <b>Stars and Bars</b></span><span class="sp"></span>
+      <span class="pill warn" id="dirty" hidden>Unsaved changes</span><span class="pill ok" id="saved">Saved · r4</span>
+      <button class="btn" data-go="sim">Student view</button><button class="btn pri" id="ask">✦ Ask AI</button>
+    </header>
+    <div class="work"><main class="canvas" id="canvas"></main><aside class="drawer" id="drawer" hidden></aside><aside class="sidecar" id="sidecar" hidden></aside></div>
+  </div>
+</div>
+<script>
+const S = {
+  view: "designer", step: null, panel: null, selected: new Set(), query: "", tpl: 0,
+  groups: [{ id: "g1", name: "Grade 9A", members: ["st-101", "st-102", "st-103", "st-104"] }, { id: "g2", name: "Needs bijection review", members: ["st-102", "st-110"] }],
+  exclusions: [],
+  steps: [
+    { key: "discover", title: "Discover the representation", type: "Discovery", glyph: "◇", content: [{ kind: "Video", title: "Stars and bars explainer", role: "PRESENT", state: "Approved" }], rule: "After this step, go to Check the justification." },
+    { key: "quiz", title: "Check the justification", type: "Quiz", glyph: "▤", content: [], rule: "When the student answers correctly, go to Generalize the pattern." },
+    { key: "lesson", title: "Bijections mini-lesson", type: "Lesson", glyph: "▣", content: [], rule: "After this step, go to Check the justification." },
+    { key: "transfer", title: "Generalize the pattern", type: "Transfer", glyph: "↗", content: [], rule: "When the student answers correctly, go to Complete." },
+  ],
+};
+const COURSES = [{ code: "SB-101", title: "Stars and Bars course", states: ["Lesson 1 · Representation", "Lesson 2 · Bijections", "Checkpoint"] }];
+const BANK = [
+  { id: "a-17", kind: "Quiz", label: "Assertion–Reason", title: "x+y+z=5 has 21 solutions · stars and bars", src: "Course quiz", state: "Approved", topics: "Stars and bars · Bijections", attachable: true },
+  { id: "a-22", kind: "Quiz", label: "Single choice", title: "How many ways to put 5 balls in 3 boxes?", src: "Course quiz", state: "Approved", topics: "Stars and bars", attachable: true },
+  { id: "p-311", kind: "Pool question", label: "MCQ", title: "Nonnegative solutions of a+b+c+d=6", src: "Exam bank", state: "Critic-approved", topics: "Stars and bars", attachable: false },
+  { id: "li-88", kind: "Textbook", label: "Numeric", title: "Count arrangements of 4 stars and 2 bars", src: "Textbook item", state: "Approved", topics: "Bijections", attachable: true },
+  { id: "c-amc", kind: "Corpus", label: "Problem", title: "AMC 10 #9 — distributing identical coins", src: "Competition corpus", state: "Inspiration", topics: "Stars and bars", attachable: false },
+];
+const TEMPLATES = [
+  ["Assertion–Reason", "Justify the key claim"], ["Single choice", "Check one idea"], ["Multiple select", "Several correct statements"],
+  ["Numeric", "Compute a count"], ["Written reasoning", "Explain why (not auto-scored)"], ["Strategy: Discover", "Notice a pattern"],
+  ["Video: YouTube/Vimeo", "Register an existing video"], ["Video: Generate explainer", "Manim from this step"], ["Exam for this content", "Blueprint from topics"],
+];
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const step = () => S.steps.find(x => x.key === S.step);
+function toast(m) { document.querySelectorAll(".toast").forEach(x => x.remove()); const t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); t.textContent = m; document.body.append(t); setTimeout(() => t.remove(), 2200); }
+function dirty() { $("dirty").hidden = false; $("saved").hidden = true; }
+function api(text) { return `<details><summary>API this action calls</summary><div class="api">${esc(text)}</div></details>`; }
+
+function renderSide() {
+  const q = S.query.toLowerCase();
+  $("wf").innerHTML = ["Combinatorics|Stars and Bars|r4", "Combinatorics|Inclusion–Exclusion|r2", "Algebra|Vieta relations|r1"]
+    .map(x => x.split("|")).filter(([d, t]) => !q || (d + t).toLowerCase().includes(q))
+    .map(([d, t, r]) => `<button class="item${t === "Stars and Bars" ? " on" : ""}">${esc(t)}<small>${d} · ${r}</small></button>`).join("") || `<div class="sub" style="padding:0 10px">No matching workflows.</div>`;
+  const hits = q ? S.steps.filter(s => (s.title + s.type).toLowerCase().includes(q)) : [];
+  $("stepsHead").hidden = !hits.length;
+  $("stepHits").innerHTML = hits.map(s => `<button class="item" data-step="${s.key}">${s.glyph} ${esc(s.title)}</button>`).join("");
+}
+function renderCanvas() {
+  if (S.focus) { renderFocus(); return; }
+  $("canvas").style.padding = "";
+  document.querySelectorAll("[data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === S.view));
+  const c = $("canvas");
+  if (S.view === "designer") {
+    c.innerHTML = `<div class="inner"><div class="row between"><div><div class="kicker">Designer</div><h1>Stars and Bars</h1><p class="desc">Click a step. Every step can Search &amp; attach, Add existing or Create new from template.</p></div><button class="btn">＋ Add step</button></div>` +
+      S.steps.map((s, i) => `${i ? '<div class="arrow">↓</div>' : ""}<button class="node${S.step === s.key ? " on" : ""}" data-step="${s.key}"><span class="glyph">${s.glyph}</span><span style="flex:1"><b>${esc(s.title)}</b><div class="sub">${s.type}</div><div class="chips">${s.content.map(x => `<span class="chip">${x.role} · ${esc(x.title)}${x.state !== "Approved" ? " · " + x.state : ""}</span>`).join("")}${S.exclusions.filter(e => e.step === s.key).map(e => `<span class="chip ex">Excluded · ${esc(e.who)}</span>`).join("")}${s.content.length ? "" : '<span class="chip">No content yet</span>'}</div></span><span class="sub">Edit ›</span></button><div class="rule">↳ ${esc(s.rule)}</div>`).join("") + `</div>`;
+  } else if (S.view === "library") {
+    c.innerHTML = `<div class="inner"><div class="kicker">Library</div><h1>Quizzes by topic</h1><div class="hint">Coverage · Stars and bars: 3 approved quizzes, 1 video · Inclusion–Exclusion: 0 approved quizzes <button class="btn link">Generate drafts</button></div>
+      <div class="row"><button class="btn pri" id="libOpen">Select quizzes &amp; attach to a course…</button><button class="btn" id="libNew">＋ New quiz from template</button></div>
+      ${BANK.map(r => `<div class="card"><div class="row between"><b>${esc(r.title)}</b><span class="pill ${r.state === "Approved" ? "ok" : "warn"}">${r.state}</span></div><span class="sub">${r.kind} · ${r.label} · ${r.topics}</span>${r.usedIn ? `<span class="sub">Attached to: ${esc(r.usedIn.join(", "))}</span>` : ""}</div>`).join("")}${api("GET /v1/admin/studio/artifacts?kind=quiz&topic=…&facets=topic")}</div>`;
+  } else if (S.view === "exams") {
+    c.innerHTML = `<div class="inner"><div class="kicker">Exams</div><h1>Exams</h1><p class="desc">Built from the content you are preparing, attached to students or a group. Everyone gets every approved question unless excluded.</p><div class="card"><div class="row between"><b>Stars and Bars — checkpoint exam</b><span class="pill ok">Approved</span></div><span class="sub">8 questions · 30 min · source: workflow Stars and Bars r4</span><div class="row"><button class="btn" id="assign">Attach to students…</button><button class="btn" id="exq">Exclude questions…</button></div></div><button class="btn">＋ Create exam for this content</button>${api("POST /v1/admin/studio/exams {source:{kind:'workflow',id,revision}}\nPOST /v1/admin/studio/exams/{id}/assignments {audience, opens_at, due_at}")}</div>`;
+  } else if (S.view === "groups") {
+    c.innerHTML = `<div class="inner"><div class="kicker">Audience</div><h1>Students &amp; groups</h1>${S.groups.map(g => `<div class="card"><div class="row between"><b>${esc(g.name)}</b><span class="pill">${g.members.length} students</span></div><span class="sub">${g.members.join(", ")}</span></div>`).join("")}<div class="card"><b>New group</b><label>Name<input class="f" id="gname" placeholder="e.g. Saturday cohort"></label><label>Student IDs (comma or new line)<textarea class="f" id="gids" placeholder="st-201, st-202"></textarea></label><button class="btn pri" id="gsave">Create group</button></div><div class="micro">Active exclusions</div>${S.exclusions.length ? S.exclusions.map(e => `<div class="card"><b>${esc(e.target)}</b><span class="sub">Excluded for ${esc(e.who)}</span></div>`).join("") : '<div class="sub">None yet.</div>'}${api("POST /v1/admin/studio/groups\nPOST /v1/admin/studio/groups/{id}/members {student_ids[]}\nGET  /v1/admin/studio/students/{id}/effective")}</div>`;
+  } else {
+    c.innerHTML = `<div class="inner" style="max-width:640px"><div class="kicker">Student simulation</div><h1>Check the justification</h1><label>Preview as<select class="f" style="max-width:260px"><option>Everyone</option>${S.groups.map(g => `<option>${esc(g.name)}</option>`).join("")}</select></label><div class="card"><b>Assertion: x+y+z=5 has 21 nonnegative solutions. Reason: each solution matches 5 stars and 2 bars.</b>${["Both true; R explains A", "Both true; R does not explain A", "A true; R false", "A false; R true", "Both false"].map((o, i) => `<label class="row" style="font-weight:400;color:#0f172a"><input type="radio" name="o"> ${"ABCDE"[i]}. ${o}</label>`).join("")}<div class="row"><button class="btn pri">Submit answer</button><button class="btn">Hint</button></div></div>${api("POST /v1/admin/socratic/workflows/{id}/simulate {expected_hash, as:{group_id}}\nPOST /v1/admin/socratic/previews/{id}/respond")}</div>`;
+  }
+}
+// Focus mode: search / add existing / library take the full width; select, then return to where you came from.
+function openFocus(kind, origin) {
+  S.focus = kind; S.origin = origin; S.selected.clear(); S.target = null;
+  document.querySelector(".app").classList.add("focus"); $("drawer").hidden = true; renderFocus();
+  setTimeout(() => $("fq")?.focus(), 0);
+}
+function closeFocus(message) {
+  S.focus = null; closeSidecar(); document.querySelector(".app").classList.remove("focus");
+  renderCanvas();
+  // Return focus to where the editor started so keyboard users continue in place.
+  if (S.origin === "step") { openDrawer("step"); $("stepContent")?.focus(); }
+  else if (S.origin === "library") $("libOpen")?.focus();
+  if (message) toast(message);
+}
+function renderFocus() {
+  const s = step(), lib = S.focus === "library";
+  const title = { search: "Search & attach", existing: "Add existing", library: "Quiz library" }[S.focus];
+  const context = lib ? "Library · select quizzes, then attach to a course or step" : `For step “${esc(s.title)}” · ${s.type}`;
+  const items = S.focus === "existing" ? BANK.filter(b => b.attachable) : BANK;
+  const facets = `<label>Topic<select class="f"><option>Stars and bars</option><option>Bijections</option><option>All topics</option></select></label>
+    <label>Kind<select class="f"><option>All kinds</option><option>Assertion–Reason</option><option>Single choice</option><option>Numeric</option></select></label>
+    <label>Status<select class="f"><option>Approved + drafts</option><option>Approved only</option></select></label>
+    <label>Source<select class="f"><option>All banks</option><option>Course quizzes</option><option>Exam bank</option><option>Textbook</option><option>Corpus</option></select></label>
+    <label class="row" style="font-weight:400"><input type="checkbox" checked> Hide items already used here</label>
+    <div class="sub">Related concepts</div><div class="chips"><span class="chip">Bijections</span><span class="chip">Compositions</span><span class="chip">Inclusion–Exclusion</span></div>`;
+  const rows = items.map(r => `<div class="res${S.selected.has(r.id) ? " sel" : ""}"><input type="checkbox" aria-label="Select ${esc(r.title)}" data-sel="${r.id}" ${S.selected.has(r.id) ? "checked" : ""}><div><div class="t">${esc(r.title)}</div><span class="sub">${r.kind} · ${r.label} · ${r.topics}</span><div class="chips"><span class="pill ${r.attachable ? "ok" : "warn"}">${r.state}</span><span class="chip">${r.src}</span></div></div><div class="row"><button class="btn" data-preview="${r.id}">Preview</button><button class="btn link" data-like="${r.id}">More like this</button></div></div>`).join("");
+  const needDraft = [...S.selected].some(id => !BANK.find(b => b.id === id).attachable);
+  let tray;
+  if (lib) {
+    const t = S.target;
+    tray = `<span><b>${S.selected.size}</b> selected</span>
+      <button class="btn" id="newQuiz">＋ New quiz from template</button><span class="sp"></span>
+      <span class="sub">${t ? "Target: " + esc(t.label) : "Choose where to attach"}</span>
+      <button class="btn" id="pickTarget">${t ? "Change target" : "Attach to…"}</button>
+      <button class="btn pri" id="attachLib" ${S.selected.size && t ? "" : "disabled"}>Attach selected</button>`;
+  } else {
+    tray = `<span><b>${S.selected.size}</b> selected</span>
+      <label class="row" style="font-weight:400">Role <select class="f" id="role" style="width:auto"><option>CHECK</option><option>PRACTICE</option><option>HINT_SUPPORT</option></select></label>
+      ${needDraft ? '<span class="pill warn">Non-approved items are fetched as review drafts</span>' : ""}<span class="sp"></span>
+      <button class="btn" id="focusBack">Cancel</button>
+      <button class="btn pri" id="attachFocus" ${S.selected.size ? "" : "disabled"}>Attach to step &amp; return</button>`;
+  }
+  const extra = S.focus === "existing" ? `<div class="card"><label>Paste an ID or YouTube/Vimeo URL<input class="f" id="url" placeholder="https://youtu.be/…"></label><div class="row"><button class="btn" id="addurl">Register &amp; attach video</button><button class="btn" id="openCourse">Pick from a course page (preview sidecar)…</button></div></div>` : "";
+  const apiText = lib
+    ? "GET  /v1/admin/studio/artifacts?kind=quiz&topic&status\nPOST /v1/admin/studio/links {target:{kind:'course_state', course, state}, items:[{ref, role:'CHECK'|'PRACTICE'}]}\n(course-state attach wraps the existing micro_course_service attach)"
+    : "POST /v1/admin/studio/question-bank/search {from_step, kinds, status, limit}\nPOST /v1/admin/studio/convert (non-approved)\nPOST /v1/admin/studio/workflows/{id}/steps/" + (s ? s.key : "{key}") + "/content";
+  $("canvas").innerHTML = `<div class="focuswrap" aria-label="${title}">
+    <div class="focusbar"><button class="btn" id="focusBack" aria-label="Back (Esc)">← Back</button><div><div class="kicker">${title}</div><div class="sub">${context}</div></div><span class="sp"></span><span class="sub">Esc returns without changes</span></div>
+    <div class="focusbody"><aside class="facets" aria-label="Filters">${facets}</aside>
+      <section class="results" aria-label="Results"><input class="f" id="fq" placeholder="Search by words, concept or paste a question…" aria-label="Search" value="${lib ? "" : "stars and bars"}">${extra}${rows}${api(apiText)}</section></div>
+    <div class="tray" role="region" aria-label="Selection">${tray}</div></div>`;
+  $("canvas").style.padding = "0";
+}
+function renderTargetPicker() {
+  const d = $("drawer"); d.hidden = false;
+  d.innerHTML = `<div class="dh"><strong>Attach to…</strong><button class="btn link" id="closeTarget" aria-label="Close">✕</button></div><div class="db">
+    <div class="micro" style="margin-top:0">Courses</div>${COURSES.map(c => `<div class="target"><b>${esc(c.title)}</b>${c.states.map(st => `<button class="btn" data-target="course|${c.code}|${esc(st)}">${esc(st)}</button>`).join("")}</div>`).join("")}
+    <div class="micro">Workflow steps · Stars and Bars</div><div class="target">${S.steps.map(x => `<button class="btn" data-target="step|${x.key}|${esc(x.title)}">${esc(x.title)}</button>`).join("")}</div>
+    <div class="micro">Exams</div><div class="target"><button class="btn" data-target="exam|ex1|Stars and Bars — checkpoint exam">Stars and Bars — checkpoint exam</button></div>
+  </div>`;
+}
+function openDrawer(kind) { S.panel = kind; renderDrawer(); }
+function closeDrawer() { S.panel = null; $("drawer").hidden = true; closeSidecar(); }
+function renderDrawer() {
+  const d = $("drawer"); d.hidden = false; const s = step();
+  let title = "", body = "", foot = "";
+  if (S.panel === "step") {
+    title = "Edit step";
+    body = `<div class="kicker">${s.type} · ${s.key}</div><label>Step title<input class="f" value="${esc(s.title)}"></label><label>Student-facing content<textarea class="f">Judge the assertion and the reason separately.</textarea></label>
+      <b id="stepContent" tabindex="-1">Step content</b>${s.content.length ? s.content.map((x, i) => `<div class="res" style="grid-template-columns:1fr auto"><div><div class="t">${x.role} · ${esc(x.title)}</div><span class="sub">${x.kind} · ${x.state}</span></div><button class="btn link" data-rm="${i}">Remove</button></div>`).join("") : '<div class="sub">Nothing attached yet.</div>'}
+      <div class="three"><button data-path="search">🔎<br>Search &amp; attach</button><button data-path="existing">▦<br>Add existing</button><button data-path="template">＋<br>Create from template</button></div>
+      <button class="btn" data-path="exclude">⊘ Exclude this step for a group or student IDs…</button>
+      ${api("POST /v1/admin/studio/workflows/{id}/steps/" + s.key + "/content\n{expected_hash, items:[{ref, role, order}]}")}`;
+    foot = `<button class="btn" data-go="sim">Preview as student</button><button class="btn pri" id="save">Save changes</button>`;
+  } else if (S.panel === "template") {
+    title = "Create from template";
+    body = `<div class="grid">${TEMPLATES.map(([t, dsc], i) => `<button class="card" style="text-align:left" data-tpl="${i}"><b>${t}</b><span class="sub">${dsc}</span></button>`).join("")}</div>${api("GET  /v1/admin/studio/templates?step_type&strategy&kind\nPOST /v1/admin/studio/templates/{id}/instantiate {fields} → {ref} (PENDING_REVIEW)")}`;
+    foot = `<button class="btn" data-back="1">Back</button>`;
+  } else if (S.panel === "form") {
+    const [t] = TEMPLATES[S.tpl];
+    title = "New · " + t;
+    body = `<label>Question / claim<textarea class="f">Assertion: … Reason: …</textarea></label>${t === "Assertion–Reason" ? '<div class="row"><label><input type="checkbox" checked> Assertion true</label><label><input type="checkbox" checked> Reason true</label><label><input type="checkbox"> R explains A</label></div>' : '<label>Options / answer<textarea class="f"></textarea></label>'}<label>Hints (up to 5)<textarea class="f"></textarea></label><label>Explanation<textarea class="f"></textarea></label><button class="btn">✦ Draft with AI</button><div class="hint">Created as a review draft and attached to this step. Preview works now; publishing needs approval.</div>${api("POST /v1/admin/studio/templates/{id}/instantiate\nPOST /v1/admin/studio/quizzes/generate (Draft with AI)")}`;
+    foot = `<button class="btn" data-path="template">Back</button><button class="btn pri" id="create">Create &amp; attach</button>`;
+  } else if (S.panel === "exclude") {
+    title = "Exclude for students";
+    body = `<div class="kicker">Target · step “${esc(s.title)}”</div><label>Group<select class="f" id="exg"><option value="">— none —</option>${S.groups.map(g => `<option value="${g.id}">${esc(g.name)} (${g.members.length})</option>`).join("")}</select></label><label>…and/or student IDs<textarea class="f" id="exids" placeholder="st-104, st-110"></textarea></label><div class="hint warn" id="impact">Impact preview appears here.</div>${api("POST /v1/admin/studio/exclusions/impact (dry run)\nPOST /v1/admin/studio/exclusions {target_kind:'WORKFLOW_STEP', target_id, audience}")}`;
+    foot = `<button class="btn" data-back="1">Back</button><button class="btn" id="impactBtn">Preview impact</button><button class="btn pri" id="exsave">Save exclusion</button>`;
+  } else if (S.panel === "assign") {
+    title = "Attach exam to students";
+    body = `<label>Group<select class="f">${S.groups.map(g => `<option>${esc(g.name)}</option>`).join("")}</select></label><label>…or student IDs<textarea class="f" placeholder="st-201, st-202"></textarea></label><div class="row"><label>Opens<input class="f" type="date"></label><label>Due<input class="f" type="date"></label></div><div class="hint">Each student gets their own paper with every approved question, minus any exclusions.</div>${api("POST /v1/admin/studio/exams/{id}/assignments {audience, opens_at, due_at}")}`;
+    foot = `<button class="btn pri" id="assignSave">Attach</button>`;
+  } else if (S.panel === "ai") {
+    title = "Ask AI";
+    body = `<label>What should change?<textarea class="f">Find two approved AR quizzes on bijections for the quiz step.</textarea></label><div class="card"><b>Proposal</b><span class="sub">Attach “x+y+z=5 has 21 solutions” as CHECK to “Check the justification” (cites a-17 r3)</span><div class="row"><button class="btn pri" id="aiacc">Accept</button><button class="btn" id="close2">Dismiss</button></div></div>${api("POST /v1/admin/studio/assistant → {job_id}\nGET  /v1/admin/studio/jobs/{job_id}\nAccept = normal write call with the proposal's base hash")}`;
+  }
+  d.innerHTML = `<div class="dh"><strong>${title}</strong><button class="btn link" id="close" aria-label="Close pane">✕</button></div><div class="db">${body}</div>${foot ? `<div class="df">${foot}</div>` : ""}`;
+}
+function attach(items) {
+  const s = step(); if (!s) return;
+  // One CHECK per step (plan 68 §4.5b): extra CHECK items are added as PRACTICE.
+  let hasCheck = s.content.some(x => x.role === "CHECK"), demoted = 0;
+  for (const item of items) { if (item.role === "CHECK" && hasCheck) { item.role = "PRACTICE"; demoted++; } if (item.role === "CHECK") hasCheck = true; s.content.push(item); }
+  if (demoted) setTimeout(() => toast(`${demoted} item(s) added as PRACTICE — a step has one CHECK`), 2300);
+  dirty(); renderCanvas();
+}
+function openSidecar(title, srcdoc) {
+  const sc = $("sidecar"); sc.hidden = false;
+  sc.innerHTML = `<div class="dh"><strong>${esc(title)}</strong><button class="btn link" id="closeSide" aria-label="Close preview">✕</button></div><iframe title="Student preview" sandbox="allow-scripts" srcdoc="${esc(srcdoc)}"></iframe><div class="df sub" style="justify-content:flex-start">Sidecar iframe · selection via postMessage mb:preview:select</div>`;
+}
+function closeSidecar() { $("sidecar").hidden = true; }
+function studentDoc(item) {
+  return `<!doctype html><body style="font:14px system-ui;margin:0;padding:16px;background:#fff"><div style="background:#fef3c7;padding:6px 10px;border-radius:8px;font-size:12px">Staff preview · synthetic student · no writes</div><h3>${esc(item.title)}</h3><p style="color:#64748b">${esc(item.kind)} · ${esc(item.label)}</p><p>In the real Studio this panel hosts the student app's /preview route (course reader or exam paper) in preview mode.</p><button id="s" style="background:#4f46e5;color:#fff;border:0;border-radius:8px;padding:8px 12px">Select this</button><script>document.getElementById('s').onclick=()=>parent.postMessage({type:'mb:preview:select',nonce:'demo',items:[{kind:'activity',id:${JSON.stringify(item.id)},revision:'r1',title:${JSON.stringify(item.title)}}]},'*')<\/script></body>`;
+}
+window.addEventListener("message", e => {
+  // Real Studio: accept only the exact preview origin and nonce, validate the schema, then call the step-content API.
+  if (e.data?.type !== "mb:preview:select" || e.data.nonce !== "demo") return;
+  if (S.focus) { e.data.items.forEach(i => S.selected.add(i.id)); closeSidecar(); renderFocus(); toast("Selected from preview — attach from the tray"); return; }
+  if (!step()) return;
+  attach(e.data.items.map(i => ({ kind: "Quiz", title: i.title, role: "PRACTICE", state: "Approved" })));
+  closeSidecar(); toast("Attached from preview sidecar");
+});
+document.addEventListener("click", e => {
+  const t = e.target.closest("button,input"); if (!t) return;
+  if (t.dataset.view) { S.view = t.dataset.view; closeDrawer(); renderCanvas(); }
+  else if (t.dataset.go) { S.view = t.dataset.go; renderCanvas(); }
+  else if (t.dataset.step) { S.view = "designer"; S.step = t.dataset.step; S.selected.clear(); renderCanvas(); openDrawer("step"); }
+  else if (t.dataset.path === "search" || t.dataset.path === "existing") openFocus(t.dataset.path, "step");
+  else if (t.dataset.path) { S.selected.clear(); openDrawer(t.dataset.path); }
+  else if (t.id === "focusBack") closeFocus();
+  else if (t.id === "libOpen") { S.step = null; openFocus("library", "library"); }
+  else if (t.id === "libNew" || t.id === "newQuiz") { S.step = S.step || "quiz"; if (S.focus) { S.focus = null; document.querySelector(".app").classList.remove("focus"); renderCanvas(); } openDrawer("template"); }
+  else if (t.id === "pickTarget") renderTargetPicker();
+  else if (t.id === "closeTarget") $("drawer").hidden = true;
+  else if (t.dataset.target) { const [kind, id, label] = t.dataset.target.split("|"); S.target = { kind, id, label: (kind === "course" ? "Stars and Bars course · " : kind === "step" ? "Step · " : "Exam · ") + label }; $("drawer").hidden = true; renderFocus(); }
+  else if (t.id === "attachLib") {
+    const n = S.selected.size, tgt = S.target;
+    for (const id of S.selected) { const r = BANK.find(b => b.id === id); r.usedIn = [...(r.usedIn || []), tgt.label]; }
+    if (tgt.kind === "step") { S.step = tgt.id; attach([...S.selected].map(id => { const r = BANK.find(b => b.id === id); return { kind: r.kind, title: r.title, role: "PRACTICE", state: r.attachable ? "Approved" : "Review draft" }; })); }
+    S.selected.clear(); closeFocus(`Attached ${n} quiz(zes) to ${tgt.label}`);
+  }
+  else if (t.id === "attachFocus") {
+    const role = $("role").value, n = S.selected.size;
+    attach([...S.selected].map(id => { const r = BANK.find(b => b.id === id); return { kind: r.kind, title: r.title, role, state: r.attachable ? "Approved" : "Review draft" }; }));
+    S.selected.clear(); closeFocus(`Attached ${n} item(s) to the step`);
+  }
+  else if (t.dataset.back) openDrawer("step");
+  else if (t.id === "close" || t.id === "close2") closeDrawer();
+  else if (t.id === "closeSide") closeSidecar();
+  else if (t.dataset.sel) { t.checked ? S.selected.add(t.dataset.sel) : S.selected.delete(t.dataset.sel); S.focus ? renderFocus() : renderDrawer(); setTimeout(() => document.querySelector(`[data-sel="${t.dataset.sel}"]`)?.focus(), 0); }
+  else if (t.dataset.preview) { const r = BANK.find(b => b.id === t.dataset.preview); openSidecar("Preview · " + r.kind, studentDoc(r)); }
+  else if (t.dataset.like) toast("More like this → search with similar_to");
+  else if (t.id === "attach") {
+    const role = $("role").value;
+    attach([...S.selected].map(id => { const r = BANK.find(b => b.id === id); return { kind: r.kind, title: r.title, role, state: r.attachable ? "Approved" : "Review draft" }; }));
+    toast(`Attached ${S.selected.size} item(s)`); S.selected.clear(); openDrawer("step");
+  }
+  else if (t.id === "addurl") { attach([{ kind: "Video", title: $("url").value || "YouTube video", role: "PRESENT", state: "Pending review" }]); closeFocus("Video registered and attached"); }
+  else if (t.id === "openCourse") openSidecar("Course page · select mode", studentDoc({ id: "a-22", title: "Lesson 2 · How many ways to put 5 balls in 3 boxes?", kind: "Course page", label: "mathbank-web /preview/course" }));
+  else if (t.dataset.tpl) { S.tpl = +t.dataset.tpl; openDrawer("form"); }
+  else if (t.id === "create") { attach([{ kind: "Quiz", title: TEMPLATES[S.tpl][0] + " (new)", role: "CHECK", state: "Review draft" }]); toast("Created as review draft and attached"); openDrawer("step"); }
+  else if (t.id === "impactBtn") { const g = S.groups.find(x => x.id === $("exg").value); const ids = $("exids").value.split(/[\s,]+/).filter(Boolean); $("impact").textContent = `Affects ${(g ? g.members.length : 0) + ids.length} students. They skip this step via its ALWAYS rule; no mandatory assessment bypassed.`; }
+  else if (t.id === "exsave") { const g = S.groups.find(x => x.id === $("exg").value); const ids = $("exids").value.split(/[\s,]+/).filter(Boolean); const who = [g?.name, ids.length ? ids.length + " student IDs" : ""].filter(Boolean).join(" + ") || "nobody"; S.exclusions.push({ step: S.step, target: "Step · " + step().title, who }); dirty(); renderCanvas(); toast("Exclusion saved"); openDrawer("step"); }
+  else if (t.id === "save") { $("dirty").hidden = true; $("saved").hidden = false; $("saved").textContent = "Saved · r5"; toast("Draft saved"); }
+  else if (t.id === "assign") openDrawer("assign");
+  else if (t.id === "exq") { S.step = S.step || "quiz"; openDrawer("exclude"); }
+  else if (t.id === "assignSave") { toast("Exam attached"); closeDrawer(); }
+  else if (t.id === "ask") openDrawer("ai");
+  else if (t.id === "aiacc") { S.step = "quiz"; attach([{ kind: "Quiz", title: "x+y+z=5 has 21 solutions · stars and bars", role: "CHECK", state: "Approved" }]); toast("Proposal accepted into draft"); closeDrawer(); }
+  else if (t.id === "gsave") { const name = $("gname").value.trim(); const ids = $("gids").value.split(/[\s,]+/).filter(Boolean); if (name) { S.groups.push({ id: "g" + (S.groups.length + 1), name, members: ids }); renderCanvas(); toast("Group created"); } }
+  else if (t.dataset.rm !== undefined) { step().content.splice(+t.dataset.rm, 1); dirty(); renderCanvas(); renderDrawer(); }
+});
+$("q").addEventListener("input", e => { S.query = e.target.value; renderSide(); });
+document.addEventListener("keydown", e => { if (e.key !== "Escape") return; if (!$("sidecar").hidden) closeSidecar(); else if (S.focus) closeFocus(); else closeDrawer(); });
+renderSide(); renderCanvas();
+</script>
+</body>
+</html>

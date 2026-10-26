@@ -21,6 +21,8 @@
 #   geometry       mathbank-geometry-engine   — deterministic geometry compiler, library only
 #   neural-geom    mathbank-neural-geometry   — neural-symbolic compiler on top of geometry, library only
 #   ingestion      mathbank-data-ingestion    — corpus crawl/classify/export pipeline, CLI only
+#   socratic       mathbank-socratic-admin    — Socratic Studio UI :5186 + local staff API :8019;
+#                  AWS: socratic-deploy | socratic-verify | socratic-destroy (isolated stack only)
 # Same per-service pattern as the core 4: make <svc>-install | <svc>-start | <svc>-stop |
 #   <svc>-restart | <svc>-status (daemon-backed services only) | <svc>-test (where real tests exist)
 # Aggregate:                     make up-extra | make down-extra | make status-extra | make access-extra
@@ -320,6 +322,106 @@ exam-agent-test:                   ## Run mathbank-exam-agent's unit test suite 
 .PHONY: exam-agent-run
 exam-agent-run:                    ## Run mathbank-exam-agent locally on :8030 (needs mathbank-rest already running)
 	$(MAKE) -C mathbank-exam-agent run
+
+# ── Socratic Studio (requirements/65, ledger 67) ─────────────────────────────────────
+# Local: UI :5186 (Vite) proxies same-origin /v1 to the local staff API :8019 (loopback-only
+# local login; DRAFTS=1 adds real draft storage in REST's configured Postgres). To use the full
+# REST daemon on :8000 instead (Cognito mode): make rest-start && make socratic-ui-start.
+# AWS: isolated MathBankSocraticStack (Lambda Function URL serving API + SPA), never shared REST.
+SOCRATIC_API_PORT    ?= 8019
+SOCRATIC_UI_PORT     ?= 5186
+SOCRATIC_AWS_PROFILE ?= aws-sutanu-admin
+SOCRATIC_AWS_REGION  ?= us-east-2
+
+.PHONY: socratic-install socratic-test socratic-e2e socratic-build socratic-setup-local socratic-password
+socratic-install:                  ## Install Socratic Studio UI deps (REST env comes from rest-install)
+	$(MAKE) -C mathbank-socratic-admin install
+
+socratic-test:                     ## Socratic UI unit tests + typecheck + REST Socratic tests (no AWS/model calls)
+	$(MAKE) -C mathbank-socratic-admin test
+	$(MAKE) -C mathbank-socratic-admin typecheck
+	$(MAKE) -C mathbank-rest test-socratic
+
+socratic-e2e:                      ## Socratic Playwright: prototype regression + real loopback local-auth (no AWS)
+	$(MAKE) -C mathbank-socratic-admin e2e
+	$(MAKE) -C mathbank-socratic-admin e2e-local-auth
+
+socratic-build:                    ## Typecheck + build the Studio SPA into mathbank-socratic-admin/dist
+	$(MAKE) -C mathbank-socratic-admin build
+
+socratic-setup-local:              ## One-time: configure loopback-only local staff login (prompts for password, never prints it)
+	$(MAKE) -C mathbank-rest setup-socratic-local
+
+socratic-password:                 ## Generate/rotate local-author password into mathbank-rest/.env (SOCRATIC_LOCAL_PASSWORD); keeps Cognito mode
+	$(MAKE) -C mathbank-rest socratic-password
+
+.PHONY: socratic-api-start socratic-api-stop socratic-api-status
+socratic-api-start:                ## Start local staff API on :8019 (DRAFTS=1 = real Postgres drafts; needs socratic-setup-local)
+	$(MAKE) -C mathbank-rest start-socratic-local SOCRATIC_PORT=$(SOCRATIC_API_PORT) DRAFTS=$(DRAFTS)
+
+socratic-api-stop:                 ## Stop the local staff API
+	-$(MAKE) -C mathbank-rest stop-socratic-local SOCRATIC_PORT=$(SOCRATIC_API_PORT)
+
+socratic-api-status:               ## Show whether the local staff API is running
+	-$(MAKE) -C mathbank-rest status-socratic-local SOCRATIC_PORT=$(SOCRATIC_API_PORT)
+
+.PHONY: socratic-ui-start socratic-ui-stop socratic-ui-status
+socratic-ui-start:                 ## Start Studio UI on :5186 (SOCRATIC_REST_TARGET=http://127.0.0.1:8000 by default)
+	$(MAKE) -C mathbank-socratic-admin start UI_PORT=$(SOCRATIC_UI_PORT) $(if $(SOCRATIC_REST_TARGET),SOCRATIC_REST_TARGET=$(SOCRATIC_REST_TARGET),)
+
+socratic-ui-stop:                  ## Stop the Studio UI dev server
+	-$(MAKE) -C mathbank-socratic-admin stop UI_PORT=$(SOCRATIC_UI_PORT)
+
+socratic-ui-status:                ## Show whether the Studio UI dev server is running
+	-$(MAKE) -C mathbank-socratic-admin status UI_PORT=$(SOCRATIC_UI_PORT)
+
+.PHONY: socratic-start socratic-stop socratic-restart socratic-status socratic-access
+socratic-start: socratic-api-start ## Local non-AWS Studio: staff API :8019 + UI :5186 proxied to it (DRAFTS=1 optional)
+	$(MAKE) -C mathbank-socratic-admin start UI_PORT=$(SOCRATIC_UI_PORT) SOCRATIC_REST_TARGET=http://127.0.0.1:$(SOCRATIC_API_PORT)
+	@$(MAKE) --no-print-directory socratic-access
+
+socratic-stop: socratic-ui-stop socratic-api-stop ## Stop the local Studio UI and staff API
+
+socratic-restart: socratic-stop socratic-start ## Restart the local Studio UI and staff API
+
+socratic-status: socratic-api-status socratic-ui-status ## Status of the local Studio UI and staff API
+
+socratic-access:                   ## Show local Studio URLs and the hosted StudioUrl (if deployed)
+	@printf '\nSocratic Studio\n\n'
+	@printf '  %-20s %s\n' 'Studio UI (local)' 'http://127.0.0.1:$(SOCRATIC_UI_PORT)' \
+	  'Staff API (local)' 'http://127.0.0.1:$(SOCRATIC_API_PORT)/openapi.json'
+	@url=$$(AWS_PROFILE=$(SOCRATIC_AWS_PROFILE) aws cloudformation describe-stacks --stack-name MathBankSocraticStack \
+	  --region $(SOCRATIC_AWS_REGION) --query "Stacks[0].Outputs[?OutputKey=='StudioUrl'].OutputValue" --output text 2>/dev/null); \
+	  printf '  %-20s %s\n\n' 'Studio (AWS)' "$${url:-not deployed or AWS session expired}"
+
+.PHONY: socratic-migrate socratic-seed socratic-synth socratic-diff socratic-deploy socratic-verify socratic-outputs socratic-destroy
+socratic-migrate:                  ## Apply additive migration 053 (orchestration.socratic_*) to REST's configured Postgres
+	$(MAKE) -C mathbank-rest migrate-socratic-drafts
+
+socratic-seed:                     ## Seed the three isolated Socratic SSM SecureStrings from mathbank-rest/.env (values hidden)
+	$(MAKE) -C mathbank-infra-aws seed-socratic
+
+socratic-synth: socratic-build     ## Build SPA, then synthesize only MathBankSocraticStack
+	$(MAKE) -C mathbank-infra-aws synth-socratic
+
+socratic-diff: socratic-build      ## Build SPA, then show what socratic-deploy would change
+	$(MAKE) -C mathbank-infra-aws diff-socratic
+
+socratic-deploy: socratic-build    ## Build SPA, deploy only MathBankSocraticStack (never shared REST), then print its URL
+	$(MAKE) -C mathbank-infra-aws deploy-socratic
+	@$(MAKE) --no-print-directory -C mathbank-infra-aws outputs-socratic
+
+socratic-verify:                   ## Read-only hosted acceptance (readiness, OpenAPI/SPA parity, denials); URL= optional
+	@url="$(URL)"; [ -n "$$url" ] || url=$$(AWS_PROFILE=$(SOCRATIC_AWS_PROFILE) aws cloudformation describe-stacks --stack-name MathBankSocraticStack \
+	  --region $(SOCRATIC_AWS_REGION) --query "Stacks[0].Outputs[?OutputKey=='StudioUrl'].OutputValue" --output text); \
+	  test -n "$$url" && [ "$$url" != "None" ] || { echo "ERROR: StudioUrl not found; pass URL=..." >&2; exit 1; }; \
+	  $(MAKE) -C mathbank-rest verify-socratic-deployment URL="$$url"
+
+socratic-outputs:                  ## Print the deployed Socratic stack outputs
+	$(MAKE) -C mathbank-infra-aws outputs-socratic
+
+socratic-destroy:                  ## Tear down ONLY MathBankSocraticStack (keeps Neon tables + seeded SSM secrets)
+	$(MAKE) -C mathbank-infra-aws destroy-socratic
 
 .PHONY: ml-training-install
 ml-training-install:               ## Install mathbank-ml-training (offline notebooks; scaffolded, requirements/54-55)

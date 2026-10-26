@@ -14,6 +14,19 @@ deploy-socratic: clean-cdk-out ensure-colima ## Deploy only isolated Socratic AP
 seed-socratic:                    ## Seed just the three isolated Socratic SSM secrets from REST's private config
 	$(PYTHON) seed_socratic.py
 
+# The Socratic stack lives in its own CDK app (socratic_app.py), so the shared
+# diff/destroy/outputs targets below (app.py) never see or touch it.
+.PHONY: diff-socratic outputs-socratic destroy-socratic
+diff-socratic: clean-cdk-out ensure-colima ## Show what deploy-socratic would change (build frontend first)
+	AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) CDK_DEFAULT_ACCOUNT=848941468793 CDK_DEFAULT_REGION=$(AWS_REGION) $(CDK) --app "$(PYTHON) socratic_app.py" diff MathBankSocraticStack
+
+outputs-socratic:                 ## Print the isolated Socratic stack outputs (StudioUrl)
+	@AWS_PROFILE=$(AWS_PROFILE) aws cloudformation describe-stacks --stack-name MathBankSocraticStack --region $(AWS_REGION) \
+	  --query "Stacks[0].Outputs" --output table 2>/dev/null || echo "  MathBankSocraticStack (not deployed)"
+
+destroy-socratic:                 ## Tear down ONLY the isolated Socratic API/SPA stack (Neon tables and SSM secrets are kept)
+	AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) CDK_DEFAULT_ACCOUNT=848941468793 CDK_DEFAULT_REGION=$(AWS_REGION) $(CDK) --app "$(PYTHON) socratic_app.py" destroy --force MathBankSocraticStack
+
 .PHONY: install
 install:                           ## Create the CDK venv and install aws-cdk-lib/boto3
 	python3 -m venv .venv

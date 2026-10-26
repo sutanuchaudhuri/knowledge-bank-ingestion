@@ -180,6 +180,25 @@ make destroy-one STACK=MathBankXStack     # tear down one stack (frees its ECR s
 make destroy                              # tear down everything (stops all AWS charges for this project)
 ```
 
+## Isolated Socratic Studio stack (`MathBankSocraticStack`) — separate CDK app
+
+`socratic_app.py` is its **own CDK app**, so `make synth`/`deploy`/`diff`/`destroy`/`outputs`
+(which use `app.py`) never include or touch it, and deploying it never redeploys
+`MathBankRestStack`. One Lambda Function URL serves both the Socratic API and the built SPA.
+
+```bash
+make socratic-seed      # (root) 3 SSM SecureStrings from mathbank-rest/.env, values hidden
+make socratic-deploy    # (root) builds the SPA, then: cd mathbank-infra-aws && make deploy-socratic
+make socratic-verify    # (root) read-only hosted acceptance, StudioUrl auto-resolved
+make socratic-destroy   # (root) = make destroy-socratic: deletes only this stack
+# in mathbank-infra-aws directly: synth-socratic / diff-socratic / deploy-socratic /
+#                                  seed-socratic / outputs-socratic / destroy-socratic
+```
+
+No reserved concurrency by design (account limit 10). Destroy leaves the seeded SSM secrets,
+the retention-managed log group, the bootstrap ECR image and Neon tables. Full conventions:
+the `mathbank-socratic` skill.
+
 ## Before changing `fargate_web_stack.py`, `app.py`, or any `stacks/*.py`
 
 1. `make synth` (not just a Python import check) must succeed — it's the only way this catches a

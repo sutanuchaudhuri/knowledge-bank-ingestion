@@ -19,8 +19,9 @@ def main() -> None:
     with httpx.Client(base_url=base, timeout=45, follow_redirects=False) as client:
         health = client.get("/health")
         assert health.status_code == 200, f"Health failed with HTTP {health.status_code}"
-        assert health.json() == {"ok": True, "prototype_only": True,
-                                 "evaluation_available": False, "model_jobs_available": False}
+        assert health.json() == {"ok": True, "prototype_only": True, "evaluation_available": True,
+                                 "evaluation_scope": "SYNTHETIC_PREVIEW_DETERMINISTIC",
+                                 "model_jobs_available": False}
         schema = client.get("/openapi.json")
         assert schema.status_code == 200
         assert schema.json() == app.openapi(), "Hosted isolated OpenAPI differs from current source"

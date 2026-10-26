@@ -69,33 +69,77 @@ beforeEach(() => {
 async function openDraft() {
   render(<App />);
   await userEvent.click(await screen.findByRole("button", { name: /Discovery draft/ }));
-  await screen.findByRole("region", { name: "Selected node inspector" });
+  await screen.findByRole("group", { name: "Workflow steps" });
 }
+async function openStep(name: RegExp) {
+  await userEvent.click(within(screen.getByRole("group", { name: "Workflow steps" })).getByRole("button", { name }));
+  return screen.findByRole("complementary", { name: "Edit step" });
+}
+async function startPreview() {
+  await userEvent.click(screen.getByRole("button", { name: /Student view/ }));
+  await userEvent.click(screen.getByRole("button", { name: /Save & start preview/ }));
+  return screen.findByRole("region", { name: "Synthetic simulator" });
+}
+const promptField = () => screen.getByLabelText("Student-facing question or content");
 
-describe("draft authoring and synthetic preview", () => {
+describe("clean studio shell", () => {
   it("labels explicitly local staff sessions without implying cloud approval", async () => {
     localAuth = true;
     render(<App />);
-    expect(await screen.findByText("Local testing")).toBeInTheDocument();
-    expect(screen.getByText(/No AWS identity or production approval/)).toBeInTheDocument();
+    expect(await screen.findByText("Local test session")).toBeInTheDocument();
   });
-
-  it("keeps keyboard inspector selection independent of the synthetic position", async () => {
+  it("searches drafts and steps from the sidebar search module", async () => {
     await openDraft();
-    await userEvent.click(screen.getByRole("button", { name: "Save draft & start preview" }));
-    const inspector = screen.getByRole("region", { name: "Selected node inspector" });
-    const simulator = screen.getByRole("region", { name: "Synthetic simulator" });
-    await within(simulator).findByText(/Current node: start/);
-    const graph = screen.getByRole("group", { name: "Keyboard workflow nodes" });
-    const first = within(graph).getAllByRole("button")[0];
+    const search = screen.getByRole("searchbox", { name: "Search workspace" });
+    await userEvent.type(search, "smaller example");
+    const sidebar = screen.getByRole("complementary", { name: "Workspace search" });
+    expect(within(sidebar).getByText("Steps in this workflow")).toBeInTheDocument();
+    await userEvent.click(within(sidebar).getByRole("button", { name: /Revisit/ }));
+    expect(await screen.findByRole("complementary", { name: "Edit step" })).toBeInTheDocument();
+    expect(promptField()).toHaveValue("Try a smaller example.");
+    await userEvent.clear(search);
+    await userEvent.type(search, "no such workflow");
+    expect(within(sidebar).getByText("No matching workflows.")).toBeInTheDocument();
+  });
+  it("closes the detail drawer with Escape without discarding edits", async () => {
+    await openDraft();
+    await openStep(/Explore/);
+    fireEvent.change(promptField(), { target: { value: "Edited" } });
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Edit step" })).not.toBeInTheDocument());
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+  });
+  it("shows the flow as plain language or JSON without changing it", async () => {
+    await openDraft();
+    await userEvent.click(screen.getByRole("button", { name: /Natural language/ }));
+    const story = screen.getByRole("article", { name: "Natural-language flow" });
+    expect(story).toHaveTextContent("The journey starts at Explore");
+    expect(story).toHaveTextContent("If the student needs another attempt, go to Revisit.");
+    await userEvent.click(screen.getByRole("button", { name: "JSON" }));
+    const json = screen.getByRole("region", { name: "JSON flow" });
+    expect(json).toHaveTextContent('"schema_version": "socratic.prototype.v1"');
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+});
+
+describe("draft authoring and synthetic preview", () => {
+  it("keeps keyboard step selection independent of the synthetic position", async () => {
+    await openDraft();
+    const simulator = await startPreview();
+    expect(simulator).toHaveTextContent("Explore");
+    await userEvent.click(screen.getByRole("link", { name: "Workflow designer" }));
+    const steps = screen.getByRole("group", { name: "Workflow steps" });
+    const first = within(steps).getAllByRole("button", { pressed: false })[0];
     first.focus();
     fireEvent.keyDown(first, { key: "ArrowDown" });
-    expect(within(inspector).getByText("Inspecting remediate")).toBeInTheDocument();
-    expect(within(simulator).getByText(/Current node: start/)).toBeInTheDocument();
-    expect(within(graph).getAllByRole("button")[1]).toHaveFocus();
-    await userEvent.click(within(simulator).getByText("Test routing with a simulated outcome"));
-    await userEvent.click(within(simulator).getByRole("button", { name: "Simulate RETRY" }));
-    await within(simulator).findByText(/Current node: remediate/);
+    expect(await screen.findByRole("complementary", { name: "Edit step" })).toBeInTheDocument();
+    expect(promptField()).toHaveValue("Try a smaller example.");
+    expect(within(steps).getByText("Student here").closest("button")).toHaveTextContent("Explore");
+    await userEvent.click(screen.getByRole("link", { name: "Student simulator" }));
+    await userEvent.click(screen.getByText("Test routing"));
+    await userEvent.click(screen.getByRole("button", { name: "Simulate RETRY" }));
+    await screen.findByRole("heading", { level: 1, name: "Revisit" });
     const transition = calls.find(call => call.path.endsWith("/transition"));
     expect(transition?.body).toMatchObject({ expected_version: 0, outcome: "RETRY" });
     expect(transition?.body?.idempotency_key).toEqual(expect.any(String));
@@ -103,9 +147,10 @@ describe("draft authoring and synthetic preview", () => {
   });
   it("saves edits before simulation and never invents grade fields", async () => {
     await openDraft();
-    fireEvent.change(screen.getByLabelText("Current-step prompt"), { target: { value: "New \\(x\\) prompt" } });
-    await userEvent.click(screen.getByRole("button", { name: "Save draft & start preview" }));
-    await screen.findByText(/Current node: start/);
+    await openStep(/Explore/);
+    fireEvent.change(promptField(), { target: { value: "New \\(x\\) prompt" } });
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    await startPreview();
     const putIndex = calls.findIndex(call => call.method === "PUT");
     const simulateIndex = calls.findIndex(call => call.path.endsWith("/simulate"));
     expect(putIndex).toBeGreaterThan(-1);
@@ -113,42 +158,61 @@ describe("draft authoring and synthetic preview", () => {
     expect(calls[simulateIndex].body).toEqual({ expected_hash: "hash-2" });
     expect(JSON.stringify(calls)).not.toMatch(/correct_key|score|answer_key/);
   });
-  it("requires an explicit click after showing the proposed edge comparison", async () => {
+  it("requires an explicit click after showing the proposed rule", async () => {
     await openDraft();
-    fireEvent.change(screen.getByLabelText("Current-step prompt"), { target: { value: "Updated prompt" } });
+    await openStep(/Explore/);
+    fireEvent.change(promptField(), { target: { value: "Updated prompt" } });
+    await userEvent.click(screen.getByRole("button", { name: /Ask AI/ }));
     fireEvent.change(screen.getByLabelText("Rule instruction"), { target: { value: "Send a retry to complete" } });
-    await userEvent.click(screen.getByRole("button", { name: "Save draft & request proposal" }));
+    await userEvent.click(screen.getByRole("button", { name: /Propose rule/ }));
     await screen.findByLabelText("Proposed edge comparison");
     expect(calls.findIndex(call => call.method === "PUT")).toBeLessThan(calls.findIndex(call => call.path.endsWith("/proposals")));
     expect(calls.some(call => call.path.endsWith("/accept"))).toBe(false);
-    expect(screen.getByText("Before · saved matching edges")).toBeInTheDocument();
-    expect(screen.getByText("start — RETRY → complete · priority 1")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Accept proposed edge into draft" }));
+    expect(screen.getByText("If the student needs another attempt, go to Finish.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Accept into draft" }));
     await waitFor(() => expect(calls.some(call => call.path.endsWith("/accept"))).toBe(true));
     expect(calls.find(call => call.path.endsWith("/accept"))?.body).toEqual({ expected_hash: "hash-2" });
+  });
+  it("supports editing a proposal before explicit server acceptance", async () => {
+    await openDraft();
+    await userEvent.click(screen.getByRole("button", { name: /Ask AI/ }));
+    fireEvent.change(screen.getByLabelText("Rule instruction"), { target: { value: "Retry the representation" } });
+    await userEvent.click(screen.getByRole("button", { name: /Propose rule/ }));
+    await userEvent.click(await screen.findByText("Compare and adjust"));
+    await userEvent.selectOptions(screen.getByLabelText("Proposed destination"), "remediate");
+    expect(calls.some(call => call.path.endsWith("/accept"))).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Accept into draft" }));
+    await waitFor(() => expect(calls.some(call => call.path.endsWith("/accept"))).toBe(true));
+    expect(calls.find(call => call.path.endsWith("/accept"))?.body).toEqual({
+      expected_hash: "hash-1", candidate: { from_key: "start", to_key: "remediate", outcome: "RETRY", priority: 1 },
+    });
   });
   it("blocks auto-retry after a stale save and offers explicit reload", async () => {
     await openDraft();
     conflictOnSave = true;
-    fireEvent.change(screen.getByLabelText("Current-step prompt"), { target: { value: "Conflicting edit" } });
-    await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await openStep(/Explore/);
+    fireEvent.change(promptField(), { target: { value: "Conflicting edit" } });
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await screen.findByRole("alert");
-    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
-    expect(screen.getByLabelText("Current-step prompt")).toHaveValue("Conflicting edit");
-    await userEvent.click(screen.getByRole("button", { name: "Discard edits & reload server draft" }));
-    await waitFor(() => expect(screen.getByLabelText("Current-step prompt")).toHaveValue(workflow.program.nodes[0].prompt));
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(promptField()).toHaveValue("Conflicting edit");
+    await userEvent.click(screen.getByRole("button", { name: "Discard edits & reload" }));
+    await waitFor(() => expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument());
+    await openStep(/Explore/);
+    expect(promptField()).toHaveValue(workflow.program.nodes[0].prompt);
     expect(calls.filter(call => call.method === "PUT")).toHaveLength(1);
   });
-  it("connects source selection to the existing step-authoring references without auto-picking a revision", async () => {
+  it("links a source with an explicitly chosen solution revision", async () => {
     await openDraft();
-    await userEvent.click(screen.getByRole("button", { name: "Choose source references" }));
-    await userEvent.click(await screen.findByRole("button", { name: /SOURCE_1/ }));
-    expect(screen.getByRole("button", { name: "Use references in current draft" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Workflow settings" }));
+    await userEvent.click(screen.getByRole("button", { name: /Choose source/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Select source SOURCE_1" }));
+    expect(screen.getByRole("button", { name: "Use in current draft" })).toBeDisabled();
     await userEvent.selectOptions(screen.getByLabelText("Reference solution revision"), "solution-1");
-    await userEvent.selectOptions(screen.getByLabelText("Released route reference (optional)"), "route-1");
-    await userEvent.click(screen.getByRole("button", { name: "Use references in current draft" }));
+    await userEvent.selectOptions(screen.getByLabelText("Released route (optional)"), "route-1");
+    await userEvent.click(screen.getByRole("button", { name: "Use in current draft" }));
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(calls.some(call => call.method === "PUT")).toBe(true));
     expect((calls.find(call => call.method === "PUT")?.body?.program as Program).source).toEqual({
       problem_code: "SOURCE_1", solution_id: "solution-1", solution_revision: 3, route_release_id: "route-1",
@@ -178,34 +242,40 @@ describe("draft authoring and synthetic preview", () => {
     await userEvent.click(screen.getByRole("button", { name: "Previous page" }));
     await screen.findByRole("button", { name: /Draft 0/ });
   });
-  it("preserves editable rule annotations in both inspector and topic rules", async () => {
+  it("edits a rule's plain-language description from the flow and the rules list", async () => {
     await openDraft();
-    fireEvent.change(screen.getByLabelText("Plain-language explanation (editable)"), { target: { value: "Revisit the bijection before transfer." } });
+    await userEvent.click(screen.getByRole("button", { name: "If the student needs another attempt, go to Revisit." }));
+    const drawer = await screen.findByRole("complementary", { name: "Edit rule" });
+    fireEvent.change(within(drawer).getByLabelText("Describe what should happen"), { target: { value: "Revisit the bijection before transfer." } });
     await userEvent.click(screen.getByRole("link", { name: "Rules by topic" }));
-    expect(screen.getByLabelText("Plain-language explanation (editable)")).toHaveValue("Revisit the bijection before transfer.");
-    expect(screen.getByLabelText("Rule instruction")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await userEvent.click(screen.getByRole("button", { name: /Revisit the bijection before transfer/ }));
+    expect(screen.getByLabelText("Describe what should happen")).toHaveValue("Revisit the bijection before transfer.");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(calls.some(call => call.method === "PUT")).toBe(true));
     expect((calls.find(call => call.method === "PUT")?.body?.program as Program).edges[0].annotation).toBe("Revisit the bijection before transfer.");
   });
-  it("supports editing a proposal before explicit server acceptance", async () => {
+  it("adds a step and a branching rule through the detail drawer", async () => {
     await openDraft();
-    fireEvent.change(screen.getByLabelText("Rule instruction"), { target: { value: "Retry the representation" } });
-    await userEvent.click(screen.getByRole("button", { name: "Save draft & request proposal" }));
-    await screen.findByLabelText("Proposed edge comparison");
-    await userEvent.selectOptions(screen.getByLabelText("Proposed destination"), "remediate");
-    expect(calls.some(call => call.path.endsWith("/accept"))).toBe(false);
-    await userEvent.click(screen.getByRole("button", { name: "Accept proposed edge into draft" }));
-    await waitFor(() => expect(calls.some(call => call.path.endsWith("/accept"))).toBe(true));
-    expect(calls.find(call => call.path.endsWith("/accept"))?.body).toEqual({
-      expected_hash: "hash-1", candidate: { from_key: "start", to_key: "remediate", outcome: "RETRY", priority: 1 },
-    });
+    await userEvent.click(screen.getByRole("button", { name: /Add step/ }));
+    fireEvent.change(screen.getByLabelText("Step title"), { target: { value: "Bijection lesson" } });
+    await userEvent.click(screen.getByRole("button", { name: "Create step" }));
+    expect(await screen.findByRole("complementary", { name: "Edit step" })).toHaveTextContent("bijection-lesson");
+    await userEvent.click(screen.getByRole("button", { name: /Add branching rule/ }));
+    await userEvent.selectOptions(screen.getByLabelText("Go to"), "complete");
+    await userEvent.click(screen.getByRole("button", { name: "Add rule" }));
+    expect(await screen.findByRole("complementary", { name: "Edit rule" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(calls.some(call => call.method === "PUT")).toBe(true));
+    const saved = calls.find(call => call.method === "PUT")?.body?.program as Program;
+    expect(saved.nodes.at(-1)).toMatchObject({ key: "bijection-lesson", label: "Bijection lesson", type: "DISCOVERY" });
+    expect(saved.edges.at(-1)).toMatchObject({ from_key: "bijection-lesson", to_key: "complete", outcome: "SUCCESS" });
   });
   it("renders all five assertion–reason answers and routes only after a server response", async () => {
     currentPreview = structuredClone(assessmentPreview);
     await openDraft();
-    await userEvent.click(screen.getByRole("button", { name: "Save draft & start preview" }));
+    await startPreview();
     expect(await screen.findAllByRole("radio")).toHaveLength(5);
+    expect(screen.getByLabelText("Activity question")).toHaveTextContent("Judge the assertion and the reason separately.");
     expect(screen.getByRole("button", { name: "Submit answer" })).toBeDisabled();
     await userEvent.click(screen.getByRole("radio", { name: /Both false/ }));
     await userEvent.click(screen.getByRole("button", { name: "Submit answer" }));
@@ -214,43 +284,43 @@ describe("draft authoring and synthetic preview", () => {
     expect(sent).toMatchObject({ current_node_key: "start", activity_id: "approved-ar", activity_revision: "1", response: { selected_keys: ["AR5"] }, expected_version: 0 });
     expect(sent).not.toHaveProperty("outcome");
     expect(sent).not.toHaveProperty("score");
-    expect(screen.getByText(/✓ Selected:/)).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Latest routing decision" })).toHaveTextContent("DETERMINISTIC");
+    await userEvent.click(screen.getByRole("link", { name: "Workflow designer" }));
+    expect(screen.getByRole("button", { name: /If the student needs another attempt, go to Revisit/ })).toHaveClass("sc-live");
   });
   it("requests server hints, hides/shows them, and requires confirmation for reveal", async () => {
     currentPreview = structuredClone(assessmentPreview);
     await openDraft();
-    await userEvent.click(screen.getByRole("button", { name: "Save draft & start preview" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Request hint" }));
+    await startPreview();
+    await userEvent.click(await screen.findByRole("button", { name: /Hint/ }));
     await screen.findByLabelText("Current hint");
     await userEvent.click(screen.getByRole("button", { name: "Hide hint" }));
     expect(screen.queryByLabelText("Current hint")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Show hint" }));
     expect(screen.getByLabelText("Current hint")).toBeInTheDocument();
-    await userEvent.click(screen.getByText("Explicit reveal · assisted path"));
-    await userEvent.click(screen.getByRole("button", { name: "Reveal current explanation…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reveal explanation…" }));
     expect(calls.some(call => call.path.endsWith("/reveal"))).toBe(false);
-    await userEvent.click(screen.getByRole("button", { name: "Confirm assisted reveal" }));
-    await screen.findByText("Hint H5 · Assisted");
+    await userEvent.click(screen.getByRole("button", { name: "Confirm reveal" }));
+    await screen.findByText("Hint 5");
     expect(calls.find(call => call.path.endsWith("/reveal"))?.body).toMatchObject({ expected_version: 1 });
   });
   it("never fabricates a grade or moves the session when evaluation fails", async () => {
     currentPreview = structuredClone(assessmentPreview); failRespond = true;
     await openDraft();
-    await userEvent.click(screen.getByRole("button", { name: "Save draft & start preview" }));
+    await startPreview();
     await userEvent.click(await screen.findByRole("radio", { name: /Both false/ }));
     await userEvent.click(screen.getByRole("button", { name: "Submit answer" }));
     await screen.findByRole("alert");
-    expect(screen.getByText(/Current node: start/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Stars and Bars");
     expect(screen.queryByText("Review the bijection.")).not.toBeInTheDocument();
     expect(calls.filter(call => call.path.endsWith("/respond"))).toHaveLength(1);
   });
   it("keeps written thinking while a hint changes the current state version", async () => {
     currentPreview = { ...structuredClone(assessmentPreview), activity: { activity_id: "free-form", revision: "1", kind: "FREE_FORM_REASONING" } };
     await openDraft();
-    await userEvent.click(screen.getByRole("button", { name: "Save draft & start preview" }));
+    await startPreview();
     fireEvent.change(await screen.findByLabelText("Your thinking"), { target: { value: "A distribution determines one string." } });
-    await userEvent.click(screen.getByRole("button", { name: "Request hint" }));
+    await userEvent.click(screen.getByRole("button", { name: /Hint/ }));
     await screen.findByLabelText("Current hint");
     expect(screen.getByLabelText("Your thinking")).toHaveValue("A distribution determines one string.");
     await userEvent.click(screen.getByRole("button", { name: "Submit thinking" }));
@@ -259,21 +329,24 @@ describe("draft authoring and synthetic preview", () => {
       expected_version: 1, response: { text: "A distribution determines one string." },
     });
   });
-  it("creates a separate server preview from a library resource", async () => {
+  it("creates a separate server preview from a library step", async () => {
     await openDraft();
-    await userEvent.click(screen.getByRole("link", { name: "Resource Library" }));
+    await userEvent.click(screen.getByRole("link", { name: "Templates & sources" }));
+    await userEvent.click(screen.getByRole("button", { name: /Steps/ }));
     await userEvent.click(screen.getByRole("button", { name: "View in simulator · Revisit" }));
     await screen.findByRole("region", { name: "Synthetic simulator" });
     expect(calls.find(call => call.path.endsWith("/simulate"))?.body).toEqual({ expected_hash: "hash-1", start_node_key: "remediate" });
   });
   it("refuses transitions after saving changes to a running preview's base", async () => {
     await openDraft();
-    await userEvent.click(screen.getByRole("button", { name: "Save draft & start preview" }));
-    await screen.findByText(/Current node: start/);
-    fireEvent.change(screen.getByLabelText("Current-step prompt"), { target: { value: "Changed instruction" } });
-    await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
-    await screen.findByText("Draft saved on the server.");
-    await userEvent.click(screen.getByText("Test routing with a simulated outcome"));
+    await startPreview();
+    await userEvent.click(screen.getByRole("link", { name: "Workflow designer" }));
+    await openStep(/Explore/);
+    fireEvent.change(promptField(), { target: { value: "Changed instruction" } });
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText("Draft saved.");
+    await userEvent.click(screen.getByRole("link", { name: "Student simulator" }));
+    await userEvent.click(screen.getByText("Test routing"));
     await userEvent.click(screen.getByRole("button", { name: "Simulate RETRY" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("restart");
     expect(calls.some(call => call.path.endsWith("/transition"))).toBe(false);

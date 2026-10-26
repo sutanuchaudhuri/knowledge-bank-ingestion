@@ -10,6 +10,8 @@ from uuid import uuid4
 
 from sqlalchemy import text
 
+from mathbank_rest import activity_scoring
+
 TARGETS = {
     "CONCEPT": ("knowledge.concept", "concept_id"),
     "TECHNIQUE": ("knowledge.technique", "technique_id"),
@@ -1086,8 +1088,7 @@ def submit_activity_response(
         else:
             if value is None:
                 raise ValueError("value is required unless gave_up is true")
-            correct_value = policy.get("correct_value")
-            is_correct = correct_value is not None and abs(float(value) - float(correct_value)) < 1e-9
+            is_correct = activity_scoring.score_numeric(policy, value)
         response_payload = {"value": value}
     else:
         options = activity["options"] or []
@@ -1096,9 +1097,7 @@ def submit_activity_response(
         else:
             if choice_index is None:
                 raise ValueError("choice_index is required unless gave_up is true")
-            if choice_index < 0 or choice_index >= len(options):
-                raise ValueError("choice_index is outside the available options")
-            is_correct = choice_index == policy.get("correct_index")
+            is_correct = activity_scoring.score_choice_index(options, policy, choice_index)
         response_payload = {"choice_index": choice_index}
     conn.execute(
         text("""

@@ -7,20 +7,50 @@ export function Icon({ name }: { name: string }) {
 export function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "warning" | "success" | "primary" }) {
   return <span className={`mb-pill mb-pill-${tone}`}>{children}</span>;
 }
-export function PageHeader({ title, icon, subtitle }: { title: string; icon: string; subtitle: string }) {
-  return <header className="mb-page-header">
-    <span className="mb-page-icon mb-tone-primary"><Icon name={icon} /></span>
-    <div><h1 className="mb-page-title">{title}</h1><p className="mb-page-sub">{subtitle}</p>
-      <div className="sc-toolbar"><Pill tone="warning">Synthetic-only prototype</Pill><Pill>Human-reviewed workflows · Draft authoring</Pill></div>
-    </div>
-  </header>;
+export function IconButton({ icon, label, onClick, disabled = false, active = false, className = "" }: {
+  icon: string; label: string; onClick: () => void; disabled?: boolean; active?: boolean; className?: string;
+}) {
+  return <button type="button" className={`sc-icon-button${active ? " sc-active" : ""} ${className}`} aria-label={label} title={label}
+    aria-pressed={active || undefined} disabled={disabled} onClick={onClick}><Icon name={icon} /></button>;
+}
+export function Hero({ kicker, title, description, actions }: {
+  kicker: string; title: ReactNode; description?: ReactNode; actions?: ReactNode;
+}) {
+  return <div className="sc-hero-row">
+    <div><div className="sc-kicker">{kicker}</div><h1 className="sc-hero">{title}</h1>
+      {description && <p className="sc-desc">{description}</p>}</div>
+    {actions && <div className="sc-row">{actions}</div>}
+  </div>;
+}
+export function Segmented<T extends string>({ label, value, options, onChange }: {
+  label: string; value: T; options: { value: T; label: string; icon?: string }[]; onChange: (value: T) => void;
+}) {
+  return <div className="sc-seg" role="group" aria-label={label}>
+    {options.map(option => <button key={option.value} type="button" aria-pressed={value === option.value}
+      className={value === option.value ? "sc-active" : ""} onClick={() => onChange(option.value)}>
+      {option.icon && <Icon name={option.icon} />}{option.label}
+    </button>)}
+  </div>;
+}
+export function Drawer({ title, onClose, children, footer }: {
+  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode;
+}) {
+  return <aside className="sc-drawer" aria-label={title}>
+    <div className="sc-drawer-head"><strong>{title}</strong><IconButton icon="x-lg" label="Close pane" onClick={onClose} /></div>
+    <div className="sc-drawer-body">{children}</div>
+    {footer && <div className="sc-drawer-foot">{footer}</div>}
+  </aside>;
+}
+export function Empty({ icon, children, action }: { icon: string; children: ReactNode; action?: ReactNode }) {
+  return <div className="sc-empty"><Icon name={icon} /><p>{children}</p>{action}</div>;
 }
 export function Pager({ page, hasMore, onChange, disabled = false }: {
   page: number; hasMore: boolean; onChange: (page: number) => void; disabled?: boolean;
 }) {
-  return <nav className="sc-toolbar sc-pager" aria-label="Pagination">
-    <button disabled={disabled || page === 0} aria-label="Previous page" title="Previous page" onClick={() => onChange(page - 1)}><Icon name="chevron-left" /></button>
-    <span>Page {page + 1} · up to 25 rows</span>
-    <button disabled={disabled || !hasMore} aria-label="Next page" title="Next page" onClick={() => onChange(page + 1)}><Icon name="chevron-right" /></button>
+  if (page === 0 && !hasMore) return null;
+  return <nav className="sc-row sc-pager" aria-label="Pagination">
+    <IconButton icon="chevron-left" label="Previous page" disabled={disabled || page === 0} onClick={() => onChange(page - 1)} />
+    <span className="sc-tiny">Page {page + 1}</span>
+    <IconButton icon="chevron-right" label="Next page" disabled={disabled || !hasMore} onClick={() => onChange(page + 1)} />
   </nav>;
 }

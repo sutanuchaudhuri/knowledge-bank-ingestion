@@ -66,3 +66,40 @@ def test_incomplete_cognito_source_does_not_write_anything(tmp_path):
     with pytest.raises(ValueError):
         setup.prepare(target, "cognito", "http://localhost:5186", source=source, apply=True)
     assert not target.exists()
+
+
+def test_generated_password_is_saved_hashed_and_rotates_without_prompt(tmp_path, monkeypatch):
+    target = tmp_path / ".env"
+    target.write_text("UNRELATED=keep\n")
+    monkeypatch.setattr(setup.getpass, "getpass", lambda prompt: pytest.fail("must not prompt"))
+    keys = setup.prepare(target, "local", "http://127.0.0.1:5186", generate_password=True)
+    assert "SOCRATIC_LOCAL_PASSWORD" in keys and target.read_text() == "UNRELATED=keep\n"
+    setup.prepare(target, "local", "http://127.0.0.1:5186", generate_password=True, apply=True)
+    first = dotenv_values(target, interpolate=False)
+    password = first["SOCRATIC_LOCAL_PASSWORD"]
+    assert 12 <= len(password.encode()) <= 72
+    assert bcrypt.checkpw(password.encode(), first["SOCRATIC_LOCAL_PASSWORD_HASH"].encode())
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    setup.prepare(target, "local", "http://127.0.0.1:5186", generate_password=True, apply=True)
+    second = dotenv_values(target, interpolate=False)
+    assert second["SOCRATIC_LOCAL_PASSWORD"] != password
+    assert not bcrypt.checkpw(password.encode(), second["SOCRATIC_LOCAL_PASSWORD_HASH"].encode())
+
+
+def test_credentials_only_preserves_cognito_mode_and_origins(tmp_path):
+    target = tmp_path / ".env"
+    target.write_text('SOCRATIC_AUTH_MODE="cognito"\nSOCRATIC_ALLOWED_ORIGINS=\'["http://127.0.0.1:5186"]\'\n'
+                      'SOCRATIC_COOKIE_SECURE="false"\nSOCRATIC_SESSION_SECONDS="600"\n')
+    setup.prepare(target, "local", "http://127.0.0.1:5186", generate_password=True,
+                  credentials_only=True, apply=True)
+    values = dotenv_values(target, interpolate=False)
+    assert values["SOCRATIC_AUTH_MODE"] == "cognito"
+    assert values["SOCRATIC_SESSION_SECONDS"] == "600"
+    assert values["SOCRATIC_LOCAL_USERNAME"] == "local-author"
+    assert bcrypt.checkpw(values["SOCRATIC_LOCAL_PASSWORD"].encode(),
+                          values["SOCRATIC_LOCAL_PASSWORD_HASH"].encode())
+
+
+def test_generation_is_rejected_for_cognito_mode(tmp_path):
+    with pytest.raises(ValueError):
+        setup.prepare(tmp_path / ".env", "cognito", "https://studio.example.test", generate_password=True)

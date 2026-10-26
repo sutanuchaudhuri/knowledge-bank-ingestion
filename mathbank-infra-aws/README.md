@@ -32,6 +32,14 @@ cd ../mathbank-rest
   --url https://tzgysffipx6fiomvaqpcxzlxqu0gozfp.lambda-url.us-east-2.on.aws/
 ```
 
+Root shortcuts: `make socratic-deploy` (builds the SPA first), `make socratic-verify`
+(resolves `StudioUrl`), `make socratic-diff`, `make socratic-outputs` and
+`make socratic-destroy`. Because this is a separate CDK app, the shared
+`make destroy`/`outputs` never include it; here use `make diff-socratic`,
+`make outputs-socratic` or `make destroy-socratic`. Destroy removes only this stack;
+seeded SSM secrets, the retention-managed log group, the bootstrap ECR image and
+Neon `orchestration.*` rows remain.
+
 Seed reads only Postgres password, Cognito client secret and dedicated CSRF
 secret from REST's private configuration, verifies the authorized account and
 writes selected SSM SecureStrings. The public origin is a separate non-secret
