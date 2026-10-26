@@ -1,6 +1,6 @@
 ---
 name: modern-ui-design
-description: 'Design and revamp MathBank web UIs (mathbank-web, mathbank-live, mathbank-widgets, mathbank-exam-web) into a modern, wide, low-clutter, student-friendly interface: consistent theme tokens, Inter font, Bootstrap Icons, pills instead of prose, explanation highlights, pagination, master-detail and drill-down, breadcrumbs, sidebar menu, avatars, analytics dashboards, fewer buttons, natural-language input with the microphone inside the composer, and the LaTeX/KaTeX math presentation contract (delimiters, normalisation of control-character-damaged TeX, no choices or Markdown in a question stem). Use when asked to restyle, modernise, declutter, add a page, fix broken math rendering, or review UI consistency.'
+description: 'Design and revamp MathBank web UIs (mathbank-web, mathbank-live, mathbank-widgets, mathbank-exam-web, mathbank-socratic-admin, mathbank-ml-frontend) into one calm, wide, low-clutter workspace look: rail + searchable sidebar + canvas + detail drawer, full-width focus view with selection tray for search/select, preview sidecar, scoped micro chat, real-estate budget, typography roles, consistent theme tokens, Inter font, Bootstrap Icons, pills instead of prose, explanation highlights, pagination, master-detail and drill-down, breadcrumbs, sidebar menu, avatars, analytics dashboards, fewer buttons, natural-language input with the microphone inside the composer, and the LaTeX/KaTeX math presentation contract (delimiters, normalisation of control-character-damaged TeX, no choices or Markdown in a question stem). Use when asked to restyle, modernise, declutter, add a page, fix broken math rendering, or review UI consistency.'
 argument-hint: 'Optional scope: a route (/learn, /admin/...), a package (mathbank-live), or "audit" for a review-only pass'
 ---
 
@@ -8,8 +8,10 @@ argument-hint: 'Optional scope: a route (/learn, /admin/...), a package (mathban
 
 Students use this every day, often on a laptop beside a notebook. Every screen must be
 **calm, wide, scannable and quick to act on**. This skill is the contract for UI work in
-`mathbank-web/`, `mathbank-live/`, `mathbank-exam-web/` and the shared `mathbank-widgets/`
-package. The requirement and progress record is `requirements/30_MODERN_UI_DESIGN_SYSTEM.md`.
+`mathbank-web/`, `mathbank-live/`, `mathbank-exam-web/`, `mathbank-socratic-admin/` (Studio),
+`mathbank-ml-frontend/` and the shared `mathbank-widgets/` package. The **workspace shell standard**
+(layout zones, navigation, drawers, focus view, sidecar, micro chat, templates and examples) is in
+[WORKSPACE_SHELL.md](WORKSPACE_SHELL.md) and applies to every module. The requirement and progress record is `requirements/30_MODERN_UI_DESIGN_SYSTEM.md`.
 
 `mathbank-exam-web` is a separate Vite app with its own `src/theme.css`, but it is governed by
 this same contract — especially the math presentation rules below, since every screen it renders
@@ -70,6 +72,9 @@ is mathematical content produced by an LLM.
 | Microphone | `mic` / `mic-fill` (recording) | Listen | `volume-up` |
 | Send / Stop | `arrow-up` / `stop-fill` | AI format | `magic` |
 | Diagram | `image` | Diagnosis | `activity` |
+| Micro chat | `chat-square-dots` | Ask AI (proposals) | `stars` |
+| Drawer settings | `sliders` | Close layer | `x-lg` |
+| Search & attach | `search` | Exclude for audience | `slash-circle` |
 
 ## Components (`mathbank-web/app/_components/ui.jsx`)
 
@@ -102,6 +107,31 @@ is mathematical content produced by an LLM.
 - **Student workspaces:** the problem stays visible (sticky on wide screens); the composer
   sits at the bottom of the working column; hints, diagnosis and the solution path go in a right
   rail as `Callout`s and timelines.
+
+## Workspace shell standard (all modules)
+
+Approved 2026-10-25 from the Socratic Studio: **this look must be consistent across every module.**
+Full templates, examples and code skeletons: [WORKSPACE_SHELL.md](WORKSPACE_SHELL.md).
+
+- **Zones:** icon rail (56–60px) · searchable sidebar (240–260px) · canvas (reading width ≤ 860px)
+  · drawer (400–440px) · sidecar (400–420px). At most three content zones visible; on phones the
+  sidebar, drawer, sidecar and micro chat become overlays.
+- **One job per surface:** canvas = read/overview, **drawer** = edit one item, **focus view** =
+  search/select at full width with a sticky **selection tray**, **sidecar** = preview or micro chat.
+- **Finder for large libraries (reuse first):** full-width facets · results · inspector/target
+  mini-map, families collapsed, match reason shown, link vs fork chosen at wire time, *find
+  similar* before *Create new* ([WORKSPACE_SHELL §7a](WORKSPACE_SHELL.md)).
+- **Return to origin:** ✕/Esc closes the top-most layer, unsaved edits stay in the draft and
+  keyboard focus returns to the opener.
+- **Typography roles only:** micro label 10/700 caps · kicker 12/650 caps · hero 27–29/720 (the one
+  `h1`) · section 15/700 · body 14 · meta 12 muted · tabular numbers.
+- **Pills/chips by tone meaning** (success = done/approved/saved, warning = needs attention,
+  danger = blocked/excluded, primary = current, neutral = metadata); ≤ 3 per row; never prose.
+- **Micro chat** is a separate module scoped to one item (step, quiz item, video, exam question,
+  or the student's current step): context chip, quick-prompt pills, `MathComposer` with mic/send
+  inside, AI changes only as *Apply/Dismiss* proposal cards, thread per item, Esc to close.
+- The existing `mathbank-web` `AppShell` (248px grouped sidebar) is the student/admin variant of the
+  same zones; new pages adopt drawer/focus-view/sidecar/micro-chat patterns rather than new layouts.
 
 ## Math and LaTeX presentation
 
@@ -234,3 +264,6 @@ or fails the paper closed — never persisted "for review".
       raw text instead of crashing; display math is contained and scrollable.
 - [ ] No answer choices, answer labels or Markdown leaked into a question stem.
 - [ ] No hydration warnings; e2e test ids and names intact; usable at 390px.
+- [ ] Workspace shell: editing in a drawer, search/select in a focus view with a tray, previews
+      and micro chat in the sidecar; ≤ 3 content zones; Esc closes the top layer and focus returns.
+- [ ] Typography roles and pill tones follow [WORKSPACE_SHELL.md](WORKSPACE_SHELL.md) §3 and §6.

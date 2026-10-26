@@ -46,8 +46,9 @@ flowchart TB
         VideoLib[Library: videos]
         ExamsV[Exams: templates / pool / assignments]
         AccessV[Students and groups: exclusions + features]
-        SearchK[Search everything]
+        SearchK[Finder: full-width vector search, inspector, wire link or fork]
         Assistant[AI assistant with tools]
+        MicroChat[Micro chat scoped to a step or quiz item]
     end
 
     subgraph LegacyUI["Existing student and admin apps"]
@@ -69,8 +70,9 @@ flowchart TB
         VideoOrch[Video register + manim orchestration]
         ExamAuthor[Exam templates, pool review, assignments]
         Access[Audience and exclusion module: groups, EXCLUDE rules, feature policies]
-        StaffSearch[Staff hybrid search]
+        StaffSearch[Finder service: hybrid + graph fusion, families, find-similar, usage, lineage]
         Proposals[Proposal jobs + acceptance]
+        MicroChatSvc[micro_chat threads + proposals]
         Hybrid[Problem/concept hybrid search]
         QuizRuntime[Quiz/exam runtime + grading]
     end
@@ -90,7 +92,7 @@ flowchart TB
         PGc[(Postgres corpus, knowledge, pedagogy, activity, quiz, visual, learner)]
         PGn[(Postgres new: studio, exam templates, audience groups, exclusions, feature policy)]
         Vec[(pgvector search.* problems, solutions, steps, learning items)]
-        VecN[(Index new kinds: quizzes, videos, exams, courses, workflows)]
+        VecN[(studio.unit_embedding HNSW: quiz items, quizzes, Socratic steps, step sequences, courses, video segments, exams)]
         Neo[(Neo4j AuraDB graph)]
         Obj[(Object storage videos)]
     end
@@ -102,6 +104,9 @@ flowchart TB
     Shell --> Designer & RulesV & LibraryV & Sim & AskAI
     Designer -.-> QBank
     QBank -.-> StaffSearch
+    Designer -.-> MicroChat
+    MicroChat -.-> MicroChatSvc
+    MicroChatSvc -.-> AgentCore
     Shell -.-> QuizLib & VideoLib & ExamsV & AccessV & SearchK & Assistant
     Designer --> Drafts
     RulesV --> Drafts
@@ -155,7 +160,7 @@ flowchart TB
     classDef retire fill:#fff1f2,stroke:#e11d48,color:#881337,stroke-dasharray:5 5
     class Shell,Designer,RulesV,LibraryV,StaffAuth,Drafts,PGd,Web,ExamWeb,Live,Hybrid,QuizRuntime,Tutor,ExamAgent,Manim,MCP,PGc,Vec,Neo,Obj done
     class Sim,AskAI,Preview,Scorer,PGp,LegacyAdmin partial
-    class QBank,QuizLib,VideoLib,ExamsV,AccessV,SearchK,Assistant,StudioAPI,Catalog,QuizAuthor,VideoOrch,ExamAuthor,Access,StaffSearch,Proposals,AgentCore,SFN,PGn,VecN pending
+    class MicroChat,MicroChatSvc,QBank,QuizLib,VideoLib,ExamsV,AccessV,SearchK,Assistant,StudioAPI,Catalog,QuizAuthor,VideoOrch,ExamAuthor,Access,StaffSearch,Proposals,AgentCore,SFN,PGn,VecN pending
     class WebAdmin retire
 ```
 
@@ -443,7 +448,7 @@ sequenceDiagram
     end
 ```
 
-### 4.5b Step content: search and attach, add existing, create new from template — pending (plan 68 §4.5a–4.5b, P2–P3, semantic in P8)
+### 4.5b Step content: search and attach, add existing, create new from template — pending (plan 68 §4.5a–4.5b, P2–P3, semantic via the Finder in P2b)
 
 ```mermaid
 sequenceDiagram
@@ -655,6 +660,45 @@ sequenceDiagram
     end
 ```
 
+### 4.11 Finder: reuse-first vector search and wiring — pending (plan 68 §4.13, P2b)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor S as Staff
+    participant UI as Studio Finder
+    participant API as REST studio boundary
+    participant IX as Postgres lexical + studio.unit_embedding HNSW
+    participant G as Neo4j
+    participant OB as Outbox + embedding worker
+    rect rgb(220, 252, 231)
+    Note over IX,OB: Existing: representation, chunk, embedding pipeline with outbox jobs (corpus only, no ANN index on search.embedding)
+    end
+    rect rgb(248, 250, 252)
+    S->>UI: Search and attach from step Justify (Finder opens full width)
+    UI->>API: POST /v1/admin/studio/search {query from step intent, context, kinds}
+    par lexical first
+        API->>IX: tsvector + trigram on unit titles and prompts
+    and semantic
+        API->>IX: HNSW cosine top 200 over content, intent and topic vectors
+    and graph
+        API->>G: Reviewed concept and technique neighbours of the step
+    end
+    API-->>UI: RRF fused results, families collapsed, match reasons, facets
+    S->>UI: Inspect a step sequence, then W to wire
+    UI->>API: GET /artifacts/socratic_step/ID/usage and lineage
+    S->>UI: Drop on target slot, choose Fork
+    UI->>API: POST /workflows/ID/insert-units {expected_hash, units, entry_from, exit_to, mode fork}
+    API->>API: Remap node keys and rules, validate draft, record derived_from
+    API-->>UI: New draft hash, Finder closes, focus returns to the step
+    S->>UI: Create new quiz item instead
+    UI->>API: POST /search/similar {draft text}
+    API-->>UI: 3 close matches, reuse instead
+    API->>OB: On save, enqueue unit embedding (lexical row written in same transaction)
+    OB->>IX: Upsert unit vectors, item leaves Indexing state
+    end
+```
+
 ## 5. Status matrix
 
 | Component | Status | Evidence / next action |
@@ -674,8 +718,11 @@ sequenceDiagram
 | Videos from Studio (generate / register existing) | ⬜ Pending (pipeline 🟩) | Plan 68 P5 |
 | Staff exams from content, attached to student/group (D-3, D-3a decided) | ⬜ Pending (student exams 🟩) | Plan 68 P6, uses audience module |
 | Audience module: student groups, content EXCLUDE (exam, question, video, step, course item), feature APPLY/EXCLUDE | ⬜ Pending | Plan 68 P7 (before P6) |
-| Search everything + AI query understanding | ⬜ Pending (problem hybrid search 🟩) | Plan 68 P8 |
+| Finder: unit vector index (incl. Socratic steps, sequences, video segments), hybrid + graph fusion, find-similar/dedupe, where-used, lineage, link/fork/insert-sequence, full-width UI with wire mode | ⬜ Pending (corpus hybrid search 🟩; `search.embedding` has no ANN index) | Plan 68 §4.13, P2b |
+| AI query understanding + rerank on the Finder | ⬜ Pending | Plan 68 P8, D-16 |
 | Studio AI assistant with tools | ⬜ Pending | Plan 68 P9 |
+| Micro chat scoped to one step / quiz item (separate module) | ⬜ Pending | Plan 68 §4.11, P9b |
+| Workspace look consistent across all modules | 🟨 Partial (Studio done) | modern-ui-design `WORKSPACE_SHELL.md`; requirement 30 UI-23–UI-27 |
 | mathbank-web admin quiz/media tabs, `/admin/manim-studio` | 🟥 Retire after parity | Plan 68 P10 |
 
 ## 6. Maintenance

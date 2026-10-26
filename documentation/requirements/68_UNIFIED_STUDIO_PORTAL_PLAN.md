@@ -29,8 +29,13 @@ From one admin app, staff must be able to:
    exam question, course, workflow) with strong, AI-assisted search.
 6. **Question bank during workflow preparation** — from the step being edited, search the question
    bank by similar concept or similar question and fetch/link questions (§4.5a).
-7. **A smart AI assistant** — integrated across all of the above, proposing changes that staff
+7. **Micro chat** — a small AI chat focused on one step or quiz item (separate module, §4.11), and
+   one consistent look across all modules (§4.12).
+8. **A smart AI assistant** — integrated across all of the above, proposing changes that staff
    accept explicitly.
+9. **Reuse at scale** — hundreds of quizzes and mini courses and thousands of Socratic steps must be
+   found with intelligent vector search and **wired** into other workflows, courses and exams
+   instead of being recreated; the Finder gets its own full-width workspace (§4.13).
 
 ## 1. Summary of findings
 
@@ -128,6 +133,7 @@ From one admin app, staff must be able to:
   trigram GIN indexes, retrieval profiles ([002](../../mathbank-db/sql/002_vector_schema.sql)).
   Indexed: problems, solutions, solution steps, learning items. Not indexed: activities, pool
   questions, videos/transcripts, courses, Socratic workflows.
+  `search.embedding.embedding` has no ANN index (unconstrained dimension); see §4.13.
 - `POST /v1/search/problems` fuses semantic + lexical + Neo4j reviewed concept/technique/skill
   evidence with RRF ([hybrid_search.py:18-151](../../mathbank-rest/src/mathbank_rest/db/hybrid_search.py));
   `POST /v1/search/concepts`; theorem search; similar-step search.
@@ -151,6 +157,8 @@ From one admin app, staff must be able to:
 5. **Generation without staff review.** Exam and pool generation are critic-only; anything shown to
    students through a course or workflow needs staff mathematical/pedagogical review (req 65).
 6. **Search covers the corpus, not the artifacts staff build.**
+7. **Reuse has no model.** No lineage, no where-used, no duplicate check — at hundreds of quizzes
+   and thousands of steps, staff will recreate instead of reuse (§4.13).
 
 ## 4. Target design
 
@@ -506,6 +514,139 @@ policy editor. Capability `manage_access`.
 - Hosted Studio stays the isolated `MathBankSocraticStack` (renamed later); REST adapters for legacy
   services are added to the isolated app, keeping the shared REST stack untouched until **D-9**.
 
+### 4.11 Micro chat — AI conversation scoped to one item (separate module)
+
+**Requirement (2026-10-26):** a small chat that focuses on **one step or one quiz item** (also a
+video or exam question), built as its own module so any screen can host it. UI pattern and
+anatomy: [modern-ui-design WORKSPACE_SHELL §8](../../.github/skills/modern-ui-design/WORKSPACE_SHELL.md).
+
+- **Staff (Studio):** *Chat about this* in any item drawer opens the micro chat in the sidecar.
+  Context = the item (kind, id, revision) plus its workflow/step and recent unsaved edits. Typical
+  asks: explain distractors, check the mathematics, add or grade hints, make it harder/easier,
+  suggest a remediation step, find similar items (uses `search_question_bank`).
+- **Students:** an "ask about this step/question" panel in the workspace reusing the tutor agent,
+  with a student-safe context (never answer keys); excluded features (§4.8, e.g. `tutor_chat`)
+  disable it server-side.
+- **Proposal-only:** suggested changes are proposal cards (*Apply to draft* / *Dismiss*) that go
+  through the normal write call with the item's base hash; stale proposals are rejected.
+- **Threads per item and revision** (last 20 messages restored on reopen), budgets per staff member,
+  audit of model, prompt version, item ref and accepted/dismissed proposals.
+- **Module boundary:** `micro_chat` service + router in REST, `orchestration.micro_chat_thread` /
+  `micro_chat_message` / `micro_chat_proposal` tables; the model call goes through the same
+  provider-neutral tool layer as the assistant (§4.9, D-8). The Studio and student apps embed one
+  shared `MicroChat` component (`context`, `audience`, `quickPrompts`, `onApply`).
+
+### 4.12 UI consistency across modules
+
+The Studio's calm workspace look is the standard for **every module** (Studio, mathbank-web student
+and admin pages, exam-web, live, ml-frontend): rail + searchable sidebar + canvas + drawer, full-width
+focus view with a selection tray, preview sidecar, micro chat, typography roles and pill tones.
+The contract and templates live in the [modern-ui-design skill](../../.github/skills/modern-ui-design/SKILL.md)
+and its [WORKSPACE_SHELL.md](../../.github/skills/modern-ui-design/WORKSPACE_SHELL.md); progress is
+tracked as UI-23 – UI-27 in [requirement 30](30_MODERN_UI_DESIGN_SYSTEM.md). Every phase below must
+pass that checklist at 1440/390 px.
+
+### 4.13 Finder — reuse-first vector search and wiring (separate module)
+
+**Requirement (2026-10-26):** the Studio will hold **hundreds of quizzes, hundreds of mini courses
+and thousands of Socratic thinking steps** (plus videos, exam templates, hints, misconceptions).
+Every one of them must be **findable and reusable in other places instead of being recreated**.
+Search is therefore not a sidebar filter but a first-class **Finder** module: vector-based,
+intelligent, given real estate, and able to **wire** what it finds into the thing being built.
+
+**What exists vs what is missing (evidence)**
+
+| Have | Missing for this requirement |
+|---|---|
+| `search.representation → chunk → embedding` pipeline, `text-embedding-3-small` (1536-d), tsvector + trigram GIN on chunks, outbox-driven embedding jobs ([002](../../mathbank-db/sql/002_vector_schema.sql), [vector_search.py](../../mathbank-rest/src/mathbank_rest/db/vector_search.py)) | No Studio artifact is indexed: activities, pool questions, videos, courses, course states, workflows and **individual Socratic steps** |
+| RRF hybrid search for problems/solutions/steps/learning items ([step_search.py](../../mathbank-rest/src/mathbank_rest/db/step_search.py)); "similar step" using the stored vector (no paid call) | `search.embedding.embedding` is an unconstrained `vector` with **no ANN index** — only `knowledge.misconception_embedding` and `pedagogy.taxonomy_node_embedding` got HNSW ([041](../../mathbank-db/sql/041_similarity_embeddings_hnsw_index.sql)); today's corpus queries are exact scans |
+| Reviewed Neo4j concept/technique/skill neighbourhoods used as a fusion signal | No usage / where-used graph, no lineage (copied-from), no duplicate detection at create time |
+
+**Searchable units (granularity matters)**
+
+Reuse happens at the level staff think in, so each of these is its own search unit with its own
+vector(s), not just the parent document:
+
+| Unit | Example | Reused as |
+|---|---|---|
+| `quiz_item` (activity / learning item / pool question) | an AR question on stars and bars | CHECK/PRACTICE/HINT content of a step, exam slot, course quiz |
+| `quiz` (a set) | "Inclusion–exclusion warm-up (6)" | course lesson quiz, exam section |
+| `socratic_step` (one workflow node + its policy, hints, content list) | "Ask the student to justify why the cases are disjoint" | **linked or forked** into another workflow |
+| `step_sequence` (a connected sub-graph of 2–8 steps + internal rules) | the 4-step "count the complement" remediation loop | inserted as a block into another workflow |
+| `workflow`, `course`, `course_state` | a whole micro course or one lesson | linked from another course / prerequisite |
+| `video`, `video_segment` (transcript window with timestamps) | 0:42–1:30 of a Manim render | PRESENT content starting at a timestamp |
+| `hint`, `misconception`, `exam_template` | "students double-count overlaps" | hint library, distractor rationale, exam blueprint |
+
+**Representations per unit (multi-vector)** — embedded text is rendered from structured data, LaTeX
+normalised to readable math, never including answer keys in student-visible indexes:
+1. **Content** — what the student sees (prompt, choices, transcript window, step prompt).
+2. **Intent** — what the item makes the student *think/do* (strategy phase, cognitive move, the
+   misconception it targets, outcome routing). This is what makes "find a step that makes them
+   justify disjointness" work across different problems.
+3. **Topic text** — canonical concept/technique/skill names from `studio.artifact_topic`.
+The query is matched against all three; the best per unit wins (max-sim), then fused.
+
+**Ranking pipeline (one request, ≤ 900 ms p95 target without rerank)**
+
+```
+query (+ context from the step/course being edited)
+  ├─ lexical   : websearch_to_tsquery + trigram on titles/ids          (immediate, no embedding wait)
+  ├─ semantic  : HNSW cosine top-200 over unit vectors, filtered         (pgvector)
+  ├─ graph     : reviewed concept/technique neighbours of the context    (Neo4j, cached)
+  └─ signals   : approved > review > draft, usage count, recency, owner
+        → reciprocal-rank fusion → collapse forks/near-duplicates into one "family" row
+        → optional rerank of top 40 (LLM or cross-encoder, D-16) → facets + highlights
+```
+
+- **Context-aware by default:** opened from a step, the query is pre-filled with the step's intent
+  and topics, results already used in this workflow are marked, and excluded/retired items are
+  filtered (audience rules §4.8 apply only at student runtime, not to staff search).
+- **AI query understanding** (§4.9) turns natural language into editable filter chips.
+- **Scale and indexes:** a typed `studio.unit_embedding(unit_kind, unit_id, revision, rep_kind,
+  embedding vector(1536))` with an HNSW `vector_cosine_ops` index and B-tree on
+  `(unit_kind, status)`; filtered ANN uses pgvector iterative scans (`hnsw.iterative_scan`,
+  pgvector ≥ 0.8 — verify on Neon before P2b) so facets don't starve results. Rows are generated
+  through the existing representation/outbox/job pipeline so freshness, hashing and model versioning
+  stay in one place. At ~50k vectors this is well inside single-node pgvector limits.
+- **Freshness:** lexical rows are written in the same transaction as the artifact; embeddings follow
+  via outbox within a minute (budgeted auto-run). New items show a *Indexing…* pill until embedded.
+- **Cost:** 50k units × 3 representations × ~250 tokens ≈ 37M tokens ≈ **$0.75 one-off** at
+  `text-embedding-3-small` list price; queries are one embedding each (< $0.01/day for staff).
+- **Quality gate:** a golden set of ≥ 60 staff queries (incl. "find a step like this") with judged
+  results; release when recall@10 ≥ 0.8 and nDCG@10 beats lexical-only; click/attach events are
+  logged (`studio.search_event`) for later tuning.
+
+**Reuse semantics — link vs fork (D-15)**
+
+| Action | Effect | When |
+|---|---|---|
+| **Link** (default) | The target stores a typed ref pinned to a revision (§4.2). One source of truth; where-used count increases. When the source gets a new approved revision, every user shows *Update available* (never silent). | Quiz items, videos, hints, whole quizzes, courses |
+| **Fork** | Copies the unit into the target with `derived_from {kind, id, revision}` lineage; edits don't affect the source. Finder groups forks under their family. | Socratic steps/sequences that need local wording or routing |
+| **Create new** | Only after the Finder has shown near matches: creating any artifact runs *find similar* and shows "3 close matches — reuse instead?" (cosine ≥ 0.92 or same normalised prompt). Staff may override; the override is audited. | Genuinely new content |
+
+Inserting a `step_sequence` remaps its internal rules to new node keys, reconnects the entry/exit to
+the steps the author picks, and runs validation before it is added to the draft.
+
+**Where-used and impact**: every unit has a *Used in* list (workflows, steps, courses, exams) from a
+`studio.artifact_usage` read model, so staff can see impact before editing or retiring, and Finder
+can rank by proven reuse.
+
+**Real estate — Finder workspace (UI)** — see the template in
+[WORKSPACE_SHELL §7a](../../.github/skills/modern-ui-design/WORKSPACE_SHELL.md):
+- Takes the **full width** (sidebar and drawer hidden), three panes:
+  facets (220) · results (flex) · **inspector/compare** (380, preview of the focused result with
+  where-used, lineage and a side-by-side *compare with current step*).
+- **Wire mode** (for steps and sequences): the right pane switches to a **mini map of the target**
+  (workflow graph or course outline). Drag a result onto a slot, or select and press *Wire to…*;
+  the drop shows role (CHECK/PRESENT/…) and link-vs-fork before confirming.
+- A sticky **tray** collects selections across searches; *Attach & return* applies them in one
+  CAS write and returns to the opener with focus restored.
+- Result rows are dense but calm: glyph · title · one meta line · ≤ 3 pills (status, kind,
+  *Used 12×*) · match reason ("matches intent: justify disjoint cases").
+- Keyboard: `/` focus search, ↑/↓ move, `Space` select, `Enter` inspect, `W` wire, `Esc` back.
+- Entry points: ⌘K anywhere, *Search & attach* in every drawer, *Find similar* on every card,
+  the create flows (dedupe), and the micro chat tool `search_artifacts`.
+
 ## 5. Automation levels
 
 | Artifact | Manual | Semi-automatic (AI drafts + staff review) | Automatic |
@@ -526,6 +667,8 @@ policy editor. Capability `manage_access`.
 | 057 exams | `quiz.exam_template`, `exam_template_item`, `exam_assignment`; pool `review_state`; paper `exam_template_id`, `assignment_id`; `micro_course_state_exam` |
 | 058 audience | `audience` schema: `student_group`, `student_group_member`, `exclusion_rule`, `feature`, `feature_policy`, audit/outbox (separate module) |
 | 059 search | new representation source types/kinds; search indexes on catalog; assistant proposal + metering tables |
+| 062 finder | `studio.unit_embedding` (typed `vector(1536)`, HNSW cosine, per unit/revision/representation), `studio.artifact_usage` read model, `derived_from` lineage columns, `studio.search_event` (query/click/attach), duplicate-override audit |
+| 061 micro chat | `orchestration.micro_chat_thread`, `micro_chat_message`, `micro_chat_proposal` (item ref + revision, audience, model/prompt version, budget usage) |
 | 060 workflow refs | typed artifact refs in Socratic IR (`socratic.prototype.v2` or additive `activity` object) with v1 compatibility |
 
 ## 7. API contract — which call each screen makes
@@ -618,7 +761,13 @@ Status: **E** = exists today, **N** = new in this plan (phase in brackets).
 |---|---|---|
 | Start preview / answer / hint / reveal / test routing | `POST /workflows/{id}/simulate`, `POST /previews/{id}/respond` · `/assist` · `/reveal` · `/transition`, `GET /previews/{id}` (socratic prefix) | E (local; deploy pending) |
 | Preview as a group or student (exclusions applied) | `POST /workflows/{id}/simulate` `{expected_hash, as:{group_id or student_id}}` | N (P7) |
-| Search everything (⌘K) | `POST /v1/admin/studio/search` | N (P8) |
+| Finder search (⌘K, *Search & attach*) | `POST /v1/admin/studio/search` `{query, context?:{workflow_id, step_key \| course_id}, kinds?, topics?, status?, owner?, used?, limit, cursor}` → `{results[{unit:{kind,id,revision}, title, meta, pills, match_reason, family_size, used_count}], facets, next_cursor}` | N (P2b lexical+vector; P8 AI query/rerank) |
+| Find similar / duplicate check before create | `POST /v1/admin/studio/search/similar` `{unit?:{kind,id}, draft?:{kind, text}, threshold}` → near matches | N (P2b) |
+| Inspector: where used, lineage | `GET /v1/admin/studio/artifacts/{kind}/{id}/usage`, `GET …/lineage` | N (P2b) |
+| Wire selections (link) | `POST /v1/admin/studio/links` `{target:{kind, id, slot?, role}, items[{unit, mode:"link"}], expected_hash}` | N (P2) |
+| Fork a step / insert a step sequence | `POST /v1/admin/studio/workflows/{id}/insert-units` `{expected_hash, units[{kind:"socratic_step"\|"step_sequence", id, revision}], entry_from, exit_to, mode:"fork"}` → validated draft | N (P2b) |
+| Update a pinned link to the newest approved revision | `POST /v1/admin/studio/links/{id}/upgrade` `{expected_hash}` | N (P2b) |
+| Micro chat about an item | `POST /v1/admin/studio/micro-chat/threads` `{context:{kind,id,revision}}` → thread; `POST …/threads/{id}/messages` `{text}` (streamed); `POST …/proposals/{id}/apply` `{expected_hash}` | N (P9) |
 | Ask AI / assistant proposal | `POST /v1/admin/studio/assistant` → `{job_id}`; `GET /jobs/{id}`; accept via the normal write call with the proposal's base hash | N (P9; rule proposals = ledger 04–05) |
 
 **Student apps (not Studio)**
@@ -701,6 +850,10 @@ views, searchable sidebar, step cards with content chips, the step drawer's thre
 full-width focus mode for search / add existing / Library with a selection tray and focus return,
 multi-select results with *Attach to step & return* or *Attach selected* to a course lesson, a preview sidecar using the postMessage
 selection protocol, exams and students & groups with exclusions.
+The **Finder** (rail ⌕, ⌘K or `/`, or *Reuse steps or sequences…* in the step drawer) shows the
+§4.13 layout: facets · results with match reasons and collapsed families · inspector (used in,
+lineage, compare) or **wire mode** with a target mini-map (drag or click a slot), Link/Fork in the
+tray, and *find similar* before *Create new*.
 
 ```mermaid
 flowchart LR
@@ -733,13 +886,15 @@ flowchart LR
 | P0 | 03 ✔ | Synthetic preview + shared scorer (done) | — | — |
 | P1 | 11 | Studio staff boundary generalization; capability additions; adapter pattern; manim/exam endpoints secured | D-1, D-9 | auth/CSRF/capability tests; legacy routes unchanged |
 | P2 | 12 | Artifact catalog + topic junction + backfill; **Library: Quizzes by topic**; **step content section** (ordered content list on nodes, search & attach with multi-select, add existing) and **question bank panel** (lexical + topic search across activities, learning items, pool, corpus; fetch/link); link existing quiz to node/course state; typed refs | P1 | catalog counts reconcile with source tables; link round-trip tests |
+| P2b | 12b | **Finder** (§4.13): unit indexing incl. Socratic steps, step sequences, video segments; typed `vector(1536)` HNSW; hybrid + graph fusion; family collapse; find-similar + dedupe on create; where-used + lineage; link/fork/insert-sequence; full-width Finder with inspector and wire mode | P2, D-15, D-16 | golden staff query set (recall@10 ≥ 0.8); fork/insert validation tests; p95 latency; no answer keys in student-visible indexes |
 | P3 | 13 | Quiz manual create/edit/review/revisions in Studio (all kinds incl. AR); **create new from template on a step** (question + strategy-phase templates, *Use as template*); conversions | P2 | review gating tests; revision pinning; e2e create→link→preview |
 | P4 | 14 | AI quiz drafts (semi-auto) + gap-filling queue; duplicate detection | P3, D-7, D-8 | golden prompts; critic + staff review; budget limits |
 | P5 | 15 | Videos: register existing (upload/YouTube/Vimeo), Manim generate from step, list by topic, link | P2 | upload/oEmbed tests; render pipeline e2e with fixture; approval gating |
 | P6 | 16 | Exams: content-derived templates, pool review, attach to student/group, per-student papers with exclusions applied, EXAM node, results | P3, **P7**, D-4 | assignment window/attempt tests; student flow regression in exam-web |
 | P7 | 17 | **Audience & exclusion module**: student groups, exclusion rules (exam, question, video, step, course item), feature catalog/policies, evaluator, `/v1/me/features`, server-side enforcement, impact preview, effective view | P1, D-5, D-6, D-13 | exclusion + feature enforcement tests per consumer, skip-step routing tests, impact dry-run tests |
-| P8 | 18 | Search everything: indexing new kinds (incl. activity + pool question embeddings for question-bank similarity), similar-concept expansion, staff hybrid search, AI query understanding, ⌘K | P2 | recall/precision eval on staff query set; freshness SLA tests |
+| P8 | 18 | AI layer on the Finder: AI query understanding (editable chips), optional rerank, search-quality tuning from `search_event`, assistant/micro chat use `search_artifacts` | P2 | recall/precision eval on staff query set; freshness SLA tests |
 | P9 | 04–05 + 19 | Assistant with tools on the AgentCore path; proposals for quizzes/links/videos/exams/policies | P4, P8, step 04/05 | eval set pass rate; zero unreviewed writes; cost metering |
+| P9b | 19b | **Micro chat module** (staff sidecar on every item drawer; student step/question panel via tutor agent) | P9 provider layer, P7 feature gating | scoped-context tests (no answer keys to students), proposal apply/stale tests, budget/audit |
 | P10 | 20 | Retire duplicate admin pages (micro-course Quizzes/Media tabs, `/admin/manim-studio`) with redirects to Studio | parity of P2–P7 | parity checklist; no dead links |
 
 P7 (audience module) is delivered **before** P6 exams and can run in parallel with P3–P5. Existing ledger steps 06–10 (live acceptance, full
@@ -798,4 +953,8 @@ the only admin app (**D-10**).
 | D-10 | Should corpus/ingestion admin also move into the Studio later? | Later phase, after P10 |
 | D-11 | Budgets: per-staff daily AI spend and monthly cap values | Set before P4 |
 | D-12 | Video upload size cap and allowed providers (YouTube, Vimeo, internal) | 500 MB; YouTube + Vimeo + internal |
+| D-14 | ✅ **Decided (2026-10-26):** micro chat ships for **staff first** (P9b); the student "ask about this step" panel follows once tutor-agent scoping is verified to never reveal answer keys | — |
 | D-13 | Excluded workflow step routing | Follow its ALWAYS rule, else first SUCCESS rule, else fallback; warn when it bypasses a mandatory assessment |
+| D-15 | Default reuse mode: **link** (pinned revision, *Update available* notices) vs **fork** (copy with lineage) | Link for quiz items, quizzes, videos, hints, courses; **fork** for Socratic steps and step sequences |
+| D-16 | Rerank top results with an LLM / cross-encoder, or fusion only | Fusion only in P2b; add rerank in P8 if the golden set shows nDCG gain worth the latency/cost |
+| D-17 | Duplicate threshold that triggers "reuse instead?" on create | cosine ≥ 0.92 or identical normalised prompt; staff can override (audited) |

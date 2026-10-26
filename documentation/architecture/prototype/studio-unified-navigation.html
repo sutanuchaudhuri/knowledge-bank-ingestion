@@ -68,7 +68,15 @@ details>summary{cursor:pointer;color:var(--muted);font-size:12px;font-weight:600
 .facets label.row{display:flex;flex-wrap:nowrap;align-items:center}
 .target{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:6px}
 .target button{text-align:left}
-@media(max-width:900px){.focusbody{grid-template-columns:1fr}.facets{display:none}}
+.focusbody.finder{grid-template-columns:220px minmax(0,1fr) 380px}
+.insp{border-left:1px solid var(--line);padding:16px;overflow:auto;display:grid;gap:10px;align-content:start;background:#fff}
+.res.cur{outline:2px solid var(--p);outline-offset:1px}.res[draggable=true]{cursor:grab}
+.why{font-size:12px;color:var(--pi)}.fam{margin-left:22px;display:grid;gap:6px}
+.slot{border:1.5px dashed #c7d2fe;border-radius:10px;padding:8px 10px;background:var(--ps);color:var(--pi);text-align:left;width:100%}
+.slot.on{border-style:solid;border-color:var(--p);background:#e0e7ff}.slot.drag{background:#c7d2fe}
+.mnode{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;font-size:13px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}.seg button{border:0;background:#fff;padding:6px 10px}.seg button[aria-pressed=true]{background:var(--ps);color:var(--pi);font-weight:600}
+@media(max-width:900px){.focusbody,.focusbody.finder{grid-template-columns:1fr}.facets{display:none}.insp{border-left:0;border-top:1px solid var(--line)}}
 @media(max-width:900px){.app{grid-template-columns:52px minmax(0,1fr)}.side{display:none}.drawer,.sidecar{position:fixed;right:0;top:60px;bottom:0;width:min(440px,calc(100vw - 52px));box-shadow:-10px 0 30px #0002;z-index:5}.sidecar{z-index:6}}
 </style>
 </head>
@@ -81,6 +89,7 @@ details>summary{cursor:pointer;color:var(--muted);font-size:12px;font-weight:600
     <button data-view="exams" title="Exams" aria-label="Exams">✎</button>
     <button data-view="groups" title="Students &amp; groups" aria-label="Students and groups">☺</button>
     <button data-view="sim" title="Student simulator" aria-label="Student simulator">▶</button>
+    <button id="finderRail" title="Finder — search &amp; reuse everything (⌘K or /)" aria-label="Finder">⌕</button>
   </nav>
   <aside class="side" aria-label="Workspace search">
     <h2>Socratic Studio</h2>
@@ -119,6 +128,17 @@ const BANK = [
   { id: "li-88", kind: "Textbook", label: "Numeric", title: "Count arrangements of 4 stars and 2 bars", src: "Textbook item", state: "Approved", topics: "Bijections", attachable: true },
   { id: "c-amc", kind: "Corpus", label: "Problem", title: "AMC 10 #9 — distributing identical coins", src: "Competition corpus", state: "Inspiration", topics: "Stars and bars", attachable: false },
 ];
+// Finder units (plan 68 §4.13): every quiz item, quiz, Socratic step, step sequence, video segment and course is searchable and reusable.
+const UNITS = [
+  { id: "st-412", kind: "Socratic step", glyph: "◇", title: "Justify why the cases are disjoint", wf: "Inclusion–Exclusion r2", status: "Approved", used: 12, fam: 3, why: "matches intent: justify a counting argument", text: "Ask the student to explain why no arrangement is counted twice before adding the cases.", lineage: "Original · forks in Pigeonhole r1, Derangements r3" },
+  { id: "sq-77", kind: "Step sequence", glyph: "⧉", title: "Count the complement loop (4 steps)", wf: "Inclusion–Exclusion r2", status: "Approved", used: 5, fam: 1, why: "matches intent + topic: bijections", text: "Notice → count total → count the bad cases → subtract, with a retry rule back to ‘count the bad cases’.", lineage: "Original", seq: ["Notice the complement", "Count all arrangements", "Count the bad cases", "Subtract and check"] },
+  { id: "st-519", kind: "Socratic step", glyph: "◇", title: "Map each solution to stars and bars", wf: "Stars and Bars r4", status: "Approved", used: 2, fam: 1, why: "same topic · used here already", text: "Show 5 stars and 2 bars; ask which solution this picture encodes.", lineage: "Original", here: true },
+  { id: "a-17", kind: "Quiz item", glyph: "▤", title: "x+y+z=5 has 21 solutions · Assertion–Reason", wf: "Course quiz", status: "Approved", used: 7, fam: 2, why: "matches content: stars and bars", text: "A: x+y+z=5 has 21 nonnegative solutions. R: each solution matches 5 stars and 2 bars.", lineage: "Original · 1 near-duplicate (0.94)" },
+  { id: "q-9", kind: "Quiz", glyph: "▦", title: "Stars and bars warm-up (6 items)", wf: "SB-101 · Lesson 1", status: "Approved", used: 3, fam: 1, why: "matches topic", text: "Six items from single choice to numeric.", lineage: "Original" },
+  { id: "vs-3", kind: "Video segment", glyph: "▶", title: "Explainer 0:42–1:30 · bars as separators", wf: "Stars and bars explainer", status: "Approved", used: 4, fam: 1, why: "transcript matches ‘separators’", text: "Transcript: “…each bar separates one box from the next…”", lineage: "Segment of video v-12" },
+  { id: "st-801", kind: "Socratic step", glyph: "◇", title: "Generalise to n identical objects", wf: "Draft · Compositions", status: "Indexing…", used: 0, fam: 1, why: "lexical match (vector pending)", text: "Ask for the formula when 5 becomes n.", lineage: "Original" },
+];
+const FAMILY = { "st-412": ["Pigeonhole r1 · fork (edited wording)", "Derangements r3 · fork (extra hint)"], "a-17": ["Exam bank p-311 · near-duplicate 0.94"] };
 const TEMPLATES = [
   ["Assertion–Reason", "Justify the key claim"], ["Single choice", "Check one idea"], ["Multiple select", "Several correct statements"],
   ["Numeric", "Compute a count"], ["Written reasoning", "Explain why (not auto-scored)"], ["Strategy: Discover", "Notice a pattern"],
@@ -163,6 +183,7 @@ function renderCanvas() {
 // Focus mode: search / add existing / library take the full width; select, then return to where you came from.
 function openFocus(kind, origin) {
   S.focus = kind; S.origin = origin; S.selected.clear(); S.target = null;
+  if (kind === "finder") { S.kinds = new Set(["Socratic step", "Step sequence", "Quiz item", "Quiz", "Video segment"]); S.hideHere = origin === "step"; S.fq = ""; S.cur = null; S.wire = false; S.slot = null; S.mode = null; S.dupe = false; }
   document.querySelector(".app").classList.add("focus"); $("drawer").hidden = true; renderFocus();
   setTimeout(() => $("fq")?.focus(), 0);
 }
@@ -172,9 +193,58 @@ function closeFocus(message) {
   // Return focus to where the editor started so keyboard users continue in place.
   if (S.origin === "step") { openDrawer("step"); $("stepContent")?.focus(); }
   else if (S.origin === "library") $("libOpen")?.focus();
+  else if (S.origin === "rail") $("finderRail")?.focus();
   if (message) toast(message);
 }
+function finderHits() {
+  const q = (S.fq ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+  return UNITS.filter(u => S.kinds.has(u.kind) && (!S.hideHere || !u.here) && q.every(w => (u.title + u.text + u.kind + u.wf).toLowerCase().includes(w)));
+}
+const defaultMode = u => /step|sequence/i.test(u.kind) ? "fork" : "link";
+function renderFinder() {
+  const s = step(), hits = finderHits(), cur = UNITS.find(u => u.id === S.cur) || hits[0];
+  if (cur) S.cur = cur.id;
+  const kinds = ["Socratic step", "Step sequence", "Quiz item", "Quiz", "Video segment"];
+  const facets = `<div class="sub" style="font-weight:700">Kind</div>${kinds.map(k => `<label class="row" style="font-weight:400"><input type="checkbox" data-kind="${k}" ${S.kinds.has(k) ? "checked" : ""}> ${k}</label>`).join("")}
+    <label>Status<select class="f"><option>Approved + drafts</option><option>Approved only</option></select></label>
+    <label>Topic<select class="f"><option>Combinatorics · counting</option><option>All topics</option></select></label>
+    <label class="row" style="font-weight:400"><input type="checkbox" id="hideHere" ${S.hideHere ? "checked" : ""}> Hide items already used here</label>
+    <label>Sort<select class="f"><option>Best match</option><option>Most reused</option><option>Newest</option></select></label>`;
+  const rows = hits.map(u => `<div class="res${S.selected.has(u.id) ? " sel" : ""}${u.id === S.cur ? " cur" : ""}" draggable="true" data-unit="${u.id}" tabindex="0" aria-label="${esc(u.title)}">
+      <input type="checkbox" aria-label="Select ${esc(u.title)}" data-sel="${u.id}" ${S.selected.has(u.id) ? "checked" : ""}>
+      <div><div class="t">${u.glyph} ${esc(u.title)}</div><span class="sub">${u.kind} · ${esc(u.wf)}${u.fam > 1 ? ` · <button class="btn link" data-fam="${u.id}">${u.fam - 1} more in family ${S.openFam === u.id ? "▴" : "▾"}</button>` : ""}</span>
+      <div class="why">↳ ${esc(u.why)}</div>
+      <div class="chips"><span class="pill ${u.status === "Approved" ? "ok" : "warn"}">${u.status}</span>${u.used ? `<span class="pill">Used ${u.used}×</span>` : ""}${u.here ? '<span class="pill">In this workflow</span>' : ""}</div>
+      ${S.openFam === u.id ? `<div class="fam">${(FAMILY[u.id] || []).map(f => `<span class="sub">• ${esc(f)}</span>`).join("")}</div>` : ""}</div>
+      <button class="btn" data-inspect="${u.id}">Inspect</button></div>`).join("") || '<div class="sub">No matches. Try fewer words or more kinds.</div>';
+  const create = `<div class="card"><div class="row between"><b>Nothing fits?</b><button class="btn" id="createNew">＋ Create new…</button></div>${S.dupe ? `<div class="hint warn">2 close matches — reuse instead? “Justify why the cases are disjoint” (0.93), “Map each solution to stars and bars” (0.91). <button class="btn link" id="createAnyway">Create anyway (audited)</button></div>` : '<span class="sub">Creating runs find-similar first.</span>'}</div>`;
+  let pane;
+  if (S.wire) {
+    const nodes = S.steps.map(x => `<div class="mnode">${x.glyph} ${esc(x.title)}${cur && !/step|sequence/i.test(cur.kind) ? ` <button class="slot${S.slot === "in:" + x.key ? " on" : ""}" data-slot="in:${x.key}" data-label="${esc(x.title)}">Attach here as ${cur.kind === "Video segment" ? "PRESENT" : "CHECK / PRACTICE"}</button>` : ""}</div>${/step|sequence/i.test(cur?.kind || "") ? `<button class="slot${S.slot === "after:" + x.key ? " on" : ""}" data-slot="after:${x.key}" data-label="${esc(x.title)}">＋ Insert after “${esc(x.title)}”</button>` : ""}`).join("");
+    pane = `<div class="row between"><div class="kicker">Wire into · Stars and Bars</div><button class="btn link" id="wireToggle">Inspector</button></div><div class="sub">Drag a result onto a slot, or click a slot. Rules are remapped and the draft is validated before it is added.</div>${nodes}${api("POST /v1/admin/studio/workflows/{id}/insert-units {expected_hash, units, entry_from, exit_to, mode:'fork'}\nPOST /v1/admin/studio/links {target:{kind:'step', id, role}, items:[{unit, mode:'link'}], expected_hash}")}`;
+  } else if (cur) {
+    pane = `<div class="row between"><div class="kicker">Inspector</div><button class="btn link" id="wireToggle">Wire mode (W)</button></div><b>${cur.glyph} ${esc(cur.title)}</b><div class="chips"><span class="pill ${cur.status === "Approved" ? "ok" : "warn"}">${cur.status}</span><span class="pill">${cur.kind}</span></div>
+      <div class="card" style="background:var(--bg)">${esc(cur.text)}</div>${cur.seq ? `<div class="sub">${cur.seq.map((x, i) => `${i + 1}. ${esc(x)}`).join("<br>")}</div>` : ""}
+      <div class="sub"><b>Used in (${cur.used})</b> · ${cur.used ? "Inclusion–Exclusion r2, Pigeonhole r1, SB-101 Lesson 3…" : "not used yet"}</div><div class="sub"><b>Lineage</b> · ${esc(cur.lineage)}</div>
+      ${s && /step/i.test(cur.kind) ? `<details><summary>Compare with current step “${esc(s.title)}”</summary><div class="sub" style="margin-top:6px">Current: ${esc(s.type)} · ${s.content.length} content item(s). Candidate adds a justification prompt and 2 hints.</div></details>` : ""}
+      ${api("GET /v1/admin/studio/artifacts/" + cur.kind.toLowerCase().replace(/ /g, "_") + "/" + cur.id + "/usage\nGET /v1/admin/studio/artifacts/…/lineage")}`;
+  } else pane = '<div class="sub">Select a result to inspect it.</div>';
+  const mode = S.mode || (cur ? defaultMode(cur) : "link");
+  const tray = `<span><b>${S.selected.size}</b> selected</span>
+    <span class="seg" role="group" aria-label="Reuse mode"><button data-mode="link" aria-pressed="${mode === "link"}" title="Pinned reference — one source of truth">Link</button><button data-mode="fork" aria-pressed="${mode === "fork"}" title="Copy with lineage — edit locally">Fork</button></span>
+    <span class="sub">${S.slot ? "Target: " + esc(S.slotLabel) : "Pick a target slot in wire mode"}</span><span class="sp"></span>
+    <button class="btn" id="focusBack">Cancel</button><button class="btn pri" id="wireGo" ${S.selected.size && S.slot ? "" : "disabled"}>Wire &amp; return</button>`;
+  $("canvas").innerHTML = `<div class="focuswrap" aria-label="Finder">
+    <div class="focusbar"><button class="btn" id="focusBack" aria-label="Back (Esc)">← Back</button><div><div class="kicker">Finder · search &amp; reuse</div><div class="sub">${s ? `For step “${esc(s.title)}” · pre-filled from its intent` : "Everything in the Studio · 1,284 steps · 412 quiz items · 96 quizzes · 140 courses"}</div></div><span class="sp"></span><span class="sub">/ search · ↑↓ move · Space select · Enter inspect · W wire · Esc back</span></div>
+    <div class="focusbody finder"><aside class="facets" aria-label="Filters">${facets}</aside>
+      <section class="results" aria-label="Results"><input class="f" id="fq" placeholder="Describe what the student should think or do, a concept, or paste a question…" aria-label="Search" value="${esc(S.fq ?? "")}">
+        <div class="chips">${s ? '<span class="chip">intent: justify ✕</span>' : ""}<span class="chip">topic: counting ✕</span><span class="sub">${hits.length} results · hybrid (words + meaning + concept graph)</span></div>${rows}${create}${api("POST /v1/admin/studio/search {query, context:{workflow_id, step_key}, kinds, status, limit, cursor}\nPOST /v1/admin/studio/search/similar {draft:{kind, text}} (before create)")}</section>
+      <aside class="insp" aria-label="${S.wire ? "Wire target" : "Inspector"}">${pane}</aside></div>
+    <div class="tray" role="region" aria-label="Selection">${tray}</div></div>`;
+  $("canvas").style.padding = "0";
+}
 function renderFocus() {
+  if (S.focus === "finder") return renderFinder();
   const s = step(), lib = S.focus === "library";
   const title = { search: "Search & attach", existing: "Add existing", library: "Quiz library" }[S.focus];
   const context = lib ? "Library · select quizzes, then attach to a course or step" : `For step “${esc(s.title)}” · ${s.type}`;
@@ -231,6 +301,7 @@ function renderDrawer() {
     body = `<div class="kicker">${s.type} · ${s.key}</div><label>Step title<input class="f" value="${esc(s.title)}"></label><label>Student-facing content<textarea class="f">Judge the assertion and the reason separately.</textarea></label>
       <b id="stepContent" tabindex="-1">Step content</b>${s.content.length ? s.content.map((x, i) => `<div class="res" style="grid-template-columns:1fr auto"><div><div class="t">${x.role} · ${esc(x.title)}</div><span class="sub">${x.kind} · ${x.state}</span></div><button class="btn link" data-rm="${i}">Remove</button></div>`).join("") : '<div class="sub">Nothing attached yet.</div>'}
       <div class="three"><button data-path="search">🔎<br>Search &amp; attach</button><button data-path="existing">▦<br>Add existing</button><button data-path="template">＋<br>Create from template</button></div>
+      <button class="btn" id="reuseSteps">⌕ Reuse steps or sequences from other workflows (Finder)…</button>
       <button class="btn" data-path="exclude">⊘ Exclude this step for a group or student IDs…</button>
       ${api("POST /v1/admin/studio/workflows/{id}/steps/" + s.key + "/content\n{expected_hash, items:[{ref, role, order}]}")}`;
     foot = `<button class="btn" data-go="sim">Preview as student</button><button class="btn pri" id="save">Save changes</button>`;
@@ -282,6 +353,8 @@ window.addEventListener("message", e => {
   closeSidecar(); toast("Attached from preview sidecar");
 });
 document.addEventListener("click", e => {
+  const row = e.target.closest(".res[data-unit]");
+  if (row && !e.target.closest("button,input")) { S.cur = row.dataset.unit; renderFinder(); return; }
   const t = e.target.closest("button,input"); if (!t) return;
   if (t.dataset.view) { S.view = t.dataset.view; closeDrawer(); renderCanvas(); }
   else if (t.dataset.go) { S.view = t.dataset.go; renderCanvas(); }
@@ -289,6 +362,18 @@ document.addEventListener("click", e => {
   else if (t.dataset.path === "search" || t.dataset.path === "existing") openFocus(t.dataset.path, "step");
   else if (t.dataset.path) { S.selected.clear(); openDrawer(t.dataset.path); }
   else if (t.id === "focusBack") closeFocus();
+  else if (t.id === "finderRail") { if (!S.focus) openFocus("finder", S.step ? "step" : "rail"); }
+  else if (t.id === "reuseSteps") openFocus("finder", "step");
+  else if (t.dataset.kind) { t.checked ? S.kinds.add(t.dataset.kind) : S.kinds.delete(t.dataset.kind); renderFinder(); }
+  else if (t.id === "hideHere") { S.hideHere = t.checked; renderFinder(); }
+  else if (t.dataset.fam) { S.openFam = S.openFam === t.dataset.fam ? null : t.dataset.fam; renderFinder(); }
+  else if (t.dataset.inspect) { S.cur = t.dataset.inspect; S.wire = false; renderFinder(); }
+  else if (t.id === "wireToggle") { S.wire = !S.wire; S.slot = null; renderFinder(); }
+  else if (t.dataset.slot) { S.slot = t.dataset.slot; S.slotLabel = (t.dataset.slot.startsWith("after") ? "after “" : "into “") + t.dataset.label + "”"; if (!S.selected.size && S.cur) S.selected.add(S.cur); renderFinder(); }
+  else if (t.dataset.mode) { S.mode = t.dataset.mode; renderFinder(); }
+  else if (t.id === "createNew") { S.dupe = true; renderFinder(); }
+  else if (t.id === "createAnyway") { S.step = S.step || "quiz"; S.focus = null; document.querySelector(".app").classList.remove("focus"); renderCanvas(); openDrawer("template"); toast("Override recorded — creating new"); }
+  else if (t.id === "wireGo") wireSelected();
   else if (t.id === "libOpen") { S.step = null; openFocus("library", "library"); }
   else if (t.id === "libNew" || t.id === "newQuiz") { S.step = S.step || "quiz"; if (S.focus) { S.focus = null; document.querySelector(".app").classList.remove("focus"); renderCanvas(); } openDrawer("template"); }
   else if (t.id === "pickTarget") renderTargetPicker();
@@ -332,6 +417,39 @@ document.addEventListener("click", e => {
   else if (t.dataset.rm !== undefined) { step().content.splice(+t.dataset.rm, 1); dirty(); renderCanvas(); renderDrawer(); }
 });
 $("q").addEventListener("input", e => { S.query = e.target.value; renderSide(); });
+function wireSelected() {
+  const [where, key] = S.slot.split(":"), units = [...S.selected].map(id => UNITS.find(u => u.id === id));
+  let added = 0;
+  if (where === "after") {
+    let at = S.steps.findIndex(x => x.key === key) + 1;
+    for (const u of units.filter(u => /step|sequence/i.test(u.kind))) {
+      const mode = S.mode || defaultMode(u);
+      for (const title of u.seq || [u.title]) { S.steps.splice(at++, 0, { key: u.id + "-" + at, title, type: "Discovery", glyph: "◇", content: [{ kind: mode === "fork" ? "Forked" : "Linked", title: (mode === "fork" ? "from " : "→ ") + u.wf, role: mode.toUpperCase(), state: "Approved" }], rule: "After this step, go to the next step (rules remapped on insert)." }); added++; }
+      u.used++;
+    }
+  } else {
+    S.step = key;
+    attach(units.filter(u => !/step|sequence/i.test(u.kind)).map(u => { u.used++; added++; return { kind: u.kind, title: u.title, role: u.kind === "Video segment" ? "PRESENT" : "PRACTICE", state: u.status }; }));
+  }
+  dirty(); S.selected.clear(); closeFocus(added ? `Wired ${added} item(s) ${S.slotLabel}` : "Nothing wired — pick items that fit this slot");
+}
+document.addEventListener("dragstart", e => { const r = e.target.closest?.(".res[data-unit]"); if (r) { e.dataTransfer.setData("text/plain", r.dataset.unit); if (!S.wire) { S.cur = r.dataset.unit; } } });
+document.addEventListener("dragover", e => { const sl = e.target.closest?.(".slot"); if (sl) { e.preventDefault(); sl.classList.add("drag"); } });
+document.addEventListener("dragleave", e => e.target.closest?.(".slot")?.classList.remove("drag"));
+document.addEventListener("drop", e => { const sl = e.target.closest?.(".slot"); if (!sl) return; e.preventDefault(); S.selected.add(e.dataTransfer.getData("text/plain")); sl.click(); });
+document.addEventListener("input", e => { if (e.target.id === "fq" && S.focus === "finder") { S.fq = e.target.value; const pos = e.target.selectionStart; renderFinder(); const f = $("fq"); f.focus(); f.setSelectionRange(pos, pos); } });
+document.addEventListener("keydown", e => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "");
+  if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) { e.preventDefault(); if (S.focus !== "finder") openFocus("finder", S.step && !$("drawer").hidden ? "step" : "rail"); else $("fq")?.focus(); return; }
+  if (S.focus !== "finder" || typing && e.key !== "ArrowDown") return;
+  const ids = finderHits().map(u => u.id), i = ids.indexOf(S.cur);
+  const go = id => { S.cur = id; renderFinder(); document.querySelector(`.res[data-unit="${id}"]`)?.focus(); };
+  if (e.key === "ArrowDown") { e.preventDefault(); go(ids[Math.min(ids.length - 1, i + 1)] || ids[0]); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); go(ids[Math.max(0, i - 1)]); }
+  else if (e.key === " " && S.cur) { e.preventDefault(); S.selected.has(S.cur) ? S.selected.delete(S.cur) : S.selected.add(S.cur); go(S.cur); }
+  else if (e.key === "Enter" && S.cur) { S.wire = false; go(S.cur); }
+  else if (e.key.toLowerCase() === "w") { S.wire = !S.wire; S.slot = null; go(S.cur); }
+});
 document.addEventListener("keydown", e => { if (e.key !== "Escape") return; if (!$("sidecar").hidden) closeSidecar(); else if (S.focus) closeFocus(); else closeDrawer(); });
 renderSide(); renderCanvas();
 </script>

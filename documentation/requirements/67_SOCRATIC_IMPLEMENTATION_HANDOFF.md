@@ -46,8 +46,9 @@ not remove requirements to fit an initial implementation.
 | 09 Visual/attachment integration | PENDING; depends on 03 and 07 | Pending | Reuse widgets/scene/artifact services, immutable reviewed refs, before/after disclosure, source rights/accessibility, safe video adapter; same student/preview resolver. |
 | 10 Remaining framework and pilot | PENDING; depends on 08 and 09 | Pending | All node/assessment kinds, published structural graph, operations/projection/reindex controls, eight domains/20 strategies, S01-S22 and independent SME acceptance. |
 
-Unified-portal steps 11–20 (quizzes, videos, exams, student feature access, search, assistant) are proposed in
-[68](68_UNIFIED_STUDIO_PORTAL_PLAN.md) and are **not started** until its decisions D-1–D-12 are reviewed.
+Unified-portal steps 11–20 plus 12b (quizzes, videos, exams, student feature access, the reuse-first
+vector **Finder**, assistant, micro chat) are proposed in [68](68_UNIFIED_STUDIO_PORTAL_PLAN.md) and are
+**not started** until its open decisions (D-1, D-2, D-4–D-13, D-15–D-17) are reviewed.
 
 Steps 07 and 09 may later proceed independently once their listed prerequisites
 are satisfied; list order alone does not imply an additional dependency.
