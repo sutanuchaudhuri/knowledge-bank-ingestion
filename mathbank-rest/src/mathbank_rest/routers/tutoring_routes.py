@@ -15,6 +15,8 @@ from mathbank_rest.security import get_current_student_id, require_admin_api_key
 from mathbank_rest.step_runtime import RuntimeError_
 
 router = APIRouter(prefix="/v1", tags=["tutoring-routes"])
+# Learner-facing route attempts: served by the runtime profile (the admin authoring routes above stay on `router`).
+student_router = APIRouter(prefix="/v1", tags=["tutoring-routes"])
 
 
 class ReviewRequest(BaseModel):
@@ -185,7 +187,7 @@ def learner_call(operation):
 IdempotencyKey = Header(alias="Idempotency-Key", min_length=1, max_length=200)
 
 
-@router.post("/tutor/route-attempts", status_code=201)
+@student_router.post("/tutor/route-attempts", status_code=201)
 def start(
     body: StartRequest,
     response: Response,
@@ -205,12 +207,12 @@ def start(
     return started.view
 
 
-@router.get("/tutor/route-attempts/{attempt_id}")
+@student_router.get("/tutor/route-attempts/{attempt_id}")
 def current(attempt_id: UUID, student: Annotated[UUID, Depends(get_current_student_id)]):
     return learner_call(lambda store: store.get_route_attempt_view(student, attempt_id))
 
 
-@router.post("/tutor/route-attempts/{attempt_id}/assist")
+@student_router.post("/tutor/route-attempts/{attempt_id}/assist")
 def assist(
     attempt_id: UUID,
     body: AssistRequest,

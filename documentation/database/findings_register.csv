@@ -27,14 +27,14 @@ ACT-E07,activity,E,P2,C3+C6,WP7,WP10 WP4,Y,P2 — GET /v1/live/sessions/{sid}/ac
 ACT-E08,activity,E,P3,C3+C6,WP7,WP10 WP4,Y,P3 — GET /v1/live/sessions/{sid}/activities/{aid}/responses — `staff_actor`,PLANNED,,,
 ACT-E09,activity,E,P3,C3+C6,WP7,WP10 WP4,Y,P3 — GET /v1/learner/live-activities?limit=&offset= — Learner JWT,PLANNED,,,
 ACT-E10,activity,E,P3,C3+C6,WP7,WP10 WP4,Y,P3 — POST /v1/admin/activities/purge-expired — Admin key (X-Admin-Api-Key),PLANNED,,,
-ANL-F01,analytics,F,,C1,WP5,,Y,`analytics.learner_daily_activity`: Outbox consumer only; no learner or admin read endpoint; delete happens via student cascade.,PLANNED,,,
-ANL-S01,analytics,S,P2,C1,WP5,,N,"P2 — Add non-negative CHECKs on all counters (`CHECK (attempts_started >= 0 AND …)` or one per column). Values are only ever incremented (outbox_worker.py:67-75), so a negative num…",PLANNED,,,
-ANL-S02,analytics,S,P2,C1,WP5,,N,P2 — Add `CHECK (steps_succeeded <= steps_evaluated)`. Both are incremented together in one statement; the inequality is the only cross-column invariant.,PLANNED,,,
-ANL-S03,analytics,S,P3,C1,WP5,,N,"P3 — Document the UTC-day semantics or store a learner time zone. `activity_date` is computed in UTC (outbox_worker.py:69); a ""streak"" UI for learners outside UTC would mis-bucket …",PLANNED,,,
-ANL-S04,analytics,S,P3,C1,WP5,,N,"P3 — Provide a rebuild path. The table is derived, yet no script resets `pipeline.outbox_consumption` for consumer `learner_analytics` and truncates the table. A `--rebuild learner…",PLANNED,,,
-ANL-E01,analytics,E,P2,C1,WP5,,Y,P2 — `GET /v1/learner/activity?from=&to=` — Learner JWT,PLANNED,,,
-ANL-E02,analytics,E,P2,C1,WP5,,Y,P2 — `GET /v1/admin/analytics/learner-daily-activity?student_id=&from=&to=` — Admin key (X-Admin-Api-Key),PLANNED,,,
-ANL-E03,analytics,E,P3,C1,WP5,,Y,P3 — `POST /v1/admin/analytics/learner-daily-activity/rebuild` — Admin key (X-Admin-Api-Key),PLANNED,,,
+ANL-F01,analytics,F,,C1,WP5,,Y,`analytics.learner_daily_activity`: Outbox consumer only; no learner or admin read endpoint; delete happens via student cascade.,DONE,08bbfd9,tests/stores/test_wp5_identity.py;tests/stores/test_wp5_outcomes.py;tests/stores/test_wp5_learner_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+ANL-S01,analytics,S,P2,C1,WP5,,N,"P2 — Add non-negative CHECKs on all counters (`CHECK (attempts_started >= 0 AND …)` or one per column). Values are only ever incremented (outbox_worker.py:67-75), so a negative num…",DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py, Resolved on the DynamoDB learner store (the migration target); the PostgreSQL path has no equivalent and retires at WP11.
+ANL-S02,analytics,S,P2,C1,WP5,,N,P2 — Add `CHECK (steps_succeeded <= steps_evaluated)`. Both are incremented together in one statement; the inequality is the only cross-column invariant.,DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py, Resolved on the DynamoDB learner store (the migration target); the PostgreSQL path has no equivalent and retires at WP11.
+ANL-S03,analytics,S,P3,C1,WP5,,N,"P3 — Document the UTC-day semantics or store a learner time zone. `activity_date` is computed in UTC (outbox_worker.py:69); a ""streak"" UI for learners outside UTC would mis-bucket …",DONE,08bbfd9,tests/stores/test_wp5_identity.py;tests/stores/test_wp5_outcomes.py;tests/stores/test_wp5_learner_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+ANL-S04,analytics,S,P3,C1,WP5,,N,"P3 — Provide a rebuild path. The table is derived, yet no script resets `pipeline.outbox_consumption` for consumer `learner_analytics` and truncates the table. A `--rebuild learner…",IN_PROGRESS,,, WP5 partial: rebuild built; the learner-analytics consumer that fills DAILY is not
+ANL-E01,analytics,E,P2,C1,WP5,,Y,P2 — `GET /v1/learner/activity?from=&to=` — Learner JWT,DONE,08bbfd9,tests/stores/test_wp5_identity.py;tests/stores/test_wp5_outcomes.py;tests/stores/test_wp5_learner_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+ANL-E02,analytics,E,P2,C1,WP5,,Y,P2 — `GET /v1/admin/analytics/learner-daily-activity?student_id=&from=&to=` — Admin key (X-Admin-Api-Key),DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+ANL-E03,analytics,E,P3,C1,WP5,,Y,P3 — `POST /v1/admin/analytics/learner-daily-activity/rebuild` — Admin key (X-Admin-Api-Key),IN_PROGRESS,,, WP5 partial: per student only
 ART-F01,artifact_runtime,F,,C4,WP8,WP2,N,"Five of the eleven tables are write-only. `artifact_metadata`, `overlay_state`, `artifact_annotation`, `artifact_lineage` and `validation_result` are populated on every generation …",PLANNED,,,
 ART-F02,artifact_runtime,F,,C4,WP8,WP2,N,"No lifecycle exit. Bundles cannot be unpublished, retired or deleted, and object-store files are never garbage-collected. A wrong published diagram stays visible to learners and th…",PLANNED,,,
 ART-F03,artifact_runtime,F,,C4,WP1,WP8 WP2,Y,"Staff mutations are anonymous and unaudited. `generate`, `publish` and `index` act as `{""role"": ""ADMIN""}` with no actor identity, write no `audit.action_log` row, and set `created_…",DONE,914fdc2,tests/test_wp1_actor_audit.py,security/contract fix to land on the PostgreSQL stores before data is copied (requirement 70 M1)
@@ -267,61 +267,61 @@ KNP-E09,knowledge-problems,E,P2,C6+C7,WP10,WP4 WP1,Y,P2 — GET /v1/admin/pedago
 KNP-E10,knowledge-problems,E,P2,C6+C7,WP10,WP4 WP1,Y,P2 — GET /v1/admin/pedagogy/publications?limit=&offset= — Admin key,PLANNED,,,
 KNP-E11,knowledge-problems,E,P3,C6+C7,WP10,WP4 WP1,Y,P3 — GET /v1/admin/pedagogy/automatic-approvals?kind=&since= — Admin key,PLANNED,,,
 KNP-E12,knowledge-problems,E,P3,C6+C7,WP10,WP4 WP1,Y,P3 — Split POST /v1/admin/pedagogy/publish into POST …/publications (202 + job) — Admin key,PLANNED,,,
-LRN-F01,learner,F,P1,C1,WP5,,Y,F1 — P1: The learner event feed leaks teacher-only evidence.,PLANNED,,,
+LRN-F01,learner,F,P1,C1,WP5,,Y,F1 — P1: The learner event feed leaks teacher-only evidence.,DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py, Resolved on the DynamoDB learner store (the migration target); the PostgreSQL path has no equivalent and retires at WP11.
 LRN-F02,learner,F,P1,C1,WP1,WP5,N,F2 — P1: Cognito onboarding can take over an existing password account.,DONE,914fdc2,tests/test_wp1_identity.py,Takeover closed server-side; clients must send email_verified=true after real verification (exam-agent sign_up still lacks it)
-LRN-F03,learner,F,P1,C1,WP5,,N,F3 — P1: Self-graded outcomes feed mastery.,PLANNED,,,
+LRN-F03,learner,F,P1,C1,WP5,,N,F3 — P1: Self-graded outcomes feed mastery.,IN_PROGRESS,,, WP5 partial: self-graded attempts still accepted; 410 is a product decision
 LRN-F04,learner,F,P2,C1,WP1,WP5,Y,F4 — P2: Anonymous cohort endpoint with k = 1.,DONE,914fdc2,tests/test_wp1_side_effects.py,security/contract fix to land on the PostgreSQL stores before data is copied (requirement 70 M1)
-LRN-F05,learner,F,P2,C1,WP5,,N,"F5 — P2: Account status is not enforced, and erasure is impossible.",PLANNED,,,
-LRN-F06,learner,F,P2,C1,WP5,,N,F6 — P2: `SUBMITTED` solve sessions never reach mastery.,PLANNED,,,
-LRN-F07,learner,F,P2,C1,WP5,,N,F7 — P2: Missing indexes on hot learner paths.,PLANNED,,,
+LRN-F05,learner,F,P2,C1,WP5,,N,"F5 — P2: Account status is not enforced, and erasure is impossible.",DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-F06,learner,F,P2,C1,WP5,,N,F6 — P2: `SUBMITTED` solve sessions never reach mastery.,DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-F07,learner,F,P2,C1,WP5,,N,F7 — P2: Missing indexes on hot learner paths.,IN_PROGRESS,,, WP5 partial: covered by key design; no standalone check
 LRN-F08,learner,F,P3,C1,WP5,,N,F8 — P3: Dead or partly wired columns and tables.,PLANNED,,,
-LRN-F09,learner,F,P3,C1,WP5,,Y,F9 — P3: Side effects and locks on GET.,PLANNED,,,
-LRN-F10,learner,F,P3,C1,WP5,,Y,F10 — P3: Auditing and inline SQL.,PLANNED,,,
+LRN-F09,learner,F,P3,C1,WP5,,Y,F9 — P3: Side effects and locks on GET.,IN_PROGRESS,,, WP5 partial: only the route GET lost its FOR UPDATE
+LRN-F10,learner,F,P3,C1,WP5,,Y,F10 — P3: Auditing and inline SQL.,IN_PROGRESS,,, WP5 partial: covered by the toolkit; no standalone check
 LRN-F11,learner,F,,C1,WP1,WP5,Y,"learner.student_profile: No profile edit, password change or reset, disable or erase. `status` is never enforced on JWT use.",DONE,914fdc2,tests/test_wp1_identity.py,security/contract fix to land on the PostgreSQL stores before data is copied (requirement 70 M1)
-LRN-F12,learner,F,,C1,WP5,,Y,learner.attempt: Not trigger-protected. Bare list without `total`.,PLANNED,,,
-LRN-F13,learner,F,,C1,WP5,,N,learner.concept_mastery: No rebuild job. Recompute is not atomic with the outcome insert.,PLANNED,,,
-LRN-F14,learner,F,,C1,WP5,,Y,"learner.solve_attempt: No ""my sessions"" list. `SUBMITTED` never produces an outcome.",PLANNED,,,
-LRN-F15,learner,F,,C1,WP5,,Y,learner.event: Owner view leaks teacher-only payload fields (F1).,PLANNED,,,
-LRN-F16,learner,F,,C1,WP5,,Y,learner.idempotency_record: No TTL or purge. Only the step runtime uses it.,PLANNED,,,
-LRN-F17,learner,F,,C1,WP5,,Y,learner.micro_course_enrollment: No list of own enrollments; no abandon or restart.,PLANNED,,,
-LRN-F18,learner,F,,C1,WP5,,Y,"learner.micro_course_state_event: No `enrollment_id` index, no idempotency.",PLANNED,,,
-LRN-F19,learner,F,,C1,WP5,,N,learner.interaction_event: Evaluation columns are never written in production.,PLANNED,,,
-LRN-F20,learner,F,,C1,WP5,,N,learner.misconception_evidence: Dead table in production.,PLANNED,,,
-LRN-F21,learner,F,,C1,WP5,,Y,learner.route_attempt: Unbounded duplicates per student and route; no `student_id` index.,PLANNED,,,
-LRN-F22,learner,F,,C1,WP5,,Y,learner.pedagogy_feedback: Review is not audited and stores no reviewer.,PLANNED,,,
-LRN-F23,learner,F,,C1,WP5,,N,learner.agent_session_link: No unlink.,PLANNED,,,
-LRN-S01,learner,S,P1,C1,WP5,,N,P1: Constrain and use `student_profile.status`; add erasure columns.,PLANNED,,,
-LRN-S02,learner,S,P1,C1,WP5,,N,P1: Make `learner.attempt` append-only and constrain `source`.,PLANNED,,,
-LRN-S03,learner,S,P1,C1,WP5,,N,P1: Define an erasure-safe deletion path for the append-only tables.,PLANNED,,,
+LRN-F12,learner,F,,C1,WP5,,Y,learner.attempt: Not trigger-protected. Bare list without `total`.,IN_PROGRESS,,, WP5 partial: covered by key design
+LRN-F13,learner,F,,C1,WP5,,N,learner.concept_mastery: No rebuild job. Recompute is not atomic with the outcome insert.,DONE,08bbfd9,tests/stores/test_wp5_identity.py;tests/stores/test_wp5_outcomes.py;tests/stores/test_wp5_learner_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-F14,learner,F,,C1,WP5,,Y,"learner.solve_attempt: No ""my sessions"" list. `SUBMITTED` never produces an outcome.",DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-F15,learner,F,,C1,WP5,,Y,learner.event: Owner view leaks teacher-only payload fields (F1).,DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py, Resolved on the DynamoDB learner store (the migration target); the PostgreSQL path has no equivalent and retires at WP11.
+LRN-F16,learner,F,,C1,WP5,,Y,learner.idempotency_record: No TTL or purge. Only the step runtime uses it.,DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-F17,learner,F,,C1,WP5,,Y,learner.micro_course_enrollment: No list of own enrollments; no abandon or restart.,DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-F18,learner,F,,C1,WP5,,Y,"learner.micro_course_state_event: No `enrollment_id` index, no idempotency.",DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py, Resolved on the DynamoDB learner store (the migration target); the PostgreSQL path has no equivalent and retires at WP11.
+LRN-F19,learner,F,,C1,WP5,,N,learner.interaction_event: Evaluation columns are never written in production.,DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-F20,learner,F,,C1,WP5,,N,learner.misconception_evidence: Dead table in production.,IN_PROGRESS,,, WP5 partial: misconception evidence is behind a flag; evidence rules are not in mb-content
+LRN-F21,learner,F,,C1,WP5,,Y,learner.route_attempt: Unbounded duplicates per student and route; no `student_id` index.,DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py, Resolved on the DynamoDB learner store (the migration target); the PostgreSQL path has no equivalent and retires at WP11.
+LRN-F22,learner,F,,C1,WP5,,Y,learner.pedagogy_feedback: Review is not audited and stores no reviewer.,DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py, Resolved on the DynamoDB learner store (the migration target); the PostgreSQL path has no equivalent and retires at WP11.
+LRN-F23,learner,F,,C1,WP5,,N,learner.agent_session_link: No unlink.,DONE,08bbfd9,tests/stores/test_wp5_routes.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-S01,learner,S,P1,C1,WP5,,N,P1: Constrain and use `student_profile.status`; add erasure columns.,DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-S02,learner,S,P1,C1,WP5,,N,P1: Make `learner.attempt` append-only and constrain `source`.,DONE,08bbfd9,tests/stores/test_wp5_identity.py;tests/stores/test_wp5_outcomes.py;tests/stores/test_wp5_learner_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-S03,learner,S,P1,C1,WP5,,N,P1: Define an erasure-safe deletion path for the append-only tables.,DONE,aa80a27,tests/stores/test_wp5_admin.py," Erasure deletes the whole partition incl. append-only items via erase_partition (resumable, S3 prefix, sentinels)."
 LRN-S04,learner,S,P2,C1,WP5,,N,P2: Add indexes for the learner hot paths and drop duplicates.,PLANNED,,,
-LRN-S05,learner,S,P2,C1,WP5,,N,"P2: Enforce ""one open"" invariants in the database.",PLANNED,,,
-LRN-S06,learner,S,P2,C1,WP5,,N,P2: Close the event vocabularies.,PLANNED,,,
-LRN-S07,learner,S,P2,C1,WP5,,N,P2: Bind owner columns with composite FKs.,PLANNED,,,
-LRN-S08,learner,S,P2,C1,WP5,,N,P2: Add mastery invariants and a rebuild path.,PLANNED,,,
+LRN-S05,learner,S,P2,C1,WP5,,N,"P2: Enforce ""one open"" invariants in the database.",IN_PROGRESS,,, WP5 partial: route-attempt sentinel done; remaining part open
+LRN-S06,learner,S,P2,C1,WP5,,N,P2: Close the event vocabularies.,IN_PROGRESS,,," WP5 partial: EVENT Literal done, idempotency operation list not"
+LRN-S07,learner,S,P2,C1,WP5,,N,P2: Bind owner columns with composite FKs.,IN_PROGRESS,,, WP5 partial: micro-course types only
+LRN-S08,learner,S,P2,C1,WP5,,N,P2: Add mastery invariants and a rebuild path.,IN_PROGRESS,,, WP5 partial: rebuild primitive done; no bulk job/route wiring
 LRN-S09,learner,S,P3,C1,WP5,,N,P3: Remove or wire the dead columns.,PLANNED,,,
-LRN-S10,learner,S,P3,C1,WP5,,Y,P3: Make feedback review auditable.,PLANNED,,,
-LRN-S11,learner,S,P3,C1,WP5,,N,P3: Add retention for operational stores.,PLANNED,,,
-LRN-E01,learner,E,P1,C1,WP5,,Y,P1 — Change `GET /v1/students/{student_id}/events` (alias `GET /v1/learner/events?attempt_id&after=&limit=`) — Learner JWT,PLANNED,,,
-LRN-E02,learner,E,P1,C1,WP5,,Y,P1 — Change `POST /v1/learner/attempts` → `POST /v1/admin/learner/students/{student_id}/attempts:import` — Admin key,PLANNED,,,
-LRN-E03,learner,E,P1,C1,WP5,,Y,P1 — Change `POST /v1/quiz-integration/students/onboard` — Admin key (target: per-service credential),PLANNED,,,
-LRN-E04,learner,E,P1,C1,WP5,,Y,P1 — `POST /v1/admin/learner/students/{student_id}/disable` · `/reactivate` — Admin key,PLANNED,,,
-LRN-E05,learner,E,P1,C1,WP5,,Y,P1 — `POST /v1/admin/learner/students/{student_id}/erase` — Admin key,PLANNED,,,
-LRN-E06,learner,E,P2,C1,WP5,,Y,P2 — `PATCH /v1/learner/me` — Learner JWT,PLANNED,,,
-LRN-E07,learner,E,P2,C1,WP5,,Y,P2 — `POST /v1/learner/me/password` — Learner JWT,PLANNED,,,
-LRN-E08,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/admin/learner/students?q=&status=&limit&offset` · `GET /v1/admin/learner/students/{student_id}` — Admin key,PLANNED,,,
-LRN-E09,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/admin/learner/students/{student_id}/attempts` · `/mastery` · `/events` · `/solve-attempts` — Admin key,PLANNED,,,
-LRN-E10,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/learner/solve-attempts?status=&limit&offset` — Learner JWT,PLANNED,,,
-LRN-E11,learner,E,P2,C1,WP5,,Y,P2 — `POST /v1/attempts/{attempt_id}/submit` (behaviour change) — Learner JWT,PLANNED,,,
-LRN-E12,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/learner/micro-course-enrollments?status=` · `POST /v1/micro-courses/enrollments/{enrollment_id}/abandon` — Learner JWT,PLANNED,,,
-LRN-E13,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/learner/route-attempts?route_release_id=` and resume semantics on `POST /v1/tutor/route-attempts` — Learner JWT,PLANNED,,,
-LRN-E14,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/learner/feedback` · `POST /v1/learner/feedback/{feedback_id}/withdraw` — Learner JWT,PLANNED,,,
-LRN-E15,learner,E,P2,C1,WP5,,Y,P2 — Change `POST /v1/admin/pedagogy/feedback-review` and `GET /v1/admin/pedagogy/feedback?status=&student_id=&q=` — Admin key,PLANNED,,,
-LRN-E16,learner,E,P2,C1,WP5,,Y,P2 — Change `GET /v1/analytics/weak-concepts` → `GET /v1/admin/analytics/weak-concepts` — Admin key,PLANNED,,,
-LRN-E17,learner,E,P2,C1,WP5,,Y,P2 — `POST /v1/admin/learner/mastery/rebuild?student_id=` — Admin key,PLANNED,,,
-LRN-E18,learner,E,P3,C1,WP5,,Y,P3 — `GET /v1/learner/agent-sessions/{agent_session_id}` · `DELETE /v1/learner/agent-sessions/{agent_session_id}` — Learner JWT,PLANNED,,,
-LRN-E19,learner,E,P3,C1,WP5,,Y,P3 — `GET /v1/admin/learner/interaction-events?enrollment_id=&student_id=&after=` — Admin key,PLANNED,,,
-LRN-E20,learner,E,P3,C1,WP5,,Y,P3 — `GET /v1/learner/misconceptions` · `GET /v1/admin/learner/students/{student_id}/misconceptions` — Learner JWT / Admin key,PLANNED,,,
-LRN-E21,learner,E,P3,C1,WP5,,Y,P3 — `POST /v1/admin/learner/idempotency-records/purge` (or a worker flag) — Admin key,PLANNED,,,
+LRN-S10,learner,S,P3,C1,WP5,,Y,P3: Make feedback review auditable.,DONE,08bbfd9,tests/stores/test_wp5_routes.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-S11,learner,S,P3,C1,WP5,,N,P3: Add retention for operational stores.,IN_PROGRESS,,, WP5 partial: covered by key design
+LRN-E01,learner,E,P1,C1,WP5,,Y,P1 — Change `GET /v1/students/{student_id}/events` (alias `GET /v1/learner/events?attempt_id&after=&limit=`) — Learner JWT,DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E02,learner,E,P1,C1,WP5,,Y,P1 — Change `POST /v1/learner/attempts` → `POST /v1/admin/learner/students/{student_id}/attempts:import` — Admin key,DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E03,learner,E,P1,C1,WP5,,Y,P1 — Change `POST /v1/quiz-integration/students/onboard` — Admin key (target: per-service credential),IN_PROGRESS,,, WP5 partial: per-service credential not done
+LRN-E04,learner,E,P1,C1,WP5,,Y,P1 — `POST /v1/admin/learner/students/{student_id}/disable` · `/reactivate` — Admin key,DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E05,learner,E,P1,C1,WP5,,Y,P1 — `POST /v1/admin/learner/students/{student_id}/erase` — Admin key,DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E06,learner,E,P2,C1,WP5,,Y,P2 — `PATCH /v1/learner/me` — Learner JWT,DONE,08bbfd9,tests/stores/test_wp5_identity.py;tests/stores/test_wp5_outcomes.py;tests/stores/test_wp5_learner_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E07,learner,E,P2,C1,WP5,,Y,P2 — `POST /v1/learner/me/password` — Learner JWT,DONE,08bbfd9,tests/stores/test_wp5_identity.py;tests/stores/test_wp5_outcomes.py;tests/stores/test_wp5_learner_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E08,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/admin/learner/students?q=&status=&limit&offset` · `GET /v1/admin/learner/students/{student_id}` — Admin key,DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E09,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/admin/learner/students/{student_id}/attempts` · `/mastery` · `/events` · `/solve-attempts` — Admin key,DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E10,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/learner/solve-attempts?status=&limit&offset` — Learner JWT,DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E11,learner,E,P2,C1,WP5,,Y,P2 — `POST /v1/attempts/{attempt_id}/submit` (behaviour change) — Learner JWT,DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E12,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/learner/micro-course-enrollments?status=` · `POST /v1/micro-courses/enrollments/{enrollment_id}/abandon` — Learner JWT,DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E13,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/learner/route-attempts?route_release_id=` and resume semantics on `POST /v1/tutor/route-attempts` — Learner JWT,DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py, Resolved on the DynamoDB learner store (the migration target); the PostgreSQL path has no equivalent and retires at WP11.
+LRN-E14,learner,E,P2,C1,WP5,,Y,P2 — `GET /v1/learner/feedback` · `POST /v1/learner/feedback/{feedback_id}/withdraw` — Learner JWT,DONE,08bbfd9,tests/stores/test_wp5_routes.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E15,learner,E,P2,C1,WP5,,Y,P2 — Change `POST /v1/admin/pedagogy/feedback-review` and `GET /v1/admin/pedagogy/feedback?status=&student_id=&q=` — Admin key,DONE,08bbfd9,tests/stores/test_wp5_routes.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E16,learner,E,P2,C1,WP5,,Y,P2 — Change `GET /v1/analytics/weak-concepts` → `GET /v1/admin/analytics/weak-concepts` — Admin key,DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E17,learner,E,P2,C1,WP5,,Y,P2 — `POST /v1/admin/learner/mastery/rebuild?student_id=` — Admin key,IN_PROGRESS,,, WP5 partial: per student only
+LRN-E18,learner,E,P3,C1,WP5,,Y,P3 — `GET /v1/learner/agent-sessions/{agent_session_id}` · `DELETE /v1/learner/agent-sessions/{agent_session_id}` — Learner JWT,DONE,08bbfd9,tests/stores/test_wp5_routes.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E19,learner,E,P3,C1,WP5,,Y,P3 — `GET /v1/admin/learner/interaction-events?enrollment_id=&student_id=&after=` — Admin key,DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E20,learner,E,P3,C1,WP5,,Y,P3 — `GET /v1/learner/misconceptions` · `GET /v1/admin/learner/students/{student_id}/misconceptions` — Learner JWT / Admin key,DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+LRN-E21,learner,E,P3,C1,WP5,,Y,P3 — `POST /v1/admin/learner/idempotency-records/purge` (or a worker flag) — Admin key,DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
 LIV-F01,live,F,,C3,WP7,,Y,Admin key = any instructor = every session. `live_actor` maps the shared admin key to INSTRUCTOR and trusts `X-Actor-Id` for identity (routers/live.py:67–77). There is no per-sessi…,PLANNED,,,
 LIV-F02,live,F,,C3,WP7,,N,"A rejected ACCEPT poisons a recommendation forever. `decide_recommendation` reuses `client_command_id = rec:{rid}`. When the command is rejected (for example a stale version), the …",PLANNED,,,
 LIV-F03,live,F,,C3,WP7,,Y,"Idempotency is not actor-scoped. `command_receipt` is keyed by `(session, client_command_id)` only and returns the stored result without comparing actor or command. A student who r…",PLANNED,,,
@@ -709,17 +709,17 @@ STU-E03,studio,E,P2,C4,WP3,,Y,"P2 — `POST /v1/research-jobs/{id}/cancel`, `POS
 STU-E04,studio,E,P2,C4,WP3,,Y,P2 — `POST /v1/render-jobs/{id}/retry` (and the research equivalent) — Admin key (X-Admin-Api-Key),PLANNED,,,
 STU-E05,studio,E,P3,C4,WP3,,Y,"P3 — `GET /v1/render-jobs` — add `offset`, `total` — Admin key (X-Admin-Api-Key)",PLANNED,,,
 STU-E06,studio,E,P3,C4,WP3,,Y,P3 — `DELETE /v1/render-jobs/{id}` — Admin key (X-Admin-Api-Key),PLANNED,,,
-TUT-F01,tutor,F,,C1,WP5,,Y,"`tutor.micro_course_runtime`: Created on enroll, moved on advance; delete only by enrollment cascade (intended). No admin ""reset learner position"" action.",PLANNED,,,
-TUT-F02,tutor,F,,C1,WP5,,Y,`tutor.runtime_state`: Fully driven by the step-runtime endpoints; delete only by session cascade. Admin has no direct read except through `/v1/admin/recovery-plans` summaries.,PLANNED,,,
-TUT-S01,tutor,S,P1,C1,WP5,,N,P1 — Index `tutor.runtime_state` by `solve_attempt_id`. Make `solve_attempt_id` the PK (it is 1:1 with the session) or add `UNIQUE (solve_attempt_id)`. Every runtime mutation (`_bu…,PLANNED,,,
-TUT-S02,tutor,S,P2,C1,WP5,,N,"P2 — Drop the redundant `student_id` and `current_problem_id` from `tutor.runtime_state`, or constrain them. Both duplicate `learner.solve_attempt` (written together at step_runtim…",PLANNED,,,
-TUT-S03,tutor,S,P2,C1,WP5,,N,P2 — Set `current_mode` on abandonment. `abandon_stale_attempts` (step_runtime.py:470-490) updates `solve_attempt.status` and aborts plans but leaves the checkpoint in `SOLVING` / …,PLANNED,,,
-TUT-S04,tutor,S,P3,C1,WP5,,N,"P3 — Remove or implement dead columns. These are never written by any code: `runtime_state.last_agent_turn_id`, `micro_course_runtime.current_video_asset_id`, `current_video_time_m…",PLANNED,,,
-TUT-S05,tutor,S,P3,C1,WP5,,N,"P3 — Add `CHECK (state_version >= 1)` and `CHECK (current_video_time_ms IS NULL OR current_video_time_ms >= 0)` to `tutor.micro_course_runtime`, for parity with `tutor.runtime_stat…",PLANNED,,,
-TUT-S06,tutor,S,P3,C1,WP5,,N,"P3 — Enforce release membership of `current_state_id`. Today only the service checks that the state belongs to the enrollment's pinned release. A composite FK `(release_id, current…",PLANNED,,,
-TUT-E01,tutor,E,P2,C1,WP5,,Y,P2 — `GET /v1/admin/attempts/{attempt_id}/runtime` — Admin key (X-Admin-Api-Key),PLANNED,,,
-TUT-E02,tutor,E,P2,C1,WP5,,Y,P2 — `POST /v1/admin/micro-courses/enrollments/{enrollment_id}/reset` — Admin key (X-Admin-Api-Key),PLANNED,,,
-TUT-E03,tutor,E,P3,C1,WP5,,Y,P3 — `GET /v1/admin/micro-courses/enrollments/{enrollment_id}` — Admin key (X-Admin-Api-Key),PLANNED,,,
+TUT-F01,tutor,F,,C1,WP5,,Y,"`tutor.micro_course_runtime`: Created on enroll, moved on advance; delete only by enrollment cascade (intended). No admin ""reset learner position"" action.",DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+TUT-F02,tutor,F,,C1,WP5,,Y,`tutor.runtime_state`: Fully driven by the step-runtime endpoints; delete only by session cascade. Admin has no direct read except through `/v1/admin/recovery-plans` summaries.,DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+TUT-S01,tutor,S,P1,C1,WP5,,N,P1 — Index `tutor.runtime_state` by `solve_attempt_id`. Make `solve_attempt_id` the PK (it is 1:1 with the session) or add `UNIQUE (solve_attempt_id)`. Every runtime mutation (`_bu…,DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+TUT-S02,tutor,S,P2,C1,WP5,,N,"P2 — Drop the redundant `student_id` and `current_problem_id` from `tutor.runtime_state`, or constrain them. Both duplicate `learner.solve_attempt` (written together at step_runtim…",DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+TUT-S03,tutor,S,P2,C1,WP5,,N,P2 — Set `current_mode` on abandonment. `abandon_stale_attempts` (step_runtime.py:470-490) updates `solve_attempt.status` and aborts plans but leaves the checkpoint in `SOLVING` / …,IN_PROGRESS,,, WP5 partial: abandoned attempts abort open plans; needs the daily schedule wired
+TUT-S04,tutor,S,P3,C1,WP5,,N,"P3 — Remove or implement dead columns. These are never written by any code: `runtime_state.last_agent_turn_id`, `micro_course_runtime.current_video_asset_id`, `current_video_time_m…",DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+TUT-S05,tutor,S,P3,C1,WP5,,N,"P3 — Add `CHECK (state_version >= 1)` and `CHECK (current_video_time_ms IS NULL OR current_video_time_ms >= 0)` to `tutor.micro_course_runtime`, for parity with `tutor.runtime_stat…",DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py,
+TUT-S06,tutor,S,P3,C1,WP5,,N,"P3 — Enforce release membership of `current_state_id`. Today only the service checks that the state belongs to the enrollment's pinned release. A composite FK `(release_id, current…",DONE,08bbfd9,tests/stores/test_wp5_microcourse.py;tests/stores/test_wp5_gate_zero_postgres.py,
+TUT-E01,tutor,E,P2,C1,WP5,,Y,P2 — `GET /v1/admin/attempts/{attempt_id}/runtime` — Admin key (X-Admin-Api-Key),DONE,08bbfd9,tests/stores/test_wp5_solve.py;tests/stores/test_wp5_solve_parity.py;tests/stores/test_wp5_gate_zero_postgres.py,
+TUT-E02,tutor,E,P2,C1,WP5,,Y,P2 — `POST /v1/admin/micro-courses/enrollments/{enrollment_id}/reset` — Admin key (X-Admin-Api-Key),DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
+TUT-E03,tutor,E,P3,C1,WP5,,Y,P3 — `GET /v1/admin/micro-courses/enrollments/{enrollment_id}` — Admin key (X-Admin-Api-Key),DONE,aa80a27,tests/stores/test_wp5_admin.py;tests/stores/test_wp5_gate_zero_postgres.py,
 VIS-F01,visual,F,,C3+C6+C7,WP10,WP4 WP7,Y,"Inline SQL in routers. routers/interaction_templates.py has 7 statements (publish L94, approve-instance L119, list scenes L146, get scene L161/L169, video L183, approve scene L227)…",PLANNED,,,
 VIS-F02,visual,F,,C3+C6+C7,WP1,WP10 WP4 WP7,Y,Approvals are anonymous and unaudited. Template publish and instance approve record no actor (`reviewed_by`/`approved_by` stay NULL); scene approve and widget review take the actor…,DONE,914fdc2,tests/test_wp1_actor_audit.py,security/contract fix to land on the PostgreSQL stores before data is copied (requirement 70 M1)
 VIS-F03,visual,F,,C3+C6+C7,WP10,WP4 WP7,N,Immutability gaps. The PUBLISHED→DEPRECATED and APPROVED→SUPERSEDED transitions may change content columns in the same UPDATE; DEPRECATED/SUPERSEDED rows are mutable and deletable;…,PLANNED,,,

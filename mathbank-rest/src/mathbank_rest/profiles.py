@@ -35,6 +35,7 @@ ROUTERS: dict[str, tuple[str, str]] = {
     "admin_corpus": ("mathbank_rest.routers.admin_corpus", "router"),
     "tutor": ("mathbank_rest.routers.tutor", "router"),
     "tutoring_routes": ("mathbank_rest.routers.tutoring_routes", "router"),
+    "tutoring_routes_student": ("mathbank_rest.routers.tutoring_routes", "student_router"),
     "pedagogy": ("mathbank_rest.routers.pedagogy", "router"),
     "pedagogy_admin": ("mathbank_rest.routers.pedagogy_admin", "router"),
     "step_runtime": ("mathbank_rest.routers.step_runtime", "router"),
@@ -75,16 +76,19 @@ ADMIN_ROUTERS: tuple[str, ...] = (
 SOCRATIC_ROUTERS: tuple[str, ...] = ("socratic",)
 
 # Runtime routers whose SQL has been replaced by stores. Each work package appends here when its gate passes.
-RUNTIME_ROUTERS: tuple[str, ...] = ()
+# WP4/WP5 gates: tests/stores/test_wp4_gate_zero_postgres.py and test_wp5_gate_zero_postgres.py (the runtime app, every SQLAlchemy
+# engine replaced by the runtime guard, learner/content/vector stores on AWS). A router may join only with every route store-backed.
+RUNTIME_ROUTERS: tuple[str, ...] = (
+    "v1", "learner", "step_runtime", "micro_course_student", "theorems_student", "tutoring_routes_student", "notifications",
+)
 
 # Runtime-facing routers still on PostgreSQL SQL, with the work package that moves them.
 RUNTIME_PENDING: dict[str, str] = {
-    "v1": "WP4", "tutor": "WP4", "pedagogy": "WP4", "theorems_student": "WP4", "micro_course_student": "WP4/WP5",
-    "learner": "WP5", "step_runtime": "WP5",
+    "tutor": "WP4", "pedagogy": "WP4",
     "quiz_runtime": "WP6", "exam_integration": "WP6",
     "live": "WP7", "fluid": "WP7",
     "attempt_media": "WP8", "artifacts": "WP8", "geometry_interpretation": "WP8", "geometry_scenes": "WP8",
-    "agent_sessions": "WP9", "notifications": "WP3",
+    "agent_sessions": "WP9",
 }
 
 PROFILES: dict[str, tuple[str, ...]] = {

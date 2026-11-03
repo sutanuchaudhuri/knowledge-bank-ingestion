@@ -39,6 +39,7 @@ from mathbank_rest.routers.theorems import admin_router as theorems_admin_router
 from mathbank_rest.routers.theorems import student_router as theorems_student_router
 from mathbank_rest.routers.tutor import router as tutor_router
 from mathbank_rest.routers.tutoring_routes import router as tutoring_routes_router
+from mathbank_rest.routers.tutoring_routes import student_router as tutoring_routes_student_router
 from mathbank_rest.routers.v1 import router as v1_router
 
 app = FastAPI(
@@ -70,6 +71,7 @@ app.include_router(socratic_router)
 app.include_router(admin_corpus_router)
 app.include_router(tutor_router)
 app.include_router(tutoring_routes_router)
+app.include_router(tutoring_routes_student_router)
 app.include_router(pedagogy_router)
 app.include_router(pedagogy_admin_router)
 app.include_router(step_runtime_router)

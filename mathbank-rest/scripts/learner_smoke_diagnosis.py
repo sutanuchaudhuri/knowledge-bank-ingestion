@@ -47,7 +47,7 @@ from mathbank_rest.stores.learner import DynamoDBLearnerStore, diagnosis
 
 FAILURES: list[str] = []
 OPERATIONS: set[str] = set()
-READS = {"get_item", "query", "batch_get_item", "get_object", "get_caller_identity", "head_object"}
+READS = {"GetItem", "Query", "BatchGetItem", "GetObject", "GetCallerIdentity", "HeadObject"}
 VIEW_KEYS = {"gap_diagnosis_id", "solution_step_id", "trigger", "created_at", "recommended_action", "recommended_action_label", "ranked_by",
              "hypotheses", "probes", "probe_target_label"}
 HYPOTHESIS_VIEW_KEYS = {"rank", "knowledge_gap_id", "focus", "focus_label", "target_label", "likelihood", "status", "source_step_id"}
