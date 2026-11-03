@@ -39,6 +39,12 @@ dev = [
   # requirement 71: DynamoDB / S3 / SQS store tests run against moto, with no AWS access
   "moto[dynamodb,s3,sqs]>=5.0",
 ]
+# Batch tooling only (requirement 71 §2.5): Bodo auto-parallelises bulk S3 Vectors writes/queries. It brings numba, pyarrow and
+# OpenMPI, so it is never part of the Lambda image or `make install`. Bodo patches pandas internals: stay below pandas 2.4.
+bulk = [
+  "bodo>=2026.10",
+  "pandas>=2.2,<2.4",
+]
 # Only needed inside the Lambda container image (requirements/63); never installed into
 # the local dev venv by `make install`, so this has zero effect on local dev/tests.
 lambda = [
