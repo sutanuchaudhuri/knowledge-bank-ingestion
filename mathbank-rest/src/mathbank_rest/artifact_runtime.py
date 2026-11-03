@@ -20,8 +20,9 @@ from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 from sqlalchemy import text
 
-from mathbank_rest import object_store
+from mathbank_rest import artifact_vectors, object_store, rate_limit, vector_store
 from mathbank_rest.micro_course_service import record_audit_event
+from mathbank_rest.vector_catalog import DIMENSIONS
 
 VERSION = "declarative-artifacts-v1"
 EMBEDDING_MODEL: Literal["text-embedding-3-small"] = "text-embedding-3-small"
@@ -1153,6 +1154,8 @@ def publish_bundle(conn, bundle_id: UUID, actor: dict) -> dict:
     record_audit_event(conn, "ADMIN", actor.get("actor_id"), "PUBLISH", "artifact_bundle", str(bundle_id),
                        before_state=before,
                        after_state={"status": "PUBLISHED", "review_state": "APPROVED"})
+    if vector_store.uses_s3_vectors():
+        artifact_vectors.set_status(str(bundle_id), "PUBLISHED")   # the vector's status is its search pre-filter
     return get_bundle(conn, bundle_id, actor)
 
 
@@ -1165,6 +1168,8 @@ def index_bundle(conn, bundle_id: UUID, body: IndexBody, actor: dict) -> dict:
     profile = embedding_profile()
     if body.model != profile["model"] or body.dimensions != profile["dimensions"]:
         raise ArtifactError("EMBEDDING_PROFILE_MISMATCH", "requested model/dimensions differ from configured profile")
+    if vector_store.uses_s3_vectors():
+        _require_vector_dimensions(profile)
     embedding = body.embedding if body.embedding is not None else _embed(bundle["search_text"], profile)
     conn.execute(text("""
         INSERT INTO artifact_runtime.artifact_embedding
@@ -1175,6 +1180,11 @@ def index_bundle(conn, bundle_id: UUID, body: IndexBody, actor: dict) -> dict:
             search_text_sha256 = EXCLUDED.search_text_sha256, indexed_at = now()
     """), {"id": str(bundle_id), "model": body.model, "hash": body.search_text_sha256,
            "vector": _json(embedding), "dimensions": profile["dimensions"]})
+    if vector_store.uses_s3_vectors():
+        # Dual write keeps the Postgres embedding current (the flag is the rollback). A failed vector write raises and
+        # rolls the Postgres write back; a later commit failure leaves a vector the sha re-check in search drops.
+        artifact_vectors.index_bundle(str(bundle_id), body.search_text_sha256, embedding, subject=bundle["subject"],
+                                      status=bundle["status"], **_bundle_tags(conn, str(bundle_id)))
     record_audit_event(conn, "ADMIN", actor.get("actor_id"), "INDEX", "artifact_bundle", str(bundle_id),
                        after_state={"model": body.model, "dimensions": profile["dimensions"],
                                     "search_text_sha256": body.search_text_sha256})
@@ -1183,8 +1193,181 @@ def index_bundle(conn, bundle_id: UUID, body: IndexBody, actor: dict) -> dict:
             "embedding_source": "PROVIDER_EXPLICIT" if body.generate_embedding else "SUPPLIED_VECTOR"}
 
 
+class ReindexBody(Domain):
+    bundle_ids: Annotated[list[UUID], Field(min_length=1, max_length=5000)] | None = None
+    limit: Annotated[int, Field(ge=1, le=100000)] | None = None
+
+
+REINDEX_BATCH = 200
+
+
+def _require_vector_dimensions(profile: dict) -> None:
+    if profile["dimensions"] != DIMENSIONS or profile["model"] != EMBEDDING_MODEL:
+        raise ArtifactError("EMBEDDING_PROFILE_MISMATCH",
+                            f"S3 Vectors artifact indexes are fixed to {EMBEDDING_MODEL} / {DIMENSIONS} dimensions")
+
+
+def _tags_for(conn, bundle_ids: list[str]) -> dict[str, dict[str, list[str]]]:
+    out: dict[str, dict[str, list[str]]] = {}
+    rows = conn.execute(text("SELECT artifact_bundle_id::text AS id, tag_type, tag FROM artifact_runtime.artifact_search_tag "
+                             "WHERE artifact_bundle_id = ANY(CAST(:ids AS uuid[])) ORDER BY tag"), {"ids": bundle_ids}).mappings().all()
+    for r in rows:
+        out.setdefault(r["id"], {}).setdefault(f"{r['tag_type']}_tags", []).append(r["tag"])
+    return out
+
+
+def _bundle_tags(conn, bundle_id: str) -> dict[str, list[str]]:
+    found = _tags_for(conn, [bundle_id]).get(bundle_id, {})
+    return {k: found.get(k, []) for k in ("concept_tags", "skill_tags", "theorem_tags")}
+
+
+def _hydrate_bundles(conn, bundle_ids: list[str]) -> dict[str, dict]:
+    """The ONLY Postgres read of the S3 Vectors search path: current bundle rows by id (WP8 swaps this for the content store).
+    Returns subject, topic, title, summary, status, metadata, difficulty_band, asset_types and the live search_text_sha256."""
+    if not bundle_ids:
+        return {}
+    rows = conn.execute(text("""
+        SELECT b.artifact_bundle_id, b.subject, b.topic, b.title, b.summary, b.status, b.metadata, b.difficulty_band, b.search_text,
+               ARRAY(SELECT a.asset_type FROM artifact_runtime.artifact_asset a
+                     WHERE a.artifact_bundle_id = b.artifact_bundle_id) AS asset_types
+        FROM artifact_runtime.artifact_bundle b WHERE b.artifact_bundle_id = ANY(CAST(:ids AS uuid[]))
+    """), {"ids": bundle_ids}).mappings().all()
+    out = {}
+    for r in rows:
+        row = dict(r)
+        row["search_text_sha256"] = sha256(row.pop("search_text").encode()).hexdigest()
+        out[str(row["artifact_bundle_id"])] = row
+    return out
+
+
+def _one_tag(value: str | None) -> list[str] | None:
+    return [value] if value else None
+
+
+def _unavailable(mode: str, reason: str, **extra) -> dict:
+    return {"mode": mode, "status": "UNAVAILABLE", "reason": reason, "results": [], **extra}
+
+
+def _semantic_s3(conn, body: SearchBody, actor: dict, *, vector: list[float] | None = None, exclude: str | None = None) -> dict:
+    """Semantic search / similar over S3 Vectors (ART-F05, ART-F16, ART-E08). ``vector`` is given by ``similar``."""
+    mode = "SEMANTIC"
+    is_staff = actor["role"] == "ADMIN"
+    if vector is None and body.query_embedding is None and not body.generate_embedding:
+        return _unavailable(mode, "QUERY_EMBEDDING_REQUIRED")
+    if body.generate_embedding and not is_staff:
+        raise ArtifactError("EMBEDDING_GENERATION_STAFF_ONLY",
+                            "generate_embedding=true is a paid provider call and is limited to staff; supply query_embedding", 403)
+    try:
+        profile = embedding_profile()
+        _require_vector_dimensions(profile)
+    except ArtifactError as exc:
+        return _unavailable(mode, exc.code)
+    if body.model != profile["model"] or body.dimensions != profile["dimensions"]:
+        return _unavailable(mode, "EMBEDDING_PROFILE_MISMATCH")
+    if vector is None:
+        if body.generate_embedding:
+            try:
+                rate_limit.assert_embeddings_allowed()
+                vector = _embed(body.query, profile)
+            except rate_limit.EmbeddingsNotPermitted:
+                raise ArtifactError("EMBEDDING_GENERATION_NOT_PERMITTED", "query embedding is not permitted for this request", 403) from None
+            except ArtifactError as exc:
+                return _unavailable(mode, exc.code)
+        else:
+            vector = body.query_embedding
+    hits = artifact_vectors.search(
+        vector or [], viewer_student_id=actor.get("student_id"), is_staff=is_staff, subject=body.subject,
+        status=None if is_staff else "PUBLISHED", concept_tags=_one_tag(body.concept_id), skill_tags=_one_tag(body.skill_id),
+        theorem_tags=_one_tag(body.theorem_id), top_k=vector_store.MAX_TOP_K)
+    candidates = [h for h in hits if h.bundle_id != exclude]
+    bundles = _hydrate_bundles(conn, [h.bundle_id for h in candidates])
+    rows = []
+    for h in candidates:
+        b = bundles.get(h.bundle_id)
+        if b is None or (not is_staff and b["status"] != "PUBLISHED") or h.search_text_sha256 != b["search_text_sha256"]:
+            continue                                            # deleted, not visible to this viewer, or re-written since indexing
+        if (body.subject and b["subject"] != body.subject) or (body.difficulty_band and b["difficulty_band"] != body.difficulty_band):
+            continue
+        if body.asset_type and body.asset_type not in (b.get("asset_types") or []):
+            continue
+        rows.append({k: b[k] for k in ("artifact_bundle_id", "subject", "topic", "title", "summary", "status", "metadata")}
+                    | {"score": h.similarity})
+    limit = min(body.limit, vector_store.MAX_TOP_K)
+    page = {"total": len(rows), "limit": limit, "offset": body.offset, "truncated": len(hits) >= vector_store.MAX_TOP_K}
+    if not rows:
+        return _unavailable(mode, "NO_INDEXED_VECTORS_FOR_FILTERS", **page)
+    return {"mode": mode, "status": "AVAILABLE", "results": rows[body.offset:body.offset + limit], **page,
+            "model": profile["model"], "dimensions": profile["dimensions"], "provider": profile["provider"]}
+
+
+def _read_embeddings_batch(conn, profile: dict, after: str | None, ids: list[str] | None, size: int) -> list[dict]:
+    where = ["e.model = :model", "e.dimensions = :dimensions"]
+    params: dict = {"model": profile["model"], "dimensions": profile["dimensions"], "size": size}
+    if after:
+        where.append("b.artifact_bundle_id > CAST(:after AS uuid)")
+        params["after"] = after
+    if ids is not None:
+        where.append("b.artifact_bundle_id = ANY(CAST(:ids AS uuid[]))")
+        params["ids"] = ids
+    rows = conn.execute(text(f"""
+        SELECT b.artifact_bundle_id::text AS id, b.subject, b.status, b.search_text,
+               e.embedding::text AS embedding, e.search_text_sha256
+        FROM artifact_runtime.artifact_embedding e JOIN artifact_runtime.artifact_bundle b USING (artifact_bundle_id)
+        WHERE {' AND '.join(where)} ORDER BY b.artifact_bundle_id LIMIT :size
+    """), params).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def require_s3_vectors() -> None:
+    if not vector_store.uses_s3_vectors():
+        raise ArtifactError("VECTOR_STORE_NOT_S3VECTORS",
+                            "reindex needs VECTOR_STORE=s3vectors; artifact search is on pgvector and needs no reindex", 409)
+
+
+def reindex_bundles(conn, body: ReindexBody, actor: dict) -> dict:
+    """ART-E07: copy the stored Postgres embeddings into the S3 Vectors artifact index in batches. Embeddings whose
+    search text changed since they were computed are skipped (re-run ``/bundles/{id}/index`` for those)."""
+    if actor["role"] != "ADMIN":
+        raise ArtifactError("ADMIN_REQUIRED", "only staff may reindex reusable bundles", 403)
+    require_s3_vectors()
+    profile = embedding_profile()
+    _require_vector_dimensions(profile)
+    ids = [str(i) for i in body.bundle_ids] if body.bundle_ids is not None else None
+    remaining, after = body.limit, None
+    scanned = indexed = stale = batches = 0
+    engine = None
+    while remaining is None or remaining > 0:
+        size = REINDEX_BATCH if remaining is None else min(REINDEX_BATCH, remaining)
+        rows = _read_embeddings_batch(conn, profile, after, ids, size)
+        if not rows:
+            break
+        after = rows[-1]["id"]
+        scanned += len(rows)
+        remaining = None if remaining is None else remaining - len(rows)
+        tags = _tags_for(conn, [r["id"] for r in rows])
+        fresh = []
+        for r in rows:
+            if r["search_text_sha256"] != sha256(r["search_text"].encode()).hexdigest():
+                stale += 1
+                continue
+            fresh.append(artifact_vectors.IndexRow(
+                bundle_id=r["id"], search_text_sha256=r["search_text_sha256"], vector=json.loads(r["embedding"]),
+                subject=r["subject"], status=r["status"], **tags.get(r["id"], {})))
+        if fresh:
+            result = artifact_vectors.bulk_index(fresh)
+            indexed, batches, engine = indexed + result.written, batches + 1, result.engine
+        if len(rows) < size:
+            break
+    summary = {"scanned": scanned, "indexed": indexed, "skipped_stale": stale, "batches": batches, "engine": engine,
+               "not_indexed": max(len(ids) - scanned, 0) if ids is not None else 0}
+    record_audit_event(conn, "ADMIN", actor.get("actor_id"), "REINDEX", "artifact_bundle", "reindex", after_state=summary)
+    return summary
+
+
 def search(conn, body: SearchBody, actor: dict, semantic: bool = False) -> dict:
     mode = "SEMANTIC" if semantic else "LEXICAL"
+    if semantic and vector_store.uses_s3_vectors():
+        return _semantic_s3(conn, body, actor)
     if semantic and body.query_embedding is None and not body.generate_embedding:
         return {"mode": mode, "status": "UNAVAILABLE", "reason": "QUERY_EMBEDDING_REQUIRED", "results": []}
     filters = ["(:admin OR b.status = 'PUBLISHED')"]
@@ -1253,6 +1436,13 @@ def similar(conn, bundle_id: UUID, body: SearchBody, actor: dict) -> dict:
         profile = embedding_profile()
     except ArtifactError as exc:
         return {"mode": "SEMANTIC", "status": "UNAVAILABLE", "reason": exc.code, "results": []}
+    if vector_store.uses_s3_vectors():
+        stored = artifact_vectors.get_vector(str(bundle_id), viewer_student_id=actor.get("student_id"))
+        if stored is None or stored.search_text_sha256 != bundle["search_text_sha256"]:
+            return {"mode": "SEMANTIC", "status": "UNAVAILABLE", "reason": "SOURCE_NOT_INDEXED", "results": []}
+        return _semantic_s3(conn, body.model_copy(update={
+            "query_embedding": None, "generate_embedding": False, "model": profile["model"], "dimensions": profile["dimensions"],
+        }), actor, vector=stored.vector, exclude=str(bundle_id))
     row = _one(conn, "SELECT embedding::text AS embedding, search_text_sha256 FROM artifact_runtime.artifact_embedding "
                "WHERE artifact_bundle_id = CAST(:id AS uuid) AND model = :model AND dimensions = :dimensions",
                {"id": str(bundle_id), "model": profile["model"], "dimensions": profile["dimensions"]})

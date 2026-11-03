@@ -45,6 +45,7 @@ ROUTERS: dict[str, tuple[str, str]] = {
     "live": ("mathbank_rest.routers.live", "router"),
     "attempt_media": ("mathbank_rest.routers.attempt_media", "router"),
     "artifacts": ("mathbank_rest.routers.artifacts", "router"),
+    "artifacts_admin": ("mathbank_rest.routers.artifacts", "admin_router"),
     "geometry_interpretation": ("mathbank_rest.routers.geometry_interpretation", "router"),
     "geometry_scenes": ("mathbank_rest.routers.geometry_scenes", "router"),
     "interaction_templates": ("mathbank_rest.routers.interaction_templates", "router"),
@@ -64,7 +65,7 @@ ROUTERS: dict[str, tuple[str, str]] = {
 ADMIN_ROUTERS: tuple[str, ...] = (
     "admin", "admin_corpus", "admin_imports", "admin_textbooks", "admin_taxonomy", "admin_activities",
     "admin_activity_bindings", "pedagogy_admin", "interaction_templates", "micro_course_admin", "theorems_admin",
-    "tutoring_routes",
+    "tutoring_routes", "artifacts_admin",
 )
 
 # Served by app_socratic (socratic_app.py), not by the runtime/admin apps.

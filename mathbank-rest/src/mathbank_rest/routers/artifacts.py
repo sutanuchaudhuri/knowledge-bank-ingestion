@@ -4,8 +4,9 @@ Requests accept ArtifactPlan (subject/topic/title and typed elements, optional o
 Generation returns a bundle ID; assets return authenticated content_path values, never store keys.
 Frames are reset-to-base declarative actions with stable element IDs and step/explanation metadata.
 Students own requests and read published bundles; staff alone generate, publish and index bundles.
-Semantic calls accept a supplied 1536-vector or explicit generate_embedding=true. Missing eligible
-index vectors/provider output are reported UNAVAILABLE, never replaced with lexical results.
+Semantic calls accept a supplied 1536-vector or explicit generate_embedding=true (staff only when search runs on
+S3 Vectors). Missing eligible index vectors/provider output are reported UNAVAILABLE, never replaced with lexical
+results. ``admin_router`` (/v1/admin/artifacts) carries the staff-only bulk reindex into S3 Vectors.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from mathbank_rest.db.postgres import engine
 from mathbank_rest.routers.fluid import staff_or_student
 
 router = APIRouter(prefix="/v1/artifacts", tags=["artifacts"])
+admin_router = APIRouter(prefix="/v1/admin/artifacts", tags=["artifacts"])
 Actor = Annotated[dict, Depends(staff_or_student)]
 StaffActor = Annotated[security.Actor, Depends(security.require_admin_api_key)]
 
@@ -290,3 +292,13 @@ def semantic_search(body: runtime.SearchBody, actor: Actor) -> dict:
 @router.post("/bundles/{bundle_id}/similar")
 def similar(bundle_id: UUID, body: runtime.SearchBody, actor: Actor) -> dict:
     return _run(runtime.similar, bundle_id, body, actor)
+
+
+@admin_router.post("/bundles/reindex")
+def reindex(staff: StaffActor, body: runtime.ReindexBody | None = None) -> dict:
+    """Copy stored bundle embeddings into the S3 Vectors artifact index (batched). 409 while search is on pgvector."""
+    try:
+        runtime.require_s3_vectors()
+    except runtime.ArtifactError as exc:
+        raise HTTPException(exc.status_code, detail={"code": exc.code, "message": str(exc)}) from None
+    return _run(runtime.reindex_bundles, body or runtime.ReindexBody(), _staff(staff))

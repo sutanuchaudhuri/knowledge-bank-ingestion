@@ -19,6 +19,7 @@ from mathbank_rest.routers.micro_courses import student_router as micro_course_s
 from mathbank_rest.routers.learner import router as learner_router
 from mathbank_rest.routers.live import router as live_router
 from mathbank_rest.routers.attempt_media import router as attempt_media_router
+from mathbank_rest.routers.artifacts import admin_router as artifacts_admin_router
 from mathbank_rest.routers.artifacts import router as artifacts_router
 from mathbank_rest.routers.pedagogy import router as pedagogy_router
 from mathbank_rest.routers.pedagogy_admin import router as pedagogy_admin_router
@@ -75,6 +76,7 @@ app.include_router(fluid_router)
 app.include_router(live_router)
 app.include_router(attempt_media_router)
 app.include_router(artifacts_router)
+app.include_router(artifacts_admin_router)
 app.include_router(geometry_interpretation_router)
 app.include_router(geometry_scenes_router, tags=["geometry-scenes"])
 app.include_router(interaction_templates_router)

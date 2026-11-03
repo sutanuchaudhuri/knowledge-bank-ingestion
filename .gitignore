@@ -77,3 +77,4 @@ reports/
 # GCS / Drive receipts produced locally
 receipts/
 .ddb_profile/
+.vector_gate_cache/

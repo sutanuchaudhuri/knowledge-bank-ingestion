@@ -88,7 +88,7 @@ def test_paid_calls_still_respect_the_rate_limit_gate(content, monkeypatch):
 
     monkeypatch.setattr(settings, "vector_store", "pgvector")
     monkeypatch.setattr(embeddings, "EMBEDDER", fake_embedder([]))
-    with rate_limit.embeddings_blocked(), pytest.raises(Exception):
+    with rate_limit.embeddings_blocked(), pytest.raises(rate_limit.EmbeddingsNotPermitted):
         embeddings.embed_text("never embedded")
 
 

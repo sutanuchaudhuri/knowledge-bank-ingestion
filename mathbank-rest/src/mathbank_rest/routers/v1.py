@@ -175,14 +175,26 @@ def search_concepts(
     Maps a topic to taxonomy nodes with their corpus slug, problem count and example problem codes.
     Semantic ranking needs a learner token or admin credential and is rate limited per caller; anonymous
     callers get lexical ranking. If the query embedding is unavailable, falls back to lexical ranking.
+
+    With S3 Vectors on (``VECTOR_STORE=s3vectors``) ranking is semantic only: lexical is reported as ``not_applied``
+    (never a Postgres fallback), so anonymous callers need to sign in and an unavailable query embedding is a 503
+    ``SEMANTIC_UNAVAILABLE``.
     """
+    from mathbank_rest import vector_store
+    from mathbank_rest.stores.errors import StoreError
+
+    s3_vectors = vector_store.uses_s3_vectors()
     query = body.query.strip()
     if not query:
         raise HTTPException(status_code=422, detail="query must contain non-whitespace text")
     if not (body.retrieval.semantic or body.retrieval.lexical):
         raise HTTPException(status_code=400, detail="at least one retrieval source must be true")
-    semantic, warnings = _gate_semantic(caller, body.retrieval, other_sources=body.retrieval.lexical)
+    semantic, warnings = _gate_semantic(caller, body.retrieval, other_sources=body.retrieval.lexical and not s3_vectors)
     semantic_status = "queried" if semantic else "requires_sign_in" if warnings else "disabled"
+    lexical_status = "queried" if body.retrieval.lexical else "disabled"
+    if s3_vectors and body.retrieval.lexical:
+        lexical_status = "not_applied"
+        warnings.append("Lexical ranking is not applied with S3 Vectors search; results are semantic only.")
     kwargs = {"node_types": body.node_types or None, "chapter_number": body.chapter_number, "limit": body.limit}
     try:
         with _embedding_scope(caller):
@@ -190,7 +202,15 @@ def search_concepts(
                 query, semantic=semantic, lexical=body.retrieval.lexical, **kwargs)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception:
+    except Exception as exc:
+        if s3_vectors:
+            if isinstance(exc, HTTPException | StoreError):
+                raise
+            logger.exception("Concept search semantic ranking unavailable")
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "SEMANTIC_UNAVAILABLE", "message": "semantic ranking is temporarily unavailable"},
+            ) from exc
         if not (semantic and body.retrieval.lexical):
             raise
         logger.exception("Concept search semantic ranking unavailable; falling back to lexical")
@@ -200,7 +220,7 @@ def search_concepts(
     return {
         "query": query,
         "results": results,
-        "retrieval": {"semantic": semantic_status, "lexical": "queried" if body.retrieval.lexical else "disabled",
+        "retrieval": {"semantic": semantic_status, "lexical": lexical_status,
                       "unit": "TAXONOMY_NODE", "profile": step_search.PROFILE_NAME},
         "warnings": warnings,
     }

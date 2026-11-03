@@ -15,6 +15,7 @@ from typing import Literal
 
 from sqlalchemy import text
 
+from mathbank_rest import vector_store
 from mathbank_rest.db.postgres import engine
 
 PROFILE_NAME = "pedagogy_step_v2"
@@ -223,7 +224,12 @@ _DETAILS = {"step": (_STEP_DETAILS, "solution_step_id"), "learning_item": (_ITEM
 
 
 def _search(unit: Unit, query_text: str, filters: dict, *, semantic: bool, lexical: bool,
-            limit: int, query_vector: str | None = None) -> list[dict]:
+            limit: int, query_vector: str | None = None, include_step_text: bool = False) -> list[dict]:
+    if vector_store.uses_s3_vectors():  # WP2: S3 Vectors + mb-content, vector-only, no Postgres; the SQL below is the rollback path
+        from mathbank_rest.db import step_search_vectors
+
+        return step_search_vectors.search(unit, query_text, filters, semantic=semantic, lexical=lexical, limit=limit,
+                                          query_vector=query_vector, include_step_text=include_step_text)
     if not 1 <= limit <= 50:
         raise ValueError("limit must be between 1 and 50")
     sql, params = build_search_sql(unit, filters, semantic=semantic, lexical=lexical)
@@ -275,7 +281,8 @@ def search_solution_steps(
     """Similar reasoning steps (STEP_HELP). Step text is solution content: callers must opt in.
 
     ``query_vector`` (pgvector text form) skips the paid query embedding, e.g. when the query is
-    an already-embedded step.
+    an already-embedded step. With S3 Vectors on, ranking is vector-only (``lexical`` is not applied;
+    see ``step_search_vectors``).
     """
     filters = {
         "skill_node_id": skill_node_id, "subconcept_node_id": subconcept_node_id,
@@ -285,7 +292,7 @@ def search_solution_steps(
         "technique_node_id": technique_node_id,
     }
     results = _search("step", query_text, filters, semantic=semantic, lexical=lexical, limit=limit,
-                      query_vector=query_vector)
+                      query_vector=query_vector, include_step_text=include_step_text)
     if not include_step_text:
         for row in results:
             row.pop("step_text", None)
@@ -350,7 +357,12 @@ def similar_steps_for_step(solution_step_id: str, *, limit: int = 5, same_skill:
 
     Uses the step's own stored ACTIVE embedding as the query vector (no paid call) and its skill
     name as the lexical query. Excludes the step's own problem and never returns step text.
+    With S3 Vectors on, the stored vector comes from the vector store and the search is vector-only.
     """
+    if vector_store.uses_s3_vectors():
+        from mathbank_rest.db import step_search_vectors
+
+        return step_search_vectors.similar_steps(solution_step_id, limit=limit, same_skill=same_skill)
     from mathbank_rest.db import vector_search
 
     with engine.connect() as conn:

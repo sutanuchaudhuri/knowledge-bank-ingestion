@@ -65,6 +65,10 @@ ddb-models:                     ## Regenerate src/mathbank_rest/models/{ddb,docs
 ddb-models-validate:            ## Validate every DynamoDB item and S3 JSON document against its pydantic model (read-only; ARGS="--contexts learner")
 	DDB_ENV=$${DDB_ENV:-dev} $(BIN)/python -m mathbank_rest.models.validate $(ARGS)
 
+.PHONY: vector-gate
+vector-gate:                    ## WP2 recall/eligibility gate through the vector adapter (read-only; DDB_ENV=dev; ARGS="--families step --sample 100")
+	DDB_ENV=$${DDB_ENV:-dev} $(BIN)/python scripts/vector_gate.py $(ARGS)
+
 .PHONY: aws-check run-runtime run-admin
 aws-check:                      ## Verify AWS credentials + the DynamoDB/S3/S3 Vectors env a local run needs (DDB_ENV=dev|test; CTX="learner exam", default all; WRITE=1 adds a write round-trip)
 	$(BIN)/python -m mathbank_rest.stores.doctor $(if $(CTX),--contexts $(CTX),--all) $(if $(WRITE),--write-check) --vectors

@@ -28,18 +28,40 @@ something that needs an external clustering library.
 Idempotent: re-running regenerates embeddings only for rows that don't have one yet
 (`--force` recomputes everything), and similarity pairs are fully replaced (not
 incrementally patched) on every run of the similarity step, which is cheap at this scale.
+
+`--source s3vectors` (requirement 71 WP2) reads the vectors from S3 Vectors through the vector
+adapter instead of pgvector: the misconception and taxonomy-node vectors are fetched with
+`keys()` + `get`, each one is used as a query (`bulk_query`, engine auto: Bodo when installed,
+boto3 otherwise; top-k + 1, the vector itself dropped, rank = ANN order, similarity >= 0.80,
+taxonomy neighbours within the same node_type) and the same Postgres similarity tables are
+truncated and reloaded in one transaction. Embedding generation is skipped in that mode: the
+vector sync worker (`mathbank_rest.vector_sync`) keeps the S3 Vectors indexes current.
+`--dry-run` (s3vectors only) computes the pairs and prints their counts without touching Postgres.
 """
 from __future__ import annotations
 
 import argparse
+import concurrent.futures as cf
 import hashlib
 import time
+from collections.abc import Iterator, Sequence
 
+import numpy as np
 from sqlalchemy import text
 
 from mathbank_rest.artifact_runtime import embedding_profile
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.runtime_ai import speech_client
+from mathbank_rest.vector_bulk import Engine, bulk_query
+from mathbank_rest.vector_catalog import Family
+from mathbank_rest.vector_store import (
+    S3VectorsStore,
+    VectorHit,
+    VectorStore,
+    get_vector_store,
+    uses_s3_vectors,
+    vf,
+)
 
 BATCH_SIZE = 500
 TOP_K = 8
@@ -225,14 +247,132 @@ def compute_taxonomy_node_similarity() -> dict:
     return {"pairs": count}
 
 
+# ---------------------------------------------------------------- S3 Vectors source (--source s3vectors)
+
+QUERY_BATCH = 2000
+FETCH_WORKERS = 8
+SimilarityRow = tuple[str, str, float, int]
+
+
+def neighbours_from_hits(key: str, hits: Sequence[VectorHit], *, top_k: int = TOP_K,
+                         min_similarity: float = MIN_SIMILARITY) -> list[SimilarityRow]:
+    """Pure: (key, neighbour, similarity, rank) rows from one query's ANN hits.
+
+    Same semantics as the pgvector LATERAL query: the vector itself is dropped, rank is the position among the first
+    `top_k` remaining neighbours (1 = nearest), and only neighbours with similarity >= `min_similarity` are kept (a
+    neighbour below the threshold still consumes its rank)."""
+    rows: list[SimilarityRow] = []
+    rank = 0
+    for hit in hits:
+        if hit.key == key:
+            continue
+        rank += 1
+        if rank > top_k:
+            break
+        if hit.similarity >= min_similarity:
+            rows.append((key, hit.key, float(hit.similarity), rank))
+    return rows
+
+
+def query_groups(family: Family, metas: Sequence[dict]) -> Iterator[tuple[dict | None, list[int]]]:
+    """Pure: (filter, indexes of the vectors to query) groups. Misconceptions are one unfiltered group; taxonomy nodes are
+    grouped by node_type (neighbours only within the same type) and only nodes that still exist (lifecycle ACTIVE, node_type
+    set) take part, like the INNER JOINs of the pgvector query."""
+    if family != Family.TAXONOMY_NODE:
+        yield None, list(range(len(metas)))
+        return
+    by_type: dict[str, list[int]] = {}
+    for i, meta in enumerate(metas):
+        if meta.get("lifecycle") == "ACTIVE" and meta.get("node_type"):
+            by_type.setdefault(meta["node_type"], []).append(i)
+    for node_type, idx in sorted(by_type.items()):
+        yield vf.and_(vf.eq("node_type", node_type), vf.eq("lifecycle", "ACTIVE")), idx
+
+
+def similarity_rows(family: Family, keys: Sequence[str], matrix: np.ndarray, metas: Sequence[dict], store: VectorStore,
+                    engine_name: Engine = "auto", batch: int = QUERY_BATCH) -> list[SimilarityRow]:
+    """Top-K neighbour rows for every vector of `family` through `bulk_query`; vectors are queried in batches."""
+    rows: list[SimilarityRow] = []
+    for flt, idx in query_groups(family, metas):
+        for start in range(0, len(idx), batch):
+            part = idx[start:start + batch]
+            answers = bulk_query(family, [matrix[i].tolist() for i in part], top_k=TOP_K + 1, filter=flt, engine=engine_name, store=store)
+            for i, hits in zip(part, answers, strict=True):
+                rows.extend(neighbours_from_hits(keys[i], hits))
+            print(f"  {family.value}: queried {min(start + batch, len(idx))}/{len(idx)}")
+    return rows
+
+
+def fetch_vectors(store: VectorStore, family: Family, workers: int = FETCH_WORKERS) -> tuple[list[str], np.ndarray, list[dict]]:
+    """Every vector of the family through the adapter (`keys()` + `get`), as a float32 matrix."""
+    keys = sorted(store.keys(family))
+    chunks = [keys[i:i + 100] for i in range(0, len(keys), 100)]
+    found: dict[str, tuple[np.ndarray, dict]] = {}
+    with cf.ThreadPoolExecutor(max(1, min(workers, len(chunks)))) as ex:
+        for items in ex.map(lambda c: store.get(family, c, with_data=True), chunks):
+            found.update({it.key: (np.asarray(it.vector, np.float32), dict(it.metadata)) for it in items if it.vector is not None})
+    keys = [k for k in keys if k in found]
+    matrix = np.vstack([found[k][0] for k in keys]) if keys else np.zeros((0, 1536), np.float32)
+    return keys, matrix, [found[k][1] for k in keys]
+
+
+def _s3_store() -> VectorStore:
+    return get_vector_store() if uses_s3_vectors() else S3VectorsStore()
+
+
+def _replace_similarity(table: str, columns: tuple[str, str], rows: Sequence[SimilarityRow], cast: str) -> int:
+    a, b = columns
+    with engine.begin() as conn:
+        conn.execute(text(f"TRUNCATE {table}"))
+        for start in range(0, len(rows), 5000):
+            conn.execute(
+                text(f"INSERT INTO {table} ({a}, {b}, similarity, rank) VALUES "
+                     f"(CAST(:a AS {cast}), CAST(:b AS {cast}), :sim, :rnk)"),
+                [{"a": r[0], "b": r[1], "sim": r[2], "rnk": r[3]} for r in rows[start:start + 5000]],
+            )
+        return conn.execute(text(f"SELECT count(*) FROM {table}")).scalar()
+
+
+def compute_similarity_from_s3vectors(family: Family, engine_name: Engine = "auto", dry_run: bool = False,
+                                      limit: int | None = None) -> dict:
+    store = _s3_store()
+    keys, matrix, metas = fetch_vectors(store, family)
+    print(f"{family.value}: {len(keys)} vectors read from S3 Vectors")
+    if limit:
+        keys, matrix, metas = keys[:limit], matrix[:limit], metas[:limit]
+    rows = similarity_rows(family, keys, matrix, metas, store, engine_name)
+    if dry_run:
+        return {"pairs": len(rows), "dry_run": True}
+    if family == Family.MISCONCEPTION:
+        pairs = _replace_similarity("knowledge.misconception_similarity", ("misconception_id_a", "misconception_id_b"), rows, "uuid")
+    else:
+        pairs = _replace_similarity("pedagogy.taxonomy_node_similarity", ("taxonomy_node_id_a", "taxonomy_node_id_b"), rows, "text")
+    return {"pairs": pairs}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--force", action="store_true", help="Recompute embeddings for rows that already have one.")
     parser.add_argument("--skip-embed", action="store_true", help="Skip embedding generation, only (re)compute similarity pairs.")
     parser.add_argument("--limit", type=int, default=None, help="Only embed this many rows per table (testing).")
+    parser.add_argument("--source", choices=["pgvector", "s3vectors"], default="pgvector",
+                        help="Where the vectors come from (s3vectors: read through the vector adapter; embedding generation is skipped).")
+    parser.add_argument("--engine", choices=["auto", "boto3", "bodo"], default="auto", help="Bulk query engine for --source s3vectors.")
+    parser.add_argument("--dry-run", action="store_true", help="With --source s3vectors: compute the pairs, print counts, do not touch Postgres.")
     args = parser.parse_args()
+    if args.source == "pgvector" and args.dry_run:
+        parser.error("--dry-run needs --source s3vectors")
+    if args.source == "s3vectors" and args.limit and not args.dry_run:
+        parser.error("--limit with --source s3vectors needs --dry-run (a partial rebuild would truncate the similarity tables)")
 
     t0 = time.time()
+    if args.source == "s3vectors":
+        if args.force:
+            parser.error("--force applies to pgvector embeddings only; the vector sync worker maintains the S3 Vectors indexes")
+        for family in (Family.MISCONCEPTION, Family.TAXONOMY_NODE):
+            print(compute_similarity_from_s3vectors(family, args.engine, args.dry_run, args.limit))
+        print(f"done in {time.time() - t0:.1f}s")
+        return
     if not args.skip_embed:
         print(embed_misconceptions(args.force, args.limit))
         print(embed_taxonomy_nodes(args.force, args.limit))
