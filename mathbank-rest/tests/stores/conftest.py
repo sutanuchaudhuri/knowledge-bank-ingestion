@@ -28,17 +28,28 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip)
 
 
+# Production learner GSI2 projects only these attributes (+ keys and `type`): mathbank-db/aws/dynamo/specs/learner.py GSI2_INCLUDE.
+# Mirroring it here makes a typed query through GSI2 fail in tests exactly like it does on the real table.
+LEARNER_GSI2_INCLUDE = sorted({
+    "student_id", "email", "first_name", "last_name", "display_name", "status", "created_at", "is_anonymous", "search_blob",
+    "problem_id", "attempt_number", "current_mode", "solve_attempt_id", "solution_step_id", "state", "help_level_used",
+    "attempt_count", "independent_success", "type"})
+
+
 def _create_tables(client, env: str) -> None:
     for ctx in CTXS:
+        gsis = []
+        for g in ("GSI1", "GSI2"):
+            projection = ({"ProjectionType": "INCLUDE", "NonKeyAttributes": LEARNER_GSI2_INCLUDE}
+                          if (ctx, g) == ("learner", "GSI2") else {"ProjectionType": "ALL"})
+            gsis.append({"IndexName": g, "KeySchema": [{"AttributeName": f"{g}PK", "KeyType": "HASH"},
+                                                       {"AttributeName": f"{g}SK", "KeyType": "RANGE"}], "Projection": projection})
         client.create_table(
             TableName=f"mb-{ctx}-{env}",
             AttributeDefinitions=[{"AttributeName": a, "AttributeType": "S"}
                                   for a in ("PK", "SK", "GSI1PK", "GSI1SK", "GSI2PK", "GSI2SK")],
             KeySchema=[{"AttributeName": "PK", "KeyType": "HASH"}, {"AttributeName": "SK", "KeyType": "RANGE"}],
-            GlobalSecondaryIndexes=[
-                {"IndexName": g, "KeySchema": [{"AttributeName": f"{g}PK", "KeyType": "HASH"},
-                                               {"AttributeName": f"{g}SK", "KeyType": "RANGE"}],
-                 "Projection": {"ProjectionType": "ALL"}} for g in ("GSI1", "GSI2")],
+            GlobalSecondaryIndexes=gsis,
             BillingMode="PAY_PER_REQUEST",
         )
 

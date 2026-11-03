@@ -792,10 +792,13 @@ class SolveDynamoDB:
         items: list[LearnerSolve] = []
         token = next_token
         while len(items) < limit:
-            page = typed.query(LearnerSolve, f"STUDENT#{sid}#SOLVES", index="GSI2", forward=False, limit=limit - len(items),
-                               next_token=token)
-            items += [s for s in page.items if status is None or s.status == status]
-            token = page.next_token
+            # GSI2 projects only a subset of attributes (INCLUDE): read the keys there, then fetch the whole items by key
+            page = ddb.query_page("learner", f"STUDENT#{sid}#SOLVES", index="GSI2", forward=False, limit=limit - len(items),
+                                  next_token=token)
+            keys = [(r["PK"], r["SK"]) for r in page["items"]]
+            by_key = {(i.PK, i.SK): i for i in typed.batch_get(LearnerSolve, keys)}
+            items += [s for k in keys if (s := by_key.get(k)) is not None and (status is None or s.status == status)]
+            token = page["next_token"]
             if not token:
                 break
         codes: dict[str, str | None] = {}
