@@ -64,10 +64,10 @@ def test_unknown_context_is_rejected():
 
 
 def test_unimplemented_backend_is_a_clear_501_not_a_silent_fallback(monkeypatch):
-    monkeypatch.setattr(settings, "learner_store", "dynamodb")
+    monkeypatch.setattr(settings, "exam_store", "dynamodb")
     with pytest.raises(E.StoreNotImplemented) as e:
-        stores.get_store("learner")
-    assert e.value.status_code == 501 and e.value.detail == {"context": "learner", "backend": "dynamodb"}
+        stores.get_store("exam")
+    assert e.value.status_code == 501 and e.value.detail == {"context": "exam", "backend": "dynamodb"}
 
 
 def test_registered_implementation_is_selected_by_flag(monkeypatch):
@@ -134,7 +134,8 @@ def test_unreadable_ssm_flag_never_takes_the_api_down(monkeypatch):
 def test_describe_reports_every_context_and_vectors():
     d = stores.describe()
     assert set(d) == {*stores.CONTEXTS, "vectors"} and d["vectors"] == {"backend": "pgvector"}
-    assert d["learner"] == {"mode": "postgres", "backend": "postgres", "implemented": False}
+    assert d["exam"] == {"mode": "postgres", "backend": "postgres", "implemented": False}
+    assert d["learner"]["implemented"] is True
 
 
 # ---------------------------------------------------------------- HTTP mapping
