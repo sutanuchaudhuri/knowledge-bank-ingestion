@@ -5,13 +5,15 @@ only pure crypto/token logic, so it can be unit-tested without a database.
 """
 from __future__ import annotations
 
+import hmac
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Annotated, Literal
 from uuid import UUID
-from typing import Annotated
 
 import bcrypt
 import jwt
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 
 from mathbank_rest.config import settings
@@ -81,11 +83,75 @@ def get_optional_student_id(
     return get_current_student_id(credentials) if credentials is not None else None
 
 
-def require_admin_api_key(
-    x_admin_api_key: Annotated[str | None, Security(_admin_api_key_scheme)] = None,
-) -> None:
-    """FastAPI dependency guarding /v1/admin/* — single shared key, not a per-user
-    role system (see routers/admin.py module docstring for the follow-up plan).
+# ── Admin identity (requirement 71 WP1a; product decision 2026-11-03: staff login first) ─────────────────────
+#
+# /v1/admin/* accepts either
+#   * a staff session — the Studio sign-in (Cognito, or the loopback `local` mode): an `Authorization: Bearer
+#     <access token>` header, or the HttpOnly access cookie (mutating requests then also need the CSRF header).
+#     The session is rechecked on every request and names the real person, and
+#   * the shared `X-Admin-Api-Key`, kept as a **service credential with no person behind it** (ETL, CI, agents,
+#     the web proxy). Its actor is always `service:admin-key`, so audit rows never pretend a person acted.
+# Routers that record who did something use `Actor.id`; they never accept an actor name from the client.
+
+STAFF_ADMIN_CAPABILITIES: tuple[str, ...] = ("author", "publish", "manage_users", "review_mathematics", "review_pedagogy")
+_ALL_CAPABILITIES = frozenset({*STAFF_ADMIN_CAPABILITIES, "preview"})
+_SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
+SERVICE_ACTOR_ID = "service:admin-key"
+
+
+@dataclass(frozen=True)
+class Actor:
+    """Who is performing an admin operation. `id` is the stable value to store in audit/reviewer columns."""
+
+    kind: Literal["staff", "service"]
+    id: str
+    display: str
+    capabilities: frozenset[str] = frozenset()
+
+    def has(self, capability: str) -> bool:
+        return self.kind == "service" or capability in self.capabilities
+
+
+SERVICE_ACTOR = Actor("service", SERVICE_ACTOR_ID, "admin API key", _ALL_CAPABILITIES)
+
+
+def _unauthorised(detail: str = "invalid admin API key") -> HTTPException:
+    return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+
+
+def admin_actor(*capabilities: str):
+    """Dependency factory for admin routes. With no arguments any staff admin capability is enough;
+    `admin_actor("publish")` requires that capability (the service credential holds all of them).
+
+        router = APIRouter(dependencies=[Depends(require_admin_api_key)])        # authenticate
+        def publish(actor: Actor = Depends(admin_actor("publish"))): ...        # authenticate + who
     """
-    if not x_admin_api_key or x_admin_api_key != settings.admin_api_key:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid admin API key")
+    need = capabilities or STAFF_ADMIN_CAPABILITIES
+
+    def dependency(
+        request: Request,
+        x_admin_api_key: Annotated[str | None, Security(_admin_api_key_scheme)] = None,
+        credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer_scheme)] = None,
+    ) -> Actor:
+        if x_admin_api_key and hmac.compare_digest(x_admin_api_key.encode(), settings.admin_api_key.encode()):
+            return SERVICE_ACTOR
+        from mathbank_rest import socratic_auth as staff_auth  # lazy: keeps this module free of the Studio stack
+
+        cookie = request.cookies.get(staff_auth.ACCESS_COOKIE)
+        token = cookie or (credentials.credentials if credentials is not None else None)
+        if not token:
+            raise _unauthorised()
+        if cookie and request.method not in _SAFE_METHODS:
+            staff_auth.check_csrf(request, cookie)  # ambient credentials need CSRF; an explicit bearer does not
+        session = staff_auth.load_session(token, request=request)
+        if session.role != "admin" or not any(c in session.actor.capabilities for c in need):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="staff capability required")
+        a = session.actor
+        return Actor("staff", f"staff:{a.actor_id}", a.username, frozenset(a.capabilities))
+
+    return dependency
+
+
+# Kept under its historical name: 17 routers already use it as `Depends(require_admin_api_key)`. It now returns
+# the Actor, so a router that cares who acted can simply add `actor: Actor = Depends(require_admin_api_key)`.
+require_admin_api_key = admin_actor()

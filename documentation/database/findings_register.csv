@@ -4,7 +4,7 @@ ACT-F02,activity,F,P1,C3+C6,WP7,WP10 WP4,Y,"P1: Published content can change sil
 ACT-F03,activity,F,P2,C3+C6,WP7,WP10 WP4,N,P2: Two incompatible `correctness_policy` vocabularies. The live runtime uses `correct_option`/`numeric_answer`; `activity_scoring` uses `correct_index`/`correct_indices`/`correct_…,PLANNED,,,
 ACT-F04,activity,F,P2,C3+C6,WP7,WP10 WP4,Y,"P2: Ungoverned live create path. `POST /v1/activities/definitions` takes an untyped `dict`. The caller chooses `source_type` and `persistence_mode`, so it can mint `PRECOMPILED`/`S…",PLANNED,,,
 ACT-F05,activity,F,P2,C3+C6,WP7,WP10 WP4,Y,P2: Aggregate endpoint ignores its session. `GET /v1/live/sessions/{sid}/activities/{aid}/aggregate` never checks that `aid` belongs to `sid` or that a student caller is a particip…,PLANNED,,,
-ACT-F06,activity,F,P3,C3+C6,WP1,WP7 WP10 WP4,Y,"P3: State-machine gaps. `closes_at` and `anonymous` are not enforced or used. `CLOSE_ACTIVITY` can move `REVEALED` back to `CLOSED`. ""One OPEN instance per session"" is enforced onl…",PLANNED,,,security/contract fix to land on the PostgreSQL stores before data is copied (requirement 70 M1)
+ACT-F06,activity,F,P3,C3+C6,WP7,WP10 WP4,Y,"P3: State-machine gaps. `closes_at` and `anonymous` are not enforced or used. `CLOSE_ACTIVITY` can move `REVEALED` back to `CLOSED`. ""One OPEN instance per session"" is enforced onl…",PLANNED,,,re-routed from WP1: live activity state-machine behaviour; belongs with the live runtime
 ACT-F07,activity,F,P3,C3+C6,WP7,WP10 WP4,Y,P3: Contract drift from the guide. The admin list has no `total` and does an unindexed `ILIKE` scan. PATCH has no `expected_revision`. Audit rows for updates carry no before/after …,PLANNED,,,
 ACT-F08,activity,F,,C3+C6,WP7,WP10 WP4,Y,activity.definition: Three create paths with different rules; no revision.,PLANNED,,,
 ACT-F09,activity,F,,C3+C6,WP7,WP10 WP4,Y,activity.instance: No list of past runs in a session; `closes_at` not enforced.,PLANNED,,,
@@ -120,7 +120,7 @@ AUT-E04,authoring,E,P2,C3,WP7,,Y,"P2 — *(existing)* `POST …/{plan_id}/approv
 AUT-E05,authoring,E,P2,C3,WP7,,Y,P2 — `GET /v1/authoring/presentation-plans/{plan_id}/chat-sessions` — Admin key (X-Admin-Api-Key),PLANNED,,,
 AUT-E06,authoring,E,P3,C3,WP7,,Y,P3 — `GET /v1/authoring/chat/sessions/{chat_id}/messages?after_id=&limit=` — Admin key (X-Admin-Api-Key),PLANNED,,,
 AUT-E07,authoring,E,P3,C3,WP7,,Y,P3 — `GET /v1/authoring/presentation-plans/{plan_id}/live-sessions` — Admin key (X-Admin-Api-Key),PLANNED,,,
-COR-F01,core,F,,C6+C7,WP1,WP10 WP4,Y,core.competition: Admin upsert + ETL; no delete (FK-referenced corpus root). Missing: admin GET list/detail with counts is public only.,PLANNED,,,security/contract fix to land on the PostgreSQL stores before data is copied (requirement 70 M1)
+COR-F01,core,F,,C6+C7,WP10,WP4,Y,core.competition: Admin upsert + ETL; no delete (FK-referenced corpus root). Missing: admin GET list/detail with counts is public only.,PLANNED,,,"re-routed from WP1: admin list endpoint for the authoring plane, not a pre-copy fix"
 COR-F02,core,F,,C6+C7,WP10,WP4,Y,core.competition_edition: Only ETL / NEW_PROBLEM approval; no admin endpoint to correct year/season/label or merge duplicates.,PLANNED,,,
 COR-F03,core,F,,C6+C7,WP10,WP4,N,"core.paper: Admin registers papers via `pipeline.pdf_source`, not here; no edit of `question_count`/`paper_type`/`official`.",PLANNED,,,
 COR-F04,core,F,,C6+C7,WP10,WP4,N,core.problem: Writes only through reviewed `ingest.corpus_draft`; no retire/withdraw lifecycle for `status`.,PLANNED,,,
@@ -331,7 +331,7 @@ LIV-F06,live,F,,C3,WP7,,Y,Inline SQL is fine here. All SQL is in `live_runtime.p
 LIV-F07,live,F,,C3,WP7,,N,"`live.session`: No cancel or archive action, although `CANCELLED` exists.",PLANNED,,,
 LIV-F08,live,F,,C3,WP7,,N,"`live.participant`: No leave/kick, no group assignment.",PLANNED,,,
 LIV-F09,live,F,,C3,WP7,,Y,`live.command_receipt`: Internal; there is no audit read for rejected commands.,PLANNED,,,
-LIV-F10,live,F,,C3,WP1,WP7,N,`live.takeover`: Ended takeovers are not readable.,PLANNED,,,security/contract fix to land on the PostgreSQL stores before data is copied (requirement 70 M1)
+LIV-F10,live,F,,C3,WP7,,N,`live.takeover`: Ended takeovers are not readable.,PLANNED,,,re-routed from WP1: live takeover read; belongs with the live runtime
 LIV-S01,live,S,P1,C3,WP7,,Y,P1: Scope command idempotency to the actor and the request.,PLANNED,,,
 LIV-S02,live,S,P1,C3,WP7,,N,P1: Make recommendation acceptance retryable.,PLANNED,,,
 LIV-S03,live,S,P2,C3,WP7,,N,P2: Record session ownership.,PLANNED,,,
