@@ -57,6 +57,7 @@ def timed(label: str, fn, *args, **kwargs):
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--problems", type=int, default=60, help="problems examined from the catalogue listing")
+    parser.add_argument("--competition", help="competition code to sample (default: every competition; only some books have solution DAGs)")
     parser.add_argument("--video-id", help="a video_asset_id with an approved transcript (the video tables were empty at migration)")
     args = parser.parse_args()
     real = ddb.client
@@ -64,7 +65,7 @@ def main() -> int:
     print(f"env={settings.ddb_env} profile={settings.aws_profile or '(default chain)'} table={ddb.table_name('content')}")
     store = DynamoDBContentStore()
 
-    codes = [r["canonical_code"] for r in timed("list_problems", store.list_problems, limit=args.problems)]
+    codes = [r["canonical_code"] for r in timed("list_problems", store.list_problems, competition=args.competition, limit=args.problems)]
     check(bool(codes), "catalogue listing returned problem codes", f"{len(codes)} codes")
 
     dag, dag_code = None, None
