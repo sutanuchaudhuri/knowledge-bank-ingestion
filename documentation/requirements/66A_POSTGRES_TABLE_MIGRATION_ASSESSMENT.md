@@ -3,6 +3,8 @@
 ## Scope and evidence
 
 Companion to [report 66](66_AWS_STORAGE_DATABASE_COST_AND_MIGRATION_REPORT.md).
+**Superseded for placement decisions by [requirement 70](70_DYNAMODB_AND_S3_VECTORS_ADOPTION_PLAN.md)**
+(DynamoDB + S3 Vectors migration plan, maximal hybrid; its Appendix A is the current per-table placement).
 **Design assessment, 2026-10-25; not a migration or live database audit.**
 Baseline `a0041e2bc53818b9d06e67d836a5b6d701872fb0`.
 
