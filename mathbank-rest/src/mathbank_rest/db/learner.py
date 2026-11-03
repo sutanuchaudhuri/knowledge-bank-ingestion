@@ -6,7 +6,7 @@ managed by mathbank-db/sql/003_learner_schema.sql, not by this service.
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
@@ -87,7 +87,7 @@ def touch_last_login(student_id: UUID) -> None:
             text(
                 "UPDATE learner.student_profile SET last_login_at = :now WHERE student_id = :id"
             ),
-            {"now": datetime.now(timezone.utc), "id": str(student_id)},
+            {"now": datetime.now(UTC), "id": str(student_id)},
         )
 
 
@@ -484,5 +484,74 @@ def get_cohort_weak_concepts(*, min_students: int = 1, limit: int = 20) -> list[
                 "LIMIT :limit"
             ),
             {"min_students": min_students, "limit": limit},
+        ).mappings()
+        return [dict(r) for r in rows]
+
+
+_PROFILE_COLUMNS = (
+    "student_id, email, first_name, last_name, display_name, status, created_at, last_login_at, grade, phone"
+)
+_EDITABLE_PROFILE_COLUMNS = ("first_name", "last_name", "display_name", "grade", "phone")
+
+
+def update_student_profile(student_id: UUID, changes: dict) -> dict | None:
+    """PATCH /v1/learner/me: apply the editable columns in `changes` and return the profile row (None = no such student).
+    `display_name` is recomputed from the names unless the caller sets it."""
+    unknown = set(changes) - set(_EDITABLE_PROFILE_COLUMNS)
+    if unknown:
+        raise ValueError(f"not editable: {sorted(unknown)}")
+    with engine.begin() as conn:
+        current = conn.execute(
+            text("SELECT first_name, last_name, display_name FROM learner.student_profile WHERE student_id = :id FOR UPDATE"),
+            {"id": str(student_id)},
+        ).mappings().first()
+        if current is None:
+            return None
+        values = dict(changes)
+        if "display_name" not in values and ("first_name" in values or "last_name" in values):
+            first = values.get("first_name", current["first_name"])
+            last = values.get("last_name", current["last_name"])
+            values["display_name"] = f"{first} {last}".strip() or "Student"
+        if not values:
+            return dict(conn.execute(
+                text(f"SELECT {_PROFILE_COLUMNS} FROM learner.student_profile WHERE student_id = :id"),
+                {"id": str(student_id)},
+            ).mappings().first())
+        assignments = ", ".join(f"{column} = :{column}" for column in values)
+        row = conn.execute(
+            text(f"UPDATE learner.student_profile SET {assignments} WHERE student_id = :id RETURNING {_PROFILE_COLUMNS}"),
+            {**values, "id": str(student_id)},
+        ).mappings().first()
+        return dict(row)
+
+
+def get_student_password_hash(student_id: UUID) -> str | None:
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT password_hash FROM learner.student_profile WHERE student_id = :id"), {"id": str(student_id)},
+        ).scalar()
+
+
+def set_student_password_hash(student_id: UUID, password_hash: str) -> bool:
+    with engine.begin() as conn:
+        return conn.execute(
+            text("UPDATE learner.student_profile SET password_hash = :hash WHERE student_id = :id"),
+            {"hash": password_hash, "id": str(student_id)},
+        ).rowcount == 1
+
+
+def list_daily_activity(student_id: UUID, date_from, date_to) -> list[dict]:
+    """The caller's own UTC-day engagement counters between two dates (inclusive), oldest first (analytics.learner_daily_activity)."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT activity_date, attempts_started, attempts_completed, attempts_abandoned, steps_evaluated, "
+                "       steps_succeeded, gaps_diagnosed, knowledge_gaps_created, recovery_plans_created, "
+                "       recovery_plans_completed "
+                "FROM analytics.learner_daily_activity "
+                "WHERE student_id = :id AND activity_date BETWEEN :date_from AND :date_to "
+                "ORDER BY activity_date"
+            ),
+            {"id": str(student_id), "date_from": date_from, "date_to": date_to},
         ).mappings()
         return [dict(r) for r in rows]

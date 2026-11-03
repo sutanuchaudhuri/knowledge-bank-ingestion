@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from neo4j.exceptions import Neo4jError, ServiceUnavailable, SessionExpired
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import SQLAlchemyError
@@ -75,9 +75,15 @@ def topic_practice(body: TopicPracticeRequest,
 
 
 @router.post("/feedback", status_code=201)
-def feedback(body: FeedbackRequest, student_id: Annotated[UUID, Depends(get_current_student_id)]) -> dict:
+def feedback(
+    body: FeedbackRequest,
+    student_id: Annotated[UUID, Depends(get_current_student_id)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", min_length=1, max_length=200)] = None,
+) -> dict:
+    extra = {"idempotency_key": idempotency_key} if idempotency_key else {}
     result = _call(
-        topic_pedagogy.submit_feedback, student_id, body.problem_code, body.topic, body.reason
+        lambda *args: topic_pedagogy.submit_feedback(*args, **extra),
+        student_id, body.problem_code, body.topic, body.reason,
     )
     if result is None:
         raise HTTPException(404, "Unknown problem code.")

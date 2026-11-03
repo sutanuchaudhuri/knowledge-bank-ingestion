@@ -7,8 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from geometry_scene.errors import GeometryError
 from geometry_scene.orchestration import GeometryRequest
 
-from mathbank_rest import step_runtime
-from mathbank_rest.db.postgres import engine
+from mathbank_rest import step_runtime, stores
 from mathbank_rest.geometry_orchestration import interpret
 from mathbank_rest.routers.fluid import staff_or_student
 from mathbank_rest.routers.geometry_scenes import geometry_owner, get_geometry_repository
@@ -30,8 +29,7 @@ def interpret_scene(
         if body.solve_attempt_id:
             if actor["role"] != "STUDENT":
                 raise GeometryError("attempt-bound geometry requires the owning learner")
-            with engine.connect() as conn:
-                runtime = step_runtime.get_runtime(conn, body.solve_attempt_id, UUID(owner))
+            runtime = stores.get_store("learner").get_attempt_runtime(body.solve_attempt_id, UUID(owner))
             attempt = runtime["attempt"]
             current = runtime.get("current_step") or {}
             statement = attempt.get("statement_text") or body.problem_text

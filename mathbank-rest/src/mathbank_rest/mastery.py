@@ -16,12 +16,10 @@ Simplifications vs the full design doc (tracked as follow-ups there):
 from __future__ import annotations
 
 import math
-import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
-from mathbank_rest.db import learner as learner_db
-from mathbank_rest.db import queries
+from mathbank_rest import stores
 
 HALF_LIFE_DAYS = 45.0
 
@@ -70,9 +68,9 @@ def hint_penalty(hint_count: int) -> float:
 
 
 def recency_weight(attempted_at: datetime, *, now: datetime | None = None) -> float:
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     if attempted_at.tzinfo is None:
-        attempted_at = attempted_at.replace(tzinfo=timezone.utc)
+        attempted_at = attempted_at.replace(tzinfo=UTC)
     days_since = max((now - attempted_at).total_seconds() / 86400.0, 0.0)
     return math.exp(-days_since / HALF_LIFE_DAYS)
 
@@ -99,42 +97,25 @@ def compute_mastery_score(attempts: list[dict], *, now: datetime | None = None) 
     return max(0.0, min(1.0, numerator / denominator))
 
 
+def _learner():
+    return stores.get_store("learner")
+
+
 def recompute_concept_mastery(student_id: UUID, concept_id: UUID) -> float:
-    attempts = learner_db.get_attempts_for_concept(student_id, concept_id)
-    score = compute_mastery_score(attempts)
-    correct_count = sum(1 for a in attempts if a["is_correct"])
-    last_attempt_at = attempts[-1]["attempted_at"] if attempts else datetime.now(timezone.utc)
-    learner_db.upsert_concept_mastery(
-        student_id=student_id,
-        concept_id=concept_id,
-        mastery_score=score,
-        attempts_count=len(attempts),
-        correct_count=correct_count,
-        last_attempt_at=last_attempt_at,
-    )
-    return score
+    """Re-derive one concept score from its evidence and store it. The learner store reads the evidence and writes the
+    score (PostgreSQL: two statements; DynamoDB: strongly consistent MEVID query, version-checked MASTERY write); both use
+    `compute_mastery_score` above."""
+    return _learner().recompute_concept_mastery(student_id, concept_id)
 
 
 def recompute_technique_mastery(student_id: UUID, technique_id: UUID) -> float:
-    attempts = learner_db.get_attempts_for_technique(student_id, technique_id)
-    score = compute_mastery_score(attempts)
-    correct_count = sum(1 for a in attempts if a["is_correct"])
-    last_attempt_at = attempts[-1]["attempted_at"] if attempts else datetime.now(timezone.utc)
-    learner_db.upsert_technique_mastery(
-        student_id=student_id,
-        technique_id=technique_id,
-        mastery_score=score,
-        attempts_count=len(attempts),
-        correct_count=correct_count,
-        last_attempt_at=last_attempt_at,
-    )
-    return score
+    return _learner().recompute_technique_mastery(student_id, technique_id)
 
 
 def recompute_mastery_for_problem(student_id: UUID, problem_id: UUID) -> dict:
     """Called right after an attempt is recorded — fans out to every concept/technique
     the problem is tagged with (knowledge.problem_concept / problem_technique)."""
-    linked = learner_db.get_concepts_and_techniques_for_problem(problem_id)
+    linked = _learner().get_concepts_and_techniques_for_problem(problem_id)
     concept_scores = {
         str(cid): recompute_concept_mastery(student_id, cid) for cid in linked["concept_ids"]
     }
@@ -167,11 +148,12 @@ def build_improvement_plan(
     GET /v1/concepts/{slug}/problems and /v1/techniques/{slug}/problems lookups
     (knowledge.concept/technique hierarchy, already live) — no new retrieval path.
     """
-    summary = learner_db.get_mastery_summary(student_id)
+    summary = _learner().get_mastery_summary(student_id)
+    content = stores.get_store("content")
     focus_areas: list[dict] = []
     for kind, items, lookup in (
-        ("concept", summary["concepts"], queries.get_concept_problems),
-        ("technique", summary["techniques"], queries.get_technique_problems),
+        ("concept", summary["concepts"], content.get_concept_problems),
+        ("technique", summary["techniques"], content.get_technique_problems),
     ):
         for item in items:
             tier = mastery_tier(item["mastery_score"])

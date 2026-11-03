@@ -60,14 +60,21 @@ class FeedbackDecision(BaseModel):
 
 
 @router.get("/feedback")
-def feedback_queue(limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0)) -> dict:
-    return call(topic_pedagogy.feedback_queue, limit, offset)
+def feedback_queue(
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    status: Literal["PENDING", "RESOLVED", "DISMISSED"] | None = None,
+    student_id: UUID | None = None,
+    q: str | None = Query(None, min_length=1, max_length=200),
+) -> dict:
+    filters = {k: v for k, v in {"status": status, "student_id": student_id, "q": q}.items() if v is not None}
+    return call(lambda *args: topic_pedagogy.feedback_queue(*args, **filters), limit, offset)
 
 
 @router.post("/feedback-review")
-def feedback_review(body: FeedbackDecision) -> dict:
+def feedback_review(body: FeedbackDecision, actor: AdminActor) -> dict:
     result = call(topic_pedagogy.resolve_feedback, body.feedback_id, body.status, body.note,
-                  body.retrieval_verdict, body.error_kind)
+                  body.retrieval_verdict, body.error_kind, actor.id if actor else None)
     if result is None:
         raise HTTPException(409, "Feedback is missing or already reviewed.")
     return {

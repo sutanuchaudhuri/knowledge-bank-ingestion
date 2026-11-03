@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 from mathbank_rest import rate_limit, stores
 from mathbank_rest.config import settings
 from mathbank_rest.db import hybrid_search, step_search
-from mathbank_rest.db import learner as learner_db
 from mathbank_rest.db import queries as queries  # noqa: PLC0414
 
 router = APIRouter(prefix="/v1")
@@ -139,7 +138,7 @@ def get_weak_concepts(
     least `cohort_min_students` learners contribute, whatever `min_students`
     asks for; otherwise the result is empty with `suppressed: true`."""
     floor = settings.cohort_min_students
-    results = learner_db.get_cohort_weak_concepts(min_students=max(min_students, floor), limit=limit)
+    results = stores.get_store("learner").get_cohort_weak_concepts(min_students=max(min_students, floor), limit=limit)
     body: dict = {"results": results, "suppressed": not results, "cohort_min_students": floor}
     if not results:
         body["note"] = f"No concept has at least {floor} learners; aggregates below that size are withheld."

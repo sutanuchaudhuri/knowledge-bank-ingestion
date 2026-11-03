@@ -7,7 +7,7 @@ import logging
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -202,6 +202,19 @@ def _content_call(method: str, *args, **kwargs):
     connection, so none is opened for it."""
     store = stores.get_store("content")
     return _call(getattr(store, method), *args, _conn=getattr(store, "backend", "postgres") != "dynamodb", **kwargs)
+
+
+def _learner_call(method: str, *args, **kwargs):
+    """Run a learner-runtime operation through the learner store (flag ``LEARNER_STORE``). Postgres gets a connection; the
+    DynamoDB backend needs no SQL connection, so none is opened for it."""
+    store = stores.get_store("learner")
+    return _call(getattr(store, method), *args, _conn=getattr(store, "backend", "postgres") != "dynamodb", **kwargs)
+
+
+learner_call = _learner_call            # the two /v1/learner micro-course endpoints (routers/learner.py) share it
+
+
+IdempotencyKey = Header(default=None, alias="Idempotency-Key", max_length=200)
 
 
 @admin_router.get("/targets")
@@ -504,18 +517,20 @@ def get_student_asset(canonical_code: str, asset_id: UUID) -> Response:
 
 @student_router.post("/{canonical_code}/enroll", status_code=201)
 def enroll_in_course(
-    canonical_code: str, student_id: UUID = Depends(get_current_student_id)
+    canonical_code: str,
+    student_id: UUID = Depends(get_current_student_id),
+    idempotency_key: str | None = IdempotencyKey,
 ) -> dict:
     """Create (or resume) the logged-in student's in-progress enrollment and return
     the pinned release's current state, exactly as the shared service layer defines it."""
-    return _call(courses.start_enrollment, canonical_code, str(student_id))
+    return _learner_call("start_enrollment", canonical_code, str(student_id), idempotency_key=idempotency_key)
 
 
 @student_router.get("/enrollments/{enrollment_id}")
 def get_enrollment(
     enrollment_id: UUID, student_id: UUID = Depends(get_current_student_id)
 ) -> dict:
-    return _call(courses.get_enrollment_runtime, str(enrollment_id), str(student_id))
+    return _learner_call("get_enrollment_runtime", str(enrollment_id), str(student_id))
 
 
 @student_router.post("/enrollments/{enrollment_id}/advance")
@@ -523,11 +538,23 @@ def advance_enrollment(
     enrollment_id: UUID,
     body: AdvanceEnrollment,
     student_id: UUID = Depends(get_current_student_id),
+    idempotency_key: str | None = IdempotencyKey,
 ) -> dict:
-    return _call(
-        courses.advance_enrollment,
+    return _learner_call(
+        "advance_enrollment",
         str(enrollment_id), str(student_id), body.expected_state_version, body.action,
+        idempotency_key=idempotency_key,
     )
+
+
+@student_router.post("/enrollments/{enrollment_id}/abandon")
+def abandon_enrollment(
+    enrollment_id: UUID,
+    student_id: UUID = Depends(get_current_student_id),
+    idempotency_key: str | None = IdempotencyKey,
+) -> dict:
+    """Leave an in-progress enrollment for good (LRN-E12); enrolling again starts a fresh one."""
+    return _learner_call("abandon_enrollment", str(enrollment_id), str(student_id), idempotency_key=idempotency_key)
 
 
 @student_router.post("/enrollments/{enrollment_id}/responses")
@@ -535,11 +562,12 @@ def submit_response(
     enrollment_id: UUID,
     body: SubmitLearningItemResponse,
     student_id: UUID = Depends(get_current_student_id),
+    idempotency_key: str | None = IdempotencyKey,
 ) -> dict:
-    return _call(
-        courses.submit_learning_item_response,
+    return _learner_call(
+        "submit_learning_item_response",
         str(enrollment_id), str(student_id), body.learning_item_id, body.choice_index,
-        gave_up=body.gave_up,
+        gave_up=body.gave_up, idempotency_key=idempotency_key,
     )
 
 
@@ -548,11 +576,13 @@ def submit_activity_response_endpoint(
     enrollment_id: UUID,
     body: SubmitActivityResponse,
     student_id: UUID = Depends(get_current_student_id),
+    idempotency_key: str | None = IdempotencyKey,
 ) -> dict:
-    return _call(
-        courses.submit_activity_response,
+    return _learner_call(
+        "submit_activity_response",
         str(enrollment_id), str(student_id), str(body.activity_id),
         choice_index=body.choice_index, value=body.value, gave_up=body.gave_up,
+        idempotency_key=idempotency_key,
     )
 
 
@@ -561,16 +591,16 @@ def record_interaction_event_endpoint(
     enrollment_id: UUID,
     body: RecordInteractionEvent,
     student_id: UUID = Depends(get_current_student_id),
+    idempotency_key: str | None = IdempotencyKey,
 ) -> dict:
-    event_id = _call(
-        courses.record_interaction_event,
+    return _learner_call(
+        "record_interaction_event",
         str(enrollment_id), str(student_id), str(body.interaction_instance_id),
         event_type=body.event_type, semantic_action=body.semantic_action,
         control_key=body.control_key, object_id=body.object_id,
         before_state=body.before_state, action_payload=body.action_payload,
-        after_state=body.after_state,
+        after_state=body.after_state, idempotency_key=idempotency_key,
     )
-    return {"interaction_event_id": event_id}
 
 
 @student_router.post("/enrollments/{enrollment_id}/item-help")
@@ -578,11 +608,12 @@ def get_item_help(
     enrollment_id: UUID,
     body: ItemHelpRequest,
     student_id: UUID = Depends(get_current_student_id),
+    idempotency_key: str | None = IdempotencyKey,
 ) -> dict:
     """Scoped "Help me?" / "Give up" assist for the single current item of the
-    student's active state (requirements/47 §3, MCN2-6/MCN2-7)."""
-    return _call(
-        assist.get_item_assist,
+    student's active state (requirements/47 §3, MCN2-6/MCN2-7). The key applies to a give-up only."""
+    return _learner_call(
+        "assist_item",
         str(enrollment_id), str(student_id), body.item_kind, body.item_id,
-        body.intent, body.student_message,
+        body.intent, body.student_message, idempotency_key=idempotency_key,
     )

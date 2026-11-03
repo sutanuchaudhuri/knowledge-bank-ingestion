@@ -24,9 +24,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from mathbank_rest import security
+from mathbank_rest import security, stores
 from mathbank_rest.db import admin as admin_db
-from mathbank_rest.db import learner as learner_db
 from mathbank_rest.db import pipeline_jobs
 from mathbank_rest.security import Actor, admin_actor, require_admin_api_key
 
@@ -64,7 +63,7 @@ ManageUsers = Annotated[Actor, Depends(admin_actor("manage_users"))]
 
 def _set_student_status(student_id: UUID, new_status: str, actor: Actor) -> dict:
     try:
-        result = learner_db.set_student_status(student_id, new_status, actor.id)
+        result = stores.get_store("learner").set_student_status(student_id, new_status, actor.id)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if result is None:

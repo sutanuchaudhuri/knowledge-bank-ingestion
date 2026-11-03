@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
@@ -649,6 +650,221 @@ def _assemble_course_reader_payload(
     return result
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# Learner runtime: the pure logic (grading, transitions, response and runtime shapes) shared by the PostgreSQL functions
+# below and by the DynamoDB backend (stores/learner/microcourse.py). Nothing here touches a database.
+# ---------------------------------------------------------------------------------------------------------------------
+
+ADVANCE_ACTIONS = ("CONTINUE", "BACK")
+_QA_RUNTIME_KEYS = ("context_type", "question_pattern", "approved_content")
+_STATE_RUNTIME_KEYS = (
+    "state_id", "state_key", "state_type", "title", "ordinal", "objective", "student_instruction",
+    "estimated_seconds", "required",
+)
+
+
+def normalize_advance_action(action: str) -> str:
+    normalized = _required_text(action, "action").upper()
+    if normalized not in ADVANCE_ACTIONS:
+        raise ValueError("action must be CONTINUE or BACK")
+    return normalized
+
+
+def advance_transition_types(action: str) -> tuple[str, ...]:
+    return ("NEXT", "USER_CONTINUE") if action == "CONTINUE" else ("USER_BACK",)
+
+
+def pick_transition(transitions: list[dict], state_id: str, action: str) -> dict | None:
+    """The approved unconditional transition an advance action takes from a state (lowest priority number first)."""
+    types = advance_transition_types(action)
+    candidates = [
+        t for t in transitions
+        if str(t["from_state_id"]) == str(state_id) and t["condition_type"] == "ALWAYS" and t["transition_type"] in types
+    ]
+    return min(candidates, key=lambda t: (t.get("priority") or 0, str(t["to_state_id"]))) if candidates else None
+
+
+def mask_unanswered(rows: list[dict], id_key: str, answered: dict[str, bool]) -> None:
+    """WP1 answer-key rule: an item shows its explanation (and whether it was answered correctly) only once answered."""
+    for row in rows:
+        row_id = str(row[id_key])
+        if row_id in answered:
+            row["answered_correctly"] = answered[row_id]
+        else:
+            row.pop("explanation", None)
+
+
+def runtime_flags(outgoing: list[dict], assessment_complete: bool) -> dict[str, bool]:
+    return {
+        "can_continue": any(
+            t["condition_type"] == "ALWAYS" and t["transition_type"] in {"NEXT", "USER_CONTINUE"} for t in outgoing
+        ) and assessment_complete,
+        "can_go_back": any(t["condition_type"] == "ALWAYS" and t["transition_type"] == "USER_BACK" for t in outgoing),
+        "can_finish": not outgoing and assessment_complete,
+    }
+
+
+def grade_learning_item(item: dict, choice_index: int | None, gave_up: bool) -> tuple[bool, int | None]:
+    """(is_correct, correct_index) of a fixed multiple-choice item; ``item`` carries its answer key server-side only."""
+    choices = item["choices"]
+    if not isinstance(choices, list) or not item["correct_answer"]:
+        raise MicroCourseConflict("learning item is not configured as a gradable multiple-choice question")
+    correct_index = next((index for index, choice in enumerate(choices) if choice == item["correct_answer"]), None)
+    if gave_up:
+        return False, correct_index
+    if choice_index is None:
+        raise ValueError("choice_index is required unless gave_up is true")
+    if choice_index < 0 or choice_index >= len(choices):
+        raise ValueError("choice_index is outside the available choices")
+    return choices[choice_index] == item["correct_answer"], correct_index
+
+
+def learning_item_event_payload(item: dict, choice_index: int | None, is_correct: bool, gave_up: bool) -> dict:
+    return {
+        "learning_item_id": str(item["learning_item_id"]),
+        "choice_index": choice_index,
+        "is_correct": is_correct,
+        "gave_up": gave_up,
+    }
+
+
+def learning_item_response(
+    item: dict, choice_index: int | None, is_correct: bool, gave_up: bool, correct_index: int | None
+) -> dict:
+    response = {
+        "learning_item_id": str(item["learning_item_id"]),
+        "choice_index": choice_index,
+        "is_correct": is_correct,
+        "gave_up": gave_up,
+        "explanation": item["answer_or_solution_seed"],
+    }
+    if gave_up:
+        response["correct_choice_index"] = correct_index
+        response["correct_answer"] = item["correct_answer"]
+    return response
+
+
+def grade_activity(activity: dict, choice_index: int | None, value: float | None, gave_up: bool) -> tuple[bool, dict]:
+    """(is_correct, response payload) of a static preview-quiz activity."""
+    policy = activity["correctness_policy"] or {}
+    if activity["activity_type"] == "NUMERIC":
+        if gave_up:
+            return False, {"value": value}
+        if value is None:
+            raise ValueError("value is required unless gave_up is true")
+        return activity_scoring.score_numeric(policy, value), {"value": value}
+    options = activity["options"] or []
+    if gave_up:
+        return False, {"choice_index": choice_index}
+    if choice_index is None:
+        raise ValueError("choice_index is required unless gave_up is true")
+    return activity_scoring.score_choice_index(options, policy, choice_index), {"choice_index": choice_index}
+
+
+def activity_event_payload(activity_id: str, is_correct: bool, gave_up: bool, response_payload: dict) -> dict:
+    return {"activity_id": str(activity_id), "is_correct": is_correct, "gave_up": gave_up, **response_payload}
+
+
+def activity_response(activity_id: str, is_correct: bool, gave_up: bool, policy: dict | None) -> dict:
+    policy = policy or {}
+    response = {
+        "activity_id": str(activity_id),
+        "is_correct": is_correct,
+        "gave_up": gave_up,
+        "explanation": policy.get("explanation"),
+    }
+    if gave_up:
+        response["correct_choice_index"] = policy.get("correct_index")
+        response["correct_value"] = policy.get("correct_value")
+    return response
+
+
+def enrollment_summary(
+    *, enrollment_id, canonical_code, micro_course_id, release_id, status, current_state_id, state_version, started_at,
+    completed_at,
+) -> dict:
+    """One row of "my enrollments" (and the response of abandon)."""
+    return {
+        "enrollment_id": str(enrollment_id),
+        "canonical_code": canonical_code,
+        "micro_course_id": str(micro_course_id),
+        "release_id": str(release_id),
+        "status": status,
+        "current_state_id": str(current_state_id),
+        "state_version": int(state_version),
+        "started_at": started_at,
+        "completed_at": completed_at,
+    }
+
+
+def assemble_runtime(
+    reader: dict,
+    enrollment: dict,
+    answers: dict[str, dict],
+    *,
+    item_explanation,
+    activity_explanation,
+) -> dict:
+    """The learner runtime view of an enrollment, built from the reader payload of the release it is pinned to (the DynamoDB
+    backend; ``get_enrollment_runtime`` builds the same shape from SQL).
+
+    ``enrollment`` carries enrollment_id, enrollment_status, started_at, completed_at, micro_course_id, state_version and
+    current_state_id; ``answers`` maps an item id to the learner's latest response (``is_correct``). ``item_explanation(id)`` and
+    ``activity_explanation(id)`` resolve an explanation from the answer key and are called only for answered items (WP1: no key
+    or explanation before the learner answered)."""
+    states = reader["states"]
+    state = next((s for s in states if str(s["state_id"]) == str(enrollment["current_state_id"])), None)
+    if state is None:
+        raise MicroCourseNotFound("micro-course enrollment not found")
+    module = next((m for m in reader.get("modules") or [] if state.get("module_id") and m["module_id"] == state["module_id"]), None)
+    current = {key: state.get(key) for key in _STATE_RUNTIME_KEYS}
+    current["state_id"] = str(current["state_id"])
+    current["module_id"] = str(state["module_id"]) if state.get("module_id") is not None else None
+    current["module_title"] = module["title"] if module else None
+    current["assets"] = copy.deepcopy(state.get("assets") or [])
+    current["interactions"] = copy.deepcopy(state.get("interactions") or [])
+    current["activities"] = copy.deepcopy(state.get("activities") or [])
+    current["learning_items"] = copy.deepcopy(state.get("learning_items") or [])
+    current["transcript_segments"] = copy.deepcopy(state.get("transcript_segments") or [])
+    current["qa_contexts"] = [{k: q.get(k) for k in _QA_RUNTIME_KEYS} for q in state.get("qa_contexts") or []]
+    answered_activities = {k: bool(v["is_correct"]) for k, v in answers.items() if v["kind"] == "ACTIVITY_RESPONSE"}
+    answered_quiz = {k: bool(v["is_correct"]) for k, v in answers.items() if v["kind"] == "QUIZ_RESPONSE"}
+    for activity in current["activities"]:
+        activity_id = str(activity["activity_id"])
+        if activity_id in answered_activities:
+            activity["explanation"] = activity_explanation(activity_id)
+            activity["answered_correctly"] = answered_activities[activity_id]
+    for item in current["learning_items"]:
+        item_id = str(item["learning_item_id"])
+        if item_id in answered_quiz:
+            item["explanation"] = item_explanation(item_id)
+            item["answered_correctly"] = answered_quiz[item_id]
+    item_ids = {str(item["learning_item_id"]) for item in current["learning_items"]}
+    required_ids = {str(item["learning_item_id"]) for item in current["learning_items"] if item["required"]}
+    answered_ids = set(answered_quiz)
+    current["answered_learning_item_ids"] = sorted(answered_ids & item_ids)
+    current["items"] = _build_state_items(current)
+    outgoing = [t for t in reader.get("transitions") or [] if str(t["from_state_id"]) == str(state["state_id"])]
+    return {
+        "enrollment_id": str(enrollment["enrollment_id"]),
+        "enrollment_status": enrollment["enrollment_status"],
+        "started_at": enrollment["started_at"],
+        "completed_at": enrollment["completed_at"],
+        "micro_course_id": str(enrollment["micro_course_id"]),
+        "release_id": str(reader["release_id"]),
+        "version": reader["version"],
+        "state_version": int(enrollment["state_version"]),
+        "canonical_code": reader["canonical_code"],
+        "course_title": reader["title"],
+        "course_description": reader["description"],
+        "estimated_minutes": reader["estimated_minutes"],
+        "step_count": len(states),
+        "step_number": sum(1 for s in states if s["ordinal"] <= state["ordinal"]),
+        "current_state": current,
+        **runtime_flags(outgoing, required_ids.issubset(answered_ids)),
+    }
+
+
 def start_enrollment(conn, canonical_code: str, student_id: str) -> dict:
     """Create or resume a learner's in-progress enrollment on the published release."""
     code = _required_text(canonical_code, "canonical_code")
@@ -864,11 +1080,7 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
         ).mappings()
         if row["activity_id"] is not None
     }
-    for activity in result["current_state"]["activities"]:
-        if activity["activity_id"] in answered_activity_responses:
-            activity["answered_correctly"] = answered_activity_responses[activity["activity_id"]]
-        else:
-            activity.pop("explanation", None)
+    mask_unanswered(result["current_state"]["activities"], "activity_id", answered_activity_responses)
     result["current_state"]["learning_items"] = [
         dict(item)
         for item in conn.execute(
@@ -906,11 +1118,7 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
         if row["learning_item_id"] is not None
     }
     answered_item_ids = set(answered_quiz_responses)
-    for item in result["current_state"]["learning_items"]:
-        if str(item["learning_item_id"]) in answered_quiz_responses:
-            item["answered_correctly"] = answered_quiz_responses[str(item["learning_item_id"])]
-        else:
-            item.pop("explanation", None)
+    mask_unanswered(result["current_state"]["learning_items"], "learning_item_id", answered_quiz_responses)
     result["current_state"]["answered_learning_item_ids"] = sorted(
         answered_item_ids & {
             str(item["learning_item_id"])
@@ -960,17 +1168,7 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
             {"release_id": str(result["release_id"]), "state_id": state_id},
         ).mappings()
     ]
-    result["can_continue"] = any(
-        transition["condition_type"] == "ALWAYS"
-        and transition["transition_type"] in {"NEXT", "USER_CONTINUE"}
-        for transition in outgoing
-    ) and assessment_complete
-    result["can_go_back"] = any(
-        transition["condition_type"] == "ALWAYS"
-        and transition["transition_type"] == "USER_BACK"
-        for transition in outgoing
-    )
-    result["can_finish"] = not outgoing and assessment_complete
+    result.update(runtime_flags(outgoing, assessment_complete))
     result["release_id"] = str(result["release_id"])
     result["enrollment_id"] = str(result["enrollment_id"])
     result["current_state"]["state_id"] = str(result["current_state"]["state_id"])
@@ -1052,18 +1250,7 @@ def submit_learning_item_response(
     )
     if item is None:
         raise MicroCourseNotFound("approved learning item not found in the current lesson state")
-    choices = item["choices"]
-    if not isinstance(choices, list) or not item["correct_answer"]:
-        raise MicroCourseConflict("learning item is not configured as a gradable multiple-choice question")
-    correct_index = next((index for index, choice in enumerate(choices) if choice == item["correct_answer"]), None)
-    if gave_up:
-        is_correct = False
-    else:
-        if choice_index is None:
-            raise ValueError("choice_index is required unless gave_up is true")
-        if choice_index < 0 or choice_index >= len(choices):
-            raise ValueError("choice_index is outside the available choices")
-        is_correct = choices[choice_index] == item["correct_answer"]
+    is_correct, correct_index = grade_learning_item(item, choice_index, gave_up)
     conn.execute(
         text("""
         INSERT INTO learner.micro_course_state_event (enrollment_id, state_id, event_type, payload)
@@ -1072,25 +1259,10 @@ def submit_learning_item_response(
         {
             "enrollment_id": str(enrollment_id),
             "state_id": str(runtime["current_state_id"]),
-            "payload": _json({
-                "learning_item_id": str(item["learning_item_id"]),
-                "choice_index": choice_index,
-                "is_correct": is_correct,
-                "gave_up": gave_up,
-            }),
+            "payload": _json(learning_item_event_payload(item, choice_index, is_correct, gave_up)),
         },
     )
-    response = {
-        "learning_item_id": str(item["learning_item_id"]),
-        "choice_index": choice_index,
-        "is_correct": is_correct,
-        "gave_up": gave_up,
-        "explanation": item["answer_or_solution_seed"],
-    }
-    if gave_up:
-        response["correct_choice_index"] = correct_index
-        response["correct_answer"] = item["correct_answer"]
-    return response
+    return learning_item_response(item, choice_index, is_correct, gave_up, correct_index)
 
 
 def submit_activity_response(
@@ -1133,23 +1305,7 @@ def submit_activity_response(
     if activity is None:
         raise MicroCourseNotFound("quiz activity not found in this course release")
     policy = activity["correctness_policy"] or {}
-    if activity["activity_type"] == "NUMERIC":
-        if gave_up:
-            is_correct = False
-        else:
-            if value is None:
-                raise ValueError("value is required unless gave_up is true")
-            is_correct = activity_scoring.score_numeric(policy, value)
-        response_payload = {"value": value}
-    else:
-        options = activity["options"] or []
-        if gave_up:
-            is_correct = False
-        else:
-            if choice_index is None:
-                raise ValueError("choice_index is required unless gave_up is true")
-            is_correct = activity_scoring.score_choice_index(options, policy, choice_index)
-        response_payload = {"choice_index": choice_index}
+    is_correct, response_payload = grade_activity(activity, choice_index, value, gave_up)
     conn.execute(
         text("""
         INSERT INTO learner.micro_course_state_event (enrollment_id, state_id, event_type, payload)
@@ -1158,22 +1314,10 @@ def submit_activity_response(
         {
             "enrollment_id": str(enrollment_id),
             "state_id": str(activity["state_id"]),
-            "payload": _json({
-                "activity_id": str(activity_id), "is_correct": is_correct, "gave_up": gave_up,
-                **response_payload,
-            }),
+            "payload": _json(activity_event_payload(activity_id, is_correct, gave_up, response_payload)),
         },
     )
-    response = {
-        "activity_id": str(activity_id),
-        "is_correct": is_correct,
-        "gave_up": gave_up,
-        "explanation": policy.get("explanation"),
-    }
-    if gave_up:
-        response["correct_choice_index"] = policy.get("correct_index")
-        response["correct_value"] = policy.get("correct_value")
-    return response
+    return activity_response(activity_id, is_correct, gave_up, policy)
 
 
 def record_interaction_event(
@@ -1271,9 +1415,7 @@ def advance_enrollment(
     action: str,
 ) -> dict:
     """Apply an approved unconditional transition using optimistic version checks."""
-    normalized_action = _required_text(action, "action").upper()
-    if normalized_action not in {"CONTINUE", "BACK"}:
-        raise ValueError("action must be CONTINUE or BACK")
+    normalized_action = normalize_advance_action(action)
     runtime = (
         conn.execute(
             text("""
@@ -1295,7 +1437,7 @@ def advance_enrollment(
     if int(runtime["state_version"]) != expected_state_version:
         raise MicroCourseConflict("micro-course lesson changed; refresh before continuing")
 
-    transition_types = ("NEXT", "USER_CONTINUE") if normalized_action == "CONTINUE" else ("USER_BACK",)
+    transition_types = advance_transition_types(normalized_action)
     transition = (
         conn.execute(
             text("""
@@ -1377,6 +1519,146 @@ def advance_enrollment(
         },
     )
     return get_enrollment_runtime(conn, enrollment_id, student_id)
+
+
+_ENROLLMENT_SUMMARY_SQL = """
+    SELECT e.enrollment_id, c.canonical_code, e.micro_course_id, e.release_id, e.status,
+           rt.current_state_id, rt.state_version, e.started_at, e.completed_at
+    FROM learner.micro_course_enrollment e
+    JOIN tutor.micro_course_runtime rt ON rt.enrollment_id = e.enrollment_id
+    JOIN pedagogy.micro_course c ON c.micro_course_id = e.micro_course_id
+"""
+
+
+def list_enrollments(conn, student_id: str, status: str | None = None, limit: int = 100) -> dict:
+    """The learner's own enrollments, newest first, optionally of one status (LRN-F17)."""
+    if status is not None and status not in ("IN_PROGRESS", "COMPLETED", "ABANDONED"):
+        raise ValueError("status must be IN_PROGRESS, COMPLETED or ABANDONED")
+    params = {"student_id": str(student_id), "status": status, "limit": limit}
+    where = "WHERE e.student_id=:student_id AND (CAST(:status AS text) IS NULL OR e.status=:status)"
+    rows = conn.execute(
+        text(f"{_ENROLLMENT_SUMMARY_SQL} {where} ORDER BY e.started_at DESC, e.enrollment_id DESC LIMIT :limit"), params
+    ).mappings()
+    total = conn.execute(
+        text(f"SELECT count(*) FROM learner.micro_course_enrollment e {where}"),
+        {"student_id": params["student_id"], "status": status},
+    ).scalar_one()
+    return {"items": [enrollment_summary(**dict(row)) for row in rows], "total": total}
+
+
+def abandon_enrollment(conn, enrollment_id: str, student_id: str) -> dict:
+    """Leave an in-progress enrollment for good (LRN-E12); a later enroll starts a fresh one."""
+    runtime = (
+        conn.execute(
+            text("""
+            SELECT e.status, rt.current_state_id, rt.state_version
+            FROM learner.micro_course_enrollment e
+            JOIN tutor.micro_course_runtime rt USING (enrollment_id)
+            WHERE e.enrollment_id=:enrollment_id AND e.student_id=:student_id
+            FOR UPDATE OF e, rt
+        """),
+            {"enrollment_id": str(enrollment_id), "student_id": str(student_id)},
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if runtime is None:
+        raise MicroCourseNotFound("micro-course enrollment not found")
+    if runtime["status"] != "IN_PROGRESS":
+        raise MicroCourseConflict("micro-course enrollment is not in progress")
+    conn.execute(
+        text("UPDATE learner.micro_course_enrollment SET status='ABANDONED' WHERE enrollment_id=:enrollment_id"),
+        {"enrollment_id": str(enrollment_id)},
+    )
+    conn.execute(
+        text("""
+        UPDATE tutor.micro_course_runtime SET state_version=state_version+1, updated_at=now()
+        WHERE enrollment_id=:enrollment_id
+    """),
+        {"enrollment_id": str(enrollment_id)},
+    )
+    conn.execute(
+        text("""
+        INSERT INTO learner.micro_course_state_event (enrollment_id, state_id, event_type, payload)
+        VALUES (:enrollment_id, :state_id, 'ABANDONED', CAST(:payload AS jsonb))
+    """),
+        {
+            "enrollment_id": str(enrollment_id),
+            "state_id": str(runtime["current_state_id"]),
+            "payload": _json({
+                "from_state_id": str(runtime["current_state_id"]),
+                "from_state_version": int(runtime["state_version"]),
+            }),
+        },
+    )
+    row = conn.execute(
+        text(f"{_ENROLLMENT_SUMMARY_SQL} WHERE e.enrollment_id=:enrollment_id"), {"enrollment_id": str(enrollment_id)}
+    ).mappings().one()
+    return enrollment_summary(**dict(row))
+
+
+def get_enrollment_owner(conn, enrollment_id: str) -> str | None:
+    """The student an enrollment belongs to (admin routes carry no learner token), or None."""
+    owner = conn.execute(
+        text("SELECT student_id FROM learner.micro_course_enrollment WHERE enrollment_id=:enrollment_id"),
+        {"enrollment_id": str(enrollment_id)},
+    ).scalar_one_or_none()
+    return None if owner is None else str(owner)
+
+
+def reset_enrollment(conn, enrollment_id: str, to_state_id: str, actor: str) -> dict:
+    """Admin: move an in-progress enrollment back to another state of its pinned release (TUT-E02); the actor is recorded on the
+    RESET event. Returns the learner's runtime view after the move."""
+    runtime = (
+        conn.execute(
+            text("""
+            SELECT e.student_id, e.status, e.release_id, rt.current_state_id, rt.state_version
+            FROM learner.micro_course_enrollment e
+            JOIN tutor.micro_course_runtime rt USING (enrollment_id)
+            WHERE e.enrollment_id=:enrollment_id
+            FOR UPDATE OF e, rt
+        """),
+            {"enrollment_id": str(enrollment_id)},
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if runtime is None:
+        raise MicroCourseNotFound("micro-course enrollment not found")
+    if runtime["status"] != "IN_PROGRESS":
+        raise MicroCourseConflict("micro-course enrollment is not in progress")
+    belongs = conn.execute(
+        text("SELECT 1 FROM pedagogy.micro_course_state WHERE state_id=:state_id AND release_id=:release_id"),
+        {"state_id": str(to_state_id), "release_id": str(runtime["release_id"])},
+    ).scalar_one_or_none()
+    if belongs is None:
+        raise ValueError("target state does not belong to the enrollment's release")
+    conn.execute(
+        text("""
+        UPDATE tutor.micro_course_runtime
+        SET current_state_id=:state_id, state_version=state_version+1, updated_at=now()
+        WHERE enrollment_id=:enrollment_id
+    """),
+        {"enrollment_id": str(enrollment_id), "state_id": str(to_state_id)},
+    )
+    conn.execute(
+        text("""
+        INSERT INTO learner.micro_course_state_event (enrollment_id, state_id, event_type, payload)
+        VALUES (:enrollment_id, :state_id, 'RESET', CAST(:payload AS jsonb))
+    """),
+        {
+            "enrollment_id": str(enrollment_id),
+            "state_id": str(to_state_id),
+            "payload": _json({
+                "action": "RESET",
+                "actor": actor,
+                "from_state_id": str(runtime["current_state_id"]),
+                "to_state_id": str(to_state_id),
+                "from_state_version": int(runtime["state_version"]),
+            }),
+        },
+    )
+    return get_enrollment_runtime(conn, enrollment_id, str(runtime["student_id"]))
 
 
 def get_course(conn, canonical_code: str) -> dict:

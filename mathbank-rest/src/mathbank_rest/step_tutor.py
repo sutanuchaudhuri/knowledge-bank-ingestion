@@ -18,7 +18,6 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from mathbank_rest.stores.errors import StoreFrozen
@@ -207,12 +206,17 @@ def _content():
     return stores.get_store("content")
 
 
-def load_step_context(conn: Connection, attempt_id: str, step_id: str) -> StepContext:
+def _learner():
+    from mathbank_rest import stores
+
+    return stores.get_store("learner")
+
+
+def load_step_context(conn: Connection | None, attempt_id: str, step_id: str, student_id: str | None = None) -> StepContext:
+    """Content from the content store, the learner's own step state from the learner store (``conn`` is the PostgreSQL
+    connection of the postgres backend and ignored by DynamoDB; ``student_id`` lets the DynamoDB backend address the item)."""
     row = _content().get_step_tutor_context(step_id, conn=conn)
-    state = conn.execute(text(
-        "SELECT last_response_text, coalesce(help_level_used, 0) AS help FROM learner.attempt_step_state "
-        " WHERE solve_attempt_id = CAST(:a AS uuid) AND solution_step_id = :s"),
-        {"a": str(attempt_id), "s": step_id}).mappings().first() or {"last_response_text": None, "help": 0}
+    state = _learner().get_step_tutor_state(attempt_id, step_id, student_id=student_id, conn=conn)
     row = {**row, **state}
     previous = row["previous_steps"]
     return StepContext(
@@ -222,10 +226,10 @@ def load_step_context(conn: Connection, attempt_id: str, step_id: str) -> StepCo
         help_level_used=row["help"])
 
 
-def get_or_create_hint(conn: Connection, attempt_id: str, step_id: str, level: int,
-                       writer: Callable[..., str] = openai_hint_writer) -> dict:
+def get_or_create_hint(conn: Connection | None, attempt_id: str, step_id: str, level: int,
+                       writer: Callable[..., str] = openai_hint_writer, student_id: str | None = None) -> dict:
     """Hint text for a level. Levels 1–4 are cached per step for everyone; level 5 reveals the step."""
-    ctx = load_step_context(conn, attempt_id, step_id)
+    ctx = load_step_context(conn, attempt_id, step_id, student_id)
     if level >= 5:
         return {"hint_text": ctx.canonical_step, "hint_source": "REFERENCE_STEP"}
     store = _content()
@@ -250,10 +254,10 @@ def get_or_create_hint(conn: Connection, attempt_id: str, step_id: str, level: i
     return {"hint_text": hint, "hint_source": source}
 
 
-def evaluate_step(conn: Connection, attempt_id: str, step_id: str,
-                  evaluator: Callable[[StepContext], dict] = openai_evaluator) -> dict:
+def evaluate_step(conn: Connection | None, attempt_id: str, step_id: str,
+                  evaluator: Callable[[StepContext], dict] = openai_evaluator, student_id: str | None = None) -> dict:
     """Grade the stored response for a step (read-only; the caller applies the outcome)."""
-    ctx = load_step_context(conn, attempt_id, step_id)
+    ctx = load_step_context(conn, attempt_id, step_id, student_id)
     verdict = sanitize_feedback(evaluator(ctx), ctx)
     verdict["result"] = outcome_from_verdict(verdict)
     return verdict

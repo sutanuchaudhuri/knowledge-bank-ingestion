@@ -12,16 +12,40 @@ steps are reported only as counts.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
-from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from mathbank_rest.step_tutor import step_goal
+# The pure logic (state machine, guards, payload builders, errors) lives in step_logic so the DynamoDB backend shares it without SQL;
+# everything is re-exported here, so ``step_runtime.<name>`` keeps working for the SQL modules and the tests.
+from mathbank_rest.step_logic import (  # noqa: F401
+    CURRENT_STEP_KEYS,
+    DONE_STATES,
+    HELP_LEVELS,
+    INTERNAL_ACTORS,
+    MAX_HELP_LEVEL,
+    OUTCOMES,
+    STUDENT_EVALUATION_FIELDS,
+    SUCCESS_STATES,
+    IdempotencyKeyReused,
+    InvalidTransition,
+    NotFound,
+    RuntimeError_,
+    StateVersionConflict,
+    StepRef,
+    build_runtime_view,
+    check_version,
+    next_step,
+    outcome_transition,
+    request_hash,
+    require_current_step,
+    returned_from_detour,
+    steps_from_dag,
+)
+from mathbank_rest.step_logic import student_evaluation as _student_evaluation  # noqa: F401
 
 log = logging.getLogger(__name__)
 
@@ -34,95 +58,6 @@ CROSS_REFERENCE_STUB_RE = (
     r"|\mheading\s+[a-z][)]"
     r"|is\s+(proved|solved)\s+(similarly|analogously))"
 )
-
-STUDENT_EVALUATION_FIELDS = ("result", "verdict", "feedback", "feedback_redacted")
-
-
-def _student_evaluation(evaluation: dict | None) -> dict | None:
-    """Teacher evidence and diagnosis codes stay server-side; the student sees verdict + feedback."""
-    if not evaluation:
-        return None
-    return {k: evaluation[k] for k in STUDENT_EVALUATION_FIELDS if k in evaluation}
-
-CURRENT_STEP_KEYS = ("solution_step_id", "solution_part_id", "part_label", "global_step_index", "step_index_in_part",
-                     "step_type", "tutor_role", "skill_node_id", "skill_name", "subconcept_node_id", "is_checkpoint")
-DONE_STATES = frozenset({"SUCCESS_INDEPENDENT", "SUCCESS_WITH_HELP", "SKIPPED"})
-SUCCESS_STATES = frozenset({"SUCCESS_INDEPENDENT", "SUCCESS_WITH_HELP"})
-MAX_HELP_LEVEL = 5
-HELP_LEVELS = {
-    0: "NO_HELP", 1: "DIRECTIONAL_PROMPT", 2: "CONCEPT_REMINDER",
-    3: "STRATEGIC_HINT", 4: "NEAR_EXPLICIT_STEP", 5: "FULL_REVEAL",
-}
-OUTCOMES = frozenset({"SUCCESS", "FAILED", "SKIPPED"})
-INTERNAL_ACTORS = frozenset({"TUTOR", "AGENT", "SYSTEM", "ADMIN"})
-
-
-class RuntimeError_(Exception):
-    """Base error carrying a stable machine-readable code for the REST layer."""
-
-    status_code = 400
-    code = "RUNTIME_ERROR"
-
-
-class NotFound(RuntimeError_):
-    status_code = 404
-    code = "NOT_FOUND"
-
-
-class StateVersionConflict(RuntimeError_):
-    status_code = 409
-    code = "STATE_VERSION_CONFLICT"
-
-
-class InvalidTransition(RuntimeError_):
-    status_code = 409
-    code = "INVALID_TRANSITION"
-
-
-class IdempotencyKeyReused(RuntimeError_):
-    status_code = 422
-    code = "IDEMPOTENCY_KEY_REUSED"
-
-
-# ---------------------------------------------------------------- pure state logic (unit-tested)
-
-@dataclass(frozen=True)
-class StepRef:
-    solution_step_id: str
-    solution_part_id: str
-    global_step_index: int
-
-
-def outcome_transition(result: str, help_level_used: int) -> tuple[str, str, bool | None]:
-    """Map an evaluated outcome to (new step state, event type, independent_success)."""
-    if result not in OUTCOMES:
-        raise ValueError(f"unknown outcome {result!r}")
-    if result == "SUCCESS":
-        if help_level_used == 0:
-            return "SUCCESS_INDEPENDENT", "STEP_COMPLETED_INDEPENDENTLY", True
-        return "SUCCESS_WITH_HELP", "STEP_COMPLETED_WITH_HELP", False
-    if result == "FAILED":
-        return "FAILED", "STEP_FAILED", None
-    return "SKIPPED", "STEP_SKIPPED", None
-
-
-def next_step(steps: list[StepRef], states: dict[str, str],
-              prerequisites: dict[str, set[str]]) -> StepRef | None:
-    """First unfinished step (in solution order) whose hard DEPENDS_ON prerequisites are all done.
-
-    A FAILED step is unfinished, so it stays current until it succeeds or is skipped.
-    Returns None when every step is done.
-    """
-    unfinished = [s for s in steps if states.get(s.solution_step_id) not in DONE_STATES]
-    for step in unfinished:
-        if all(states.get(p) in DONE_STATES for p in prerequisites.get(step.solution_step_id, ())):
-            return step
-    return unfinished[0] if unfinished else None
-
-
-def request_hash(operation: str, body: dict) -> str:
-    return hashlib.sha256(json.dumps([operation, body], sort_keys=True, default=str).encode()).hexdigest()
-
 
 # ---------------------------------------------------------------- persistence helpers
 
@@ -177,13 +112,7 @@ def _dag(conn: Connection, problem_id: str) -> dict:
 
 
 def _steps(conn: Connection, problem_id: str) -> tuple[list[StepRef], dict[str, set[str]]]:
-    dag = _dag(conn, problem_id)
-    steps = [StepRef(s["solution_step_id"], s["solution_part_id"], s["global_step_index"]) for s in dag["steps"]]
-    prereqs: dict[str, set[str]] = {}
-    for d in dag["dependencies"]:
-        if d["relationship_type"] == "DEPENDS_ON" and d["review_status"] != "REJECTED":
-            prereqs.setdefault(d["to_step_id"], set()).add(d["from_step_id"])
-    return steps, prereqs
+    return steps_from_dag(_dag(conn, problem_id))
 
 
 def _states(conn: Connection, attempt_id: str) -> dict[str, dict]:
@@ -203,18 +132,11 @@ def _lock_attempt(conn: Connection, attempt_id: UUID | str, student_id: UUID | N
 
 
 def _check_version(attempt: dict, state_version: int) -> None:
-    if attempt["state_version"] != state_version:
-        raise StateVersionConflict(
-            f"state_version {state_version} is stale; current is {attempt['state_version']}. Refetch the runtime.")
+    check_version(attempt["state_version"], state_version)
 
 
 def _require_current_step(attempt: dict, step_id: str) -> None:
-    if attempt["status"] != "IN_PROGRESS":
-        raise InvalidTransition(f"attempt is {attempt['status']}")
-    if attempt.get("current_mode") == "RECOVERY":
-        raise InvalidTransition("a recovery detour is running: finish it or leave it to continue this step")
-    if attempt["current_solution_step_id"] != step_id:
-        raise InvalidTransition("only the current step accepts this action")
+    require_current_step(attempt["status"], attempt.get("current_mode"), attempt["current_solution_step_id"], step_id)
 
 
 def _present(conn: Connection, attempt: dict, step: StepRef, actor: str) -> None:
@@ -265,56 +187,14 @@ def get_runtime(conn: Connection, attempt_id: UUID | str, student_id: UUID | Non
         raise NotFound("attempt not found")
     attempt = dict(attempt)
     dag = _dag(conn, str(attempt["problem_id"]))
-    steps = [StepRef(s["solution_step_id"], s["solution_part_id"], s["global_step_index"]) for s in dag["steps"]]
-    by_step = {s["solution_step_id"]: s for s in dag["steps"]}
-    states = _states(conn, str(attempt["solve_attempt_id"]))
-    current = None
-    if attempt["current_solution_step_id"]:
-        row = by_step.get(attempt["current_solution_step_id"])
-        if row is None:  # not part of the published DAG (e.g. withdrawn after the attempt started): no part label
-            row = _content().get_step_details([attempt["current_solution_step_id"]]).get(attempt["current_solution_step_id"])
-        row = {k: row.get(k) for k in CURRENT_STEP_KEYS}
-        state = states.get(attempt["current_solution_step_id"], {})
-        current = {**dict(row), "goal": step_goal(row["step_type"]), "state": state.get("state", "NOT_SEEN"),
-                   "help_level_used": state.get("help_level_used", 0),
-                   "attempt_count": state.get("attempt_count", 0),
-                   "last_response_text": state.get("last_response_text"),
-                   "last_evaluation": _student_evaluation(state.get("last_evaluation"))}
-        from mathbank_rest import step_diagnosis
-        current["diagnosis"] = step_diagnosis.student_view(step_diagnosis.latest_for_step(
-            conn, str(attempt["solve_attempt_id"]), attempt["current_solution_step_id"]))
-    seen = [
-        {"solution_step_id": s.solution_step_id, "global_step_index": s.global_step_index,
-         "state": states[s.solution_step_id]["state"],
-         "help_level_used": states[s.solution_step_id]["help_level_used"],
-         "your_response": states[s.solution_step_id]["last_response_text"]}
-        for s in steps if s.solution_step_id in states
-    ]
-    done = sum(1 for s in steps if states.get(s.solution_step_id, {}).get("state") in DONE_STATES)
-    meta = by_step
-    timeline = []
-    for s in steps:  # spec 17: future steps are opaque; completed steps reveal the reference text
-        state = states.get(s.solution_step_id, {})
-        m = meta.get(s.solution_step_id, {})
-        status = state.get("state", "LOCKED")
-        entry = {"solution_step_id": s.solution_step_id, "global_step_index": s.global_step_index,
-                 "part_label": m.get("part_label"), "step_index_in_part": m.get("step_index_in_part"),
-                 "state": status,
-                 "help_level_used": state.get("help_level_used", 0),
-                 "is_current": s.solution_step_id == attempt["current_solution_step_id"]}
-        if status != "LOCKED":
-            entry |= {"step_type": m.get("step_type"), "skill_name": m.get("skill_name"),
-                      "your_response": state.get("last_response_text")}
-        if status in DONE_STATES:
-            entry["reference_text"] = m.get("step_text")
-        timeline.append(entry)
-    from mathbank_rest import step_recovery
-    return {
-        "attempt": attempt, "current_step": current, "seen_steps": seen, "timeline": timeline,
-        "recovery": step_recovery.recovery_summary(conn, str(attempt["solve_attempt_id"])),
-        "progress": {"total_steps": len(steps), "completed_steps": done,
-                     "remaining_steps": len(steps) - done},
-    }
+    attempt_id = str(attempt["solve_attempt_id"])
+    from mathbank_rest import step_diagnosis, step_recovery
+
+    return build_runtime_view(
+        attempt, dag, _states(conn, attempt_id),
+        step_lookup=lambda step_id: _content().get_step_details([step_id]).get(step_id),
+        diagnosis_for_step=lambda step_id: step_diagnosis.student_view(step_diagnosis.latest_for_step(conn, attempt_id, step_id)),
+        recovery=step_recovery.recovery_summary(conn, attempt_id))
 
 
 # ---------------------------------------------------------------- mutations
@@ -571,3 +451,63 @@ def list_events(conn: Connection, student_id: UUID, *, attempt_id: UUID | str | 
         " ORDER BY event_time DESC LIMIT :n"),
         {"s": str(student_id), "a": str(attempt_id) if attempt_id else None, "n": min(max(limit, 1), 500)})
     return [dict(r) for r in rows.mappings()]
+
+
+# ---------------------------------------------------------------- SQL reads of the SolvePostgres store (the learner-store seam)
+
+def resolve_problem(conn: Connection, problem_ref: str) -> str:
+    """A problem uuid or canonical code to its uuid (content reads of the DynamoDB backend go through the content store)."""
+    row = conn.execute(text(
+        "SELECT problem_id::text FROM core.problem WHERE problem_id::text = :r OR canonical_code = :r LIMIT 1"),
+        {"r": problem_ref}).scalar()
+    if row is None:
+        raise NotFound("problem not found")
+    return row
+
+
+def attempt_owner(conn: Connection, attempt_id: UUID | str) -> dict | None:
+    row = conn.execute(text(
+        "SELECT student_id, problem_id FROM learner.solve_attempt WHERE solve_attempt_id = CAST(:a AS uuid)"),
+        {"a": str(attempt_id)}).mappings().first()
+    return None if row is None else dict(row)
+
+
+def list_events_page(conn: Connection, student_id: UUID, *, attempt_id: UUID | str | None = None, limit: int = 100,
+                     after: str | None = None, cursor: str | None = None) -> tuple[list[dict], str | None]:
+    """Keyset page of the event feed: newest first, or oldest first after the ``after`` instant. The cursor is a signed token."""
+    from mathbank_rest.stores import ddb
+
+    limit = min(max(limit, 1), 500)
+    forward = after is not None
+    bound = {"s": str(student_id), "a": str(attempt_id) if attempt_id else "", "f": forward}
+    params: dict = {"s": str(student_id), "a": str(attempt_id) if attempt_id else None, "n": limit + 1}
+    where = "student_id = :s AND (CAST(:a AS uuid) IS NULL OR solve_attempt_id = CAST(:a AS uuid))"
+    if cursor:
+        c = ddb.verify_token(cursor, **bound)
+        params |= {"ct": c["t"], "ci": c["i"]}
+        where += f" AND (event_time, event_id) {'>' if forward else '<'} (CAST(:ct AS timestamptz), CAST(:ci AS uuid))"
+    elif after is not None:
+        params["after"] = after
+        where += " AND event_time > CAST(:after AS timestamptz)"
+    rows = [dict(r) for r in conn.execute(text(
+        "SELECT event_id, solve_attempt_id, event_type, event_time, actor_type, solution_step_id, payload "
+        f"  FROM learner.event WHERE {where} "
+        f" ORDER BY event_time {'ASC' if forward else 'DESC'}, event_id {'ASC' if forward else 'DESC'} LIMIT :n"),
+        params).mappings()]
+    token = None
+    if len(rows) > limit:
+        rows = rows[:limit]
+        token = ddb.sign_token({**bound, "t": rows[-1]["event_time"].isoformat(), "i": str(rows[-1]["event_id"])})
+    return rows, token
+
+
+def list_solve_attempts(conn: Connection, student_id: UUID, status: str | None = None, *, limit: int = 50,
+                        offset: int = 0) -> list[dict]:
+    return [dict(r) for r in conn.execute(text(
+        "SELECT a.solve_attempt_id, a.problem_id, p.canonical_code AS problem_code, a.attempt_number, a.status, "
+        "       r.current_mode, a.started_at, a.submitted_at, a.completed_at, r.state_version "
+        "  FROM learner.solve_attempt a JOIN tutor.runtime_state r USING (solve_attempt_id) "
+        "  JOIN core.problem p ON p.problem_id = a.problem_id "
+        " WHERE a.student_id = :s AND (CAST(:st AS text) IS NULL OR a.status = :st) "
+        " ORDER BY a.started_at DESC, a.solve_attempt_id DESC LIMIT :n OFFSET :o"),
+        {"s": str(student_id), "st": status, "n": limit, "o": offset}).mappings()]

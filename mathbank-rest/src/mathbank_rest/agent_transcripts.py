@@ -5,12 +5,17 @@ table ``learner.agent_session_link`` maps a student to the agent sessions they o
 conversation can be rebuilt from ``agent_sessions.events.event_data`` for the student or an admin.
 
 Read-only over ``agent_sessions``; the only write is the idempotent link upsert.
+
+The links live in the learner store (``stores.get_store("learner")``: ``register_agent_link``, ``list_student_sessions``,
+``list_all_sessions``, ``get_agent_link``). The ADK session store (``agent_sessions`` schema, moving to ``mb-agent-sessions`` in WP9)
+is read only through ``adk_sessions``, the single seam WP9 replaces; the ``conn``-taking functions below are the PostgreSQL
+implementation of the same operations.
 """
 from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -22,7 +27,7 @@ def _iso_utc(value: datetime | None) -> str | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
+        value = value.replace(tzinfo=UTC)
     return value.isoformat()
 
 AGENT_SCHEMA = "agent_sessions"
@@ -49,6 +54,70 @@ class Conflict(TranscriptError):
 
 def _agent_schema_present(conn) -> bool:
     return conn.execute(text("SELECT to_regclass(:t) IS NOT NULL"), {"t": f"{AGENT_SCHEMA}.events"}).scalar()
+
+
+class AdkSessionSource:
+    """Reads of the framework-owned ADK session store (``agent_sessions`` schema) for the link store, a documented exception to
+    "the runtime never queries PostgreSQL" until WP9 moves the sessions to ``mb-agent-sessions`` (requirement 70 C1 R2)."""
+
+    @staticmethod
+    def _engine():
+        from mathbank_rest.db import postgres
+
+        return postgres.engine
+
+    def available(self) -> bool:
+        with self._engine().connect() as conn:
+            return bool(_agent_schema_present(conn))
+
+    def session_exists(self, app_name: str, user_id: str, session_id: str) -> bool:
+        with self._engine().connect() as conn:
+            return bool(conn.execute(text(
+                f"SELECT 1 FROM {AGENT_SCHEMA}.sessions WHERE app_name = :a AND user_id = :u AND id = :s"),
+                {"a": app_name, "u": user_id, "s": session_id}).scalar())
+
+    def facts(self, keys: list[tuple[str, str, str]]) -> dict[tuple[str, str, str], dict]:
+        """``(app, user, session) -> {session_updated_at, event_count, first_message}`` for the sessions that exist."""
+        out: dict[tuple[str, str, str], dict] = {}
+        with self._engine().connect() as conn:
+            for app_name, user_id, session_id in keys:
+                params = {"a": app_name, "u": user_id, "s": session_id}
+                updated = conn.execute(text(
+                    f"SELECT update_time FROM {AGENT_SCHEMA}.sessions WHERE app_name = :a AND user_id = :u AND id = :s"),
+                    params).mappings().first()
+                if updated is None:
+                    continue
+                count = conn.execute(text(
+                    f"SELECT count(*) FROM {AGENT_SCHEMA}.events e WHERE e.app_name = :a AND e.user_id = :u AND e.session_id = :s "
+                    "AND COALESCE((e.event_data->>'partial')::boolean, false) = false"), params).scalar()
+                first = conn.execute(text(
+                    "SELECT e.event_data->'content'->'parts'->0->>'text' "
+                    f"FROM {AGENT_SCHEMA}.events e WHERE e.app_name = :a AND e.user_id = :u AND e.session_id = :s "
+                    "AND e.event_data->>'author' = 'user' ORDER BY e.timestamp LIMIT 1"), params).scalar()
+                out[(app_name, user_id, session_id)] = {"session_updated_at": updated["update_time"],
+                                                        "event_count": int(count or 0), "first_message": first}
+        return out
+
+    def unlinked_count(self, linked: set[tuple[str, str, str]]) -> int:
+        with self._engine().connect() as conn:
+            rows = conn.execute(text(f"SELECT app_name, user_id, id FROM {AGENT_SCHEMA}.sessions")).all()
+        return sum(1 for r in rows if (r[0], r[1], r[2]) not in linked)
+
+    def owners(self, app_name: str, session_id: str) -> list[str]:
+        with self._engine().connect() as conn:
+            return list(conn.execute(text(f"SELECT user_id FROM {AGENT_SCHEMA}.sessions WHERE app_name = :a AND id = :s"),
+                                     {"a": app_name, "s": session_id}).scalars().all())
+
+    def body(self, app_name: str, user_id: str, session_id: str) -> tuple[dict | None, list[dict]]:
+        """``(session row with create_time/update_time or None, events ordered)`` of one conversation."""
+        with self._engine().connect() as conn:
+            session = conn.execute(text(
+                f"SELECT create_time, update_time FROM {AGENT_SCHEMA}.sessions WHERE app_name = :a AND user_id = :u AND id = :s"),
+                {"a": app_name, "u": user_id, "s": session_id}).mappings().first()
+            return (dict(session) if session else None), _events(conn, app_name, user_id, session_id)
+
+
+adk_sessions = AdkSessionSource()
 
 
 def _truncate(value: Any) -> str:
@@ -198,33 +267,33 @@ def _events(conn, app_name: str, user_id: str, session_id: str) -> list[dict]:
     return out
 
 
-def transcript(conn, session_id: str, *, student_id: UUID | None, include_tools: bool,
-               app_name: str = DEFAULT_APP_NAME) -> dict:
-    """Rebuild one conversation. ``student_id`` set → must be that student's linked session."""
-    if not _agent_schema_present(conn):
-        raise NotFound("agent session store is not initialised")
-    link = conn.execute(text(
+def _pg_link(conn, app_name: str, session_id: str) -> dict | None:
+    row = conn.execute(text(
         "SELECT l.agent_user_id, l.student_id::text, sp.email, l.surface, l.context, l.created_at "
         "FROM learner.agent_session_link l JOIN learner.student_profile sp ON sp.student_id = l.student_id "
         "WHERE l.agent_app_name = :a AND l.agent_session_id = :s"), {"a": app_name, "s": session_id}).mappings().first()
+    return dict(row) if row else None
+
+
+def _owner_user(link: dict | None, student_id: UUID | None, owners) -> str:
+    """The ADK ``user_id`` of a conversation: through the student's own link, any link (admin), or the unique session owner."""
     if student_id is not None:
         if link is None or link["student_id"] != str(student_id):
             raise NotFound("conversation not found")
-        user_id = link["agent_user_id"]
-    elif link is not None:
-        user_id = link["agent_user_id"]
-    else:
-        owners = conn.execute(text(f"SELECT user_id FROM {AGENT_SCHEMA}.sessions WHERE app_name = :a AND id = :s"),
-                              {"a": app_name, "s": session_id}).scalars().all()
-        if not owners:
-            raise NotFound("conversation not found")
-        if len(owners) > 1:
-            raise TranscriptError("session id is ambiguous across agent users")
-        user_id = owners[0]
-    session = conn.execute(text(
-        f"SELECT create_time, update_time FROM {AGENT_SCHEMA}.sessions WHERE app_name = :a AND user_id = :u AND id = :s"),
-        {"a": app_name, "u": user_id, "s": session_id}).mappings().first()
-    messages = build_transcript(_events(conn, app_name, user_id, session_id), include_tools=include_tools)
+        return link["agent_user_id"]
+    if link is not None:
+        return link["agent_user_id"]
+    found = owners()
+    if not found:
+        raise NotFound("conversation not found")
+    if len(found) > 1:
+        raise TranscriptError("session id is ambiguous across agent users")
+    return found[0]
+
+
+def _result(link: dict | None, user_id: str, session: dict | None, events: list[dict], session_id: str, app_name: str,
+            include_tools: bool) -> dict:
+    messages = build_transcript(events, include_tools=include_tools)
     result = {
         "agent_session_id": session_id,
         "agent_app_name": app_name,
@@ -240,3 +309,30 @@ def transcript(conn, session_id: str, *, student_id: UUID | None, include_tools:
         result["agent_user_id"] = user_id
         result["linked"] = link is not None
     return result
+
+
+def transcript(conn, session_id: str, *, student_id: UUID | None, include_tools: bool,
+               app_name: str = DEFAULT_APP_NAME) -> dict:
+    """Rebuild one conversation. ``student_id`` set → must be that student's linked session."""
+    if not _agent_schema_present(conn):
+        raise NotFound("agent session store is not initialised")
+    link = _pg_link(conn, app_name, session_id)
+    user_id = _owner_user(link, student_id, lambda: conn.execute(
+        text(f"SELECT user_id FROM {AGENT_SCHEMA}.sessions WHERE app_name = :a AND id = :s"),
+        {"a": app_name, "s": session_id}).scalars().all())
+    session = conn.execute(text(
+        f"SELECT create_time, update_time FROM {AGENT_SCHEMA}.sessions WHERE app_name = :a AND user_id = :u AND id = :s"),
+        {"a": app_name, "u": user_id, "s": session_id}).mappings().first()
+    return _result(link, user_id, session, _events(conn, app_name, user_id, session_id), session_id, app_name, include_tools)
+
+
+def read_transcript(session_id: str, *, student_id: UUID | None, include_tools: bool, app_name: str = DEFAULT_APP_NAME) -> dict:
+    """``transcript`` with the ownership link read from the learner store and the body from the ADK seam (the body moves in WP9)."""
+    from mathbank_rest import stores
+
+    if not adk_sessions.available():
+        raise NotFound("agent session store is not initialised")
+    link = stores.get_store("learner").get_agent_link(app_name, session_id)
+    user_id = _owner_user(link, student_id, lambda: adk_sessions.owners(app_name, session_id))
+    session, events = adk_sessions.body(app_name, user_id, session_id)
+    return _result(link, user_id, session, events, session_id, app_name, include_tools)

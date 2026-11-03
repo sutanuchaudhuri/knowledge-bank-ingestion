@@ -8,6 +8,7 @@ from __future__ import annotations
 import hmac
 import threading
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
@@ -43,23 +44,34 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(student_id: UUID) -> str:
+def create_access_token(student_id: UUID, token_version: int | None = None) -> str:
+    """`token_version` (the `tv` claim) is the account's current version in the DynamoDB learner store; a password change or an
+    account disable bumps it and so revokes every older token. PostgreSQL accounts have none and mint tokens without `tv`."""
     now = datetime.now(UTC)
     payload = {
         "sub": str(student_id),
         "iat": now,
         "exp": now + timedelta(minutes=settings.jwt_expiry_minutes),
     }
+    if token_version is not None:
+        payload["tv"] = int(token_version)
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
 def decode_access_token(token: str) -> UUID:
-    """Raises jwt.PyJWTError (caught by callers) on invalid/expired tokens."""
+    """Raises jwt.PyJWTError (caught by callers) on invalid/expired tokens. The token's `tv` claim is remembered for the current
+    request context so `assert_student_active(student_id)` (also called by routers that decode themselves) can check it."""
     payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
-    return UUID(payload["sub"])
+    student_id = UUID(payload["sub"])
+    claim = payload.get("tv")
+    _token_claim.set((student_id, claim if isinstance(claim, int) and not isinstance(claim, bool) else None))
+    return student_id
 
 
-_status_cache: dict[UUID, tuple[float, str]] = {}
+_token_claim: ContextVar[tuple[UUID, int | None] | None] = ContextVar("student_token_claim", default=None)
+
+
+_status_cache: dict[UUID, tuple[float, str, int]] = {}
 _status_cache_lock = threading.Lock()
 _STATUS_CACHE_MAX = 10_000
 
@@ -70,37 +82,63 @@ def invalidate_student_status(student_id: UUID) -> None:
         _status_cache.pop(student_id, None)
 
 
+def _learner_store():
+    # lazy: keeps this module free of the store layer at import time
+    from mathbank_rest import stores
+
+    return stores.get_store("learner")
+
+
 def _load_student_status(student_id: UUID) -> str | None:
-    from mathbank_rest.db import learner as learner_db  # lazy: keeps this module free of the database layer
-
-    return learner_db.get_student_status(student_id)
+    return _learner_store().get_student_status(student_id)
 
 
-def assert_student_active(student_id: UUID) -> None:
-    """Reject (401) a token whose student is missing, DISABLED or DELETED. The status read is cached for
-    `auth_status_cache_seconds` per student so it is not a query on every request."""
+def _load_student_token_version(student_id: UUID) -> int:
+    return _learner_store().get_student_token_version(student_id)
+
+
+def _status_unavailable(exc: Exception) -> bool:
+    """A database or store outage while reading the status: answered 503, never treated as 'unknown student' (401)."""
+    from botocore.exceptions import BotoCoreError, ClientError
+
+    from mathbank_rest.stores.errors import StoreUnavailable
+
+    return isinstance(exc, SQLAlchemyError | BotoCoreError | ClientError | StoreUnavailable)
+
+
+def assert_student_active(student_id: UUID, token_version: int | None = None) -> None:
+    """Reject (401) a token whose student is missing, DISABLED, DELETED or ERASING, or whose `tv` claim is not the account's current
+    token version (tokens without `tv` are accepted only while the version is 0). The read is cached for `auth_status_cache_seconds`
+    per student so it is not a query on every request; admin disable/enable drop the cache entry."""
     ttl = settings.auth_status_cache_seconds
     now = time.monotonic()
+    if token_version is None:
+        seen = _token_claim.get()
+        if seen is not None and seen[0] == student_id:
+            token_version = seen[1]
     with _status_cache_lock:
         cached = _status_cache.get(student_id)
     if cached is not None and cached[0] > now:
-        account_status = cached[1]
+        account_status, current_version = cached[1], cached[2]
     else:
         try:
             account_status = _load_student_status(student_id)
-        except SQLAlchemyError:
+            current_version = _load_student_token_version(student_id) if account_status == "ACTIVE" else 0
+        except Exception as exc:
+            if not _status_unavailable(exc):
+                raise
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="account status unavailable"
             ) from None
         if account_status is not None and ttl > 0:
             with _status_cache_lock:
                 if len(_status_cache) >= _STATUS_CACHE_MAX:
-                    for key in [k for k, (expires, _) in _status_cache.items() if expires <= now]:
+                    for key in [k for k, (expires, _, _) in _status_cache.items() if expires <= now]:
                         del _status_cache[key]
                     if len(_status_cache) >= _STATUS_CACHE_MAX:
                         _status_cache.clear()
-                _status_cache[student_id] = (now + ttl, account_status)
-    if account_status != "ACTIVE":
+                _status_cache[student_id] = (now + ttl, account_status, current_version)
+    if account_status != "ACTIVE" or (token_version or 0) != current_version:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid or expired token",
@@ -189,7 +227,9 @@ def admin_actor(*capabilities: str):
     ) -> Actor:
         if x_admin_api_key and hmac.compare_digest(x_admin_api_key.encode(), settings.admin_api_key.encode()):
             return SERVICE_ACTOR
-        from mathbank_rest import socratic_auth as staff_auth  # lazy: keeps this module free of the Studio stack
+        from mathbank_rest import (
+            socratic_auth as staff_auth,  # lazy: keeps this module free of the Studio stack
+        )
 
         cookie = request.cookies.get(staff_auth.ACCESS_COOKIE)
         token = cookie or (credentials.credentials if credentials is not None else None)

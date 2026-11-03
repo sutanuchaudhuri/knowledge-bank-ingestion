@@ -19,10 +19,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import text
 
 from mathbank_rest import (
-    mastery,
     security,
     step_diagnosis,
     step_recovery,
@@ -70,12 +68,31 @@ class StepOutcomeRequest(BaseModel):
     evaluation: dict = Field(default_factory=dict, description="Evaluator evidence (confidence, error type, ...)")
 
 
+# step_runtime functions served by the learner store (SolveRuntimeStore); a handler may also pass the store method's name.
+# Anything else (diagnosis, recovery) keeps running in a PostgreSQL transaction until its store is wired.
+_SOLVE_STORE_OPS = {
+    step_runtime.get_runtime: "get_attempt_runtime",
+    step_runtime.submit_step_response: "submit_step_response",
+    step_runtime.request_hint: "request_hint",
+    step_runtime.record_step_outcome: "record_step_outcome",
+    step_runtime.submit_attempt: "submit_attempt",
+    step_runtime.list_events: "list_events",
+}
+
+
 def _run(fn, *args, **kwargs):
     try:
+        op = fn if isinstance(fn, str) else _SOLVE_STORE_OPS.get(fn)
+        if op is not None:
+            return getattr(stores.get_store("learner"), op)(*args, **kwargs)
         with engine.begin() as conn:
             return fn(conn, *args, **kwargs)
     except step_runtime.RuntimeError_ as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from None
+
+
+def _postgres_learner() -> bool:
+    return getattr(stores.get_store("learner"), "backend", "postgres") == "postgres"
 
 
 def _same_student(path_student_id: UUID, current: UUID) -> None:
@@ -83,27 +100,12 @@ def _same_student(path_student_id: UUID, current: UUID) -> None:
         raise HTTPException(status_code=403, detail="students may only access their own runtime")
 
 
-def _resolve_problem(conn, problem_ref: str) -> str:
-    row = conn.execute(text(
-        "SELECT problem_id::text FROM core.problem WHERE problem_id::text = :r OR canonical_code = :r LIMIT 1"),
-        {"r": problem_ref}).scalar()
-    if row is None:
-        raise step_runtime.NotFound("problem not found")
-    return row
-
-
 @router.post("/students/{student_id}/problems/{problem_ref}/attempts", status_code=201)
 def start_attempt(student_id: UUID, problem_ref: str, idempotency_key: str | None = IdempotencyKey,
                   current: UUID = Depends(security.get_current_student_id)) -> dict:
     """Start the step-by-step session for a problem (uuid or canonical code), or resume the open one."""
     _same_student(student_id, current)
-
-    def op(conn):
-        problem_id = _resolve_problem(conn, problem_ref)
-        started = step_runtime.start_attempt(conn, student_id, problem_id, idempotency_key)
-        return {**started, "runtime": step_runtime.get_runtime(conn, started["solve_attempt_id"], student_id)}
-
-    return _run(op)
+    return _run("start_attempt", student_id, problem_ref, idempotency_key)
 
 
 @router.get("/attempts/{attempt_id}")
@@ -113,11 +115,16 @@ def get_runtime(attempt_id: UUID, current: UUID = Depends(security.get_current_s
     return _run(step_runtime.get_runtime, attempt_id, current)
 
 
-def _with_mastery(result: dict) -> dict:
-    if result.get("attempt_completed") and not result.get("replayed"):
-        result["updated_mastery"] = mastery.recompute_mastery_for_problem(
-            UUID(result["student_id"]), UUID(result["problem_id"]))
-    return result
+@router.get("/admin/attempts/{attempt_id}/runtime", dependencies=[Depends(security.require_admin_api_key)])
+def admin_attempt_runtime(attempt_id: UUID) -> dict:
+    """Internal (X-Admin-Api-Key; TUT-E01): where an attempt stands, without any step text: its session block, the current step id
+    and the state of every step the learner has seen. The owner is resolved from the attempt id (no learner token)."""
+    runtime = _run(step_runtime.get_runtime, attempt_id, None)
+    attempt = {k: v for k, v in runtime["attempt"].items() if k != "statement_text"}
+    steps = [{k: t.get(k) for k in ("solution_step_id", "global_step_index", "part_label", "state", "help_level_used", "is_current")}
+             for t in runtime["timeline"]]
+    return {"attempt": attempt, "current_step_id": attempt["current_solution_step_id"], "steps": steps,
+            "progress": runtime["progress"], "recovery": runtime["recovery"]}
 
 
 @router.post("/attempts/{attempt_id}/steps/{step_id:path}/responses")
@@ -134,8 +141,7 @@ def submit_step_response(attempt_id: UUID, step_id: str, body: StepResponseReque
     if not body.evaluate or saved.get("replayed"):
         return saved
     try:
-        with engine.connect() as conn:
-            verdict = step_tutor.evaluate_step(conn, str(attempt_id), step_id, EVALUATOR)
+        verdict = _evaluate(attempt_id, step_id, current)
     except Exception as exc:  # noqa: BLE001 — model/network failure must not lose the saved response
         log.warning("step evaluation failed for %s/%s: %s", attempt_id, step_id, type(exc).__name__)
         return {**saved, "evaluation_status": "UNAVAILABLE"}
@@ -147,7 +153,6 @@ def submit_step_response(attempt_id: UUID, step_id: str, body: StepResponseReque
         if exc.status_code == 409:
             return {**saved, "evaluation_status": "PENDING"}
         raise
-    outcome = _with_mastery(outcome)
     if outcome.get("diagnosis"):
         outcome["diagnosis"] = _reranked(outcome["diagnosis"])
     return {**saved, **{k: v for k, v in outcome.items() if k not in ("student_id", "problem_id")},
@@ -155,10 +160,20 @@ def submit_step_response(attempt_id: UUID, step_id: str, body: StepResponseReque
             "evaluation": step_runtime._student_evaluation(verdict)}
 
 
-def _hint_text(attempt_id: UUID, step_id: str, level: int) -> dict:
+def _evaluate(attempt_id: UUID, step_id: str, student_id: UUID) -> dict:
+    """Grade the stored response (read-only). PostgreSQL passes its connection; DynamoDB addresses the step by student id."""
+    if _postgres_learner():
+        with engine.connect() as conn:
+            return step_tutor.evaluate_step(conn, str(attempt_id), step_id, EVALUATOR)
+    return step_tutor.evaluate_step(None, str(attempt_id), step_id, EVALUATOR, student_id=str(student_id))
+
+
+def _hint_text(attempt_id: UUID, step_id: str, level: int, student_id: UUID | None = None) -> dict:
     try:
-        with engine.begin() as conn:
-            return step_tutor.get_or_create_hint(conn, str(attempt_id), step_id, level, HINT_WRITER)
+        if _postgres_learner():
+            with engine.begin() as conn:
+                return step_tutor.get_or_create_hint(conn, str(attempt_id), step_id, level, HINT_WRITER)
+        return step_tutor.get_or_create_hint(None, str(attempt_id), step_id, level, HINT_WRITER, student_id=str(student_id))
     except Exception as exc:  # noqa: BLE001
         log.warning("hint generation failed for %s level %s: %s", step_id, level, type(exc).__name__)
         return {"hint_text": None, "hint_source": "UNAVAILABLE"}
@@ -171,12 +186,11 @@ def request_hint(attempt_id: UUID, step_id: str, body: VersionedRequest,
     """Escalate help one level (1–5) and return its text: 1 directional, 2 concept reminder,
     3 strategic, 4 near-explicit, 5 the reference step itself. Any help → later success is WITH_HELP."""
     escalated = _run(step_runtime.request_hint, current, attempt_id, step_id, body.state_version, idempotency_key)
-    hint = _hint_text(attempt_id, step_id, escalated["help_level"])
+    hint = _hint_text(attempt_id, step_id, escalated["help_level"], current)
     if hint.get("hint_text") and not escalated.get("replayed"):
         try:
-            with engine.begin() as conn:
-                step_runtime.record_hint_presented(conn, current, attempt_id, step_id, escalated["help_level"],
-                                                   hint.get("hint_source"))
+            stores.get_store("learner").record_hint_presented(current, attempt_id, step_id, escalated["help_level"],
+                                                              hint.get("hint_source"))
         except Exception as exc:  # noqa: BLE001 — the hint is delivered even if the audit event fails
             log.warning("HINT_PRESENTED not recorded for %s: %s", step_id, type(exc).__name__)
     return {**escalated, **hint}
@@ -189,7 +203,7 @@ def list_hints(attempt_id: UUID, step_id: str, current: UUID = Depends(security.
     used = next((t["help_level_used"] for t in runtime["timeline"] if t["solution_step_id"] == step_id), None)
     if used is None:
         raise HTTPException(status_code=404, detail="step is not part of this attempt")
-    hints = [{"help_level": lvl, "help_kind": step_runtime.HELP_LEVELS[lvl], **_hint_text(attempt_id, step_id, lvl)}
+    hints = [{"help_level": lvl, "help_kind": step_runtime.HELP_LEVELS[lvl], **_hint_text(attempt_id, step_id, lvl, current)}
              for lvl in range(1, used + 1)]
     return {"solution_step_id": step_id, "help_level_used": used, "hints": hints}
 
@@ -199,9 +213,9 @@ def list_hints(attempt_id: UUID, step_id: str, current: UUID = Depends(security.
 def record_step_outcome(attempt_id: UUID, step_id: str, body: StepOutcomeRequest,
                         idempotency_key: str | None = IdempotencyKey) -> dict:
     """Internal (X-Admin-Api-Key): apply an evaluated result and advance to the next eligible step."""
-    return _with_mastery(_run(step_runtime.record_step_outcome, attempt_id, step_id, body.result,
-                              body.state_version, actor=body.actor_type, evaluation=body.evaluation,
-                              idempotency_key=idempotency_key))
+    return _run(step_runtime.record_step_outcome, attempt_id, step_id, body.result,
+                body.state_version, actor=body.actor_type, evaluation=body.evaluation,
+                idempotency_key=idempotency_key)
 
 
 class DiagnoseRequest(BaseModel):
@@ -374,7 +388,7 @@ def submit_attempt(attempt_id: UUID, body: VersionedRequest, idempotency_key: st
 def list_events(student_id: UUID, attempt_id: UUID | None = None, limit: int = Query(100, ge=1, le=500),
                 current: UUID = Depends(security.get_current_student_id)) -> list[dict]:
     _same_student(student_id, current)
-    return _run(step_runtime.list_events, student_id, attempt_id=attempt_id, limit=limit)
+    return _run(step_runtime.list_events, student_id, attempt_id=attempt_id, limit=limit, student_view=True)
 
 
 @router.get("/solution-steps/{step_id:path}/practice")

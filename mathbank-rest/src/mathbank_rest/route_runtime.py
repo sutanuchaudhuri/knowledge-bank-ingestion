@@ -376,12 +376,14 @@ def start_attempt(conn, student_id: UUID, code: str, release_id: UUID | None = N
     return current_view(conn, dict(attempt))
 
 
-def owned_attempt(conn, student_id: UUID, attempt_id: UUID) -> dict:
+def owned_attempt(conn, student_id: UUID, attempt_id: UUID, *, lock: bool = True) -> dict:
+    """Owner-scoped attempt row. ``lock`` takes ``FOR UPDATE`` (assist); reads (GET) pass ``lock=False`` (LRN-F09)."""
     row = (
         conn.execute(
-            text("""
-        SELECT * FROM learner.route_attempt WHERE route_attempt_id=:id AND student_id=:s FOR UPDATE
-    """),
+            text(
+                "SELECT * FROM learner.route_attempt WHERE route_attempt_id=:id AND student_id=:s"
+                + (" FOR UPDATE" if lock else "")
+            ),
             {"id": attempt_id, "s": student_id},
         )
         .mappings()
@@ -392,10 +394,8 @@ def owned_attempt(conn, student_id: UUID, attempt_id: UUID) -> dict:
     return dict(row)
 
 
-def current_view(conn, attempt: dict) -> dict:
-    instruction = _content().get_route_step_instruction(
-        attempt["route_release_id"], attempt["current_step"], conn=conn
-    )
+def attempt_view(attempt: dict, instruction: dict | None) -> dict:
+    """The learner payload of a route attempt (never carries ``expected_response``; ``instruction`` is already learner-safe)."""
     return {
         "route_attempt_id": str(attempt["route_attempt_id"]),
         "route_release_id": str(attempt["route_release_id"]),
@@ -409,14 +409,26 @@ def current_view(conn, attempt: dict) -> dict:
     }
 
 
-def assist(
-    conn, student_id: UUID, attempt_id: UUID, version: int, level: int, advance: bool
-) -> dict:
-    attempt = owned_attempt(conn, student_id, attempt_id)
+def current_view(conn, attempt: dict) -> dict:
+    instruction = _content().get_route_step_instruction(
+        attempt["route_release_id"], attempt["current_step"], conn=conn
+    )
+    return attempt_view(attempt, instruction)
+
+
+def check_assist(attempt: dict, version: int, level: int, advance: bool) -> None:
+    """The request checks of ``assist`` that need only the loaded attempt (same order for every backend)."""
     if attempt["version"] != version:
         raise StateVersionConflict("Checkpoint changed; reload the route attempt.")
     if advance and level != 5:
         raise InvalidTransition("Explain the current step before moving forward.")
+
+
+def assist(
+    conn, student_id: UUID, attempt_id: UUID, version: int, level: int, advance: bool
+) -> dict:
+    attempt = owned_attempt(conn, student_id, attempt_id)
+    check_assist(attempt, version, level, advance)
     hint = _content().get_route_step_hint(
         attempt["route_release_id"], attempt["current_step"], level, conn=conn
     )

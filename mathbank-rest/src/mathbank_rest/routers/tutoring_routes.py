@@ -3,12 +3,12 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from mathbank_rest import route_runtime
+from mathbank_rest import route_runtime, stores
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.route_contracts import RouteProgram
 from mathbank_rest.security import get_current_student_id, require_admin_api_key
@@ -169,30 +169,61 @@ def refresh_graph():
         raise HTTPException(503, "Graph refresh failed; publication is not graph parity.") from exc
 
 
+def learner_call(operation):
+    """Run ``operation(learner_store)``: the learner-state side of the route attempts (PostgreSQL or DynamoDB by flag)."""
+    try:
+        return operation(stores.get_store("learner"))
+    except RuntimeError_ as exc:
+        raise HTTPException(exc.status_code, {"code": exc.code, "message": str(exc)}) from exc
+    except SQLAlchemyError as exc:
+        import logging
+
+        logging.getLogger(__name__).exception("Route attempt data unavailable")
+        raise HTTPException(503, "Instructional route data unavailable.") from exc
+
+
+IdempotencyKey = Header(alias="Idempotency-Key", min_length=1, max_length=200)
+
+
 @router.post("/tutor/route-attempts", status_code=201)
-def start(body: StartRequest, student: Annotated[UUID, Depends(get_current_student_id)]):
-    return call(route_runtime.start_attempt, student, body.problem_code, body.route_release_id)
+def start(
+    body: StartRequest,
+    response: Response,
+    student: Annotated[UUID, Depends(get_current_student_id)],
+    idempotency_key: Annotated[str | None, IdempotencyKey] = None,
+):
+    """Start a route attempt; with a DynamoDB learner store the open attempt of the release is resumed (200)."""
+    started = learner_call(
+        lambda store: store.start_route_attempt(
+            student, body.problem_code, body.route_release_id, idempotency_key=idempotency_key
+        )
+    )
+    if not started.created:
+        response.status_code = 200
+    if started.replayed:
+        response.headers["Idempotent-Replayed"] = "true"
+    return started.view
 
 
 @router.get("/tutor/route-attempts/{attempt_id}")
 def current(attempt_id: UUID, student: Annotated[UUID, Depends(get_current_student_id)]):
-    def load(conn):
-        return route_runtime.current_view(
-            conn, route_runtime.owned_attempt(conn, student, attempt_id)
-        )
-
-    return call(load)
+    return learner_call(lambda store: store.get_route_attempt_view(student, attempt_id))
 
 
 @router.post("/tutor/route-attempts/{attempt_id}/assist")
 def assist(
-    attempt_id: UUID, body: AssistRequest, student: Annotated[UUID, Depends(get_current_student_id)]
+    attempt_id: UUID,
+    body: AssistRequest,
+    student: Annotated[UUID, Depends(get_current_student_id)],
+    idempotency_key: Annotated[str | None, IdempotencyKey] = None,
 ):
-    return call(
-        route_runtime.assist,
-        student,
-        attempt_id,
-        body.expected_version,
-        body.hint_level,
-        body.advance,
+    return learner_call(
+        lambda store: store.assist_route_attempt(
+            student,
+            attempt_id,
+            body.expected_version,
+            body.hint_level,
+            body.advance,
+            idempotency_key=idempotency_key,
+        )
     )

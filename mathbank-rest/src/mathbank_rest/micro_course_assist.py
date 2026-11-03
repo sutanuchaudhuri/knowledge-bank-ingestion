@@ -114,6 +114,26 @@ def _ground_activity(conn, state_id: str, item_id: str, *, reveal_answer: bool) 
     return grounding
 
 
+RECENT_INTERACTIONS = 10
+
+
+def recent_interactions(conn, enrollment_id: str, item_id: str) -> list[dict]:
+    """The learner's last ``RECENT_INTERACTIONS`` raw events on one interaction, newest first (PostgreSQL backend of
+    ``LearnerStore.list_item_interactions``)."""
+    return [
+        dict(event)
+        for event in conn.execute(
+            text("""
+            SELECT event_type, semantic_action, control_key, action_payload
+            FROM learner.interaction_event
+            WHERE enrollment_id=:enrollment_id AND interaction_instance_id=:item_id
+            ORDER BY created_at DESC LIMIT :limit
+        """),
+            {"enrollment_id": enrollment_id, "item_id": item_id, "limit": RECENT_INTERACTIONS},
+        ).mappings()
+    ]
+
+
 def _ground_interaction(conn, state_id: str, item_id: str, enrollment_id: str) -> dict:
     row = (
         conn.execute(
@@ -130,22 +150,10 @@ def _ground_interaction(conn, state_id: str, item_id: str, enrollment_id: str) -
     )
     if row is None:
         raise MicroCourseNotFound("interaction not found in the current lesson state")
-    recent_events = [
-        dict(event)
-        for event in conn.execute(
-            text("""
-            SELECT event_type, semantic_action, control_key, action_payload
-            FROM learner.interaction_event
-            WHERE enrollment_id=:enrollment_id AND interaction_instance_id=:item_id
-            ORDER BY created_at DESC LIMIT 10
-        """),
-            {"enrollment_id": enrollment_id, "item_id": item_id},
-        ).mappings()
-    ]
     return {
         "kind": "interaction", "required": row["required"],
         "learning_objective": row["learning_objective"], "success_criteria": row["success_criteria"],
-        "recent_student_actions": recent_events,
+        "recent_student_actions": recent_interactions(conn, enrollment_id, item_id),
     }
 
 
@@ -229,6 +237,86 @@ _GROUNDERS = {
 }
 
 
+# --- grounding from a pinned release's reader payload (the DynamoDB backend; PostgreSQL resolves the same tiers by SQL above) ---
+
+def ground_from_state(
+    state: dict, item_kind: str, item_id: str, *, reveal: bool, item_key, activity_key, recent_actions,
+) -> dict:
+    """Grounding for one item of the learner's current state, from the reader payload (which never carries an answer key).
+    ``item_key(id)`` / ``activity_key(id)`` fetch the key and are called only when ``reveal`` (the explicit give-up);
+    ``recent_actions()`` returns the learner's last events on an interaction."""
+    def member(list_key: str, id_field: str) -> dict | None:
+        return next((m for m in state.get(list_key) or [] if str(m[id_field]) == str(item_id)), None)
+
+    if item_kind == "learning_item":
+        row = member("learning_items", "learning_item_id")
+        if row is None:
+            raise MicroCourseNotFound("learning item not found in the current lesson state")
+        grounding = {
+            "kind": "learning_item", "purpose": row["purpose"], "required": row["required"],
+            "question_text": row["question_text"], "choices": row["choices"],
+        }
+        if reveal:
+            key = item_key(item_id) or {}
+            grounding["correct_answer"] = key.get("correct_answer")
+            grounding["explanation"] = key.get("answer_or_solution_seed")
+        return grounding
+    if item_kind == "activity":
+        row = member("activities", "activity_id")
+        if row is None:
+            raise MicroCourseNotFound("quiz activity not found in the current lesson state")
+        grounding = {
+            "kind": "activity", "purpose": row["purpose"], "required": row["required"],
+            "prompt": row["prompt"], "options": row["options"],
+        }
+        if reveal:
+            policy = (activity_key(item_id) or {}).get("correctness_policy") or {}
+            grounding["correct_index"] = policy.get("correct_index")
+            grounding["correct_value"] = policy.get("correct_value")
+            grounding["explanation"] = policy.get("explanation")
+        return grounding
+    if item_kind == "interaction":
+        row = member("interactions", "interaction_instance_id")
+        if row is None:
+            raise MicroCourseNotFound("interaction not found in the current lesson state")
+        return {
+            "kind": "interaction", "required": row["required"],
+            "learning_objective": row["learning_objective"], "success_criteria": row["success_criteria"],
+            "recent_student_actions": recent_actions(),
+        }
+    if item_kind == "asset":
+        row = member("assets", "asset_id")
+        if row is None:
+            raise MicroCourseNotFound("asset not found in the current lesson state")
+        # The reader keeps no per-video link on a segment, so (like the SQL path, which has no per-student watch position)
+        # this uses the approved segments of the whole state, capped like the SQL query.
+        segments = sorted(state.get("transcript_segments") or [], key=lambda seg: seg["start_ms"])[:30]
+        return {
+            "kind": "asset", "title": row["title"], "asset_kind": row["asset_kind"],
+            "required": row["presentation_role"] != "OPTIONAL",
+            "approved_transcript_segments": [
+                {"start_ms": seg["start_ms"], "transcript_text": seg["transcript_text"]} for seg in segments
+            ],
+        }
+    raise ValueError(f"unknown item_kind {item_kind!r}")
+
+
+def fallback_context_from_reader(state: dict, reader: dict) -> dict:
+    """Tier 4 of §3.2's grounding order from the reader payload: the state's approved Q&A contexts and the course's primary
+    targets (the release snapshot carries no target description, so it is None)."""
+    return {
+        "state_qa_contexts": [
+            {"context_type": q["context_type"], "question_pattern": q["question_pattern"],
+             "approved_content": q["approved_content"]}
+            for q in state.get("qa_contexts") or []
+        ],
+        "canonical_targets": [
+            {"target_type": t["target_type"], "name": t["name"], "description": None}
+            for t in reader.get("primary_targets") or []
+        ],
+    }
+
+
 def get_item_assist(
     conn,
     enrollment_id: str,
@@ -268,20 +356,17 @@ def get_item_assist(
     return _help(item_kind, grounding, student_message)
 
 
-def _give_up(conn, enrollment_id, student_id, item_kind, item_id, grounding) -> dict:
+def give_up_result(item_kind: str, outcome: dict | None) -> dict:
+    """The deterministic "give up" response: the answer is revealed only for the two gradable kinds, whose response was just
+    recorded as a ``gave_up`` attempt (``outcome``); assets and interactions simply skip."""
+    outcome = outcome or {}
     if item_kind == "learning_item":
-        outcome = submit_learning_item_response(
-            conn, enrollment_id, student_id, item_id, None, gave_up=True
-        )
         return {
             "intent": "give_up", "item_kind": item_kind, "action": "revealed",
             "gave_up": True, "correct_answer": outcome.get("correct_answer"),
             "explanation": outcome.get("explanation"),
         }
     if item_kind == "activity":
-        outcome = submit_activity_response(
-            conn, enrollment_id, student_id, item_id, gave_up=True
-        )
         return {
             "intent": "give_up", "item_kind": item_kind, "action": "revealed",
             "gave_up": True, "correct_choice_index": outcome.get("correct_choice_index"),
@@ -290,6 +375,19 @@ def _give_up(conn, enrollment_id, student_id, item_kind, item_id, grounding) -> 
     # Non-gating kinds (asset/interaction) have no "correct answer" to reveal — "give up"
     # converges with the existing Skip control (requirements/47 §3.3).
     return {"intent": "give_up", "item_kind": item_kind, "action": "skip", "gave_up": True}
+
+
+def _give_up(conn, enrollment_id, student_id, item_kind, item_id, grounding) -> dict:
+    outcome = None
+    if item_kind == "learning_item":
+        outcome = submit_learning_item_response(
+            conn, enrollment_id, student_id, item_id, None, gave_up=True
+        )
+    elif item_kind == "activity":
+        outcome = submit_activity_response(
+            conn, enrollment_id, student_id, item_id, gave_up=True
+        )
+    return give_up_result(item_kind, outcome)
 
 
 def _help(item_kind: str, grounding: dict, student_message: str | None) -> dict:

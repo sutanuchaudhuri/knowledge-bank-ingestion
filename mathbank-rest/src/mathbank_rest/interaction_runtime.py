@@ -47,6 +47,27 @@ EVALUATORS = {
 }
 
 
+def evaluate_submission(template_key: str | None, event_type: str, action_payload: dict | None) -> dict | None:
+    """The deterministic evaluation of a SUBMIT event, or ``None`` when the template has no evaluator or the payload carries no
+    row of numbers (such an event is only recorded). Pure: both storage backends call it."""
+    evaluator = EVALUATORS.get(template_key or "")
+    row = (action_payload or {}).get("row")
+    if evaluator is None or event_type != "SUBMIT" or not isinstance(row, list):
+        return None
+    if not row or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in row):
+        return None
+    return evaluator([float(v) for v in row])
+
+
+def next_confidence(before: float, weight: float) -> float:
+    """The running misconception confidence after one piece of evidence: ``clamp(before + weight, 0, 1)``."""
+    return max(0.0, min(1.0, before + weight))
+
+
+def is_confirmed(confidence: float) -> bool:
+    return confidence >= CONFIRMATION_THRESHOLD
+
+
 def record_interaction_event(
     conn,
     student_id: str,
@@ -125,7 +146,7 @@ def apply_evidence(
     ).scalar()
     before = float(prior) if prior is not None else 0.0
     weight = float(rule["evidence_weight"])
-    after = max(0.0, min(1.0, before + weight))
+    after = next_confidence(before, weight)
 
     conn.execute(
         text("""
@@ -148,7 +169,7 @@ def apply_evidence(
         "before": before,
         "delta": weight,
         "after": after,
-        "confirmed": after >= CONFIRMATION_THRESHOLD,
+        "confirmed": is_confirmed(after),
         "requires_probe": rule["requires_probe"],
         "diagnostic_learning_item_id": rule["diagnostic_learning_item_id"],
         "feedback_template_id": str(rule["feedback_template_id"])
@@ -192,3 +213,28 @@ def select_feedback(
         result["feedback_template_id"] = stages[stage_index].get("feedback")
         result["policy_json"] = stages[stage_index]
     return result
+
+
+def list_misconception_state(conn, student_id: str) -> list[dict]:
+    """PostgreSQL backend of ``LearnerStore.list_misconceptions``: the student's running confidence per misconception (the latest
+    ``confidence_after`` of the append-only ledger), strongest first."""
+    rows = conn.execute(
+        text("""
+        SELECT DISTINCT ON (misconception_id) misconception_id, confidence_after, evidence_id, created_at
+        FROM learner.misconception_evidence
+        WHERE student_id = :student AND confidence_after IS NOT NULL
+        ORDER BY misconception_id, created_at DESC
+    """),
+        {"student": str(student_id)},
+    ).mappings()
+    items = [
+        {
+            "misconception_id": str(row["misconception_id"]),
+            "confidence": float(row["confidence_after"]),
+            "confirmed": is_confirmed(float(row["confidence_after"])),
+            "last_evidence_id": str(row["evidence_id"]),
+            "updated_at": row["created_at"],
+        }
+        for row in rows
+    ]
+    return sorted(items, key=lambda i: (-i["confidence"], i["misconception_id"]))

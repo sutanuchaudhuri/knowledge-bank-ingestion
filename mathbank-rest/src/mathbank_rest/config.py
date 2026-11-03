@@ -106,6 +106,8 @@ class Settings(BaseSettings):
     vector_bucket: str = ""                   # default mathbank-vectors-<ddb_env>
     next_token_secret: SecretStr = SecretStr("")  # empty = derived from jwt_secret
     idempotency_ttl_days: int = 7
+    # WP5: record_interaction_event evaluates deterministically and applies misconception evidence (requirement 70 C1 T24).
+    misconception_evidence: Literal["off", "on"] = "off"
     auth_status_cache_seconds: int = 30
     # Anonymous GET /v1/problems* returns official_answer today. Recommendation: false (requirement 70 §12).
     content_public_answers: bool = True

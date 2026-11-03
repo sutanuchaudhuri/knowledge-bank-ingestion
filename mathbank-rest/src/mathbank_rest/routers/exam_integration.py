@@ -10,28 +10,40 @@ writing/reading the post-exam diagnosis report.
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Any
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 
-from mathbank_rest import quiz_runtime
-from mathbank_rest.db.learner import (
-    create_student_for_cognito,
-    get_mastery_summary,
-    get_student_by_cognito_sub,
-    get_student_profile,
-)
+from mathbank_rest import quiz_runtime, stores
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.security import create_access_token, require_admin_api_key
+from mathbank_rest.stores.errors import StoreFrozen
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/v1/quiz-integration", tags=["quiz-integration"],
     dependencies=[Depends(require_admin_api_key)],
 )
+
+
+# Learner identity and mastery go through the learner store (WP5). The wrappers keep the historical module-level names.
+def create_student_for_cognito(**kwargs: Any) -> dict:
+    return stores.get_store("learner").create_student_for_cognito(**kwargs)
+
+
+def get_mastery_summary(student_id: UUID) -> dict:
+    return stores.get_store("learner").get_mastery_summary(student_id)
+
+
+def get_student_by_cognito_sub(cognito_sub: str) -> dict | None:
+    return stores.get_store("learner").get_student_by_cognito_sub(cognito_sub)
+
+
+def get_student_profile(student_id: UUID) -> dict | None:
+    return stores.get_store("learner").get_student_profile(student_id)
 
 
 def _call(operation, *args: Any, **kwargs: Any) -> dict:
@@ -436,7 +448,12 @@ def mint_session_token(student_id: UUID) -> dict:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "no such student"})
     if student["status"] != "ACTIVE":
         raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "account is not active"})
-    token = create_access_token(student_id)
+    store = stores.get_store("learner")
+    try:
+        store.touch_last_login(student_id)
+    except StoreFrozen:
+        pass                                    # a cutover freeze must not stop sign-in; only the last-login stamp is skipped
+    token = create_access_token(student_id, token_version=store.get_student_token_version(student_id))
     return {
         "access_token": token, "token_type": "bearer", "student_id": str(student_id),
         "first_name": student.get("first_name"), "last_name": student.get("last_name"),

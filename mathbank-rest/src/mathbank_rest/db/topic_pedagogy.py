@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import text
 
 from mathbank_rest.db.postgres import engine
-from mathbank_rest.db.retrieval_audit import audit_problem
+from mathbank_rest.db.retrieval_audit import AUDIT_VERSION, POWER, audit_problem, power_structure
 from mathbank_rest.practice_selection import load_profile, rank_candidates
 
 
@@ -25,6 +25,12 @@ def _content():
     from mathbank_rest import stores
 
     return stores.get_store("content")
+
+
+def _learner():
+    from mathbank_rest import stores
+
+    return stores.get_store("learner")
 
 
 def _pg_nodes(conn, node_types: tuple[str, ...]) -> list[dict]:
@@ -117,6 +123,22 @@ def _pg_candidates(conn, node_id: str, limit: int) -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def _pg_learner_state(student_id: UUID) -> dict:
+    with engine.connect() as conn:
+        exposed = list(conn.execute(text("""
+            SELECT p.canonical_code FROM learner.solve_attempt a
+            JOIN core.problem p USING(problem_id) WHERE a.student_id=:student
+            UNION SELECT p.canonical_code FROM learner.attempt a
+            JOIN core.problem p USING(problem_id) WHERE a.student_id=:student
+        """), {"student": student_id}).scalars())
+        gap_skills = list(conn.execute(text("""
+            SELECT DISTINCT target_skill_id FROM pedagogy.knowledge_gap
+            WHERE student_id=:student AND status IN ('UNRESOLVED','CONFIRMED')
+              AND target_skill_id IS NOT NULL
+        """), {"student": student_id}).scalars())
+    return {"exposed_codes": exposed, "gap_skill_ids": gap_skills}
+
+
 def topic_candidates(topic: str, *, profile_version: str = "topic-fit-v1", limit: int = 10,
                      target_difficulty: int | None = None, known_skills: list[str] | None = None,
                      exposed_codes: list[str] | None = None, exclude_codes: list[str] | None = None,
@@ -127,21 +149,17 @@ def topic_candidates(topic: str, *, profile_version: str = "topic-fit-v1", limit
         return plan
     node = plan["node"]
     candidates = _content().list_topic_candidates(node["taxonomy_node_id"], limit=100)
+    learner = _learner()
+    if getattr(learner, "backend", "postgres") == "dynamodb":
+        # the PostgreSQL candidate query excludes reviewed-irrelevant problems in SQL; mb-learner holds them as RETRIEVAL_EXCLUSION
+        excluded = set(learner.list_excluded_problem_codes(node["taxonomy_node_id"]))
+        candidates = [c for c in candidates if c["canonical_code"] not in excluded]
     exposure = set(exposed_codes or [])
     gap_skills = None
     if student_id:
-        with engine.connect() as conn:
-            exposure.update(conn.execute(text("""
-                SELECT p.canonical_code FROM learner.solve_attempt a
-                JOIN core.problem p USING(problem_id) WHERE a.student_id=:student
-                UNION SELECT p.canonical_code FROM learner.attempt a
-                JOIN core.problem p USING(problem_id) WHERE a.student_id=:student
-            """), {"student": student_id}).scalars())
-            gap_skills = list(conn.execute(text("""
-                SELECT DISTINCT target_skill_id FROM pedagogy.knowledge_gap
-                WHERE student_id=:student AND status IN ('UNRESOLVED','CONFIRMED')
-                  AND target_skill_id IS NOT NULL
-            """), {"student": student_id}).scalars())
+        state = learner.get_topic_learner_state(student_id)
+        exposure.update(state["exposed_codes"])
+        gap_skills = list(state["gap_skill_ids"])
     for candidate in candidates:
         candidate["confidence"] = float(candidate["confidence"] or 0)
         candidate["exposure_known"] = student_id is not None
@@ -160,10 +178,41 @@ def topic_candidates(topic: str, *, profile_version: str = "topic-fit-v1", limit
                          "Unknown fit signals are not estimated. Source completeness is checked before display."]}
 
 
-def submit_feedback(student_id: UUID, problem_code: str, topic: str, reason: str) -> dict | None:
-    grounding = topic_plan(topic)
+def audit_problem_content(store, code: str, topic: str, node: dict | None) -> dict:
+    """``retrieval_audit.audit_problem`` over the content store (DynamoDB mode: no SQL). The PENDING/REJECTED tag rows that the
+    SQL lists as ``challenged_assertions`` are not in mb-content (the publisher withholds those problems), so that list is empty."""
+    problem = store.get_problem_by_code(code)
+    if problem is None:
+        return {"error": "UNKNOWN_PROBLEM"}
+    dag = store.get_solution_dag(code)
+    steps = list(dag["steps"])
+    support: list[str] = []
+    if node:
+        node_id, kind = node["taxonomy_node_id"], node.get("node_type")
+        technique_steps = {t["solution_step_id"] for t in dag["step_techniques"] if t["technique_node_id"] == node_id}
+        by_kind = {"SKILL": "skill_node_id", "CONCEPT": "concept_node_id", "SUBCONCEPT": "subconcept_node_id"}
+        support = [s["solution_step_id"] for s in steps
+                   if (kind in by_kind and s.get(by_kind[kind]) == node_id)
+                   or (kind == "TECHNIQUE" and s["solution_step_id"] in technique_steps)]
+    structural = power_structure(problem["statement_text"] or "", steps) if node and node["taxonomy_node_id"] == POWER else None
+    return {"version": AUDIT_VERSION, "problem_code": code, "requested_topic": topic,
+            "requested_node_id": node["taxonomy_node_id"] if node else None,
+            "published_step_count": len(steps), "supporting_step_ids": support[:50],
+            "challenged_assertions": [], "structural_validation": structural,
+            "suggested_error_kind": "INSUFFICIENT_EVIDENCE" if not support else "RETRIEVAL",
+            "review_status": "PENDING", "retrieval_score": None,
+            "message": "Correction candidate only. Inspect source evidence before any canonical change."}
+
+
+def submit_feedback(student_id: UUID, problem_code: str, topic: str, reason: str, *,
+                    idempotency_key: str | None = None) -> dict | None:
+    node = topic_plan(topic).get("node")
+    return _learner().submit_feedback(student_id, problem_code, topic, reason, node=node, idempotency_key=idempotency_key)
+
+
+def _pg_submit_feedback(student_id: UUID, problem_code: str, topic: str, reason: str, node: dict | None) -> dict | None:
     with engine.begin() as conn:
-        audit = audit_problem(conn, problem_code, topic, grounding.get("node"))
+        audit = audit_problem(conn, problem_code, topic, node)
         if audit.get("error"):
             return None
         row = (
@@ -188,20 +237,40 @@ def submit_feedback(student_id: UUID, problem_code: str, topic: str, reason: str
         return dict(row) if row else None
 
 
-def feedback_queue(limit: int, offset: int) -> dict:
+def feedback_queue(limit: int, offset: int, *, status: str | None = None, student_id: UUID | None = None,
+                   q: str | None = None) -> dict:
+    return _learner().list_feedback_queue(limit, offset, status=status, student_id=student_id, q=q)
+
+
+def _pg_feedback_queue(limit: int, offset: int, *, status: str | None = None, student_id: UUID | None = None,
+                       q: str | None = None) -> dict:
+    where, params = [], {"limit": limit, "offset": offset}
+    if status:
+        where.append("f.status=:status")
+        params["status"] = status
+    if student_id is not None:
+        where.append("f.student_id=:student")
+        params["student"] = student_id
+    if q:
+        where.append("(f.topic ILIKE :q OR f.reason ILIKE :q)")
+        params["q"] = f"%{q}%"
+    clause = f"WHERE {' AND '.join(where)}" if where else ""
     with engine.connect() as conn:
         rows = conn.execute(
-            text("""
+            text(f"""
             SELECT f.feedback_id,p.canonical_code,f.topic,f.reason,f.status,f.created_at,
                    f.review_note,f.reviewed_at,f.audit_snapshot AS audit,
                    f.retrieval_verdict,f.error_kind,
                    count(*) OVER (PARTITION BY f.problem_id,f.topic) AS related_report_count
-            FROM learner.pedagogy_feedback f JOIN core.problem p USING(problem_id)
+            FROM learner.pedagogy_feedback f JOIN core.problem p USING(problem_id) {clause}
             ORDER BY (f.status='PENDING') DESC,f.created_at DESC LIMIT :limit OFFSET :offset
         """),
-            {"limit": limit, "offset": offset},
+            params,
         ).mappings()
-        total = conn.execute(text("SELECT count(*) FROM learner.pedagogy_feedback")).scalar_one()
+        total = conn.execute(
+            text(f"SELECT count(*) FROM learner.pedagogy_feedback f {clause}"),
+            {k: v for k, v in params.items() if k not in ("limit", "offset")},
+        ).scalar_one()
         return {
             "items": [dict(row) for row in rows],
             "total": total,
@@ -211,7 +280,15 @@ def feedback_queue(limit: int, offset: int) -> dict:
 
 
 def resolve_feedback(feedback_id: UUID, status: str, note: str,
-                     retrieval_verdict: str = "UNCLASSIFIED", error_kind: str = "UNCLASSIFIED") -> dict | None:
+                     retrieval_verdict: str = "UNCLASSIFIED", error_kind: str = "UNCLASSIFIED",
+                     actor: str | None = None) -> dict | None:
+    """Review a pending report once. ``actor`` is the admin principal (``Actor.id``): stored as the reviewer and audited
+    (LRN-F22, LRN-S10); ``None`` records the system actor."""
+    return _learner().resolve_feedback(feedback_id, status, note, retrieval_verdict, error_kind, actor)
+
+
+def _pg_resolve_feedback(feedback_id: UUID, status: str, note: str, retrieval_verdict: str, error_kind: str,
+                         actor: str | None) -> dict | None:
     with engine.begin() as conn:
         row = (
             conn.execute(
@@ -226,10 +303,21 @@ def resolve_feedback(feedback_id: UUID, status: str, note: str,
             .mappings()
             .first()
         )
+        if row is not None:
+            from mathbank_rest.db.pedagogy_admin import ANONYMOUS, audit
+
+            audit(conn, actor or ANONYMOUS, "FEEDBACK_REVIEWED", "FEEDBACK", str(feedback_id),
+                  before_state={"status": "PENDING"},
+                  after_state={"status": status, "retrieval_verdict": retrieval_verdict, "error_kind": error_kind})
         return dict(row) if row else None
 
 
 def reviewed_retrieval_examples(limit: int = 100) -> dict:
+    return {"examples": _learner().list_retrieval_examples(limit),
+            "message": "Reviewed evaluation evidence only; no automatic training or canonical mutation."}
+
+
+def _pg_retrieval_examples(limit: int) -> list[dict]:
     with engine.connect() as conn:
         rows = conn.execute(text("""
             SELECT f.topic AS query,p.canonical_code,f.retrieval_verdict,f.error_kind,
@@ -238,5 +326,4 @@ def reviewed_retrieval_examples(limit: int = 100) -> dict:
             WHERE f.status='RESOLVED' AND f.retrieval_verdict <> 'UNCLASSIFIED'
             ORDER BY f.reviewed_at DESC LIMIT :limit
         """), {"limit": limit}).mappings()
-        return {"examples": [dict(row) for row in rows],
-                "message": "Reviewed evaluation evidence only; no automatic training or canonical mutation."}
+        return [dict(row) for row in rows]
