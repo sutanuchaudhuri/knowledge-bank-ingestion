@@ -1,5 +1,15 @@
 # mathbank-db
 
+## AWS data plane: DynamoDB + S3 + S3 Vectors (requirement 70)
+
+[aws/](aws/README.md) holds the scripts that copy this database into AWS, following
+[requirement 70](../documentation/requirements/70_DYNAMODB_AND_S3_VECTORS_ADOPTION_PLAN.md):
+- **[aws/dynamo/](aws/dynamo/):** per-context specs, table provisioning, migration and verification for DynamoDB.
+- **[aws/s3/](aws/s3/):** S3 buckets, the S3 Vectors bucket and indexes, vector copy and verification.
+
+The `make aws-*` targets read Neon read-only through `../mathbank-graph/remote.env`. The `dev` copy was
+executed and verified on 2026-11-03 ([aws/runs/](aws/runs/README.md)). The applications still use PostgreSQL.
+
 ## Socratic draft increment
 
 [Migration 053](sql/053_socratic_drafts.sql) adds four isolated

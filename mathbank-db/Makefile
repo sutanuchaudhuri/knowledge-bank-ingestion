@@ -473,6 +473,42 @@ destroy:                        ## Stop server and DELETE the external data dire
 	-"$(PG_BIN)/pg_ctl" -D "$(PGDATA)" stop -m fast
 	rm -rf "$(PGDATA)"
 
+# ---------------------------------------------------------------------------------------------
+# AWS migration (requirement 70): PostgreSQL → DynamoDB + S3 + S3 Vectors. See aws/README.md.
+# Source is the Neon database from ../mathbank-graph/remote.env, opened READ-ONLY.
+AWS_ENV     ?= dev
+AWS_PROFILE ?= aws-sutanu-admin
+AWS_REGION  ?= us-east-2
+AWS_ONLY    ?=
+AWS_PY       = cd $(CURDIR) && set -a && . ../mathbank-graph/remote.env && set +a && \
+               AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) .venv/bin/python -m
+
+.PHONY: aws-install aws-provision aws-dry-run aws-migrate aws-verify aws-vectors aws-vectors-verify aws-migrate-all
+aws-install:                    ## Install the AWS migration toolkit deps (boto3, numpy, pyarrow)
+	uv pip install --python .venv/bin/python -e '.[aws]' || .venv/bin/pip install -e '.[aws]'
+
+aws-provision:                  ## Create/update buckets, S3 Vectors indexes and DynamoDB tables (AWS_ENV=dev)
+	@$(AWS_PY) aws.s3.provision --env $(AWS_ENV)
+	@$(AWS_PY) aws.dynamo.provision --env $(AWS_ENV) $(if $(AWS_ONLY),--only $(AWS_ONLY))
+
+aws-dry-run:                    ## Read Neon and transform every row without writing (AWS_ONLY="learner exam")
+	@$(AWS_PY) aws.dynamo.migrate --env $(AWS_ENV) --dry-run $(if $(AWS_ONLY),--only $(AWS_ONLY))
+
+aws-migrate:                    ## Copy Neon rows into DynamoDB/S3 and write a manifest
+	@$(AWS_PY) aws.dynamo.migrate --env $(AWS_ENV) $(if $(AWS_ONLY),--only $(AWS_ONLY))
+
+aws-verify:                     ## Verify DynamoDB against a manifest (MANIFEST=logs/aws/<run>/dynamo-manifest.json)
+	@test -n "$(MANIFEST)" || (echo "set MANIFEST=\"logs/aws/<run>/dynamo-manifest.json [more ...]\"" && exit 2)
+	@$(AWS_PY) aws.dynamo.verify --env $(AWS_ENV) --manifest $(MANIFEST)
+
+aws-vectors:                    ## Copy all pgvector embeddings to S3 Vectors + Parquet archive
+	@$(AWS_PY) aws.s3.vectors copy --env $(AWS_ENV)
+
+aws-vectors-verify:             ## Verify S3 Vectors: counts, bit-exact sample, recall@8 ≥ 0.95
+	@$(AWS_PY) aws.s3.vectors verify --env $(AWS_ENV)
+
+aws-migrate-all: aws-provision aws-migrate aws-vectors aws-vectors-verify ## Provision + migrate + vectors (then run aws-verify)
+
 .PHONY: help
 help:                           ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \

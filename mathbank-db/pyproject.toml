@@ -8,3 +8,12 @@ dependencies = [
   "pymupdf>=1.24",
   "beautifulsoup4>=4.12",
 ]
+
+[project.optional-dependencies]
+# PostgreSQL → DynamoDB / S3 / S3 Vectors migration toolkit (aws/, requirement 70)
+aws = [
+  "boto3>=1.40",
+  "botocore[crt]>=1.40",
+  "numpy>=1.26",
+  "pyarrow>=15",
+]
