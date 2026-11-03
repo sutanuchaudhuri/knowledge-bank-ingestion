@@ -152,6 +152,8 @@ def register_implementation(ctx: str, backend: str, target: str | Callable) -> N
 for _ctx, _backend, _target in (
     ("content", "postgres", "mathbank_rest.stores.content:PostgresContentStore"),
     ("content", "dynamodb", "mathbank_rest.stores.content:DynamoDBContentStore"),
+    ("learner", "postgres", "mathbank_rest.stores.learner:PostgresLearnerStore"),
+    ("learner", "dynamodb", "mathbank_rest.stores.learner:DynamoDBLearnerStore"),
     ("jobs", "postgres", "mathbank_rest.stores.jobs:PostgresJobsStore"),
     ("jobs", "dynamodb", "mathbank_rest.stores.jobs:DynamoDBJobsStore"),
     ("notify", "postgres", "mathbank_rest.stores.notify:PostgresNotifyStore"),
