@@ -70,6 +70,40 @@ class Settings(BaseSettings):
     # rendered video, mark-promoted) rather than reading its tables directly.
     manim_studio_base_url: str = "http://localhost:8020"
 
+    # ── requirement 71: DynamoDB / S3 / S3 Vectors data plane ────────────────────────────────────
+    # Which app this process is. `combined` (main.py) mounts every router and is the local-dev
+    # default; `runtime` has no PostgreSQL access at all; `admin` is the authoring plane.
+    app_profile: Literal["combined", "runtime", "admin"] = Field(default="combined", validation_alias="MB_APP_PROFILE")
+    # Per-context store backend. `postgres` (today's SQL) | `dynamodb` | `frozen` / `frozen:<backend>`
+    # (writes rejected with 503 during a cutover; reads served by <backend>, default postgres).
+    # Optionally overridden at runtime from SSM (store_flags_ssm_prefix) so a flip needs no redeploy.
+    content_store: str = "postgres"
+    learner_store: str = "postgres"
+    exam_store: str = "postgres"
+    live_store: str = "postgres"
+    media_store: str = "postgres"
+    artifacts_store: str = "postgres"
+    geometry_store: str = "postgres"
+    jobs_store: str = "postgres"
+    notify_store: str = "postgres"
+    socratic_store: str = "postgres"
+    agent_sessions_store: str = "postgres"
+    audit_store: str = "postgres"
+    vector_store: Literal["pgvector", "s3vectors"] = "pgvector"
+    store_flags_ssm_prefix: str = ""          # e.g. /mathbank/dev/stores ; empty = settings only
+    store_flags_refresh_seconds: int = 60
+    ddb_env: str = "dev"                      # table names are mb-<context>-<ddb_env>
+    ddb_region: str = "us-east-2"
+    ddb_endpoint_url: str = ""                # DynamoDB Local / moto server; empty = AWS
+    data_bucket: str = ""                     # default mathbank-data-<ddb_env>-<account>
+    content_bucket: str = ""
+    vector_bucket: str = ""                   # default mathbank-vectors-<ddb_env>
+    next_token_secret: SecretStr = SecretStr("")  # empty = derived from jwt_secret
+    idempotency_ttl_days: int = 7
+    auth_status_cache_seconds: int = 30
+    # Anonymous GET /v1/problems* returns official_answer today. Recommendation: false (requirement 70 §12).
+    content_public_answers: bool = True
+
     @property
     def postgres_dsn(self) -> str:
         dsn = (

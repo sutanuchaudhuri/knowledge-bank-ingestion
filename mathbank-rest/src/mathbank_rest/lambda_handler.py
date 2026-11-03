@@ -44,6 +44,13 @@ _load_secrets_from_ssm()
 
 from mangum import Mangum  # noqa: E402 — must follow the secrets load above
 
-from mathbank_rest.main import app  # noqa: E402 — ditto
+# requirement 71 §2.1: MB_APP_PROFILE picks the app. `combined` (default) is main.py, unchanged.
+_profile = os.environ.get("MB_APP_PROFILE", "combined")
+if _profile == "runtime":
+    from mathbank_rest.app_runtime import app  # noqa: E402 — runtime has no PostgreSQL access
+elif _profile == "admin":
+    from mathbank_rest.app_admin import app  # noqa: E402 — authoring plane
+else:
+    from mathbank_rest.main import app  # noqa: E402 — ditto
 
 handler = Mangum(app)

@@ -36,6 +36,8 @@ dev = [
   "pytest>=8.2",
   "ruff>=0.4",
   "mypy>=1.10",
+  # requirement 71: DynamoDB / S3 / SQS store tests run against moto, with no AWS access
+  "moto[dynamodb,s3,sqs]>=5.0",
 ]
 # Only needed inside the Lambda container image (requirements/63); never installed into
 # the local dev venv by `make install`, so this has zero effect on local dev/tests.
@@ -48,6 +50,11 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 mathbank_rest = ["practice_profiles.json", "migrations/*.sql"]
+
+[tool.pytest.ini_options]
+markers = [
+  "ddb_integration: runs against the real `test` data-plane environment (needs MB_DDB_ENV=test and AWS credentials); skipped otherwise",
+]
 
 [tool.ruff]
 line-length = 100

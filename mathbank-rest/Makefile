@@ -47,6 +47,21 @@ migrate-geometry-scenes:        ## Explicitly apply additive geometry storage mi
 test-geometry:                  ## Geometry REST/unit tests (PG integration opt-in via GEOMETRY_TEST_POSTGRES_DSN)
 	$(PYTEST) tests/test_geometry_storage.py tests/test_geometry_api.py tests/test_geometry_postgres.py
 
+# ── DynamoDB / S3 / S3 Vectors data plane (requirement 71) ─────────────────────────────────────────────
+
+.PHONY: test-ddb test-ddb-integration findings-check findings-gate
+test-ddb:                       ## Store-layer tests on moto (no AWS, no database): toolkit, flags, profiles, parity harness
+	$(PYTEST) -q tests/stores tests/parity tests/test_profiles.py tests/test_findings_check.py
+
+test-ddb-integration:           ## Same toolkit against the REAL `test` environment (needs: make -C ../mathbank-db aws-provision AWS_ENV=test)
+	MB_DDB_ENV=test DDB_ENV=test AWS_PROFILE=$${AWS_PROFILE:-aws-sutanu-admin} DDB_REGION=us-east-2 $(PYTEST) -q -m ddb_integration tests/stores
+
+findings-check:                 ## Report the schema-doc findings ledger and validate its rows (use WP=WP5 to require one WP closed)
+	$(BIN)/python scripts/findings_check.py $(if $(WP),--wp $(WP))
+
+findings-gate:                  ## Merge gate for main: every finding must be DONE or DECLINED
+	$(BIN)/python scripts/findings_check.py --strict
+
 # ── Quality ────────────────────────────────────────────────────────────────
 
 .PHONY: lint

@@ -13,6 +13,8 @@ git-ignored `logs/aws/`.
 | 20261103T042926Z (log only) | S3 Vectors copy of `misconception-te3small-1536-v1` + Parquet archive (`vectors-archive/20261103T042926Z/…`, 209.8 MB) | 70,018 vectors written. The run's manifest was not written because Neon dropped the long-held source connection afterwards; fixed by opening one connection per index. |
 | [20261103T064509Z](20261103T064509Z/vectors-verify.json) | Vector verification of all 12 indexes against their Parquet archives (each row's SHA-256 recomputed) plus a live Neon `count(*)` | **PASSED**: 129,529 vectors; S3 Vectors = archive = live source per index; 300-vector samples bit-exact with equal metadata; tie-aware recall@8 0.967–0.9996 (gate 0.95): misconception 0.9929, taxonomy-node 0.9671 (within `node_type`), taxonomy-search 0.9996, problem 0.9879, solution 0.9879, step 0.9738, learning-item 0.9796. The 5 empty families are empty on both sides. |
 
+| (test env, 2026-11-03) | `make aws-provision AWS_ENV=test`: 12 `mb-*-test` tables, `mathbank-data-test-` / `mathbank-content-test-` buckets, `mathbank-vectors-test` with 12 indexes. **No data.** Used by `make test-ddb-integration` in `mathbank-rest` (requirement 71 §5); the tests clean up after themselves. | provisioned; 0 items and 0 objects after the integration run |
+
 **Notes**
 - The first verification of run 035331Z failed on exactly one type: the 173 `IDEM` idempotency records had
   `ttl` = created + 7 days, already in the past, and DynamoDB TTL deleted them minutes after the write.

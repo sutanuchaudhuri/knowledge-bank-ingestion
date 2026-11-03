@@ -1,6 +1,7 @@
 # 71. REST integration with the DynamoDB / S3 / S3 Vectors data plane — plan
 
-**Status: plan for review. No REST code has been changed.**
+**Status: WP0 (foundations) implemented on the branch; WP1–WP11 planned.** WP0 changes no route behaviour: every
+store flag defaults to `postgres` and `main.py` is unchanged apart from three additive lines.
 Branch: `feature/dynamo-integration-test`. Companion to
 [requirement 70](70_DYNAMODB_AND_S3_VECTORS_ADOPTION_PLAN.md), which designed the data plane and copied the
 Neon data into it (`dev`). This document plans the **`mathbank-rest` changes** that make the service use
@@ -156,7 +157,7 @@ keeps `pipeline.outbox_event`; `outbox_worker.py` becomes the **relay** that fee
 | Change | Where | Source finding groups |
 |---|---|---|
 | Account status and `token_version` checked on every learner request (cached 30 s); Cognito email-link requires a verified email | `security.py`, `IdentityStore` | LRN (account takeover, no disable) |
-| Per-admin API keys with an actor id, instead of one shared key plus `X-Actor-Id` | `security.py`, Secrets Manager | AUD, LIV, ORC (audit identity), C7 |
+| Staff login as the admin identity: legacy `/v1/admin/*` routes accept the staff session (cookie + CSRF + capability) and record the real actor; the shared admin key becomes a service credential audited as `service:admin-key` | `security.py`, `socratic_auth.py` | AUD, LIV, ORC (audit identity), C7 |
 | **Separate learner and admin response models.** Answer keys, solutions, teacher evidence and confidence never appear in a learner model. A snapshot test fails if a forbidden field appears before entitlement. | every learner-facing router | QUZ, ACT, PMC, PSF, LRN, VIS |
 | GET is side-effect free. Enrichment moves behind an authenticated `POST` or a queue. | `routers/pedagogy.py`, `tutor.py`, hints | KNP, PSF |
 | Server-side grading: clients cannot send `is_correct`, `hint_count`, `source` | `routers/learner.py` | LRN |
@@ -206,6 +207,29 @@ prerequisites of the publisher.
 - Parity harness (§5) and the findings CSV check.
 - **Gate:** existing tests unchanged and green; runtime app starts with stub stores and no DSN.
 
+**WP0 delivered (all under `mathbank-rest/`):**
+
+| Deliverable | Files |
+|---|---|
+| Store registry, per-context flags (`<CTX>_STORE`, optional SSM override), `frozen[:backend]` proxy that serves reads and returns 503 `Retry-After` for writes, `override_store()` for tests, `/health/stores` | `stores/__init__.py` |
+| Domain errors and their HTTP mapping (404, 409 `revision_conflict` / `unique_violation` / `condition_failed`, 422 `idempotency_key_reused`, 400 `invalid_next_token`, 501, 503) | `stores/errors.py` |
+| DynamoDB toolkit: `cas_update`, `transact` with cancellation-reason mapping, `sentinel_put`, `query_page` with signed pagination tokens, `batch_get`, `run_idempotent`, S3 `offload` / `load_attr` / `resolve_ref` / `presign`, `uuid7`. No scan helper. | `stores/ddb.py` |
+| App profiles: router partition (every router in exactly one group), `app_runtime.py`, `app_admin.py`, Lambda profile switch, runtime guard that makes `db.postgres.engine` raise, shared `OPENAPI_TAGS`; `main.py` still mounts everything | `profiles.py`, `app_runtime.py`, `app_admin.py`, `openapi_tags.py`, `db/postgres.py`, `lambda_handler.py`, `main.py` |
+| Settings (§2.8) | `config.py` |
+| Dual-backend parity harness | `tests/parity/` |
+| Findings ledger check | `scripts/findings_check.py` |
+| Make targets `test-ddb`, `test-ddb-integration`, `findings-check`, `findings-gate`; `moto` dev dependency; `ddb_integration` marker | `Makefile`, `pyproject.toml` |
+
+**WP0 gate results.** The full existing suite: 965 passed, 0 failed (158 live-database tests skipped as before).
+`make test-ddb`: 97 passed (toolkit on moto including concurrent-writer and idempotency races, flags, error mapping, profiles,
+parity harness, findings check, no-scan lint). `make test-ddb-integration` against the real `test` environment: 6 passed
+(the environment was provisioned with `make aws-provision AWS_ENV=test`, 12 tables, 2 buckets, 12 vector indexes, no data;
+tests clean up after themselves and left 0 items and 0 objects).
+
+The integration run found a defect that moto did not: botocore presigns S3 URLs against the global host
+`bucket.s3.amazonaws.com`, which answers `307` for a bucket outside us-east-1. The S3 client now uses SigV4 with virtual-hosted
+addressing, giving the regional host; a moto test now asserts it.
+
 ### WP1 Pre-copy fixes (on PostgreSQL)
 
 Must land first, because the read model and `mb-exam`/`mb-learner` should not inherit these defects.
@@ -215,6 +239,12 @@ Must land first, because the read model and `mb-exam`/`mb-learner` should not in
   `POST`-only and authenticated.
 - `POST /v1/learner/attempts` ignores client-sent grading fields (deprecated, then 410).
 - `get_current_student_id` checks account `status`; Cognito linking requires a verified email.
+- **WP1a Staff login for admin routes (decision 2).** A `require_admin` dependency accepts either the staff
+  session (cookie + CSRF + capability, from `socratic_auth`) or the legacy `X-Admin-Api-Key`. It returns an
+  `Actor(kind="staff"|"service", id)`; routers pass the actor to the store, and audit rows carry it. The
+  Socratic capabilities map to admin scopes (`manage_users` → user/students admin, `publish` → release
+  publish, `author` → authoring writes). Routes that mutate content require a staff actor once WP10 lands;
+  the shared key keeps read-only and service use.
 - `CONTENT_PUBLIC_ANSWERS` flag introduced (default as decided).
 - **Gate:** the 20 WP1 IDs `DONE`; serializer snapshot tests pass.
 
@@ -300,7 +330,10 @@ Rules:
 1. **Routing is by schema document**, with security findings routed to WP1. `routing_note` records why. A reviewer may move an ID; the change is a CSV edit in the PR.
 2. An ID is `DONE` only with a PR and a test reference (`tests` column), or `DECLINED` with the reason and the replacement, as the four declined items in requirement 70 (PSF-E17, KNC-S06, PMC-S08, PMC-F06).
 3. `rest_impact = N` items (pure PostgreSQL schema changes, e.g. a CHECK) are done in WP10/migrations and need no REST code, but are still listed so none is lost.
-4. `make findings-check` fails when a work package is marked complete in the CSV while any of its primary IDs is `PLANNED`, or when a `DONE` row has no test reference. It runs in CI.
+4. [`scripts/findings_check.py`](../../mathbank-rest/scripts/findings_check.py) validates the ledger and gates closure:
+   - `make findings-check` reports per-work-package counts and fails on an **invalid row**: unknown status, `DONE` without both `pr` and `tests`, `DECLINED` without a reason, a duplicate ID.
+   - `make findings-check WP=WP5` additionally fails (exit 2) while any ID routed to WP5 is not `DONE` or `DECLINED`. Use it as the exit check of a work package.
+   - `make findings-gate` (`--strict`) is the **merge gate for `main`**: every one of the 760 IDs must be `DONE` or `DECLINED`. Today it exits 2, as it should.
 5. Resolutions for each ID (the DynamoDB equivalent of a PostgreSQL fix) are in requirement 70 Appendix B and the C1–C7 designs; the CSV is the status ledger, requirement 70 is the design.
 
 ## 5. Test strategy for this branch
@@ -325,16 +358,19 @@ New commands (WP0):
 ```bash
 make test-ddb                 # unit + parity with moto; no AWS, no database
 make test-ddb-integration     # MB_DDB_ENV=test, real AWS; needs `make -C ../mathbank-db aws-provision AWS_ENV=test`
-make findings-check           # traceability rules in §4
+make findings-check           # per-WP report + ledger validation (WP=WP5 also requires that WP closed)
+make findings-gate            # merge gate for main: all 760 IDs DONE or DECLINED
 ```
 
 ## 6. Branch and delivery plan
 
-`feature/dynamo-integration-test` collects the work. Each work package is its own PR into it, so review
-stays small. Merge to `main` happens context by context after its cutover gate, flags still defaulting to
-`postgres` until the cutover step.
+All work happens directly on `feature/dynamo-integration-test` (decision 3): each work package lands as one
+or more commits on the branch, with its tests, and the flags still default to `postgres` until that
+context's cutover step. **The branch merges to `main` once, when the REST DynamoDB migration is complete**
+(all work packages through WP11, `make findings-check` clean, integration tests green on the `test`
+environment).
 
-| Order | PRs | Notes |
+| Order | Commits (work packages) | Notes |
 |---|---|---|
 | 1 | WP0, WP10 (admin split), WP1 | Foundations and pre-copy fixes. No behaviour change except the fixes. |
 | 2 | WP2, WP3 in parallel | Vectors and jobs/notifications are independent of the learner path. |
@@ -357,10 +393,13 @@ Neon branch, freeze, copy, switch, observe, retire.
 | Behaviour changes listed in requirement 70 §12 need sign-off before the named work package | Each is behind a flag; WP entry checks the decision is recorded |
 | Integration tests cost and flakiness against real AWS | Small fixtures, `test` environment only, nightly rather than per-PR |
 
-**Decisions needed before WP0:**
-1. Profiles: keep `main.py` as the combined dev app (default) or drop it once both profiles exist.
-2. Per-admin API keys (WP1/WP10): Secrets Manager entries per admin, or a staff login first.
-3. Whether the findings check blocks merges to the branch or only to `main`.
+### Decisions (2026-11-03, product owner)
+
+| # | Question | Decision | Consequence for this plan |
+|---|---|---|---|
+| 1 | Keep `main.py` as the combined dev app? | **Yes.** `main.py` stays the combined app that mounts every router. | `app_runtime.py` and `app_admin.py` are additions built from the same router groups (`profiles.py`). `main.py` is never removed and keeps passing the existing tests. |
+| 2 | Per-admin API keys or staff login? | **Staff login first.** | Admin identity comes from the existing staff login (Cognito, or the loopback `local` mode for development) used by Socratic Studio, not from a new per-admin key store. Legacy `/v1/admin/*` routes accept the staff session (cookie + CSRF + capability) as their primary credential. The shared `X-Admin-Api-Key` stays only as a **service credential with no actor identity** (ETL, CI, agents) until WP11, and every mutation it performs is audited as `actor = service:admin-key`. See WP1a. |
+| 3 | Does the findings check block merges to the branch? | **No.** Work happens directly on `feature/dynamo-integration-test`; it merges to `main` only when the REST DynamoDB migration is complete. | `make findings-check` reports progress on the branch and **gates the merge to `main`**: every ID must be `DONE` or `DECLINED`. No per-work-package branches; each work package lands as commits on this branch. |
 
 ## Appendix A — route classification by router
 
