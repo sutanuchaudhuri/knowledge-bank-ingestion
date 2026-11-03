@@ -25,6 +25,7 @@ from boto3.dynamodb.types import TypeSerializer
 from ..common import (LOG, RUN_DIR, Env, client, clean_item, item_hash, json_bytes, run_id, setup_logging,
                       sha256, source, stream, write_json)
 from . import registry
+from .models_gate import make_gate
 from .spec import S3Put
 
 MAX_ITEM = 350_000          # bytes; DynamoDB hard limit is 400 KB including attribute names
@@ -35,6 +36,7 @@ REF_SUFFIX = "_ref"
 OWNER_ATTRS = ("student_id", "linked_student_id", "owner_student_id")
 SER = TypeSerializer()
 OFFLOAD: dict[tuple[str, str], tuple[str, ...]] = {}   # filled from the spec modules in main()
+MODEL_GATE = make_gate()                                # MB_VALIDATE_MODELS=1|warn: pydantic check before every write
 
 
 class Agg:
@@ -207,6 +209,8 @@ def run_mapping(conn, mp, w: Writer, agg: Agg, limit: int | None) -> dict:
                 continue
             item = w.offload(mp.table, item, OFFLOAD.get((mp.table, item["type"]), ()) + mp.offload_attrs,
                              mp.offload_threshold or OFFLOAD_THRESHOLD)
+            if MODEL_GATE:
+                MODEL_GATE(mp.table, item)
             if agg.add(mp.table, item["type"], (item["PK"], item["SK"]), item_hash(item), mp.name):
                 collisions += 1
             types[item["type"]] += 1

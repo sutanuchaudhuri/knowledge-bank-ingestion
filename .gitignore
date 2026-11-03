@@ -76,3 +76,4 @@ reports/
 
 # GCS / Drive receipts produced locally
 receipts/
+.ddb_profile/

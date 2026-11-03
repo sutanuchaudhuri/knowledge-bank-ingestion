@@ -74,6 +74,13 @@ class ValidationFailed(StoreError):
     code = "validation_failed"
 
 
+class ItemSchemaError(StoreError):
+    """A stored item or JSON document does not match its pydantic model (data drift or a bad write).
+    Always a server-side fault, so 500; `detail["errors"]` carries the first few pydantic errors."""
+    status_code = 500
+    code = "item_schema_error"
+
+
 class InvalidToken(StoreError):
     """Tampered, expired or foreign pagination token."""
 

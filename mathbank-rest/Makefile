@@ -51,10 +51,19 @@ test-geometry:                  ## Geometry REST/unit tests (PG integration opt-
 
 .PHONY: test-ddb test-ddb-integration findings-check findings-gate
 test-ddb:                       ## Store-layer tests on moto (no AWS, no database): toolkit, flags, profiles, parity harness
-	$(PYTEST) -q tests/stores tests/parity tests/test_profiles.py tests/test_findings_check.py
+	$(PYTEST) -q tests/stores tests/parity tests/test_profiles.py tests/test_findings_check.py tests/test_ddb_models.py
 
 test-ddb-integration:           ## Same toolkit against the REAL `test` environment (needs: make -C ../mathbank-db aws-provision AWS_ENV=test)
 	MB_DDB_ENV=test DDB_ENV=test AWS_PROFILE=$${AWS_PROFILE:-aws-sutanu-admin} DDB_REGION=us-east-2 $(PYTEST) -q -m ddb_integration tests/stores
+
+.PHONY: ddb-models ddb-models-validate
+ddb-models:                     ## Regenerate src/mathbank_rest/models/{ddb,docs} from the live data (needs AWS creds; DDB_ENV=dev, ~10 min scan)
+	DDB_ENV=$${DDB_ENV:-dev} $(BIN)/python scripts/ddb_models/infer.py --out .ddb_profile/dev.json
+	DDB_ENV=$${DDB_ENV:-dev} $(BIN)/python scripts/ddb_models/keys.py --out .ddb_profile/dev_keys.json
+	$(BIN)/python scripts/ddb_models/generate.py
+
+ddb-models-validate:            ## Validate every DynamoDB item and S3 JSON document against its pydantic model (read-only; ARGS="--contexts learner")
+	DDB_ENV=$${DDB_ENV:-dev} $(BIN)/python -m mathbank_rest.models.validate $(ARGS)
 
 .PHONY: aws-check run-runtime run-admin
 aws-check:                      ## Verify AWS credentials + the DynamoDB/S3/S3 Vectors env a local run needs (DDB_ENV=dev|test; CTX="learner exam", default all; WRITE=1 adds a write round-trip)

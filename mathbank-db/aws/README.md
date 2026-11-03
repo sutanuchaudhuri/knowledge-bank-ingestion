@@ -80,3 +80,10 @@ Executed against `dev` on 2026-11-03. See [runs/](runs/README.md).
 - The source session runs `SET default_transaction_read_only = on` and checks it before the first query.
 - Provisioning never deletes tables, GSIs, buckets or indexes. Tables have deletion protection and PITR.
 - To start over in dev, delete the resources manually after disabling deletion protection. No script does this.
+
+## Pydantic models
+
+Every item type and S3 JSON document has a pydantic model in `mathbank-rest/src/mathbank_rest/models` (requirement 71 section 2.10).
+`MB_VALIDATE_MODELS=1` (abort) or `warn` makes `aws.dynamo.migrate` validate each item against its model before writing it;
+run it with `mathbank-rest/.venv/bin/python` and `PYTHONPATH=mathbank-db`. After a copy, `make -C mathbank-rest ddb-models-validate`
+checks everything in the tables.

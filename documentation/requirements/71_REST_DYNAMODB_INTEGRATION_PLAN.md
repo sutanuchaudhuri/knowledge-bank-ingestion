@@ -185,6 +185,27 @@ Local runs must use real AWS, not emulators. The `dev` environment holds the mig
 
 Guard rails: a context set to `dynamodb` makes startup fail fast with an actionable message when AWS is unreachable (`DDB_STARTUP_CHECK=false` disables it); `GET /health/stores?deep=true` re-runs the check (503 on failure); `python -m mathbank_rest.stores.doctor` is the same check as a CLI; the doctor warns when `DDB_ENV=prod`. With every store on `postgres` (today's default) nothing calls AWS. Integration tests always target `test` (`make test-ddb-integration`), never `dev`.
 
+### 2.10 Pydantic models for DynamoDB items and JSON content
+
+Every DynamoDB item and every S3 JSON document the service touches has a pydantic model; stores never pass raw dicts.
+
+| Piece | Where | What it guarantees |
+|---|---|---|
+| `DdbItem` base, `S3Ref`, `UtcDateTime`, `JsonDoc` | `models/base.py` | `PK`/`SK`/`type`/`version`/`ttl`/`updated_at`/GSI keys; one registry keyed by `(context, type)`; `from_item` (lenient: unknown attributes kept) and `to_item` (strict: undeclared attributes rejected, canonical UTC timestamps, lossless); an attribute is inline **or** `<attr>_ref`, never both; `resolve(attr)` returns the offloaded JSON typed, with size and SHA-256 verified |
+| Item models (generated) | `models/ddb/<ctx>.py`: 98 types in 8 contexts | Strict scalars (`StrictStr/Int/Bool/Float`), `UUID`, `UtcDateTime`, nested `JsonDoc` records for structured JSON, PK/SK key-shape regexes, a discriminated union per context |
+| Item models (hand-written) | `models/manual/{media,artifacts,jobs,notify}.py`: 22 types | Contexts that were empty in `dev`; written from the migration specs and the doc 70 designs |
+| S3 JSON documents (generated) | `models/docs/{content,offload}.py`, `registry.DOC_MODELS` | Release snapshot, six catalogue snapshots, and the JSON of every offloaded attribute |
+| Refinements | `models/overrides.py` | Stricter contracts (e.g. status `Literal`s) added by a work package; replace the generated model of the same `(ctx, type)` |
+| Typed store layer | `stores/typed.py` | `get/require/batch_get/query/put/put_new/tx_put/update`: reads validate into models (drift raises `ItemSchemaError`, 500), writes are strict, large attributes are offloaded then re-validated, updates validate each changed attribute before the conditional write |
+
+Rules: (1) `stores/<ctx>/dynamodb*.py` use `stores.typed` only (`tests/stores/test_typed_only_lint.py`); (2) request and response bodies stay separate pydantic models from item models, so an item model is never returned to a client (answer keys, `password_hash`); (3) a work package that adds an item type adds or refines its model in the same commit.
+
+Generation and proof: `make ddb-models` profiles the live environment (every item grouped by `type`, S3 documents by family, PK/SK shapes) and regenerates the modules. `make ddb-models-validate` reads **every** item and a sample of every S3 document and requires `from_item` to succeed and `to_item()` to reproduce the stored item exactly. The migration can gate its own writes with `MB_VALIDATE_MODELS=1|warn` (`mathbank-db/aws/dynamo/models_gate.py`).
+
+**Result on `dev`:** 394,574 items (98 types) and the 17 S3 document families validate with 0 failures and a lossless round trip (content 391,545; learner 1,079; exam 1,055; live 344; socratic 93; agent-sessions 445; geometry 9; audit 4; 300 release snapshots sampled). Validation found and fixed four generator gaps before it passed: nested nulls inside lists, depth-capped maps losing `null`, list types inferred from too small a sample, and lax coercion (`"yes"` became `True`; scalars are now strict). It also found that `LearnerProfile` never declared `updated_at`, which `cas_update` always writes, so `updated_at` is a base attribute.
+
+Limits: generated models are the contract of the **migrated** data, so a required attribute the migration always wrote (e.g. `legacy_source` on `OUTCOME`) may not exist on items new code creates; the store that writes the type refines the model in `overrides.py`. Enumerations are `str` with an `# observed:` comment, not `Literal`, until a refinement adds the CHECK-backed set.
+
 ## 3. Work packages
 
 Sizes are from the module inventory in [Appendix B](#appendix-b--module-inventory-per-work-package).
