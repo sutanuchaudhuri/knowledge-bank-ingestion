@@ -39,7 +39,7 @@ ART-F01,artifact_runtime,F,,C4,WP8,WP2,N,"Five of the eleven tables are write-on
 ART-F02,artifact_runtime,F,,C4,WP8,WP2,N,"No lifecycle exit. Bundles cannot be unpublished, retired or deleted, and object-store files are never garbage-collected. A wrong published diagram stays visible to learners and th…",PLANNED,,,
 ART-F03,artifact_runtime,F,,C4,WP1,WP8 WP2,Y,"Staff mutations are anonymous and unaudited. `generate`, `publish` and `index` act as `{""role"": ""ADMIN""}` with no actor identity, write no `audit.action_log` row, and set `created_…",DONE,914fdc2,tests/test_wp1_actor_audit.py,security/contract fix to land on the PostgreSQL stores before data is copied (requirement 70 M1)
 ART-F04,artifact_runtime,F,,C4,WP8,WP2,Y,"Learners cannot see their own drafts or list their requests. A learner can create a request but cannot list requests, and cannot see the resulting DRAFT bundle (404 until staff pub…",PLANNED,,,
-ART-F05,artifact_runtime,F,,C4,WP8,WP2,Y,"Weak search contract and scale. `search` returns no `total`, `limit` ≤ 100 (the guide says 200), semantic queries scan every embedding (no ANN index), and `generate_embedding=true`…",PLANNED,,,
+ART-F05,artifact_runtime,F,,C4,WP8,WP2,Y,"Weak search contract and scale. `search` returns no `total`, `limit` ≤ 100 (the guide says 200), semantic queries scan every embedding (no ANN index), and `generate_embedding=true`…",DONE,02a05d8,tests/stores/test_wp2_artifact_vectors.py, Implemented in WP2 (S3 Vectors artifact index + reindex route); remaining WP8 work is the bundle store move.
 ART-F06,artifact_runtime,F,,C4,WP8,WP2,Y,"CPU-heavy POSTs open to learners. `POST …/validate`, `/similar` and every `…/frames/{n}/content` GET re-render the whole plan; there is no caching or rate limit.",PLANNED,,,
 ART-F07,artifact_runtime,F,,C4,WP8,WP2,Y,"artifact_runtime.artifact_request: No ""my requests"" list or staff queue; no failed/rejected state.",PLANNED,,,
 ART-F08,artifact_runtime,F,,C4,WP8,WP2,Y,artifact_runtime.artifact_bundle: No unpublish/retire; no admin draft list.,PLANNED,,,
@@ -50,13 +50,13 @@ ART-F12,artifact_runtime,F,,C4,WP8,WP2,N,artifact_runtime.artifact_annotation: W
 ART-F13,artifact_runtime,F,,C4,WP8,WP2,N,artifact_runtime.validation_result: History never readable.,PLANNED,,,
 ART-F14,artifact_runtime,F,,C4,WP8,WP2,N,artifact_runtime.artifact_lineage: Write-only; duplicates bundle FKs.,PLANNED,,,
 ART-F15,artifact_runtime,F,,C4,WP8,WP2,Y,"artifact_runtime.artifact_search_tag: Tags are free text, not taxonomy FKs.",PLANNED,,,
-ART-F16,artifact_runtime,F,,C4,WP8,WP2,N,artifact_runtime.artifact_embedding: No ANN index; no bulk (re)index job.,PLANNED,,,
+ART-F16,artifact_runtime,F,,C4,WP8,WP2,N,artifact_runtime.artifact_embedding: No ANN index; no bulk (re)index job.,DONE,02a05d8,tests/stores/test_wp2_artifact_vectors.py, Implemented in WP2 (S3 Vectors artifact index + reindex route); remaining WP8 work is the bundle store move.
 ART-S01,artifact_runtime,S,P1,C4,WP8,WP2,N,P1: Add a retire/unpublish lifecycle to `artifact_bundle`.,PLANNED,,,
 ART-S02,artifact_runtime,S,P1,C4,WP8,WP2,Y,P1: Record actor identity and audit.,PLANNED,,,
 ART-S03,artifact_runtime,S,P2,C4,WP8,WP2,N,P2: Drop or use the write-only tables.,PLANNED,,,
 ART-S04,artifact_runtime,S,P2,C4,WP8,WP2,N,P2: Make request → bundle 1:1 explicit and fix versioning.,PLANNED,,,
 ART-S05,artifact_runtime,S,P2,C4,WP8,WP2,N,P2: Add request failure states and owner indexes.,PLANNED,,,
-ART-S06,artifact_runtime,S,P2,C4,WP8,WP2,N,P2: Fixed-dimension embeddings with an ANN index.,PLANNED,,,
+ART-S06,artifact_runtime,S,P2,C4,WP8,WP2,N,P2: Fixed-dimension embeddings with an ANN index.,DONE,02a05d8,tests/stores/test_wp2_artifact_vectors.py, Implemented in WP2 (S3 Vectors artifact index + reindex route); remaining WP8 work is the bundle store move.
 ART-S07,artifact_runtime,S,P3,C4,WP8,WP2,N,P3: Constrain vocabularies.,PLANNED,,,
 ART-S08,artifact_runtime,S,P3,C4,WP8,WP2,N,P3: Housekeeping.,PLANNED,,,
 ART-E01,artifact_runtime,E,P1,C4,WP8,WP2,Y,P1 — POST /v1/admin/artifacts/bundles/{bundle_id}/retire · /reactivate — Admin key (X-Admin-Api-Key),PLANNED,,,
@@ -65,8 +65,8 @@ ART-E03,artifact_runtime,E,P2,C4,WP8,WP2,Y,P2 — POST /v1/admin/artifacts/reque
 ART-E04,artifact_runtime,E,P2,C4,WP8,WP2,Y,P2 — GET /v1/admin/artifacts/bundles?status=&subject=&q=&limit=&offset= — Admin key (X-Admin-Api-Key),PLANNED,,,
 ART-E05,artifact_runtime,E,P2,C4,WP8,WP2,Y,P2 — GET /v1/admin/artifacts/bundles/{bundle_id} — Admin key (X-Admin-Api-Key),PLANNED,,,
 ART-E06,artifact_runtime,E,P2,C4,WP8,WP2,Y,P2 — GET /v1/artifacts/requests?limit=&offset= — Learner JWT,PLANNED,,,
-ART-E07,artifact_runtime,E,P2,C4,WP8,WP2,Y,P2 — POST /v1/admin/artifacts/bundles/reindex — Admin key (X-Admin-Api-Key),PLANNED,,,
-ART-E08,artifact_runtime,E,P3,C4,WP8,WP2,Y,P3 — Rate-limit / staff-only `generate_embedding=true` on POST /v1/artifacts/search/semantic — Learner JWT,PLANNED,,,
+ART-E07,artifact_runtime,E,P2,C4,WP8,WP2,Y,P2 — POST /v1/admin/artifacts/bundles/reindex — Admin key (X-Admin-Api-Key),DONE,02a05d8,tests/stores/test_wp2_artifact_vectors.py, Implemented in WP2 (S3 Vectors artifact index + reindex route); remaining WP8 work is the bundle store move.
+ART-E08,artifact_runtime,E,P3,C4,WP8,WP2,Y,P3 — Rate-limit / staff-only `generate_embedding=true` on POST /v1/artifacts/search/semantic — Learner JWT,DONE,02a05d8,tests/stores/test_wp2_artifact_vectors.py, Implemented in WP2 (S3 Vectors artifact index + reindex route); remaining WP8 work is the bundle store move.
 ART-E09,artifact_runtime,E,P3,C4,WP8,WP2,Y,P3 — DELETE /v1/admin/artifacts/bundles/{bundle_id} — Admin key (X-Admin-Api-Key),PLANNED,,,
 AMD-F01,attempt_media,F,,C4,WP8,,Y,"submission: No way to delete/withdraw a submission (only learner-profile cascade, which leaves objects behind). Listing has no status/student filter or total.",PLANNED,,,
 AMD-F02,attempt_media,F,P3,C4,WP8,,Y,"transcription_candidate: Not exposed directly; `machine_output` never returned (good for privacy, but staff cannot inspect raw provider output — ❌ for admin debugging, P3).",PLANNED,,,

@@ -297,6 +297,14 @@ Must land first, because the read model and `mb-exam`/`mb-learner` should not in
 - Embedding sync worker (publisher events → `PutVectors` ≤ 500, `DeleteVectors` on withdraw).
 - **Gate:** the migration's recall gates (≥ 0.95, tie-aware) re-run through the adapter; zero ineligible results.
 
+**Delivered (commits `9361e60`, `f8c85fe`, `5e45a9b`, `02a05d8`):**
+- `vector_catalog.py` (12 families, pydantic metadata models, drift test against the migration catalogue), `vector_store.py` (protocol, `S3VectorsStore`, exact `MemoryVectorStore`, `vf` filters; limits verified live: topK <= 100, GetVectors <= 100 keys, list metadata matches any element, non-filterable keys rejected), `embeddings.py` (LRU, then shared `QEMB` item in `mb-content`, then OpenAI; rate-limit gate unchanged), `content_lookup.py` (typed eligibility re-check: published and the hit's vector is one of the item's current `vector_state` keys; consistent for all sampled vectors in `dev`).
+- Callers behind `VECTOR_STORE=s3vectors`, Postgres paths untouched when off (the flag is the rollback): problem and hybrid search (canonical-code lookup first), step / learning-item / taxonomy search with FACET-based exact-or-ANN (`EXACT_MAX` 300), `search_concepts`, artifact index/search/similar plus `POST /v1/admin/artifacts/bundles/reindex`.
+- `vector_sync.py` (stream-record to idempotent upsert/withdraw, `batchItemFailures` handler), `vector_bulk.py` (optional Bodo engine; `pip install 'mathbank-rest[bulk]'`), `scripts/generate_similarity_embeddings.py --source s3vectors`, `scripts/vector_gate.py` (`make vector-gate`).
+- Decisions: embeddings stay OpenAI `text-embedding-3-small` 1536 (existing vectors reused; Bedrock Knowledge Bases cannot adopt an external index or embedding model, so they are not used for retrieval); search is vector-only with S3 Vectors (lexical lived in Postgres and is reported as not applied); `generate_embedding=true` is staff-only; artifact reindex is synchronous; `index_bundle` dual-writes Postgres until WP8.
+- Findings closed here: ART-F05, ART-F16, ART-S06, ART-E07, ART-E08. The Postgres-side search findings (SRC-F02..F11, S01..S07, E02..E07) are not closed: most are superseded by removing pgvector and need an explicit DONE/DECLINED decision at WP11.
+- **Gate status: not yet passed.** The gate ran against `dev` for taxonomy-search only (recall@8 0.9992, 0/2700 ineligible); the AWS session expired before the other families ran. Run `make vector-gate ARGS="--sample 150"` after `aws login`.
+
 ### WP3 Jobs and notifications
 
 - `stores/jobs` client for Studio (SQS + DynamoDB, conditional claims) used by `mathbank-manim-studio`; the
