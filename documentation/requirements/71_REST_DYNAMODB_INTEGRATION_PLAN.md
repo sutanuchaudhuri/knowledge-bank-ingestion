@@ -303,7 +303,19 @@ Must land first, because the read model and `mb-exam`/`mb-learner` should not in
 - `vector_sync.py` (stream-record to idempotent upsert/withdraw, `batchItemFailures` handler), `vector_bulk.py` (optional Bodo engine; `pip install 'mathbank-rest[bulk]'`), `scripts/generate_similarity_embeddings.py --source s3vectors`, `scripts/vector_gate.py` (`make vector-gate`).
 - Decisions: embeddings stay OpenAI `text-embedding-3-small` 1536 (existing vectors reused; Bedrock Knowledge Bases cannot adopt an external index or embedding model, so they are not used for retrieval); search is vector-only with S3 Vectors (lexical lived in Postgres and is reported as not applied); `generate_embedding=true` is staff-only; artifact reindex is synchronous; `index_bundle` dual-writes Postgres until WP8.
 - Findings closed here: ART-F05, ART-F16, ART-S06, ART-E07, ART-E08. The Postgres-side search findings (SRC-F02..F11, S01..S07, E02..E07) are not closed: most are superseded by removing pgvector and need an explicit DONE/DECLINED decision at WP11.
-- **Gate status: not yet passed.** The gate ran against `dev` for taxonomy-search only (recall@8 0.9992, 0/2700 ineligible); the AWS session expired before the other families ran. Run `make vector-gate ARGS="--sample 150"` after `aws login`.
+- **Gate PASSED on `dev`** (2026-11-03, sample 150 queries per scenario, k = 8, tie-aware, through the adapter, Bodo engine; record `mathbank-db/aws/runs/20261103T171521Z/vector-gate.json`): 0 invalid metadata and 0 ineligible hits in every family.
+
+  | family | vectors | recall@8 | worst scenario | ineligible |
+  |---|---|---|---|---|
+  | problem | 7,000 | 0.9878 | 0.9792 (year >= median) | 0 / 4,050 |
+  | solution | 14,856 | 0.9879 | 0.9850 | n/a |
+  | step | 7,814 | 0.9746 | 0.9658 (unfiltered) | 0 / 2,700 |
+  | learning-item | 22,372 | 0.9862 | 0.9800 | 0 / 2,700 |
+  | taxonomy-search | 501 | 0.9992 | 0.9983 | 0 / 2,700 |
+  | misconception | 70,018 | 0.9904 | 0.9858 | n/a |
+  | taxonomy-node | 6,968 | 0.9667 | 0.9642 | n/a |
+
+  The first attempt failed midway with `security token ... expired`: `aws login` credentials are short-lived and `vector_bulk` exported one frozen copy to Bodo's workers. It now re-exports before every chunk (200 queries / 2,000 rows), with a unit test and a real-`test` check.
 
 ### WP3 Jobs and notifications
 

@@ -68,3 +68,20 @@ def test_bodo_metadata_comes_back_as_python_repr_and_is_parsed_safely():
     for evil in ("__import__('os').system('true')", "[1, 2]", "open('/etc/passwd')"):
         with pytest.raises((ValueError, SyntaxError, TypeError)):
             vb._parse_metadata(evil)
+
+
+def test_bodo_query_refreshes_credentials_for_every_chunk(monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(vb, "bodo_available", lambda: True)
+    monkeypatch.setattr(vb, "QUERY_CHUNK", 3)
+    monkeypatch.setattr(vb, "_export_credentials", lambda: calls.append("export"))
+    monkeypatch.setattr(vb, "_bucket", lambda store: "vb-test")
+
+    def chunk(family, vectors, top_k, flt, bucket):
+        calls.append(f"query:{len(vectors)}")
+        return [[] for _ in vectors]
+
+    monkeypatch.setattr(vb, "_bodo_query_chunk", chunk)
+    out = vb.bulk_query(Family.LEARNING_ITEM, [vec(i) for i in range(8)], top_k=2, engine="bodo")
+    assert len(out) == 8
+    assert calls == ["export", "query:3", "export", "query:3", "export", "query:2"]

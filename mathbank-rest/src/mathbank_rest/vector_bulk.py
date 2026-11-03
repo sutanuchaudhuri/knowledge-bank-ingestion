@@ -10,7 +10,9 @@ What this wrapper adds around Bodo (each verified against the real service, see 
 * **metadata is grouped by key set**: Bodo builds a struct column, so a key missing on some rows becomes ``null`` and S3 Vectors
   rejects the whole batch ("Metadata values must be strings, numbers, booleans, or arrays"). One uniform batch per key set avoids it;
 * query metadata comes back from Bodo as Python-repr strings, parsed with ``ast.literal_eval`` (never ``eval``);
-* AWS credentials of the configured profile are exported for Bodo's workers (it does not read ``AWS_PROFILE`` from our settings).
+* AWS credentials of the configured profile are exported for Bodo's workers (it does not read ``AWS_PROFILE`` from our settings)
+  and **re-exported before every chunk**: temporary credentials (``aws login``, SSO) expire after minutes to hours, and a long
+  run (the recall gate) would otherwise fail midway with ``security token ... expired``.
 """
 from __future__ import annotations
 
@@ -39,6 +41,8 @@ from mathbank_rest.vector_store import (
 )
 
 Engine = Literal["auto", "bodo", "boto3"]
+QUERY_CHUNK = 200       # queries per Bodo call; credentials are re-exported before each chunk
+PUT_CHUNK = 2000        # rows per Bodo write
 
 
 class BulkWriteResult(BaseModel):
@@ -92,15 +96,19 @@ def bulk_put(family: Family, items: Iterable[VectorItem], *, engine: Engine = "a
     import bodo.pandas as bd
     import pandas as pd
 
-    _export_credentials()
     groups: dict[tuple[str, ...], list[VectorItem]] = collections.defaultdict(list)
     for it in batch:
         groups[tuple(sorted(it.metadata))].append(it)
+    batches = 0
     for rows in groups.values():
-        df = pd.DataFrame({"key": [r.key for r in rows], "data": [list(map(float, r.vector or [])) for r in rows],
-                           "metadata": [dict(r.metadata) for r in rows]})
-        bd.from_pandas(df).to_s3_vectors(vector_bucket_name=_bucket(store), index_name=family.index_name, region=settings.ddb_region)
-    return BulkWriteResult(engine="bodo", written=len(batch), batches=len(groups), seconds=round(time.time() - t0, 3))
+        for i in range(0, len(rows), PUT_CHUNK):
+            part = rows[i:i + PUT_CHUNK]
+            _export_credentials()      # refreshed per chunk: temporary credentials expire during long runs
+            df = pd.DataFrame({"key": [r.key for r in part], "data": [list(map(float, r.vector or [])) for r in part],
+                               "metadata": [dict(r.metadata) for r in part]})
+            bd.from_pandas(df).to_s3_vectors(vector_bucket_name=_bucket(store), index_name=family.index_name, region=settings.ddb_region)
+            batches += 1
+    return BulkWriteResult(engine="bodo", written=len(batch), batches=batches, seconds=round(time.time() - t0, 3))
 
 
 # ------------------------------------------------------------------ query
@@ -128,12 +136,19 @@ def bulk_query(family: Family, vectors: Sequence[Sequence[float]], *, top_k: int
         st = store or S3VectorsStore()
         with cf.ThreadPoolExecutor(min(workers, len(vectors))) as ex:
             return list(ex.map(lambda v: st.query(family, v, top_k, filter), vectors))
+    out: list[list[VectorHit]] = []
+    for i in range(0, len(vectors), QUERY_CHUNK):
+        _export_credentials()          # temporary credentials expire; Bodo's workers only see what is exported now
+        out += _bodo_query_chunk(family, vectors[i:i + QUERY_CHUNK], top_k, filter, _bucket(store))
+    return out
+
+
+def _bodo_query_chunk(family: Family, vectors: Sequence[Sequence[float]], top_k: int, filter: dict | None, bucket: str) -> list[list[VectorHit]]:
     import bodo.pandas as bd
     import pandas as pd
 
-    _export_credentials()
     q = bd.from_pandas(pd.DataFrame({"data": [list(map(float, v)) for v in vectors]}))
-    kw: dict[str, Any] = {"vector_bucket_name": _bucket(store), "index_name": family.index_name, "region": settings.ddb_region,
+    kw: dict[str, Any] = {"vector_bucket_name": bucket, "index_name": family.index_name, "region": settings.ddb_region,
                           "topk": top_k, "return_distance": True, "return_metadata": True}
     if filter:
         kw["filter"] = filter
@@ -142,6 +157,5 @@ def bulk_query(family: Family, vectors: Sequence[Sequence[float]], *, top_k: int
     return [[VectorHit(key=k, distance=float(d), metadata=_parse_metadata(m))
              for k, d, m in zip(row["keys"], row["distances"], row["metadata"], strict=True)]
             for _, row in frame.iterrows()]
-
 
 __all__ = ["DIMENSIONS", "BulkWriteResult", "Engine", "bodo_available", "bulk_put", "bulk_query", "resolve_engine"]
