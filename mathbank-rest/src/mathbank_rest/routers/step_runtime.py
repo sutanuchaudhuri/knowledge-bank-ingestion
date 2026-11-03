@@ -69,7 +69,7 @@ class StepOutcomeRequest(BaseModel):
 
 
 # step_runtime functions served by the learner store (SolveRuntimeStore); a handler may also pass the store method's name.
-# Anything else (diagnosis, recovery) keeps running in a PostgreSQL transaction until its store is wired.
+# Anything else (diagnosis, recovery) keeps running in a PostgreSQL transaction on the postgres backend (see _GAP_PLAN_STORE_OPS).
 _SOLVE_STORE_OPS = {
     step_runtime.get_runtime: "get_attempt_runtime",
     step_runtime.submit_step_response: "submit_step_response",
@@ -78,11 +78,30 @@ _SOLVE_STORE_OPS = {
     step_runtime.submit_attempt: "submit_attempt",
     step_runtime.list_events: "list_events",
 }
+# Diagnosis, gap and recovery-plan SQL functions and the learner-store method serving each. They are served by the store on every backend but
+# postgres, where the SQL functions keep running in one transaction exactly as before (also keeps monkeypatched SQL-level tests valid).
+_GAP_PLAN_STORE_OPS = {
+    step_diagnosis.diagnose_step: "diagnose_step",
+    step_diagnosis.list_diagnoses: "list_diagnoses",
+    step_diagnosis.list_student_gaps: "list_student_gaps",
+    step_diagnosis.admin_gap_overview: "get_admin_gap_overview",
+    step_recovery.create_plan: "create_plan",
+    step_recovery.list_attempt_plans: "list_attempt_plans",
+    step_recovery.get_plan: "get_recovery_plan",
+    step_recovery.next_item: "get_next_recovery_item",
+    step_recovery.prepare_item_response: "load_item_response_context",
+    step_recovery.apply_item_response: "apply_item_response",
+    step_recovery.leave_recovery: "leave_recovery",
+    step_recovery.admin_plans: "list_admin_plans",
+    step_recovery.admin_plan_detail: "get_admin_plan_detail",
+}
 
 
 def _run(fn, *args, **kwargs):
     try:
         op = fn if isinstance(fn, str) else _SOLVE_STORE_OPS.get(fn)
+        if op is None and not isinstance(fn, str) and fn in _GAP_PLAN_STORE_OPS and not _postgres_learner():
+            op = _GAP_PLAN_STORE_OPS[fn]
         if op is not None:
             return getattr(stores.get_store("learner"), op)(*args, **kwargs)
         with engine.begin() as conn:
@@ -154,7 +173,7 @@ def submit_step_response(attempt_id: UUID, step_id: str, body: StepResponseReque
             return {**saved, "evaluation_status": "PENDING"}
         raise
     if outcome.get("diagnosis"):
-        outcome["diagnosis"] = _reranked(outcome["diagnosis"])
+        outcome["diagnosis"] = _reranked(outcome["diagnosis"], current, attempt_id)
     return {**saved, **{k: v for k, v in outcome.items() if k not in ("student_id", "problem_id")},
             "evaluation_status": "EVALUATED",
             "evaluation": step_runtime._student_evaluation(verdict)}
@@ -228,19 +247,21 @@ def diagnose_step(attempt_id: UUID, step_id: str, body: DiagnoseRequest | None =
     """Rank what may be blocking you on a presented step (local skill first, then the skills of the steps
     it builds on). Deterministic and free; identical evidence returns the existing diagnosis
     (``reused``). Every hypothesis is persisted; this does not change mode or ``state_version``."""
-    def op(conn):
-        d = step_diagnosis.diagnose_step(conn, current, attempt_id, step_id, "STUDENT_REQUEST")
-        return {**step_diagnosis.student_view(d), "reused": d["reused"]}
-
-    view = _run(op)
-    return _reranked(view) | {"reused": view["reused"]}
+    d = _run(step_diagnosis.diagnose_step, current, attempt_id, step_id, "STUDENT_REQUEST")
+    view = {**step_diagnosis.student_view(d), "reused": d["reused"]}
+    return _reranked(view, current, attempt_id) | {"reused": view["reused"]}
 
 
-def _reranked(view: dict | None) -> dict | None:
+def _reranked(view: dict | None, student_id: UUID | None = None, attempt_id: UUID | None = None) -> dict | None:
     """Optional AI re-rank after the rules diagnosis committed (outside the attempt lock; best effort)."""
     if not view or not step_diagnosis.rerank_enabled() or len(view.get("hypotheses") or []) < 2:
         return view
     try:
+        if not _postgres_learner():
+            if student_id is None or attempt_id is None:
+                return view
+            ranked = stores.get_store("learner").rerank_diagnosis(student_id, attempt_id, view["gap_diagnosis_id"], RERANKER)
+            return view if ranked is None else step_diagnosis.student_view(ranked)
         if step_diagnosis.rerank_diagnosis(engine, view["gap_diagnosis_id"], RERANKER) is None:
             return view
         with engine.connect() as conn:

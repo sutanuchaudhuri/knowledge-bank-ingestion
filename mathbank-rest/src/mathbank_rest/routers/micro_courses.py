@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
@@ -15,7 +15,7 @@ from mathbank_rest import micro_course_assist as assist
 from mathbank_rest import micro_course_service as courses
 from mathbank_rest import object_store, stores
 from mathbank_rest.db.postgres import engine
-from mathbank_rest.security import get_current_student_id, require_admin_api_key
+from mathbank_rest.security import Actor, admin_actor, get_current_student_id, require_admin_api_key
 
 logger = logging.getLogger(__name__)
 _ASSET_TYPES = {
@@ -284,7 +284,51 @@ def reactivate_admin_course(canonical_code: str, body: ActorRequest) -> dict:
 
 @admin_router.get("/{canonical_code}/activity")
 def get_admin_course_activity(canonical_code: str) -> dict:
-    return _call(courses.get_course_activity, canonical_code)
+    return _learner_call("list_course_activity", canonical_code)
+
+
+class ResetEnrollment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_state_version: int = Field(ge=1, description="the enrollment's current state_version (409 when it moved)")
+    to_state_id: UUID | None = Field(default=None, description="a state of the pinned release; default: its entry state")
+
+
+_ManageUsers = Annotated[Actor, Depends(admin_actor("manage_users"))]
+
+
+@admin_router.get("/enrollments/{enrollment_id}")
+def get_admin_enrollment(enrollment_id: UUID, actor: _ManageUsers) -> dict:
+    """Admin drill-down of one enrollment (TUT-E03): the learner's runtime view plus the owner, resolved without a learner token."""
+    info = stores.get_store("learner").get_enrollment_reset_info(str(enrollment_id))
+    if info is None:
+        raise HTTPException(status_code=404, detail="micro-course enrollment not found")
+    runtime = _learner_call("get_enrollment_runtime", str(enrollment_id), info["student_id"])
+    return {**runtime, "student_id": info["student_id"]}
+
+
+@admin_router.post("/enrollments/{enrollment_id}/reset")
+def reset_admin_enrollment(enrollment_id: UUID, body: ResetEnrollment, actor: _ManageUsers) -> dict:
+    """Move a stuck learner back to the release's entry state or a chosen state (TUT-E02/TUT-F01). 409 when the enrollment is not in
+    progress or ``expected_state_version`` is stale; the state must belong to the pinned release; the RESET event carries the actor."""
+    store = stores.get_store("learner")
+    info = store.get_enrollment_reset_info(str(enrollment_id), with_entry=body.to_state_id is None)
+    if info is None:
+        raise HTTPException(status_code=404, detail="micro-course enrollment not found")
+    if info["status"] != "IN_PROGRESS":
+        raise HTTPException(status_code=409, detail="micro-course enrollment is not in progress")
+    if int(info["state_version"]) != body.expected_state_version:
+        raise HTTPException(status_code=409, detail=f"state_version is {info['state_version']}, not {body.expected_state_version}")
+    target = str(body.to_state_id) if body.to_state_id else info.get("entry_state_id")
+    if target is None:
+        raise HTTPException(status_code=409, detail="the release has no entry state")
+    result = _learner_call("reset_enrollment", str(enrollment_id), target, actor.id)
+    try:
+        store.record_admin_audit(actor.id, "ENROLLMENT_RESET", "MICRO_COURSE_ENROLLMENT", str(enrollment_id),
+                                 {"state_id": info["current_state_id"], "state_version": info["state_version"]},
+                                 {"state_id": target})
+    except Exception:
+        logger.exception("audit record for the reset of enrollment %s could not be written", enrollment_id)
+    return result
 
 
 @admin_router.get("/{canonical_code}/preview")

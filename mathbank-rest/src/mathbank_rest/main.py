@@ -12,6 +12,7 @@ from mathbank_rest.routers.admin_activities import router as admin_activities_ro
 from mathbank_rest.routers.admin_content import router as admin_content_router
 from mathbank_rest.routers.admin_corpus import router as admin_corpus_router
 from mathbank_rest.routers.admin_imports import router as admin_imports_router
+from mathbank_rest.routers.admin_learner import router as admin_learner_router
 from mathbank_rest.routers.admin_taxonomy import router as admin_taxonomy_router
 from mathbank_rest.routers.admin_textbooks import router as admin_textbooks_router
 from mathbank_rest.routers.agent_sessions import router as agent_sessions_router
@@ -95,6 +96,7 @@ app.include_router(notifications_admin_router)
 app.include_router(theorems_admin_router)
 app.include_router(theorems_student_router)
 app.include_router(admin_content_router)
+app.include_router(admin_learner_router)
 
 
 @app.get("/health", tags=["ops"])

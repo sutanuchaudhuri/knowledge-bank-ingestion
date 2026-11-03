@@ -61,13 +61,14 @@ ROUTERS: dict[str, tuple[str, str]] = {
     "theorems_admin": ("mathbank_rest.routers.theorems", "admin_router"),
     "theorems_student": ("mathbank_rest.routers.theorems", "student_router"),
     "admin_content": ("mathbank_rest.routers.admin_content", "router"),
+    "admin_learner": ("mathbank_rest.routers.admin_learner", "router"),
 }
 
 # Authoring plane: stays on PostgreSQL (requirement 70 C7).
 ADMIN_ROUTERS: tuple[str, ...] = (
     "admin", "admin_corpus", "admin_imports", "admin_textbooks", "admin_taxonomy", "admin_activities",
     "admin_activity_bindings", "pedagogy_admin", "interaction_templates", "micro_course_admin", "theorems_admin",
-    "tutoring_routes", "artifacts_admin", "admin_content", "notifications_admin",
+    "tutoring_routes", "artifacts_admin", "admin_content", "admin_learner", "notifications_admin",
 )
 
 # Served by app_socratic (socratic_app.py), not by the runtime/admin apps.

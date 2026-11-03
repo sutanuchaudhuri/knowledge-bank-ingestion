@@ -36,4 +36,5 @@ OPENAPI_TAGS = [
     {"name": "admin-activities", "description": "Quiz/activity authoring bank (doc 46). X-Admin-Api-Key."},
     {"name": "admin-theorems", "description": "Theorem/axiom/lemma/corollary catalog authoring: CRUD, prerequisite relations (cycle-checked), technique/taxonomy linking, sources, diagrams, dedup search (doc 61). X-Admin-Api-Key."},
     {"name": "admin-content", "description": "Reconcile the DynamoDB content read model against PostgreSQL (requirement 70 C6, requirement 71 WP4). Admin profile only. X-Admin-Api-Key or staff session."},
+    {"name": "admin-learner", "description": "Learner directory, per-student views, account disable/token revocation, erasure, mastery/daily-activity rebuilds, learner analytics (requirement 70 C1, requirement 71 WP5). Needs the manage_users capability (service key holds it). LEARNER_STORE=dynamodb for most operations."},
 ]

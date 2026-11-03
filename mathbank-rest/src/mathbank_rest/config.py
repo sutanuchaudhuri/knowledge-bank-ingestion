@@ -114,6 +114,8 @@ class Settings(BaseSettings):
     # WP1: per-caller cap on paid (embedding / model) requests, and the smallest cohort a public aggregate may describe.
     search_rate_limit_per_minute: int = Field(default=30, ge=1)
     cohort_min_students: int = Field(default=10, ge=1)
+    # WP5: idle days after which the `learner-abandon-stale` job abandons an IN_PROGRESS solve attempt.
+    abandon_idle_days: int = Field(default=30, ge=1)
 
     @property
     def postgres_dsn(self) -> str:
