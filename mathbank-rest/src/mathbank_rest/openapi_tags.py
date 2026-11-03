@@ -35,4 +35,5 @@ OPENAPI_TAGS = [
     {"name": "admin-taxonomy", "description": "Concept/technique/skill/misconception list, update, alias, activate/deactivate (doc 45). X-Admin-Api-Key."},
     {"name": "admin-activities", "description": "Quiz/activity authoring bank (doc 46). X-Admin-Api-Key."},
     {"name": "admin-theorems", "description": "Theorem/axiom/lemma/corollary catalog authoring: CRUD, prerequisite relations (cycle-checked), technique/taxonomy linking, sources, diagrams, dedup search (doc 61). X-Admin-Api-Key."},
+    {"name": "admin-content", "description": "Reconcile the DynamoDB content read model against PostgreSQL (requirement 70 C6, requirement 71 WP4). Admin profile only. X-Admin-Api-Key or staff session."},
 ]

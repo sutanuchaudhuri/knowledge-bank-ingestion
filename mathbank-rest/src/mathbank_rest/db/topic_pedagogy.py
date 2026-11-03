@@ -10,7 +10,6 @@ from sqlalchemy import text
 
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.db.retrieval_audit import audit_problem
-from mathbank_rest.db.step_search import _TAXONOMY_DETAILS
 from mathbank_rest.practice_selection import load_profile, rank_candidates
 
 
@@ -22,34 +21,40 @@ def topic_key(value: str) -> str:
     )
 
 
+def _content():
+    from mathbank_rest import stores
+
+    return stores.get_store("content")
+
+
+def _pg_nodes(conn, node_types: tuple[str, ...]) -> list[dict]:
+    rows = conn.execute(
+        text(
+            "SELECT taxonomy_node_id,name,node_type FROM pedagogy.taxonomy_node "
+            "WHERE node_type = ANY(:types) ORDER BY taxonomy_node_id"
+        ),
+        {"types": list(node_types)},
+    ).mappings()
+    return [dict(row) for row in rows]
+
+
 def topic_plan(query: str) -> dict:
     key = topic_key(query)
-    with engine.connect() as conn:
-        nodes = list(
-            conn.execute(
-                text(
-                    "SELECT taxonomy_node_id,name,node_type FROM pedagogy.taxonomy_node "
-                    "WHERE node_type IN ('CONCEPT','SUBCONCEPT','SKILL','TECHNIQUE')"
-                )
-            ).mappings()
-        )
-        exact = [node for node in nodes if key and topic_key(node["name"]) == key]
-        if len(exact) != 1:
-            return {
-                "matched": False,
-                "query": query,
-                "reason": "No unique exact taxonomy match. Clarify the topic; similarity alone is not applicability.",
-                "candidates": [
-                    {"taxonomy_node_id": n["taxonomy_node_id"], "name": n["name"]}
-                    for n in nodes
-                    if key and key in topic_key(n["name"])
-                ][:8],
-            }
-        node = dict(
-            conn.execute(text(_TAXONOMY_DETAILS), {"ids": [exact[0]["taxonomy_node_id"]]})
-            .mappings()
-            .one()
-        )
+    store = _content()
+    nodes = store.list_taxonomy_nodes(("CONCEPT", "SUBCONCEPT", "SKILL", "TECHNIQUE"))
+    exact = [node for node in nodes if key and topic_key(node["name"]) == key]
+    if len(exact) != 1:
+        return {
+            "matched": False,
+            "query": query,
+            "reason": "No unique exact taxonomy match. Clarify the topic; similarity alone is not applicability.",
+            "candidates": [
+                {"taxonomy_node_id": n["taxonomy_node_id"], "name": n["name"]}
+                for n in nodes
+                if key and key in topic_key(n["name"])
+            ][:8],
+        }
+    node = store.get_taxonomy_nodes([exact[0]["taxonomy_node_id"]])[exact[0]["taxonomy_node_id"]]
     steps = [
         "Identify the objects and hypotheses of the named concept.",
         "Choose a problem whose published steps support that concept, then verify its statement and diagram.",
@@ -75,17 +80,8 @@ def topic_plan(query: str) -> dict:
     }
 
 
-def topic_candidates(topic: str, *, profile_version: str = "topic-fit-v1", limit: int = 10,
-                     target_difficulty: int | None = None, known_skills: list[str] | None = None,
-                     exposed_codes: list[str] | None = None, exclude_codes: list[str] | None = None,
-                     student_id: UUID | None = None) -> dict:
-    profile = load_profile(profile_version)
-    plan = topic_plan(topic)
-    if not plan["matched"]:
-        return plan
-    node = plan["node"]
-    with engine.connect() as conn:
-        rows = conn.execute(text("""
+def _pg_candidates(conn, node_id: str, limit: int) -> list[dict]:
+    rows = conn.execute(text("""
             SELECT p.canonical_code,n.node_type,
                    CASE WHEN n.node_type='TECHNIQUE' THEN max(st.confidence)
                         ELSE max(pe.taxonomy_confidence) END AS confidence,
@@ -116,12 +112,25 @@ def topic_candidates(topic: str, *, profile_version: str = "topic-fit-v1", limit
                     AND negative.audit_snapshot->>'requested_node_id'=n.taxonomy_node_id)
             GROUP BY p.canonical_code,n.node_type,pe.difficulty_band_source_order,
                      pe.subconcept_node_id,pe.problem_form
-            ORDER BY p.canonical_code LIMIT 100
-        """), {"node": node["taxonomy_node_id"]}).mappings()
-        candidates = [dict(row) for row in rows]
-        exposure = set(exposed_codes or [])
-        gap_skills = None
-        if student_id:
+            ORDER BY p.canonical_code LIMIT :limit
+        """), {"node": node_id, "limit": limit}).mappings()
+    return [dict(row) for row in rows]
+
+
+def topic_candidates(topic: str, *, profile_version: str = "topic-fit-v1", limit: int = 10,
+                     target_difficulty: int | None = None, known_skills: list[str] | None = None,
+                     exposed_codes: list[str] | None = None, exclude_codes: list[str] | None = None,
+                     student_id: UUID | None = None) -> dict:
+    profile = load_profile(profile_version)
+    plan = topic_plan(topic)
+    if not plan["matched"]:
+        return plan
+    node = plan["node"]
+    candidates = _content().list_topic_candidates(node["taxonomy_node_id"], limit=100)
+    exposure = set(exposed_codes or [])
+    gap_skills = None
+    if student_id:
+        with engine.connect() as conn:
             exposure.update(conn.execute(text("""
                 SELECT p.canonical_code FROM learner.solve_attempt a
                 JOIN core.problem p USING(problem_id) WHERE a.student_id=:student
@@ -133,15 +142,12 @@ def topic_candidates(topic: str, *, profile_version: str = "topic-fit-v1", limit
                 WHERE student_id=:student AND status IN ('UNRESOLVED','CONFIRMED')
                   AND target_skill_id IS NOT NULL
             """), {"student": student_id}).scalars())
-        for candidate in candidates:
-            candidate["confidence"] = float(candidate["confidence"] or 0)
-            candidate["exposure_known"] = student_id is not None
-            candidate["gap_skill_ids"] = gap_skills
-            skills = candidate["skill_ids"]
-            candidate["prerequisite_ids"] = list(conn.execute(text("""
-                SELECT DISTINCT from_node_id FROM pedagogy.taxonomy_edge
-                WHERE to_node_id=ANY(:skills) AND relationship_type='PREREQUISITE_OF'
-            """), {"skills": skills}).scalars()) if skills else []
+    for candidate in candidates:
+        candidate["confidence"] = float(candidate["confidence"] or 0)
+        candidate["exposure_known"] = student_id is not None
+        candidate["gap_skill_ids"] = gap_skills
+        skills = candidate["skill_ids"]
+        candidate["prerequisite_ids"] = _content().list_taxonomy_prerequisite_ids(skills) if skills else []
     result = rank_candidates(
         candidates, profile=profile, limit=limit, target_difficulty=target_difficulty,
         known_skills=known_skills, exposed_codes=list(exposure) if student_id or exposed_codes is not None else None,

@@ -86,6 +86,7 @@ from mathbank_manim_studio.main import app  # noqa: E402 — ditto
 from mathbank_manim_studio.worker import (  # noqa: E402 — ditto
     _process_one_render_job,
     _process_one_research_job,
+    process_message,
 )
 
 # `lifespan="off"`: this handler must NOT start main.py's in-process worker loop (see
@@ -93,9 +94,18 @@ from mathbank_manim_studio.worker import (  # noqa: E402 — ditto
 api_handler = Mangum(app, lifespan="off")
 
 
-def worker_handler(event, context):  # noqa: ARG001 -- EventBridge schedule event, unused
-    """Claims and processes at most one research job and one render job, then returns.
-    Safe to invoke repeatedly/concurrently (`FOR UPDATE SKIP LOCKED` in jobs.py)."""
+def worker_handler(event, context):  # noqa: ARG001 -- schedule or SQS event
+    """Default (`STUDIO_JOBS_BACKEND=postgres`): claims and processes at most one research job and one
+    render job per EventBridge invocation. Safe to invoke repeatedly/concurrently (`FOR UPDATE SKIP LOCKED`
+    in jobs.py).
+
+    `STUDIO_JOBS_BACKEND=dynamodb`: invoked by the SQS trigger instead of the schedule (the poll and Postgres
+    are not needed). Each record names one job; the claim is a conditional update, so a duplicate or stale
+    delivery is a no-op. Returns a partial batch response so only failed records are retried."""
+    if "Records" in event:
+        from mathbank_rest.jobs_queue import process_sqs_event
+
+        return process_sqs_event(event, lambda m: asyncio.run(process_message(m.kind, str(m.job_id))))
 
     async def _run_once() -> dict:
         did_research = await _process_one_research_job()
@@ -103,3 +113,13 @@ def worker_handler(event, context):  # noqa: ARG001 -- EventBridge schedule even
         return {"processed_research_job": did_research, "processed_render_job": did_render}
 
     return asyncio.run(_run_once())
+
+
+def dlq_handler(event, context):  # noqa: ARG001 -- SQS DLQ event
+    """DLQ trigger (dynamodb backend): SQS gave up on these messages, so their jobs are marked FAILED
+    (DELIVERY_EXHAUSTED) unless they already finished."""
+    from mathbank_rest.jobs_queue import process_sqs_event
+
+    from mathbank_manim_studio.jobs_backend import get_backend
+
+    return process_sqs_event(event, lambda m: get_backend().mark_exhausted(m.kind, str(m.job_id)))

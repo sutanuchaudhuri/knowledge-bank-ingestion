@@ -81,8 +81,8 @@ operator's environment. Re-run Appendix C before each phase gate.
 | **DDB** | 84 | 6.5 MB | Authoritative in DynamoDB: 83 tables, plus `quiz.question_pool` with a vector near-duplicate index. Includes `pedagogy.step_hint`, which the runtime writes and which becomes a runtime-owned item in `mb-content`. |
 | **F→DDB** | 5 | 1.2 MB | ADK framework session store, re-implemented as a DynamoDB `SessionService` |
 | **S3V** | 5 | 2,021.7 MB | Vector payloads go to S3 Vectors. SQL keeps id/model/hash metadata until the column/table is retired. |
-| **PG+RM** | 73 | 1,071.3 MB | Authored in PostgreSQL and projected to `mb-content` / S3 snapshots for the runtime |
-| **PG** | 53 | 497.7 MB | Authoring/ETL only: review logs, enrichment jobs, compiler queues, outbox, similarity tables (feed Neo4j), lineage |
+| **PG+RM** | 78 | ≈1,147.4 MB | Authored in PostgreSQL and projected to `mb-content` / S3 snapshots for the runtime (73 + 5 register corrections, see the note under Appendix A) |
+| **PG** | 48 | ≈421.6 MB | Authoring/ETL only: review logs, enrichment jobs, compiler queues, outbox, similarity tables (feed Neo4j), lineage |
 | **F** | 9 | 0.3 MB | `neon_auth` provider tables (0 users). Retired with Neon Auth if confirmed unused (open decision 4). |
 
 Appendix A lists every table. The PostgreSQL that remains is about 1.5 GB with **no runtime
@@ -1136,7 +1136,7 @@ Table `mb-live-<env>` (single-table). Context flag `LIVE_STORE=postgres|dynamodb
 | `authoring.chat_message` (0) | `MSG` | `message_id` becomes a per-chat monotonic int (counter on `CHAT`). |
 | `authoring.proposed_patch` (0) | `PATCH` | |
 
-**Stays in PostgreSQL (C7 authoring plane):** `activity.definition` (catalogue, answer keys, admin authoring via `quiz_service`) → published to `mb-content`; the PG `visual.widget_spec` **library** subset + all other `visual.*` (interaction templates, assets, scenes). mb-live reads them only through the `ContentStore` interface (mb-content), never PG. The single exception is the explicit authoring API `POST /v1/widgets/specs/{id}/review` (PROMOTE), which is an admin authoring-plane write into PG (§4.9). Presentation plans move to mb-live (assignment) because the runtime reads them at session create inside the same transaction (ConditionCheck); see §10 R7.
+**Stays in PostgreSQL (C7 authoring plane):** `activity.definition` (catalogue, answer keys, admin authoring via `quiz_service`) → published to `mb-content`; inline definitions that live routes create (16 routes) are `ACTDEF` items in `mb-live` (register correction, see the note under Appendix A); the PG `visual.widget_spec` **library** subset + all other `visual.*` (interaction templates, assets, scenes). mb-live reads them only through the `ContentStore` interface (mb-content), never PG. The single exception is the explicit authoring API `POST /v1/widgets/specs/{id}/review` (PROMOTE), which is an admin authoring-plane write into PG (§4.9). Presentation plans move to mb-live (assignment) because the runtime reads them at session create inside the same transaction (ConditionCheck); see §10 R7.
 
 #### 2. Access patterns
 
@@ -2346,7 +2346,7 @@ Part A = the learner/staff runtime's only view of authored content (`mb-content-
 | `pedagogy.step_hint` 4 (LLM hint **cache written at runtime**) | all | `HINT` (the only runtime-written content item besides `QEMB`) |
 | `search.representation` 52,497 / `chunk` 52,543 (lineage stays in PG); `search.embedding` 52,543, `knowledge.misconception_embedding` 70,018, `pedagogy.taxonomy_node_embedding` 6,968, `theorem_embedding` 0, `artifact_runtime.artifact_embedding` 0 | vectors move | S3 Vectors indexes (Part B). Per-entity `vector_state` lives on the owning item. Index catalogue = `VINDEX` items. |
 
-**1b. What stays in PG and why.** All authoring, review, job, lineage and governance tables stay in PG, because only staff and ETL write them and admin routes are the authoring plane (C7). This covers `ingest.*`, `pipeline.*`, `knowledge.enrichment_job`, `relationship_enrichment_job`, `pedagogy_review_event`, `metadata_approval_event`, `pedagogy_publication`, `knowledge.problem_pedagogy`, `route_compile_*`, `micro_course_review`, `solution_dag_review`, `solution_step_technique_run`, `feedback_*`, `misconception_evidence_rule`, `search.embedding_model`, `preprocessing_profile`, `representation` and `chunk`. The `*_similarity` tables also stay; they are rebuilt from S3 Vectors and read only by `route_projection.py`.
+**1b. What stays in PG and why.** All authoring, review, job, lineage and governance tables stay in PG, because only staff and ETL write them and admin routes are the authoring plane (C7). This covers `ingest.*`, `pipeline.*`, `knowledge.enrichment_job`, `relationship_enrichment_job`, `pedagogy_review_event`, `metadata_approval_event`, `pedagogy_publication`, `knowledge.problem_pedagogy`, `route_compile_*`, `micro_course_review`, `solution_dag_review`, `solution_step_technique_run`, `feedback_*`, `misconception_evidence_rule`, `preprocessing_profile` and `chunk`. (`search.embedding_model` and `search.representation` are read by `POST /v1/quiz/generate` and by the vector adapter's eligibility check, so they are PG + read model, see the Appendix A note. Their lineage columns stay in PG.) The `*_similarity` tables also stay; they are rebuilt from S3 Vectors and read only by `route_projection.py`.
 
 PG remains the **source of truth**: `mb-content` is a derived projection, rebuildable at any time by `backfill`. Runtime-owned tables named in the same docs are out of scope here: `gap_diagnosis`, `knowledge_gap` and `recovery_plan*` (C1); `activity.instance`/`response` and `visual.widget_*` (C3); `learner.*` (C1/C2).
 
@@ -3900,9 +3900,13 @@ Conventions:
 
 Target: **DDB** = authoritative DynamoDB · **S3V** = S3 Vectors · **PG+RM** = PostgreSQL authority projected to `mb-content`/S3 snapshots · **PG** = authoring/ETL only · **F** = framework/provider-owned. Rows and sizes are the live snapshot (§1).
 
+> **Corrections applied 2026-11-03** (requirement 71 Appendix C, found while classifying routes in WP4). Six rows changed, in place below and in §3, C3 (stays-in-PostgreSQL paragraph) and C6 §1b:
+> `pedagogy.solution_step_technique`, `pedagogy.problem_enrichment`, `pedagogy.taxonomy_edge`, `search.embedding_model` and `search.representation` move from **PG** to **PG+RM** (already inside the C6 `SOLDAG`, `PROBLEM`, `TAXNODE` items and `vector_state`; the two `search.*` tables are read by `POST /v1/quiz/generate` and by the vector adapter), so §3 counts become PG+RM 73 → 78 and PG 53 → 48 (≈ +76.1 MB / −76.1 MB).
+> `activity.definition` stays **PG+RM** and additionally gets inline live definitions as `ACTDEF` items in `mb-live`. Table counts are unchanged for it.
+
 | Table | Live rows | Size | Target | Store / index | Phase | Note |
 |---|---:|---:|---|---|---|---|
-| `activity.definition` | 37 | 80 KB | PG+RM | authority PG → `mb-content` / S3 snapshot | M4 |  |
+| `activity.definition` | 37 | 80 KB | PG+RM | authority PG → `mb-content` / S3 snapshot (`ACT`/`ACT_KEY`) **and** inline live definitions as `ACTDEF` items in `mb-live` (C3) | M4 | Corrected (App. C of 71): 16 live routes insert inline definitions. |
 | `activity.instance` | 10 | 48 KB | DDB | `mb-live` | M7 |  |
 | `activity.response` | 9 | 48 KB | DDB | `mb-live` | M7 |  |
 | `agent_sessions.adk_internal_metadata` | 1 | 24 KB | F→DDB | `mb-agent-sessions` (custom ADK SessionService) | M9 |  |
@@ -4049,7 +4053,7 @@ Target: **DDB** = authoritative DynamoDB · **S3V** = S3 Vectors · **PG+RM** = 
 | `pedagogy.micro_course_target` | 6 | 120 KB | PG+RM | authority PG → `mb-content` / S3 snapshot | M4 |  |
 | `pedagogy.micro_course_transition` | 12 | 32 KB | PG+RM | authority PG → `mb-content` / S3 snapshot | M4 |  |
 | `pedagogy.misconception_evidence_rule` | 0 | 64 KB | PG+RM | authority PG → `mb-content` / S3 snapshot | M4 |  |
-| `pedagogy.problem_enrichment` | 1,697 | 912 KB | PG | authoring / ETL plane | — |  |
+| `pedagogy.problem_enrichment` | 1,697 | 912 KB | PG+RM | authority PG → `mb-content` (embedded in `PROBLEM.enrichment`) | M4 | Corrected from PG (App. C of 71): read by recovery and topic practice. |
 | `pedagogy.problem_source_ref` | 1,697 | 584 KB | PG | authoring / ETL plane | — |  |
 | `pedagogy.recovery_plan` | 19 | 120 KB | DDB | `mb-learner` | M5 |  |
 | `pedagogy.recovery_plan_item` | 111 | 96 KB | DDB | `mb-learner` | M5 |  |
@@ -4068,13 +4072,13 @@ Target: **DDB** = authoritative DynamoDB · **S3V** = S3 Vectors · **PG+RM** = 
 | `pedagogy.solution_step_dependency` | 7,309 | 3.0 MB | PG+RM | authority PG → `mb-content` / S3 snapshot | M4 |  |
 | `pedagogy.solution_step_instruction` | 80,773 | 115.8 MB | PG+RM | authority PG → `mb-content` / S3 snapshot | M4 |  |
 | `pedagogy.solution_step_requirement` | 82,023 | 17.6 MB | PG+RM | authority PG → `mb-content` / S3 snapshot | M4 |  |
-| `pedagogy.solution_step_technique` | 4,354 | 1.3 MB | PG | authoring / ETL plane | — |  |
+| `pedagogy.solution_step_technique` | 4,354 | 1.3 MB | PG+RM | authority PG → `mb-content` (inside the `SOLDAG` item; APPROVED rows only) | M4 | Corrected from PG (App. C of 71): read by 6 runtime routes. |
 | `pedagogy.solution_step_technique_run` | 7,814 | 2.0 MB | PG | authoring / ETL plane | — |  |
 | `pedagogy.solution_step_theorem` | 0 | 16 KB | PG | authoring / ETL plane | — |  |
 | `pedagogy.source_book` | 1 | 48 KB | PG | authoring / ETL plane | — |  |
 | `pedagogy.state_qa_context` | 0 | 16 KB | PG+RM | authority PG → `mb-content` / S3 snapshot | M4 |  |
 | `pedagogy.step_hint` | 4 | 32 KB | DDB | `mb-content` (runtime-written hint cache) | M4 | generated on demand by the runtime (C7/C6) |
-| `pedagogy.taxonomy_edge` | 3,065 | 784 KB | PG | authoring / ETL plane | — |  |
+| `pedagogy.taxonomy_edge` | 3,065 | 784 KB | PG+RM | authority PG → `mb-content` (embedded in `TAXNODE.edges`) | M4 | Corrected from PG (App. C of 71): read by topic practice. |
 | `pedagogy.taxonomy_node` | 6,968 | 2.3 MB | PG+RM | authority PG → `mb-content` / S3 snapshot | M4 |  |
 | `pedagogy.taxonomy_node_embedding` | 6,968 | 110.9 MB | S3V | `mathbank-vectors` indexes | M2 | SQL keeps id/model/hash metadata until retired |
 | `pedagogy.taxonomy_node_similarity` | 9,386 | 2.2 MB | PG | authoring / ETL plane | — |  |
@@ -4109,9 +4113,9 @@ Target: **DDB** = authoritative DynamoDB · **S3V** = S3 Vectors · **PG+RM** = 
 | `search.chunk` | 52,543 | 146.2 MB | PG+RM | authority PG → `mb-content` / S3 snapshot | M4 |  |
 | `search.embedding` | 52,543 | 796.8 MB | S3V | `mathbank-vectors` indexes | M2 | SQL keeps id/model/hash metadata until retired |
 | `search.embedding_job` | 52,543 | 20.0 MB | PG | authoring / ETL plane | — |  |
-| `search.embedding_model` | 1 | 48 KB | PG | authoring / ETL plane | — |  |
+| `search.embedding_model` | 1 | 48 KB | PG+RM | authority PG → `mb-content` (model id/status in `VINDEX` and each item's `vector_state.model`) | M4 | Corrected from PG (App. C of 71): read by `POST /v1/quiz/generate`; the vector adapter needs it for eligibility. |
 | `search.preprocessing_profile` | 2 | 48 KB | PG | authoring / ETL plane | — |  |
-| `search.representation` | 52,497 | 73.1 MB | PG | authoring / ETL plane | — |  |
+| `search.representation` | 52,497 | 73.1 MB | PG+RM | authority PG → `mb-content` (ACTIVE status/content hash as `vector_state` + `search_render_sha256`) | M4 | Corrected from PG (App. C of 71): read by `POST /v1/quiz/generate`; the vector adapter needs it for eligibility. |
 | `search.retrieval_profile` | 0 | 24 KB | PG | authoring / ETL plane | — |  |
 | `studio.scene_research_job` | 8 | 96 KB | DDB | `mb-jobs` + SQS | M3 | removes the 1-minute Neon poll |
 | `studio.video_render_job` | 0 | 120 KB | DDB | `mb-jobs` + SQS | M3 | removes the 1-minute Neon poll |

@@ -44,6 +44,8 @@ def _student_evaluation(evaluation: dict | None) -> dict | None:
         return None
     return {k: evaluation[k] for k in STUDENT_EVALUATION_FIELDS if k in evaluation}
 
+CURRENT_STEP_KEYS = ("solution_step_id", "solution_part_id", "part_label", "global_step_index", "step_index_in_part",
+                     "step_type", "tutor_role", "skill_node_id", "skill_name", "subconcept_node_id", "is_checkpoint")
 DONE_STATES = frozenset({"SUCCESS_INDEPENDENT", "SUCCESS_WITH_HELP", "SKIPPED"})
 SUCCESS_STATES = frozenset({"SUCCESS_INDEPENDENT", "SUCCESS_WITH_HELP"})
 MAX_HELP_LEVEL = 5
@@ -164,18 +166,23 @@ def _outbox(conn: Connection, event_type: str, aggregate_type: str, aggregate_id
         {"t": event_type, "at": aggregate_type, "aid": aggregate_id, "p": json.dumps(payload, default=str)})
 
 
+def _content():
+    from mathbank_rest import stores
+
+    return stores.get_store("content")
+
+
+def _dag(conn: Connection, problem_id: str) -> dict:
+    return _content().get_solution_dag(problem_id=problem_id, conn=conn)
+
+
 def _steps(conn: Connection, problem_id: str) -> tuple[list[StepRef], dict[str, set[str]]]:
-    steps = [StepRef(r[0], r[1], r[2]) for r in conn.execute(text(
-        "SELECT solution_step_id, solution_part_id, global_step_index FROM pedagogy.solution_step "
-        "WHERE problem_id = CAST(:p AS uuid) AND publication_status = 'PUBLISHED' "
-        "ORDER BY global_step_index, solution_step_id"), {"p": problem_id})]
+    dag = _dag(conn, problem_id)
+    steps = [StepRef(s["solution_step_id"], s["solution_part_id"], s["global_step_index"]) for s in dag["steps"]]
     prereqs: dict[str, set[str]] = {}
-    for dependent, prerequisite in conn.execute(text(
-            "SELECT d.to_step_id, d.from_step_id FROM pedagogy.solution_step_dependency d "
-            "JOIN pedagogy.solution_step s ON s.solution_step_id = d.to_step_id "
-            "WHERE s.problem_id = CAST(:p AS uuid) AND d.relationship_type = 'DEPENDS_ON' "
-            "AND d.review_status <> 'REJECTED'"), {"p": problem_id}):
-        prereqs.setdefault(dependent, set()).add(prerequisite)
+    for d in dag["dependencies"]:
+        if d["relationship_type"] == "DEPENDS_ON" and d["review_status"] != "REJECTED":
+            prereqs.setdefault(d["to_step_id"], set()).add(d["from_step_id"])
     return steps, prereqs
 
 
@@ -257,16 +264,16 @@ def get_runtime(conn: Connection, attempt_id: UUID | str, student_id: UUID | Non
     if attempt is None or (student_id is not None and str(attempt["student_id"]) != str(student_id)):
         raise NotFound("attempt not found")
     attempt = dict(attempt)
-    steps, _ = _steps(conn, str(attempt["problem_id"]))
+    dag = _dag(conn, str(attempt["problem_id"]))
+    steps = [StepRef(s["solution_step_id"], s["solution_part_id"], s["global_step_index"]) for s in dag["steps"]]
+    by_step = {s["solution_step_id"]: s for s in dag["steps"]}
     states = _states(conn, str(attempt["solve_attempt_id"]))
     current = None
     if attempt["current_solution_step_id"]:
-        row = conn.execute(text(
-            "SELECT s.solution_step_id, s.solution_part_id, sp.part_label, s.global_step_index, "
-            "       s.step_index_in_part, s.step_type, s.tutor_role, s.skill_node_id, s.skill_name, "
-            "       s.subconcept_node_id, s.is_checkpoint "
-            "  FROM pedagogy.solution_step s JOIN pedagogy.solution_part sp USING (solution_part_id) "
-            " WHERE s.solution_step_id = :s"), {"s": attempt["current_solution_step_id"]}).mappings().first()
+        row = by_step.get(attempt["current_solution_step_id"])
+        if row is None:  # not part of the published DAG (e.g. withdrawn after the attempt started): no part label
+            row = _content().get_step_details([attempt["current_solution_step_id"]]).get(attempt["current_solution_step_id"])
+        row = {k: row.get(k) for k in CURRENT_STEP_KEYS}
         state = states.get(attempt["current_solution_step_id"], {})
         current = {**dict(row), "goal": step_goal(row["step_type"]), "state": state.get("state", "NOT_SEEN"),
                    "help_level_used": state.get("help_level_used", 0),
@@ -284,11 +291,7 @@ def get_runtime(conn: Connection, attempt_id: UUID | str, student_id: UUID | Non
         for s in steps if s.solution_step_id in states
     ]
     done = sum(1 for s in steps if states.get(s.solution_step_id, {}).get("state") in DONE_STATES)
-    meta = {r["solution_step_id"]: dict(r) for r in conn.execute(text(
-        "SELECT s.solution_step_id, sp.part_label, s.step_index_in_part, s.step_type, s.skill_name, s.is_checkpoint, "
-        "       s.step_text "
-        "  FROM pedagogy.solution_step s JOIN pedagogy.solution_part sp USING (solution_part_id) "
-        " WHERE s.problem_id = CAST(:p AS uuid)"), {"p": str(attempt["problem_id"])}).mappings()}
+    meta = by_step
     timeline = []
     for s in steps:  # spec 17: future steps are opaque; completed steps reveal the reference text
         state = states.get(s.solution_step_id, {})

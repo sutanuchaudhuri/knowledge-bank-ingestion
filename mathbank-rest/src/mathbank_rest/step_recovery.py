@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Callable
+from collections.abc import Callable
 from uuid import UUID
 
 from sqlalchemy import text
@@ -31,8 +31,16 @@ from sqlalchemy.engine import Connection
 from mathbank_rest import step_tutor
 from mathbank_rest.step_runtime import (
     CROSS_REFERENCE_STUB_RE,
-    InvalidTransition, NotFound, RuntimeError_, _bump_version, _check_version, _event, _lock_attempt, _outbox,
-    _remember, _replay,
+    InvalidTransition,
+    NotFound,
+    RuntimeError_,
+    _bump_version,
+    _check_version,
+    _event,
+    _lock_attempt,
+    _outbox,
+    _remember,
+    _replay,
 )
 
 PLANNER_VERSION = "recovery-rules-v1"
@@ -178,12 +186,15 @@ def _target_for(conn: Connection, attempt: dict, step_id: str, gap_diagnosis_id:
         return {"gap_diagnosis_id": diag["gap_diagnosis_id"], "knowledge_gap_id": h["knowledge_gap_id"],
                 "skill_id": h["target_skill_id"], "subconcept_id": h["target_subconcept_id"],
                 "label": h["target_label"]}
-    s = conn.execute(text(
-        "SELECT s.skill_node_id, s.subconcept_node_id, coalesce(s.skill_name, t.name) AS label "
-        "  FROM pedagogy.solution_step s LEFT JOIN pedagogy.taxonomy_node t ON t.taxonomy_node_id = s.skill_node_id "
-        " WHERE s.solution_step_id = :s"), {"s": step_id}).mappings().one()
+    s = _content().get_step_recovery_target(step_id, conn=conn)
     return {"gap_diagnosis_id": diag["gap_diagnosis_id"] if diag else None, "knowledge_gap_id": None,
             "skill_id": s["skill_node_id"], "subconcept_id": s["subconcept_node_id"], "label": s["label"]}
+
+
+def _content():
+    from mathbank_rest import stores
+
+    return stores.get_store("content")
 
 
 def _candidates(conn: Connection, student_id: str, origin_problem_id: str, skill_id: str | None,
@@ -279,7 +290,7 @@ def _items(conn: Connection, plan_id: str) -> list[dict]:
 
 # Import-provenance notes stored as taxonomy descriptions (e.g. "Skill inferred from ordered
 # solution steps.") describe how a node was derived, not the skill; never show them to students.
-_PROVENANCE_DESCRIPTION_RE = re.compile(r"^\s*(skill|concept|technique|node)?\s*(inferred|derived|mapped|generated)\b", re.I)
+_PROVENANCE_DESCRIPTION_RE = re.compile(r"^\s*(skill|concept|technique|node)?\s*(inferred|derived|mapped|generated)\b", re.IGNORECASE)
 
 
 def _student_description(description: str | None) -> str | None:
@@ -290,11 +301,7 @@ def _student_description(description: str | None) -> str | None:
 
 def _present_content(conn: Connection, item: dict, reveal: bool) -> dict:
     if item["item_kind"] == "THEORY":
-        r = conn.execute(text(
-            "SELECT s.step_text, s.skill_name, t.description, p.canonical_code, p.statement_text "
-            "  FROM pedagogy.solution_step s JOIN core.problem p ON p.problem_id = s.problem_id "
-            "  LEFT JOIN pedagogy.taxonomy_node t ON t.taxonomy_node_id = s.skill_node_id "
-            " WHERE s.solution_step_id = :s"), {"s": item["worked_step_id"]}).mappings().one()
+        r = _content().get_step_worked_example(item["worked_step_id"], conn=conn)
         return {"title": f"Worked example: {r['skill_name'] or 'this skill'}", "skill_description": _student_description(r["description"]),
                 "example_problem_code": r["canonical_code"], "example_problem_statement": r["statement_text"],
                 "example_step_text": r["step_text"]}
@@ -333,11 +340,7 @@ def student_item(conn: Connection, item: dict, *, current: bool) -> dict:
 def plan_view(conn: Connection, plan: dict) -> dict:
     items = _items(conn, plan["recovery_plan_id"])
     progress = mastery_status(items, plan["mastery_policy"] or DEFAULT_POLICY)
-    origin = conn.execute(text(
-        "SELECT p.canonical_code, sp.part_label, s.step_index_in_part, s.global_step_index "
-        "  FROM pedagogy.solution_step s JOIN pedagogy.solution_part sp USING (solution_part_id) "
-        "  JOIN core.problem p ON p.problem_id = s.problem_id WHERE s.solution_step_id = :s"),
-        {"s": plan["origin_step_id"]}).mappings().one()
+    origin = _content().get_step_origin(plan["origin_step_id"], conn=conn)
     parent_label = None
     if plan["parent_recovery_plan_id"]:
         parent_label = conn.execute(text(

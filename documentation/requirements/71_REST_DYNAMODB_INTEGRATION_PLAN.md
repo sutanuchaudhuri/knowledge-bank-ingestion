@@ -312,6 +312,12 @@ Must land first, because the read model and `mb-exam`/`mb-learner` should not in
 - `stores/notify` replaces `notifications.py`; `routers/notifications.py` rewritten; admin list and ack routes.
 - **Gate:** owner-scoping tests (another student's id → 404); idempotent redelivery; Neon can suspend while idle.
 
+**Delivered (moto-tested; nothing run against real AWS yet):**
+- `stores/notify` (Postgres delegate + DynamoDB: DEDUPE sentinel, atomic INBOX_COUNTER, owner-scoped list/read, signed `next_token`), `routers/notifications.py` rewritten onto the store with `read-all` and admin `GET /v1/admin/notifications` / `POST .../{id}/ack` (actor recorded on the item). The Postgres list/mark-read SQL were stubs (501) and are now real SQL, untested against a live database.
+- `stores/jobs` (DynamoDB: version-CAS claims, 330 s lease, 3 attempts, heartbeat, retry, DLQ sweep, GSI1 listings; Postgres side is an HTTP client of Studio) and `jobs_queue.py` (SQS, pydantic messages, partial-batch failures). `mathbank-db/aws/sqs` + `make aws-sqs` provision `mb-studio-research|render-<env>` and `mb-geometry-interpret-<env>` with DLQs.
+- `mathbank-manim-studio`: `STUDIO_JOBS_BACKEND=dynamodb` (default `postgres`) makes workers wait on SQS and claim through the store; `worker_handler` accepts SQS events, `dlq_handler` added.
+- To do: `make -C mathbank-db aws-sqs AWS_ENV=test`, then `ddb_integration` claim/notify races on `test`; CDK wiring (SQS triggers, IAM) and removal of the EventBridge schedule; the Studio Lambda image needs mathbank-rest and boto3. Decisions: the API sends the SQS message after the item write (`republish_pending` recovers a lost send; the design had a stream consumer do it); admin notification routes live in `notifications.admin_router`; the DynamoDB list rejects `offset>0` (use `next_token`).
+
 ### WP4 Content read model
 
 - `stores/content` and the public/content reads: `routers/v1.py`, `pedagogy.py`, `tutor.py`, student
@@ -319,6 +325,13 @@ Must land first, because the read model and `mb-exam`/`mb-learner` should not in
 - Publisher client contract and reconciliation endpoint for admin.
 - Register corrections (Appendix C) applied to doc 70.
 - **Gate:** a runtime route set with **zero PostgreSQL queries** (the runtime profile has no DSN); reconciliation shows 0 diffs.
+
+**Delivered (moto-tested):**
+- `stores/content` composed from `catalog`, `learning`, `pedagogy` (`CONTENT_STORE=postgres|dynamodb|frozen`); the Postgres side delegates to today's SQL at call time (behaviour unchanged), the DynamoDB side uses typed models and `stores/content/snapshots.py` (SHA-verified, byte-bounded LRU). Callers rewired: v1 catalogue/problem/concept/technique/coverage routes, problem images and diagrams, micro-course list/reader/assets and grading lookups, theorem reads, interaction catalogue, route runtime (`load_program`, plan, coaching, assist), step reads, topic pedagogy, step-hint cache.
+- Publisher contract `content_publisher.py` (conditional on `src_rev`, idempotent by hash, withdraw) and reconciliation (`stores/content/reconcile.py`, `POST /v1/admin/content/reconcile`, `scripts/content_parity.py`) using the migration's canonical hash. Appendix C corrections applied to doc 70.
+- **Gate, part 1 (passes):** `tests/stores/test_wp4_gate_zero_postgres.py` serves 18 content routes and problem search from the runtime app with every SQLAlchemy engine replaced by the runtime guard; a negative control proves the guard catches SQL. The routers still contain non-content routes that use Postgres, so they stay in `RUNTIME_PENDING` until WP5.
+- **Gate, part 2 (not yet run):** reconciliation on real data. After `aws login`: `scripts/content_parity.py`, then `scripts/content_smoke_{catalog,learning,pedagogy}.py`.
+- Known divergences from Postgres (documented in the area modules): ordering by code point not collation; withdrawn problems absent; `list_problems(concept=)` is an exact-slug match (closure only on concept problems); topic candidates come from STEP facets (no PENDING/REJECTED problem-tag or learner-feedback exclusion); taxonomy prerequisites return `[]`; reconciliation orphan detection needs a listing partition (none for STEP/LI/ACT outside FACET partitions) and rebuilds payload hashes only for COMPETITION and ACT at the endpoint (the parity script covers the rest). Not rewired: `mastery.py`, `tutor.py` problem reads, `pedagogy.problem_statement` images, `step_diagnosis`, media analyse, `micro_course_assist` item-help, enrollment runtime (WP5).
 
 ### WP5 Learner runtime
 

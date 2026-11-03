@@ -21,9 +21,16 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
-from mathbank_rest import mastery, security, step_diagnosis, step_recovery, step_runtime, step_tutor
+from mathbank_rest import (
+    mastery,
+    security,
+    step_diagnosis,
+    step_recovery,
+    step_runtime,
+    step_tutor,
+    stores,
+)
 from mathbank_rest.db.postgres import engine
-from mathbank_rest.db.problem_images import STUDENT_IMAGE_FILTER, list_images
 from mathbank_rest.db.problem_sources import (
     fetch_source_record,
     highlighted_page,
@@ -383,8 +390,7 @@ def practice_for_step(step_id: str, limit: int = Query(5, ge=1, le=20), same_ski
 @router.get("/problems/by-code/{code}/diagrams")
 def list_problem_diagrams(code: str) -> list[dict]:
     """Problem-statement diagrams (never solution diagrams) for the workspace."""
-    with engine.connect() as conn:
-        return list_images(conn, code)
+    return stores.get_store("content").list_problem_diagrams(code, engine=engine)
 
 
 @router.get("/problems/by-code/{code}/source")
@@ -438,19 +444,20 @@ def get_problem_source_marked_pdf(code: str):
 
 @router.get("/problem-images/{image_id}", response_class=FileResponse)
 def get_problem_image(image_id: UUID):
-    with engine.connect() as conn:
-        path = conn.execute(text(f"SELECT i.local_path FROM core.problem_image i "
-                                 f"WHERE i.problem_image_id = :i AND {STUDENT_IMAGE_FILTER}"),
-                            {"i": str(image_id)}).scalar()
+    from fastapi.responses import Response
+
+    image = stores.get_store("content").get_student_image(image_id, engine=engine)
+    headers = {"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"}
+    if image is not None and "data" in image:
+        return Response(image["data"], media_type=image["media_type"], headers=headers)
+    path = image["local_path"] if image else None
     if path and path.startswith("object-store:"):
-        from fastapi.responses import Response
         from mathbank_rest import object_store
         try:
             data = object_store.read_bytes(path.removeprefix("object-store:"))
         except object_store.ObjectStoreError:
             raise HTTPException(503, detail="Published image storage is unavailable.") from None
-        return Response(data, media_type="image/png",
-                        headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
+        return Response(data, media_type="image/png", headers=headers)
     resolved = (IMAGE_ROOT / path).resolve() if path else None
     if resolved is None or not resolved.is_file() or IMAGE_ROOT not in resolved.parents:
         raise HTTPException(status_code=404, detail="image not found")

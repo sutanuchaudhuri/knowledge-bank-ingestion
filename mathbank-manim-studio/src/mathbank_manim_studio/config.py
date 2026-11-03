@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     job_ttl_days: int = 1
     worker_poll_seconds: float = 2.0
 
+    # Job queue backend (requirement 71 WP3). "postgres" (default) = today's behaviour: the worker polls the studio.*
+    # tables with FOR UPDATE SKIP LOCKED. "dynamodb" = jobs live in mb-jobs and workers are woken by SQS (no polling of
+    # Postgres, so Neon can suspend while idle); it needs `mathbank-rest` importable and `pip install -e ".[dynamodb]"`.
+    studio_jobs_backend: str = "postgres"
+
     # S3 object storage (Lambda deployment opt-in, requirements/63 — local dev keeps the
     # filesystem backend above unchanged). Reuses mathbank-rest's already-provisioned
     # Neon S3-compatible bucket under a `manim-studio/` key prefix, and the same

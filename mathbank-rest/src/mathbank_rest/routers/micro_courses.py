@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from mathbank_rest import micro_course_assist as assist
 from mathbank_rest import micro_course_service as courses
-from mathbank_rest import object_store
+from mathbank_rest import object_store, stores
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.security import get_current_student_id, require_admin_api_key
 
@@ -174,8 +174,10 @@ class ItemHelpRequest(BaseModel):
     student_message: str | None = Field(default=None, max_length=1000)
 
 
-def _call(operation, *args, **kwargs):
+def _call(operation, *args, _conn: bool = True, **kwargs):
     try:
+        if not _conn:
+            return operation(None, *args, **kwargs)
         with engine.begin() as conn:
             return operation(conn, *args, **kwargs)
     except courses.MicroCourseConflict as exc:
@@ -193,6 +195,13 @@ def _call(operation, *args, **kwargs):
     except SQLAlchemyError as exc:
         logger.exception("Micro-course database operation failed")
         raise HTTPException(status_code=503, detail="Micro-course data is unavailable.") from exc
+
+
+def _content_call(method: str, *args, **kwargs):
+    """Run a published-content read through the content store (flag ``CONTENT_STORE``). The DynamoDB backend needs no SQL
+    connection, so none is opened for it."""
+    store = stores.get_store("content")
+    return _call(getattr(store, method), *args, _conn=getattr(store, "backend", "postgres") != "dynamodb", **kwargs)
 
 
 @admin_router.get("/targets")
@@ -455,17 +464,17 @@ def list_student_courses(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> list[dict]:
-    return _call(courses.list_published_courses, limit, offset)
+    return _content_call("list_published_micro_courses", limit, offset)
 
 
 @student_router.get("/{canonical_code}")
 def get_student_course(canonical_code: str) -> dict:
-    return _call(courses.get_published_course, canonical_code)
+    return _content_call("get_micro_course_reader", canonical_code)
 
 
 @student_router.get("/{canonical_code}/assets/{asset_id}/content")
 def get_student_asset(canonical_code: str, asset_id: UUID) -> Response:
-    asset = _call(courses.get_published_asset, canonical_code, str(asset_id))
+    asset = _content_call("get_course_asset", canonical_code, str(asset_id))
     try:
         data = object_store.read_bytes(asset["object_key"])
     except (object_store.ObjectStoreError, OSError, ValueError) as exc:

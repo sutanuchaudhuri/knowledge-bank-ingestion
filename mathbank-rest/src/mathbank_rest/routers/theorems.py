@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from mathbank_rest import object_store
+from mathbank_rest import object_store, stores
 from mathbank_rest import theorem_service as theorems
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.security import require_admin_api_key
@@ -38,8 +38,10 @@ admin_router = APIRouter(
 student_router = APIRouter(prefix="/v1/theorems", tags=["theorems"])
 
 
-def _call(operation, *args, **kwargs):
+def _call(operation, *args, _conn: bool = True, **kwargs):
     try:
+        if not _conn:
+            return operation(None, *args, **kwargs)
         with engine.begin() as conn:
             return operation(conn, *args, **kwargs)
     except theorems.TheoremCycle as exc:
@@ -57,6 +59,13 @@ def _call(operation, *args, **kwargs):
     except SQLAlchemyError as exc:
         logger.exception("Theorem database operation failed")
         raise HTTPException(status_code=503, detail="Theorem data is unavailable.") from exc
+
+
+def _content_call(method: str, *args, **kwargs):
+    """Run a published-theorem read through the content store (flag ``CONTENT_STORE``); the DynamoDB backend needs no
+    SQL connection, so none is opened for it."""
+    store = stores.get_store("content")
+    return _call(getattr(store, method), *args, _conn=getattr(store, "backend", "postgres") != "dynamodb", **kwargs)
 
 
 class CreateTheorem(BaseModel):
@@ -257,12 +266,12 @@ def search_student_theorems(
 
 @student_router.get("/{slug}")
 def get_student_theorem(slug: str) -> dict:
-    return _call(theorems.get_theorem, slug, include_unapproved=False)
+    return _content_call("get_theorem_by_slug", slug)
 
 
 @student_router.get("/{slug}/assets/{asset_id}/content")
 def get_student_theorem_asset(slug: str, asset_id: UUID) -> Response:
-    asset = _call(theorems.get_published_theorem_asset, slug, str(asset_id))
+    asset = _content_call("get_theorem_asset", slug, str(asset_id))
     try:
         data = object_store.read_bytes(asset["object_key"])
     except (object_store.ObjectStoreError, OSError, ValueError) as exc:
@@ -288,14 +297,14 @@ def get_student_theorem_asset(slug: str, asset_id: UUID) -> Response:
 
 @student_router.get("/{slug}/prerequisites")
 def get_student_theorem_prerequisites(slug: str, max_depth: int = Query(default=4, ge=1, le=10)) -> dict:
-    return _call(theorems.get_theorem_prerequisites, slug, max_depth=max_depth, include_unapproved=False)
+    return _content_call("get_theorem_prerequisites", slug, max_depth=max_depth)
 
 
 @student_router.get("/by-taxonomy/{taxonomy_node_id}")
 def list_student_theorems_for_taxonomy(taxonomy_node_id: str) -> dict:
-    return _call(theorems.list_theorems_for_taxonomy_node, taxonomy_node_id)
+    return _content_call("list_theorems_for_taxonomy_node", taxonomy_node_id)
 
 
 @student_router.get("/by-technique/{technique_slug}")
 def list_student_theorems_for_technique(technique_slug: str) -> dict:
-    return _call(theorems.get_theorems_for_technique, technique_slug)
+    return _content_call("get_theorems_for_technique", technique_slug)

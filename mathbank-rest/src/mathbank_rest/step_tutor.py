@@ -15,11 +15,13 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
+
+from mathbank_rest.stores.errors import StoreFrozen
 
 STEP_TUTOR_MODEL = os.getenv("STEP_TUTOR_MODEL", "gpt-4.1-mini")
 HINT_PROMPT_VERSION = "step-hint-v1"
@@ -199,19 +201,20 @@ def openai_hint_writer(ctx: StepContext, level: int, lower_hints: list[str], str
 
 # ---------------------------------------------------------------- DB-backed operations
 
+def _content():
+    from mathbank_rest import stores
+
+    return stores.get_store("content")
+
+
 def load_step_context(conn: Connection, attempt_id: str, step_id: str) -> StepContext:
-    row = conn.execute(text(
-        "SELECT p.statement_text, sp.part_label, s.step_type, s.tutor_role, s.skill_name, s.step_text, "
-        "       s.solution_id, s.global_step_index, st.last_response_text, coalesce(st.help_level_used, 0) AS help "
-        "  FROM pedagogy.solution_step s JOIN pedagogy.solution_part sp USING (solution_part_id) "
-        "  JOIN core.problem p ON p.problem_id = s.problem_id "
-        "  LEFT JOIN learner.attempt_step_state st ON st.solution_step_id = s.solution_step_id "
-        "       AND st.solve_attempt_id = CAST(:a AS uuid) "
-        " WHERE s.solution_step_id = :s"), {"a": str(attempt_id), "s": step_id}).mappings().one()
-    previous = list(conn.execute(text(
-        "SELECT step_text FROM pedagogy.solution_step WHERE solution_id = :sol AND global_step_index < :i "
-        "AND publication_status = 'PUBLISHED' ORDER BY global_step_index"),
-        {"sol": row["solution_id"], "i": row["global_step_index"]}).scalars())
+    row = _content().get_step_tutor_context(step_id, conn=conn)
+    state = conn.execute(text(
+        "SELECT last_response_text, coalesce(help_level_used, 0) AS help FROM learner.attempt_step_state "
+        " WHERE solve_attempt_id = CAST(:a AS uuid) AND solution_step_id = :s"),
+        {"a": str(attempt_id), "s": step_id}).mappings().first() or {"last_response_text": None, "help": 0}
+    row = {**row, **state}
+    previous = row["previous_steps"]
     return StepContext(
         problem_statement=row["statement_text"] or "", part_label=row["part_label"], step_type=row["step_type"],
         tutor_role=row["tutor_role"], skill_name=row["skill_name"], previous_steps=previous,
@@ -225,14 +228,11 @@ def get_or_create_hint(conn: Connection, attempt_id: str, step_id: str, level: i
     ctx = load_step_context(conn, attempt_id, step_id)
     if level >= 5:
         return {"hint_text": ctx.canonical_step, "hint_source": "REFERENCE_STEP"}
-    cached = conn.execute(text(
-        "SELECT hint_text FROM pedagogy.step_hint WHERE solution_step_id = :s AND hint_level = :l "
-        "AND prompt_version = :v"), {"s": step_id, "l": level, "v": HINT_PROMPT_VERSION}).scalar()
+    store = _content()
+    cached = store.get_cached_step_hint(step_id, level, HINT_PROMPT_VERSION, conn=conn)
     if cached:
         return {"hint_text": cached, "hint_source": "CACHED"}
-    lower = list(conn.execute(text(
-        "SELECT hint_text FROM pedagogy.step_hint WHERE solution_step_id = :s AND hint_level < :l "
-        "AND prompt_version = :v ORDER BY hint_level"), {"s": step_id, "l": level, "v": HINT_PROMPT_VERSION}).scalars())
+    lower = store.list_cached_step_hints(step_id, level, HINT_PROMPT_VERSION, conn=conn)
     known = (ctx.problem_statement, *ctx.previous_steps)
     hint, source = writer(ctx, level, lower), "GENERATED"
     if level <= 3 and leaks_solution(hint, ctx.canonical_step, known=known):
@@ -241,11 +241,12 @@ def get_or_create_hint(conn: Connection, attempt_id: str, step_id: str, level: i
             hint, source = FALLBACK_HINTS[level].format(skill=ctx.skill_name or "this step"), "FALLBACK"
     if not hint:
         hint, source = FALLBACK_HINTS[min(level, 3)].format(skill=ctx.skill_name or "this step"), "FALLBACK"
-    conn.execute(text(
-        "INSERT INTO pedagogy.step_hint (solution_step_id, hint_level, prompt_version, hint_text, model) "
-        "VALUES (:s, :l, :v, :t, :m) ON CONFLICT DO NOTHING"),
-        {"s": step_id, "l": level, "v": HINT_PROMPT_VERSION, "t": hint,
-         "m": STEP_TUTOR_MODEL if source == "GENERATED" else "fallback-template"})
+    try:
+        store.put_cached_step_hint(step_id, level, HINT_PROMPT_VERSION, hint,
+                                   STEP_TUTOR_MODEL if source == "GENERATED" else "fallback-template",
+                                   leak_checked=level <= 3, conn=conn)
+    except StoreFrozen:  # the cache is an optimisation: a cutover freeze must not fail the student's request
+        pass
     return {"hint_text": hint, "hint_source": source}
 
 

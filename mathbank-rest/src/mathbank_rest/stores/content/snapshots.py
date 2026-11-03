@@ -64,3 +64,8 @@ class SnapshotStore:
 
 
 snapshots = SnapshotStore()
+
+
+def clear() -> None:
+    """Module-level reset (``from mathbank_rest.stores.content import snapshots; snapshots.clear()`` in test fixtures)."""
+    snapshots.clear()

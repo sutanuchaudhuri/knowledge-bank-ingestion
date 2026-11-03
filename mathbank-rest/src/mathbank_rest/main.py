@@ -5,39 +5,40 @@ from fastapi import FastAPI, Response, status
 
 from mathbank_rest.db.graph import check_neo4j
 from mathbank_rest.db.postgres import check_postgres
+from mathbank_rest.openapi_tags import OPENAPI_TAGS
 from mathbank_rest.routers.admin import router as admin_router
+from mathbank_rest.routers.admin_activities import binding_router as admin_activity_bindings_router
+from mathbank_rest.routers.admin_activities import router as admin_activities_router
+from mathbank_rest.routers.admin_content import router as admin_content_router
 from mathbank_rest.routers.admin_corpus import router as admin_corpus_router
 from mathbank_rest.routers.admin_imports import router as admin_imports_router
+from mathbank_rest.routers.admin_taxonomy import router as admin_taxonomy_router
 from mathbank_rest.routers.admin_textbooks import router as admin_textbooks_router
 from mathbank_rest.routers.agent_sessions import router as agent_sessions_router
-from mathbank_rest.routers.fluid import router as fluid_router
-from mathbank_rest.routers.geometry_scenes import router as geometry_scenes_router
-from mathbank_rest.routers.geometry_interpretation import router as geometry_interpretation_router
-from mathbank_rest.routers.interaction_templates import router as interaction_templates_router
-from mathbank_rest.routers.micro_courses import admin_router as micro_course_admin_router
-from mathbank_rest.routers.micro_courses import student_router as micro_course_student_router
-from mathbank_rest.routers.learner import router as learner_router
-from mathbank_rest.routers.live import router as live_router
-from mathbank_rest.routers.attempt_media import router as attempt_media_router
 from mathbank_rest.routers.artifacts import admin_router as artifacts_admin_router
 from mathbank_rest.routers.artifacts import router as artifacts_router
+from mathbank_rest.routers.attempt_media import router as attempt_media_router
+from mathbank_rest.routers.exam_integration import router as exam_integration_router
+from mathbank_rest.routers.fluid import router as fluid_router
+from mathbank_rest.routers.geometry_interpretation import router as geometry_interpretation_router
+from mathbank_rest.routers.geometry_scenes import router as geometry_scenes_router
+from mathbank_rest.routers.interaction_templates import router as interaction_templates_router
+from mathbank_rest.routers.learner import router as learner_router
+from mathbank_rest.routers.live import router as live_router
+from mathbank_rest.routers.micro_courses import admin_router as micro_course_admin_router
+from mathbank_rest.routers.micro_courses import student_router as micro_course_student_router
+from mathbank_rest.routers.notifications import admin_router as notifications_admin_router
+from mathbank_rest.routers.notifications import router as notifications_router
 from mathbank_rest.routers.pedagogy import router as pedagogy_router
 from mathbank_rest.routers.pedagogy_admin import router as pedagogy_admin_router
+from mathbank_rest.routers.quiz_runtime import router as quiz_runtime_router
+from mathbank_rest.routers.socratic import router as socratic_router
 from mathbank_rest.routers.step_runtime import router as step_runtime_router
+from mathbank_rest.routers.theorems import admin_router as theorems_admin_router
+from mathbank_rest.routers.theorems import student_router as theorems_student_router
 from mathbank_rest.routers.tutor import router as tutor_router
 from mathbank_rest.routers.tutoring_routes import router as tutoring_routes_router
 from mathbank_rest.routers.v1 import router as v1_router
-from mathbank_rest.routers.admin_taxonomy import router as admin_taxonomy_router
-from mathbank_rest.routers.admin_activities import router as admin_activities_router
-from mathbank_rest.routers.admin_activities import binding_router as admin_activity_bindings_router
-from mathbank_rest.routers.quiz_runtime import router as quiz_runtime_router
-from mathbank_rest.routers.exam_integration import router as exam_integration_router
-from mathbank_rest.routers.notifications import router as notifications_router
-from mathbank_rest.routers.theorems import admin_router as theorems_admin_router
-from mathbank_rest.routers.theorems import student_router as theorems_student_router
-from mathbank_rest.routers.socratic import router as socratic_router
-
-from mathbank_rest.openapi_tags import OPENAPI_TAGS  # noqa: E402,F401 - shared by every app profile
 
 app = FastAPI(
     title="mathbank-rest",
@@ -56,7 +57,9 @@ app = FastAPI(
     ),
     openapi_tags=OPENAPI_TAGS,
 )
-from mathbank_rest.profiles import install_common  # noqa: E402 - store error mapping + /health/stores
+from mathbank_rest.profiles import (
+    install_common,
+)
 
 install_common(app)
 app.include_router(v1_router)
@@ -88,8 +91,10 @@ app.include_router(admin_activity_bindings_router)
 app.include_router(quiz_runtime_router)
 app.include_router(exam_integration_router)
 app.include_router(notifications_router)
+app.include_router(notifications_admin_router)
 app.include_router(theorems_admin_router)
 app.include_router(theorems_student_router)
+app.include_router(admin_content_router)
 
 
 @app.get("/health", tags=["ops"])

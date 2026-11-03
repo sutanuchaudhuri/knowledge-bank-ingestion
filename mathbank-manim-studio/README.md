@@ -78,6 +78,19 @@ Apply migration 044 once against your Postgres instance before running:
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../mathbank-db/sql/044_manim_studio_jobs.sql
 ```
 
+### DynamoDB + SQS job backend (opt-in, requirement 71 WP3)
+
+Default is the Postgres polling above, unchanged. With `STUDIO_JOBS_BACKEND=dynamodb` the jobs live in the `mb-jobs`
+DynamoDB table and workers are woken by SQS (`mb-studio-research-<env>`, `mb-studio-render-<env>`; create them with
+`make -C ../mathbank-db aws-sqs AWS_ENV=<env>`). The claim is a conditional update with a lease that a heartbeat keeps
+extending, so a duplicate SQS delivery of a claimed or finished job is a no-op, a crashed worker's job is reclaimed once its
+lease expires, and after 3 attempts (or SQS giving up, see `lambda_handler.dlq_handler`) the job is FAILED. Postgres is not
+touched at all, so Neon can suspend while the Studio is idle, and the EventBridge `rate(1 minute)` schedule is replaced by
+an SQS trigger on `lambda_handler.worker_handler`. Needs `mathbank-rest` importable (it owns the jobs store) plus
+`pip install -e ".[dynamodb]"` and `DDB_ENV` / `AWS_REGION` / `AWS_PROFILE` as in mathbank-rest.
+The backend tests (`tests/test_jobs_backend_dynamodb.py`) use moto and skip unless `mathbank_rest` is importable
+(`PYTHONPATH=../mathbank-rest/src .venv/bin/python -m pytest tests/test_jobs_backend_dynamodb.py`).
+
 ### Try it live
 
 ```bash

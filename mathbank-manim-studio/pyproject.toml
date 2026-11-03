@@ -22,6 +22,12 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
+    "moto[dynamodb,s3,sqs]>=5.0",  # tests/test_jobs_backend_dynamodb.py (also needs mathbank-rest importable)
+]
+# STUDIO_JOBS_BACKEND=dynamodb (requirement 71 WP3): jobs in mb-jobs + SQS wake-ups. Also needs `mathbank-rest` on the
+# path (pip install -e ../mathbank-rest), which owns the jobs store.
+dynamodb = [
+    "boto3>=1.35",
 ]
 # AWS Lambda-only (requirements/63, mirrors mathbank-rest's own `lambda` extras group) —
 # boto3 (S3 object storage) and mangum (ASGI-to-Lambda) are never installed into the

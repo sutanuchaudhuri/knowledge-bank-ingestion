@@ -1,6 +1,9 @@
 """Student/admin notifications service (requirements/59) — explicitly NOT an ML concern
 (requirements/54 §2); an event-driven side effect of existing grading/review paths.
 
+Storage is behind `mathbank_rest.stores.get_store("notify")` (requirement 71 WP3): the routers and callers use the
+store; this module keeps the contracts and the PostgreSQL SQL that `PostgresNotifyStore` delegates to.
+
 STATUS: scaffolded. The record_* functions below are fully-typed and documented, but
 NONE of the existing grading functions they're meant to be called from
 (quiz_runtime.submit_response, micro_course_service.submit_learning_item_response,
@@ -15,6 +18,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
+
+from mathbank_rest.stores.errors import NotFound
 
 NotificationType = Literal[
     "QUIZ_GRADED",
@@ -41,6 +46,7 @@ class NotificationEvent(BaseModel):
     payload_json: dict = Field(default_factory=dict)
     read_at: str | None = None
     created_at: str
+    acknowledged_by: str | None = None
 
 
 class NotificationCreate(BaseModel):
@@ -60,6 +66,7 @@ class NotificationListResponse(BaseModel):
 
     notifications: list[NotificationEvent]
     unread_count: int
+    next_token: str | None = None  # DynamoDB backend only: signed cursor for the next page
 
 
 def record_notification(conn, notification: NotificationCreate) -> str:
@@ -150,19 +157,69 @@ def record_admin_review_needed(conn, *, admin_id: str, release_id: str, course_c
     ))
 
 
-def list_notifications(conn, *, recipient_type: RecipientType, recipient_id: str,
-                         limit: int = 25, offset: int = 0) -> NotificationListResponse:
-    """TODO: implement the SELECT + unread count. Not implemented in this pass — the
-    schema/contracts are considered the priority deliverable, not the read path (the read
-    path is the same simple query shape used throughout this repo's other list
-    endpoints, low risk to add later)."""
-    raise NotImplementedError("requirements/59 — notification listing")
+def _iso(value) -> str | None:
+    return None if value is None else value.isoformat() if hasattr(value, "isoformat") else str(value)
 
 
-def mark_read(conn, *, notification_id: str, recipient_id: str) -> None:
-    """TODO: implement. Must verify `recipient_id` owns the notification before marking
-    it read — never let one recipient mark another's notification read."""
-    raise NotImplementedError("requirements/59 — mark notification read")
+def _event(row) -> NotificationEvent:
+    return NotificationEvent(
+        notification_id=row["notification_id"], recipient_type=row["recipient_type"], recipient_id=row["recipient_id"],
+        notification_type=row["notification_type"], severity=row["severity"], title=row["title"], body=row["body"],
+        payload_json=row["payload_json"] or {}, read_at=_iso(row["read_at"]), created_at=_iso(row["created_at"]))
+
+
+def list_notifications(conn, *, recipient_type: RecipientType, recipient_id: str | None = None,
+                         limit: int = 25, offset: int = 0, unread_only: bool = False) -> NotificationListResponse:
+    """Newest first. `recipient_id=None` lists every recipient of that type (the admin inbox, which is shared)."""
+    where = "recipient_type = :rt AND (CAST(:rid AS text) IS NULL OR recipient_id = :rid)"
+    params = {"rt": recipient_type, "rid": recipient_id}
+    rows = conn.execute(
+        text(f"""
+        SELECT notification_id, recipient_type, recipient_id, notification_type, severity, title, body,
+               payload_json, read_at, created_at
+          FROM notification.event
+         WHERE {where} {"AND read_at IS NULL" if unread_only else ""}
+         ORDER BY created_at DESC, notification_id DESC
+         LIMIT :limit OFFSET :offset
+    """),
+        {**params, "limit": max(1, min(limit, 200)), "offset": max(0, offset)},
+    ).mappings().all()
+    unread = conn.execute(
+        text(f"SELECT count(*) FROM notification.event WHERE {where} AND read_at IS NULL"), params).scalar_one()
+    return NotificationListResponse(notifications=[_event(r) for r in rows], unread_count=int(unread))
+
+
+def mark_read(conn, *, notification_id: str, recipient_id: str | None, recipient_type: RecipientType = "STUDENT") -> bool:
+    """Marks one notification read; idempotent. The recipient is part of the WHERE clause, so one recipient can never
+    mark another's notification: an id that is not theirs is `NotFound` (404), exactly like an unknown id.
+    Returns True when it was unread before."""
+    row = conn.execute(
+        text("""
+        WITH cur AS (
+            SELECT notification_id, read_at FROM notification.event
+             WHERE notification_id = :id AND recipient_type = :rt
+               AND (CAST(:rid AS text) IS NULL OR recipient_id = :rid)
+               FOR UPDATE
+        )
+        UPDATE notification.event e SET read_at = COALESCE(e.read_at, now())
+          FROM cur WHERE e.notification_id = cur.notification_id
+        RETURNING (cur.read_at IS NULL) AS was_unread
+    """),
+        {"id": notification_id, "rt": recipient_type, "rid": recipient_id},
+    ).mappings().one_or_none()
+    if row is None:
+        raise NotFound("notification not found")
+    return bool(row["was_unread"])
+
+
+def mark_all_read(conn, *, recipient_type: RecipientType, recipient_id: str) -> int:
+    return conn.execute(
+        text("""
+        UPDATE notification.event SET read_at = now()
+         WHERE recipient_type = :rt AND recipient_id = :rid AND read_at IS NULL
+    """),
+        {"rt": recipient_type, "rid": recipient_id},
+    ).rowcount
 
 
 def _publish_realtime(notification: NotificationEvent) -> None:

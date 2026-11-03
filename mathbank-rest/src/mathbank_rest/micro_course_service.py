@@ -978,6 +978,49 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
     return result
 
 
+def _content_store():
+    from mathbank_rest import stores
+
+    return stores.get_store("content")
+
+
+def lookup_grading_item(conn, state_id: str, learning_item_id: str):
+    """PostgreSQL grading lookup behind ``ContentStore.get_grading_item``: an approved, learner-visible item of a state
+    with its answer key (server-side only, never serialised)."""
+    return (
+        conn.execute(
+            text("""
+            SELECT li.learning_item_id, li.choices, li.correct_answer, li.answer_or_solution_seed
+            FROM pedagogy.micro_course_state_learning_item si
+            JOIN pedagogy.learning_item li USING (learning_item_id)
+            WHERE si.state_id=:state_id AND si.learning_item_id=:item_id
+              AND li.review_status='APPROVED' AND li.student_visible
+        """),
+            {"state_id": str(state_id), "item_id": learning_item_id},
+        )
+        .mappings()
+        .one_or_none()
+    )
+
+
+def lookup_grading_activity(conn, release_id: str, activity_id: str):
+    """PostgreSQL grading lookup behind ``ContentStore.get_grading_activity``: an activity of a release with its policy."""
+    return (
+        conn.execute(
+            text("""
+            SELECT sa.state_id, a.activity_type, a.options, a.correctness_policy
+            FROM pedagogy.micro_course_state_activity sa
+            JOIN pedagogy.micro_course_state s USING (state_id)
+            JOIN activity.definition a USING (activity_id)
+            WHERE sa.activity_id=:activity_id AND s.release_id=:release_id
+        """),
+            {"activity_id": str(activity_id), "release_id": str(release_id)},
+        )
+        .mappings()
+        .one_or_none()
+    )
+
+
 def submit_learning_item_response(
     conn, enrollment_id: str, student_id: str, learning_item_id: str, choice_index: int | None,
     *, gave_up: bool = False,
@@ -1004,19 +1047,8 @@ def submit_learning_item_response(
         raise MicroCourseNotFound("micro-course enrollment not found")
     if runtime["status"] != "IN_PROGRESS":
         raise MicroCourseConflict("micro-course enrollment is not in progress")
-    item = (
-        conn.execute(
-            text("""
-            SELECT li.learning_item_id, li.choices, li.correct_answer, li.answer_or_solution_seed
-            FROM pedagogy.micro_course_state_learning_item si
-            JOIN pedagogy.learning_item li USING (learning_item_id)
-            WHERE si.state_id=:state_id AND si.learning_item_id=:item_id
-              AND li.review_status='APPROVED' AND li.student_visible
-        """),
-            {"state_id": str(runtime["current_state_id"]), "item_id": learning_item_id},
-        )
-        .mappings()
-        .one_or_none()
+    item = _content_store().get_grading_item(
+        conn, runtime.get("release_id"), str(runtime["current_state_id"]), learning_item_id
     )
     if item is None:
         raise MicroCourseNotFound("approved learning item not found in the current lesson state")
@@ -1097,20 +1129,7 @@ def submit_activity_response(
         raise MicroCourseNotFound("micro-course enrollment not found")
     if runtime["status"] != "IN_PROGRESS":
         raise MicroCourseConflict("micro-course enrollment is not in progress")
-    activity = (
-        conn.execute(
-            text("""
-            SELECT sa.state_id, a.activity_type, a.options, a.correctness_policy
-            FROM pedagogy.micro_course_state_activity sa
-            JOIN pedagogy.micro_course_state s USING (state_id)
-            JOIN activity.definition a USING (activity_id)
-            WHERE sa.activity_id=:activity_id AND s.release_id=:release_id
-        """),
-            {"activity_id": str(activity_id), "release_id": str(runtime["release_id"])},
-        )
-        .mappings()
-        .one_or_none()
-    )
+    activity = _content_store().get_grading_activity(conn, str(runtime["release_id"]), str(activity_id))
     if activity is None:
         raise MicroCourseNotFound("quiz activity not found in this course release")
     policy = activity["correctness_policy"] or {}

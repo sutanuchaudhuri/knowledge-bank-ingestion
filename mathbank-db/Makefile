@@ -509,6 +509,10 @@ aws-vectors-verify:             ## Verify S3 Vectors: counts, bit-exact sample, 
 
 aws-migrate-all: aws-provision aws-migrate aws-vectors aws-vectors-verify ## Provision + migrate + vectors (then run aws-verify)
 
+.PHONY: aws-sqs
+aws-sqs:                        ## Create/update the Studio job queues + DLQs mb-<name>-<env> (idempotent; never deletes; AWS_ENV=dev)
+	@cd $(CURDIR) && AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION) .venv/bin/python -m aws.sqs.provision --env $(AWS_ENV) $(if $(AWS_ONLY),--only $(AWS_ONLY))
+
 .PHONY: help
 help:                           ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \

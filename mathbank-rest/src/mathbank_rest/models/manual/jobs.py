@@ -39,6 +39,7 @@ class JobsResearchjob(DdbItem, ctx="jobs", item_type="RESEARCHJOB"):
     # design-only (C4 §3): worker lease / claim written by JobStore.claim
     claim_token: StrictStr | None = None
     lease_until: UtcDateTime | None = None
+    claimed_by: StrictStr | None = None  # worker id that holds / last held the lease
     requested_by: StrictStr | None = None
 
 
@@ -64,6 +65,7 @@ class JobsRenderjob(DdbItem, ctx="jobs", item_type="RENDERJOB"):
     # design-only (C4 §3): same worker lease / claim attributes as RESEARCHJOB
     claim_token: StrictStr | None = None
     lease_until: UtcDateTime | None = None
+    claimed_by: StrictStr | None = None  # worker id that holds / last held the lease
     requested_by: StrictStr | None = None
 
 

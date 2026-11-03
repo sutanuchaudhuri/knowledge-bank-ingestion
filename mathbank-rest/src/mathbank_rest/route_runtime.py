@@ -7,7 +7,8 @@ from uuid import UUID
 
 from sqlalchemy import text
 
-from mathbank_rest.db.postgres import engine
+# `engine` is read at call time by the Postgres content store and patched by tests
+from mathbank_rest.db.postgres import engine  # noqa: F401
 from mathbank_rest.route_contracts import (
     RouteProgram,
     program_digest,
@@ -36,7 +37,18 @@ def select_published(conn, code: str) -> dict | None:
     return dict(row) if row else None
 
 
+def _content():
+    from mathbank_rest import stores
+
+    return stores.get_store("content")
+
+
 def load_program(conn, release_id: str) -> RouteProgram:
+    """Server-side program of a release (includes ``expected_response``); never serialise it into a learner payload."""
+    return _content().load_route_program(release_id, conn=conn)
+
+
+def _pg_load_program(conn, release_id: str) -> RouteProgram:
     release = (
         conn.execute(
             text("""
@@ -136,19 +148,11 @@ def load_program(conn, release_id: str) -> RouteProgram:
 
 
 def plan(code: str) -> dict | None:
-    with engine.connect() as conn:
-        release = select_published(conn, code)
-        if not release:
-            return None
-        steps = list(
-            conn.execute(
-                text("""
-            SELECT content FROM pedagogy.solution_step_instruction
-            WHERE route_release_id=:r ORDER BY step_index
-        """),
-                {"r": release["route_release_id"]},
-            ).scalars()
-        )
+    store = _content()
+    release = store.find_published_route(code)
+    if not release:
+        return None
+    steps = store.list_route_instructions(release["route_release_id"])
     return {
         "problem_code": code,
         "status": "ready",
@@ -179,25 +183,14 @@ def plan(code: str) -> dict | None:
 
 def coaching(code: str, level: int) -> dict | None:
     """Anonymous compatibility coach is restricted to the opening checkpoint."""
-    with engine.connect() as conn:
-        release = select_published(conn, code)
-        if not release:
-            return None
-        instruction = conn.execute(
-            text("""
-            SELECT content FROM pedagogy.solution_step_instruction
-            WHERE route_release_id=:r AND step_index=1
-        """),
-            {"r": release["route_release_id"]},
-        ).scalar_one()
-        hint = conn.execute(
-            text("""
-            SELECT hint_text FROM pedagogy.route_step_hint
-            WHERE route_release_id=:r AND step_index=1 AND hint_level=:level
-              AND hint_variant='default' AND misconception_key=''
-        """),
-            {"r": release["route_release_id"], "level": level},
-        ).scalar_one()
+    store = _content()
+    release = store.find_published_route(code)
+    if not release:
+        return None
+    instruction = store.get_route_step_instruction(release["route_release_id"], 1)
+    hint = store.get_route_step_hint(release["route_release_id"], 1, level)
+    if instruction is None or hint is None:
+        return None
     return {
         "problem_code": code,
         "hint_level": level,
@@ -362,19 +355,11 @@ def edit(conn, release_id: UUID, expected_hash: str, program: RouteProgram) -> d
 
 
 def start_attempt(conn, student_id: UUID, code: str, release_id: UUID | None = None) -> dict:
-    release = select_published(conn, code)
+    store = _content()
     if release_id:
-        release = (
-            conn.execute(
-                text("""
-            SELECT r.* FROM pedagogy.solution_route_release r JOIN core.problem p USING(problem_id)
-            WHERE r.route_release_id=:id AND p.canonical_code=:code AND r.status='PUBLISHED'
-        """),
-                {"id": release_id, "code": code},
-            )
-            .mappings()
-            .first()
-        )
+        release = store.get_published_route(code, release_id, conn=conn)
+    else:
+        release = store.find_published_route(code, conn=conn)
     if not release:
         raise NotFound("No reviewed published route is available for this problem.")
     attempt = (
@@ -408,13 +393,9 @@ def owned_attempt(conn, student_id: UUID, attempt_id: UUID) -> dict:
 
 
 def current_view(conn, attempt: dict) -> dict:
-    params = {"r": attempt["route_release_id"], "i": attempt["current_step"]}
-    instruction = conn.execute(
-        text("""
-        SELECT content FROM pedagogy.solution_step_instruction WHERE route_release_id=:r AND step_index=:i
-    """),
-        params,
-    ).scalar()
+    instruction = _content().get_route_step_instruction(
+        attempt["route_release_id"], attempt["current_step"], conn=conn
+    )
     return {
         "route_attempt_id": str(attempt["route_attempt_id"]),
         "route_release_id": str(attempt["route_release_id"]),
@@ -436,14 +417,9 @@ def assist(
         raise StateVersionConflict("Checkpoint changed; reload the route attempt.")
     if advance and level != 5:
         raise InvalidTransition("Explain the current step before moving forward.")
-    hint = conn.execute(
-        text("""
-        SELECT hint_text FROM pedagogy.route_step_hint
-        WHERE route_release_id=:r AND step_index=:i AND hint_level=:level
-          AND hint_variant='default' AND misconception_key=''
-    """),
-        {"r": attempt["route_release_id"], "i": attempt["current_step"], "level": level},
-    ).scalar()
+    hint = _content().get_route_step_hint(
+        attempt["route_release_id"], attempt["current_step"], level, conn=conn
+    )
     if not hint:
         raise NotFound("No reviewed asset is available for this current step.")
     conn.execute(

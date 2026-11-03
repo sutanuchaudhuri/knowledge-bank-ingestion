@@ -8,10 +8,11 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from mathbank_rest import rate_limit
+from mathbank_rest import rate_limit, stores
 from mathbank_rest.config import settings
-from mathbank_rest.db import hybrid_search, queries, step_search
+from mathbank_rest.db import hybrid_search, step_search
 from mathbank_rest.db import learner as learner_db
+from mathbank_rest.db import queries as queries  # noqa: PLC0414
 
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ class ConceptSearchRequest(BaseModel):
 
 @router.get("/competitions", tags=["corpus"])
 def get_competitions() -> list[dict]:
-    return queries.list_competitions()
+    return stores.get_store("content").list_competitions()
 
 
 @router.get("/problems", tags=["corpus"])
@@ -66,7 +67,7 @@ def get_problems(
     limit: int = Query(25, le=200),
     offset: int = Query(0, ge=0),
 ) -> list[dict]:
-    return queries.list_problems(
+    return stores.get_store("content").list_problems(
         competition=competition,
         year_min=year_min,
         year_max=year_max,
@@ -79,7 +80,7 @@ def get_problems(
 
 @router.get("/problems/by-code/{canonical_code}", tags=["corpus"])
 def get_problem(canonical_code: str) -> dict:
-    problem = queries.get_problem_by_code(canonical_code)
+    problem = stores.get_store("content").get_problem_by_code(canonical_code)
     if problem is None:
         raise HTTPException(status_code=404, detail="problem not found")
     return problem
@@ -91,19 +92,19 @@ def get_concepts(
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
 ) -> list[dict]:
-    return queries.list_concepts(domain=domain, limit=limit, offset=offset)
+    return stores.get_store("content").list_concepts(domain=domain, limit=limit, offset=offset)
 
 
 @router.get("/concepts/{slug}/problems", tags=["taxonomy"])
 def get_concept_problems(
     slug: str, limit: int = Query(25, le=200), offset: int = Query(0, ge=0)
 ) -> list[dict]:
-    return queries.get_concept_problems(slug, limit=limit, offset=offset)
+    return stores.get_store("content").get_concept_problems(slug, limit=limit, offset=offset)
 
 
 @router.get("/concepts/{slug}/neighbors", tags=["taxonomy"])
 def get_concept_neighbors(slug: str) -> list[dict]:
-    return queries.get_concept_neighbors(slug)
+    return stores.get_store("content").get_concept_neighbors(slug)
 
 
 @router.get("/techniques", tags=["taxonomy"])
@@ -112,19 +113,19 @@ def get_techniques(
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
 ) -> list[dict]:
-    return queries.list_techniques(q=q, limit=limit, offset=offset)
+    return stores.get_store("content").list_techniques(q=q, limit=limit, offset=offset)
 
 
 @router.get("/techniques/{slug}/problems", tags=["taxonomy"])
 def get_technique_problems(
     slug: str, limit: int = Query(25, le=200), offset: int = Query(0, ge=0)
 ) -> list[dict]:
-    return queries.get_technique_problems(slug, limit=limit, offset=offset)
+    return stores.get_store("content").get_technique_problems(slug, limit=limit, offset=offset)
 
 
 @router.get("/corpus/coverage", tags=["analytics"])
 def get_corpus_coverage() -> list[dict]:
-    return queries.corpus_coverage()
+    return stores.get_store("content").get_corpus_coverage()
 
 
 @router.get("/analytics/weak-concepts", tags=["analytics"])

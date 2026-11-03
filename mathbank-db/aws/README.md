@@ -22,6 +22,7 @@ is a separate step in requirement 70 §7.
 | [dynamo/migrate.py](dynamo/migrate.py) | Streams each mapping's SQL, transforms, offloads oversized attributes to S3, batch-writes, writes a manifest |
 | [dynamo/verify.py](dynamo/verify.py) | Full consistent scan of every table; count plus order-independent sha256 per (table, item type) vs the manifest |
 | [s3/provision.py](s3/provision.py) | `mathbank-data-<env>-<account>` and `mathbank-content-<env>-<account>` buckets (private, versioned, SSE, TLS-only), the `mathbank-vectors-<env>` vector bucket and its indexes |
+| [sqs/provision.py](sqs/provision.py) | `make aws-sqs`: the Studio job queues `mb-studio-research-<env>`, `mb-studio-render-<env>` (and `mb-geometry-interpret-<env>`) with DLQs `mb-<kind>-dlq-<env>`; idempotent, converges attributes, never deletes |
 | [s3/vector_indexes.py](s3/vector_indexes.py) | Vector index catalog: SQL, metadata, filter keys per family |
 | [s3/vectors.py](s3/vectors.py) | `copy` (binary `real[]` fetch, PutVectors in batches of 500, plus a Parquet archive) and `verify` (archive SHA-256 check, counts vs the live source, bit-exact sample, tie-aware recall@8 vs exact cosine; `--baseline source` re-reads Neon instead) |
 | [runs/](runs/) | Checked-in manifests and verification reports of executed runs (counts and hashes only, no row data) |
