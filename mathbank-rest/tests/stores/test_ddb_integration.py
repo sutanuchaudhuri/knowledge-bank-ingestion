@@ -7,6 +7,7 @@ Never point this at `dev`: that environment holds the migrated copy of real data
 """
 from __future__ import annotations
 
+import threading
 import uuid
 
 import httpx
@@ -127,4 +128,44 @@ def test_idempotent_write_with_offloaded_receipt_on_real_aws(student):
     assert t.get_item(CTX, pk, "IDEM#k1").get("response_ref")
     with pytest.raises(IdempotencyKeyReused):
         t.run_idempotent(CTX, owner_pk=pk, key="k1", req_hash="different", build=build)
+    assert len(t.query_page(CTX, pk, sk_begins="EFFECT#")["items"]) == 1
+
+
+# Atomicity is a property of real DynamoDB; moto's in-process mock is not atomic across threads, so these races
+# are asserted here (and only here).
+
+def test_only_one_of_concurrent_cas_writers_wins(student):
+    pk = t.student_pk(student)
+    t.put_item(CTX, {"PK": pk, "SK": "X", "type": "T", "version": 1, "n": 0})
+    wins, losses = [], []
+
+    def worker(i):
+        try:
+            t.cas_update(CTX, pk, "X", 1, {"n": i})
+            wins.append(i)
+        except RevisionConflict:
+            losses.append(i)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+    [x.start() for x in threads]
+    [x.join() for x in threads]
+    assert len(wins) == 1 and len(losses) == 7 and t.get_item(CTX, pk, "X")["version"] == 2
+
+
+def test_concurrent_idempotent_requests_apply_the_effect_once(student):
+    pk, calls, results, lock = t.student_pk(student), [], [], threading.Lock()
+
+    def worker():
+        def build():
+            with lock:
+                calls.append(1)
+            return [t.Put(CTX, {"PK": pk, "SK": f"EFFECT#{uuid.uuid4()}", "type": "EFFECT"})], {"ok": True}
+
+        results.append(t.run_idempotent(CTX, owner_pk=pk, key="race", req_hash="h", build=build))
+
+    threads = [threading.Thread(target=worker) for _ in range(6)]
+    [x.start() for x in threads]
+    [x.join() for x in threads]
+    assert len(results) == 6 and all(r[0] == {"ok": True} for r in results)
+    assert sum(1 for _, replayed in results if not replayed) == 1
     assert len(t.query_page(CTX, pk, sk_begins="EFFECT#")["items"]) == 1

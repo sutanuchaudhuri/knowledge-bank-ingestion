@@ -56,6 +56,16 @@ test-ddb:                       ## Store-layer tests on moto (no AWS, no databas
 test-ddb-integration:           ## Same toolkit against the REAL `test` environment (needs: make -C ../mathbank-db aws-provision AWS_ENV=test)
 	MB_DDB_ENV=test DDB_ENV=test AWS_PROFILE=$${AWS_PROFILE:-aws-sutanu-admin} DDB_REGION=us-east-2 $(PYTEST) -q -m ddb_integration tests/stores
 
+.PHONY: aws-check run-runtime run-admin
+aws-check:                      ## Verify AWS credentials + the DynamoDB/S3/S3 Vectors env a local run needs (DDB_ENV=dev|test; CTX="learner exam", default all; WRITE=1 adds a write round-trip)
+	$(BIN)/python -m mathbank_rest.stores.doctor $(if $(CTX),--contexts $(CTX),--all) $(if $(WRITE),--write-check) --vectors
+
+run-runtime:                    ## Run the runtime profile (no Postgres engine) on :$(PORT); set <CTX>_STORE=dynamodb DDB_ENV=dev to use AWS
+	$(UVICORN) mathbank_rest.app_runtime:app --app-dir src --reload --port $(PORT)
+
+run-admin:                      ## Run the admin profile on :$(PORT)
+	$(UVICORN) mathbank_rest.app_admin:app --app-dir src --reload --port $(PORT)
+
 findings-check:                 ## Report the schema-doc findings ledger and validate its rows (use WP=WP5 to require one WP closed)
 	$(BIN)/python scripts/findings_check.py $(if $(WP),--wp $(WP))
 

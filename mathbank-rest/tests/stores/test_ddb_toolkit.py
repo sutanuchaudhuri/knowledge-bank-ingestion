@@ -1,7 +1,6 @@
 """Store-layer DynamoDB toolkit on moto (requirement 71 §2.3)."""
 from __future__ import annotations
 
-import threading
 import time
 import uuid
 
@@ -96,23 +95,6 @@ def test_cas_update_refuses_reserved_fields(ddb, sid, field):
     put(sid, "X")
     with pytest.raises(ValueError):
         t.cas_update(CTX, t.student_pk(sid), "X", 1, {field: "x"})
-
-
-def test_cas_update_only_one_of_concurrent_writers_wins(ddb, sid):
-    put(sid, "X", n=0)
-    wins, losses = [], []
-
-    def worker(i):
-        try:
-            t.cas_update(CTX, t.student_pk(sid), "X", 1, {"n": i})
-            wins.append(i)
-        except RevisionConflict:
-            losses.append(i)
-
-    threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
-    [x.start() for x in threads]
-    [x.join() for x in threads]
-    assert len(wins) == 1 and len(losses) == 7 and t.get_item(CTX, t.student_pk(sid), "X")["version"] == 2
 
 
 # ---------------------------------------------------------------- transactions and sentinels
@@ -310,26 +292,6 @@ def test_idempotency_receipt_commits_atomically_with_a_failing_effect(ddb, sid):
     with pytest.raises(ConditionFailed):
         t.run_idempotent(CTX, owner_pk=t.student_pk(sid), key="k", req_hash="h", build=bad)
     assert t.get_item(CTX, t.student_pk(sid), "IDEM#k") is None  # no receipt without the effect
-
-
-def test_idempotency_concurrent_requests_apply_effect_once(ddb, sid):
-    calls, results = [], []
-    lock = threading.Lock()
-
-    def worker():
-        def build():
-            with lock:
-                calls.append(1)
-            return ([t.Put(CTX, {"PK": t.student_pk(sid), "SK": f"EFFECT#{uuid.uuid4()}", "type": "EFFECT"})], {"ok": True})
-
-        results.append(t.run_idempotent(CTX, owner_pk=t.student_pk(sid), key="race", req_hash="h", build=build))
-
-    threads = [threading.Thread(target=worker) for _ in range(6)]
-    [x.start() for x in threads]
-    [x.join() for x in threads]
-    assert len(results) == 6 and all(r[0] == {"ok": True} for r in results)
-    assert sum(1 for _, replayed in results if not replayed) == 1
-    assert len(t.query_page(CTX, t.student_pk(sid), sk_begins="EFFECT#")["items"]) == 1
 
 
 def test_expired_receipt_allows_the_key_to_be_reused(ddb, sid, monkeypatch):

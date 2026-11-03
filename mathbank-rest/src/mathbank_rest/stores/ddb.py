@@ -75,14 +75,16 @@ def _cfg(service: str = "dynamodb") -> Config:
 def _make(service: str):
     import boto3
 
-    kw: dict[str, Any] = {"region_name": settings.ddb_region, "config": _cfg(service)}
+    # An explicit profile (local development) beats the default chain; empty means env / shared config / role.
+    session = boto3.session.Session(profile_name=settings.aws_profile or None, region_name=settings.ddb_region)
+    kw: dict[str, Any] = {"config": _cfg(service)}
     if settings.ddb_endpoint_url and service in ("dynamodb",):
         kw["endpoint_url"] = settings.ddb_endpoint_url
-    return boto3.client(service, **kw)
+    return session.client(service, **kw)
 
 
 def client(service: str = "dynamodb"):
-    key = (service, settings.ddb_region, settings.ddb_endpoint_url if service == "dynamodb" else "")
+    key = (service, settings.ddb_region, settings.aws_profile, settings.ddb_endpoint_url if service == "dynamodb" else "")
     with _lock:
         if key not in _clients:
             _clients[key] = _make(service)
@@ -575,3 +577,109 @@ def run_idempotent(ctx: str, *, owner_pk: str, key: str, req_hash: str,
             raise
         return replay(winner)
     return response, False
+
+
+# ------------------------------------------------------------------ connectivity (local development, startup, /health)
+
+_CREDENTIAL_HINT = (
+    "AWS credentials are missing or expired. For the profile used by this app run `aws login --profile {profile}` "
+    "(or `aws sso login --profile {profile}`), or set AWS_PROFILE / MB_AWS_PROFILE in mathbank-rest/.env."
+)
+
+
+def credential_hint() -> str:
+    return _CREDENTIAL_HINT.format(profile=settings.aws_profile or "<your-profile>")
+
+
+def _classify(exc: Exception) -> tuple[str, str]:
+    """(short code, actionable message) for an AWS failure."""
+    from botocore.exceptions import (
+        BotoCoreError,
+        NoCredentialsError,
+        NoRegionError,
+        ProfileNotFound,
+    )
+
+    if isinstance(exc, (NoCredentialsError, ProfileNotFound)) or type(exc).__name__ in (
+            "MissingDependencyException", "CredentialRetrievalError", "TokenRetrievalError", "SSOTokenLoadError"):
+        return "credentials", f"{exc}. {credential_hint()}"
+    if isinstance(exc, NoRegionError):
+        return "region", "no AWS region configured; set DDB_REGION (default us-east-2)"
+    if isinstance(exc, ClientError):
+        code = exc.response.get("Error", {}).get("Code", "")
+        if code in ("ExpiredToken", "ExpiredTokenException", "InvalidClientTokenId", "UnrecognizedClientException",
+                    "InvalidSignatureException", "AuthFailure"):
+            return "credentials", f"{code}. {credential_hint()}"
+        if code in ("AccessDeniedException", "AccessDenied", "UnauthorizedOperation"):
+            return "access", f"{code}: the credentials cannot perform this operation ({exc.response['Error'].get('Message', '')})"
+        if code == "ResourceNotFoundException":
+            return "missing", "table not found; create the environment with `make -C ../mathbank-db aws-provision AWS_ENV=" + settings.ddb_env + "`"
+        return code or "client", str(exc)
+    if isinstance(exc, BotoCoreError):
+        return "network", f"{exc}. Check network access to AWS ({settings.ddb_region})."
+    return type(exc).__name__, str(exc)
+
+
+def check_connectivity(contexts: Iterable[str] = (), *, write_check: bool = False, vectors: bool = False) -> dict:
+    """Verify that this process can use the data plane: credentials, tables, buckets, optional write round trip.
+
+    Never raises: returns {"ok", "identity", "env", "region", "profile", "tables": {...}, "buckets": {...},
+    "errors": [...], "hint"}. `contexts` are table contexts (e.g. "learner", "agent_sessions"); empty means none.
+    `write_check` puts, reads and deletes one throwaway item (TTL 1 h) in the context's table to prove write access."""
+    out: dict[str, Any] = {"ok": True, "env": settings.ddb_env, "region": settings.ddb_region,
+                           "profile": settings.aws_profile or "(default chain)", "tables": {}, "buckets": {}, "errors": []}
+
+    def fail(where: str, exc: Exception) -> None:
+        code, msg = _classify(exc)
+        out["ok"] = False
+        out["errors"].append({"where": where, "code": code, "message": msg})
+        if code == "credentials":
+            out["hint"] = credential_hint()
+
+    try:
+        ident = client("sts").get_caller_identity()
+        out["identity"] = {"account": ident["Account"], "arn": ident["Arn"]}
+    except Exception as exc:  # noqa: BLE001 - reported, never raised
+        fail("credentials", exc)
+        return out
+    ddb = client()
+    for ctx in dict.fromkeys(contexts):
+        name = table_name(ctx)
+        try:
+            d = ddb.describe_table(TableName=name)["Table"]
+            info = {"status": d["TableStatus"], "items_approx": d.get("ItemCount"),
+                    "gsis": sorted(g["IndexName"] for g in d.get("GlobalSecondaryIndexes", [])),
+                    "deletion_protection": d.get("DeletionProtectionEnabled")}
+            if d["TableStatus"] != "ACTIVE":
+                out["ok"] = False
+                out["errors"].append({"where": name, "code": "status", "message": f"table is {d['TableStatus']}"})
+            if write_check:
+                key = {"PK": f"DOCTOR#{uuid.uuid4()}", "SK": "CHECK"}
+                put_item(ctx, {**key, "type": "DOCTOR", "version": 1, "ttl": epoch_after(1 / 24)})
+                got = get_item(ctx, key["PK"], key["SK"])
+                ddb.delete_item(TableName=name, Key={"PK": {"S": key["PK"]}, "SK": {"S": key["SK"]}})
+                info["write_roundtrip"] = bool(got and got["type"] == "DOCTOR")
+                if not info["write_roundtrip"]:
+                    out["ok"] = False
+                    out["errors"].append({"where": name, "code": "write", "message": "write/read round trip failed"})
+            out["tables"][name] = info
+        except Exception as exc:  # noqa: BLE001
+            out["tables"][name] = {"status": "ERROR"}
+            fail(name, exc)
+    if contexts:
+        s3 = client("s3")
+        for kind, fn in (("data", data_bucket), ("content", content_bucket)):
+            try:
+                b = fn()
+                s3.head_bucket(Bucket=b)
+                out["buckets"][b] = "ok"
+            except Exception as exc:  # noqa: BLE001
+                fail(f"s3:{kind}", exc)
+    if vectors:
+        vb = settings.vector_bucket or f"mathbank-vectors-{settings.ddb_env}"
+        try:
+            n = len(client("s3vectors").list_indexes(vectorBucketName=vb, maxResults=100).get("indexes", []))
+            out["buckets"][vb] = f"ok ({n} indexes)"
+        except Exception as exc:  # noqa: BLE001
+            fail(f"s3vectors:{vb}", exc)
+    return out

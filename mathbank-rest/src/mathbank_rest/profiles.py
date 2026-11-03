@@ -16,11 +16,15 @@ never be silently dropped from a profile.
 from __future__ import annotations
 
 import importlib
+import logging
 from collections.abc import Iterable
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 
+from mathbank_rest import stores
 from mathbank_rest.openapi_tags import OPENAPI_TAGS
+
+LOGGER = logging.getLogger(__name__)
 
 # name -> (module, attribute). Order is the mount order used by main.py.
 ROUTERS: dict[str, tuple[str, str]] = {
@@ -99,16 +103,50 @@ def load_router(name: str):
 
 def install_common(app: FastAPI) -> FastAPI:
     """Pieces every profile shares: store error mapping and the stores health endpoint."""
-    from mathbank_rest import stores
     from mathbank_rest.stores.errors import install_error_handlers
 
     install_error_handlers(app)
 
     @app.get("/health/stores", tags=["ops"])
-    def health_stores() -> dict:
-        return {"profile": stores.settings.app_profile, "stores": stores.describe()}
+    def health_stores(response: Response, deep: bool = False) -> dict:
+        """Store flags per context. `?deep=true` also proves AWS connectivity (credentials, tables, buckets)."""
+        body: dict = {"profile": stores.settings.app_profile, "stores": stores.describe()}
+        if deep:
+            aws = _aws_connectivity()
+            body["aws"] = aws
+            if not aws["ok"]:
+                response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return body
 
+    app.router.on_startup.append(startup_aws_check)
     return app
+
+
+def _aws_contexts() -> list[str]:
+    return [c for c in stores.CONTEXTS if stores.store_mode(c)[1] == "dynamodb"]
+
+
+def _aws_connectivity() -> dict:
+    from mathbank_rest.stores import ddb
+
+    return ddb.check_connectivity(_aws_contexts(), vectors=stores.settings.vector_store == "s3vectors")
+
+
+def startup_aws_check() -> None:
+    """Fail fast, with an actionable message, when a store uses AWS but this process cannot reach it.
+    Does nothing while every store is on postgres (today's default), so existing local runs are unchanged."""
+    if not stores.settings.ddb_startup_check:
+        return
+    if not _aws_contexts() and stores.settings.vector_store != "s3vectors":
+        return
+    result = _aws_connectivity()
+    if not result["ok"]:
+        lines = "; ".join(f"[{e['code']}] {e['where']}: {e['message']}" for e in result["errors"])
+        raise RuntimeError(
+            f"AWS data plane not reachable (env={result['env']}, profile={result['profile']}): {lines}. "
+            "Run `make aws-check` in mathbank-rest for details, or set DDB_STARTUP_CHECK=false to skip this check.")
+    LOGGER.info("AWS data plane ready: env=%s account=%s contexts=%s", result["env"],
+                result.get("identity", {}).get("account"), _aws_contexts())
 
 
 def create_app(profile: str, *, extra: Iterable[str] = ()) -> FastAPI:
