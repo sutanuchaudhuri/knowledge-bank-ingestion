@@ -64,18 +64,18 @@ def test_unknown_context_is_rejected():
 
 
 def test_unimplemented_backend_is_a_clear_501_not_a_silent_fallback(monkeypatch):
-    monkeypatch.setattr(settings, "exam_store", "dynamodb")
+    monkeypatch.setattr(settings, "live_store", "dynamodb")
     with pytest.raises(E.StoreNotImplemented) as e:
-        stores.get_store("exam")
-    assert e.value.status_code == 501 and e.value.detail == {"context": "exam", "backend": "dynamodb"}
+        stores.get_store("live")
+    assert e.value.status_code == 501 and e.value.detail == {"context": "live", "backend": "dynamodb"}
 
 
 def test_registered_implementation_is_selected_by_flag(monkeypatch):
-    stores.register_implementation("exam", "postgres", f"{__name__}:FakeStore")
-    assert isinstance(stores.get_store("exam"), FakeStore)
-    monkeypatch.setattr(settings, "exam_store", "dynamodb")
+    stores.register_implementation("live", "postgres", f"{__name__}:FakeStore")
+    assert isinstance(stores.get_store("live"), FakeStore)
+    monkeypatch.setattr(settings, "live_store", "dynamodb")
     with pytest.raises(E.StoreNotImplemented):
-        stores.get_store("exam")
+        stores.get_store("live")
 
 
 def test_override_store_wins_and_restores():
@@ -134,7 +134,7 @@ def test_unreadable_ssm_flag_never_takes_the_api_down(monkeypatch):
 def test_describe_reports_every_context_and_vectors():
     d = stores.describe()
     assert set(d) == {*stores.CONTEXTS, "vectors"} and d["vectors"] == {"backend": "pgvector"}
-    assert d["exam"] == {"mode": "postgres", "backend": "postgres", "implemented": False}
+    assert d["live"] == {"mode": "postgres", "backend": "postgres", "implemented": False}
     assert d["learner"]["implemented"] is True
 
 

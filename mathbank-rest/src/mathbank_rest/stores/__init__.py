@@ -154,6 +154,8 @@ for _ctx, _backend, _target in (
     ("content", "dynamodb", "mathbank_rest.stores.content:DynamoDBContentStore"),
     ("learner", "postgres", "mathbank_rest.stores.learner:PostgresLearnerStore"),
     ("learner", "dynamodb", "mathbank_rest.stores.learner:DynamoDBLearnerStore"),
+    ("exam", "postgres", "mathbank_rest.stores.exam:PostgresExamStore"),
+    ("exam", "dynamodb", "mathbank_rest.stores.exam:DynamoDBExamStore"),
     ("jobs", "postgres", "mathbank_rest.stores.jobs:PostgresJobsStore"),
     ("jobs", "dynamodb", "mathbank_rest.stores.jobs:DynamoDBJobsStore"),
     ("notify", "postgres", "mathbank_rest.stores.notify:PostgresNotifyStore"),

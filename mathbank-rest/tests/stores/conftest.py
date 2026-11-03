@@ -36,12 +36,20 @@ LEARNER_GSI2_INCLUDE = sorted({
     "attempt_count", "independent_success", "type"})
 
 
+# Production exam GSI1 and GSI2 both project only these attributes (+ keys and `type`): mathbank-db/aws/dynamo/specs/exam.py GSI_INCLUDE.
+EXAM_GSI_INCLUDE = sorted({
+    "quiz_id", "style", "title", "status", "created_at", "exam_mode", "agent_framework", "question_count", "answered_count",
+    "correct_count", "student_id", "question_type", "difficulty_band", "times_served", "topic_key", "concept_slugs", "error_message",
+    "type"})
+
+
 def _create_tables(client, env: str) -> None:
     for ctx in CTXS:
         gsis = []
         for g in ("GSI1", "GSI2"):
-            projection = ({"ProjectionType": "INCLUDE", "NonKeyAttributes": LEARNER_GSI2_INCLUDE}
-                          if (ctx, g) == ("learner", "GSI2") else {"ProjectionType": "ALL"})
+            projection = ({"ProjectionType": "INCLUDE", "NonKeyAttributes": LEARNER_GSI2_INCLUDE} if (ctx, g) == ("learner", "GSI2")
+                          else {"ProjectionType": "INCLUDE", "NonKeyAttributes": EXAM_GSI_INCLUDE} if ctx == "exam"
+                          else {"ProjectionType": "ALL"})
             gsis.append({"IndexName": g, "KeySchema": [{"AttributeName": f"{g}PK", "KeyType": "HASH"},
                                                        {"AttributeName": f"{g}SK", "KeyType": "RANGE"}], "Projection": projection})
         client.create_table(

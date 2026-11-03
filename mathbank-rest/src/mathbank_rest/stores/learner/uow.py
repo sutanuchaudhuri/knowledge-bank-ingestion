@@ -42,6 +42,12 @@ T = TypeVar("T")
 
 
 class LearnerUnitOfWork:
+    """Atomic transaction builder over one DynamoDB table; ``CTX`` and ``APPEND_ONLY`` are class attributes so another context
+    (``stores/exam/uow.py``) reuses every rule with its own table and append-only types."""
+
+    CTX = CTX
+    APPEND_ONLY = APPEND_ONLY
+
     def __init__(self, student_id: Any) -> None:
         self.student_id = str(student_id)
         self.pk = ddb.student_pk(student_id)
@@ -76,7 +82,7 @@ class LearnerUnitOfWork:
 
     def put(self, item: DdbItem, *, cond: ddb.Cond | None = None, conflict: StoreError | None = None, label: str = "") -> LearnerUnitOfWork:
         """Create or replace an item of a mutable type, optionally conditional (e.g. ``version = :v``)."""
-        if item.type in APPEND_ONLY:
+        if item.type in self.APPEND_ONLY:
             raise ValidationFailed(f"{item.type} is append-only: use put_new", type=item.type)
         self._own(item.PK, f"put {item.type}")
         self._ops.append(typed.tx_put(item, cond, conflict, label or item.type))
@@ -88,7 +94,7 @@ class LearnerUnitOfWork:
         """``SET <changes>, <bump> = <bump> + 1, updated_at = :now`` guarded by ``expected`` attribute equalities (optimistic
         concurrency: pass ``{"version": 3}`` or ``{"state_version": 5}``), the item existing, and an extra ``cond``.
         ``increment`` adds to numeric counters (``{"attempt_count": 1}``); ``remove`` drops attributes."""
-        if model.TYPE in APPEND_ONLY:
+        if model.TYPE in self.APPEND_ONLY:
             raise ValidationFailed(f"{model.TYPE} is append-only: it cannot be updated", type=model.TYPE)
         self._own(pk, f"update {model.TYPE}")
         sets: list[str] = []
@@ -116,20 +122,20 @@ class LearnerUnitOfWork:
             guards.append(f"({cond.expr})")
             names.update(cond.names)
             values.update(cond.values)
-        self._ops.append(ddb.Update(CTX, pk, sk, expr, names=names, values=values, cond=ddb.Cond(" AND ".join(guards)),
+        self._ops.append(ddb.Update(self.CTX, pk, sk, expr, names=names, values=values, cond=ddb.Cond(" AND ".join(guards)),
                                     conflict=conflict, label=label or f"{model.TYPE}:{sk}"))
         return self
 
     def delete(self, model: type[DdbItem], pk: str, sk: str, *, cond: ddb.Cond | None = None, conflict: StoreError | None = None) -> LearnerUnitOfWork:
-        if model.TYPE in APPEND_ONLY:
+        if model.TYPE in self.APPEND_ONLY:
             raise ValidationFailed(f"{model.TYPE} is append-only: it cannot be deleted", type=model.TYPE)
         self._own(pk, f"delete {model.TYPE}")
-        self._ops.append(ddb.Delete(CTX, pk, sk, cond, conflict, label=model.TYPE))
+        self._ops.append(ddb.Delete(self.CTX, pk, sk, cond, conflict, label=model.TYPE))
         return self
 
     def sentinel(self, field: str, value: Any, owner: dict | None = None, *, ttl: int | None = None) -> LearnerUnitOfWork:
         """Uniqueness sentinel (a PostgreSQL UNIQUE): the transaction fails with ``UniqueViolation(field)`` when taken."""
-        self._ops.append(ddb.sentinel_put(CTX, field, value, owner, ttl=ttl))
+        self._ops.append(ddb.sentinel_put(self.CTX, field, value, owner, ttl=ttl))
         return self
 
     def add(self, op: ddb.TxOp) -> LearnerUnitOfWork:
@@ -152,11 +158,11 @@ class LearnerUnitOfWork:
 # ---------------------------------------------------------------------------------------------- helpers
 
 def run_idempotent(student_id: Any, *, key: str | None, operation: str, body: Any,
-                   build: Callable[[LearnerUnitOfWork], T]) -> tuple[T, bool]:
+                   build: Callable[[LearnerUnitOfWork], T], uow_class: type[LearnerUnitOfWork] = LearnerUnitOfWork) -> tuple[T, bool]:
     """Run ``build(uow)`` and commit its ops atomically. With an ``Idempotency-Key`` the receipt is part of the same transaction:
     a repeat of the same request replays the stored response (``replayed=True``); the same key with a different request is 422.
     ``build`` runs at most once per key and returns the response document stored in the receipt. Without a key it just commits."""
-    uow = LearnerUnitOfWork(student_id)
+    uow = uow_class(student_id)
     if not key:
         response = build(uow)
         uow.commit()
@@ -168,7 +174,7 @@ def run_idempotent(student_id: Any, *, key: str | None, operation: str, body: An
             raise StoreError(f"learner transaction has {len(uow)} items; with the receipt the limit is {MAX_ITEMS}")
         return uow.ops(), response
 
-    return ddb.run_idempotent(CTX, owner_pk=uow.pk, key=key, req_hash=ddb.request_hash({"operation": operation, "body": body}),
+    return ddb.run_idempotent(uow.CTX, owner_pk=uow.pk, key=key, req_hash=ddb.request_hash({"operation": operation, "body": body}),
                               build=stage)
 
 
