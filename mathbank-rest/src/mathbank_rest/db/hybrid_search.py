@@ -8,6 +8,7 @@ import re
 from neo4j.exceptions import Neo4jError, ServiceUnavailable, SessionExpired
 from sqlalchemy import text
 
+from mathbank_rest import vector_store
 from mathbank_rest.db import vector_search
 from mathbank_rest.db.graph import driver
 from mathbank_rest.db.postgres import engine
@@ -127,6 +128,45 @@ def fuse(vector_rows: list[dict], graph_rows: list[dict]) -> dict[str, dict]:
     return merged
 
 
+def _search_problems_vectors(query: str, *, competition: str | None, year_min: int | None, year_max: int | None,
+                             semantic: bool, lexical: bool, graph: bool, order_by: str, limit: int) -> dict:
+    """Vector-only retrieval (S3 Vectors) fused with the reviewed-graph evidence, hydrated from mb-content.
+
+    Lexical ranking lived in Postgres full-text search and is not available here: it is reported, not silently dropped."""
+    from mathbank_rest.db import problem_search_vectors as psv
+
+    filters = psv.ProblemFilters(competition=competition, year_min=year_min, year_max=year_max)
+    candidates = min(max(limit * 4, 40), vector_store.MAX_TOP_K)
+    warnings: list[str] = []
+    if lexical:
+        warnings.append("Lexical retrieval is not available with S3 Vectors; results use semantic and graph retrieval.")
+    cands, items = psv.semantic_candidates(query, filters, candidates=candidates) if semantic else ([], {})
+    rows = [{"canonical_code": c.canonical_code, "semantic_rank": c.semantic_rank, "lexical_rank": None} for c in cands]
+    graph_rows: list[dict] = []
+    if graph:
+        try:
+            seeds = [c.canonical_code for c in cands][:25]
+            # no eligible list without Postgres: graph candidates are filtered after hydration against the same filters
+            graph_rows = graph_candidates(query, seeds, None, candidates)
+        except (Neo4jError, ServiceUnavailable, SessionExpired) as exc:
+            logger.exception("Graph retrieval unavailable")
+            warnings.append(f"Graph retrieval unavailable ({type(exc).__name__}); results use the remaining requested sources.")
+    merged = fuse(rows, graph_rows)
+    missing = [c for c in merged if c not in items]
+    if missing:
+        items = {**items, **psv.content_lookup.problems_by_code(missing)}
+    codes = [c for c in merged if (p := items.get(c)) is not None and psv.content_lookup.is_published(p) and filters.accepts(p)]
+    ordered = psv.order_rows(psv.hydrate(codes, items, merged, with_statement=False), order_by)[:limit]
+    results = [r.model_dump() | merged[r.canonical_code]
+               for r in psv.hydrate([r.canonical_code for r in ordered], items, merged)]
+    return {
+        "query": query, "results": results, "warnings": warnings,
+        "retrieval": {"semantic": semantic, "lexical": lexical, "lexical_applied": False,
+                      "graph": "unavailable" if any(w.startswith("Graph") for w in warnings) else "queried" if graph else "disabled",
+                      "graph_candidates": len(graph_rows), "vector_lexical_candidates": len(rows), "engine": "s3vectors"},
+    }
+
+
 def search_problems(
     query: str,
     *,
@@ -139,6 +179,9 @@ def search_problems(
     order_by: str = "relevance",
     limit: int = 25,
 ) -> dict:
+    if vector_store.uses_s3_vectors():          # WP2: no Postgres; the SQL flow below is the rollback path
+        return _search_problems_vectors(query, competition=competition, year_min=year_min, year_max=year_max,
+                                        semantic=semantic, lexical=lexical, graph=graph, order_by=order_by, limit=limit)
     filters = {"competition": competition, "year_min": year_min, "year_max": year_max}
     candidates = min(max(limit * 4, 100), 400)
     rows = (

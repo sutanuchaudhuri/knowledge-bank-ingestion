@@ -11,7 +11,7 @@ from functools import lru_cache
 from openai import OpenAI
 from sqlalchemy import text
 
-from mathbank_rest import rate_limit
+from mathbank_rest import rate_limit, vector_store
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.project_credentials import configure_openai
 
@@ -60,6 +60,12 @@ def search_problems(
     order_by: 'relevance' (default, RRF score) | 'year_desc' | 'year_asc' —
     use 'year_desc' for "recent problems on X" style queries.
     """
+    if vector_store.uses_s3_vectors():          # WP2: S3 Vectors + mb-content, no Postgres; the SQL below is the rollback path
+        from mathbank_rest.db import problem_search_vectors
+
+        return problem_search_vectors.search_problems(
+            query_text, competition=competition, year_min=year_min, year_max=year_max, semantic=semantic,
+            order_by=order_by, limit=limit)
     model_id = _active_model_id() if semantic else None
     query_vector = embed_query(query_text) if semantic else None
 
