@@ -83,3 +83,28 @@ def real_env(monkeypatch):
     toolkit.reset_clients()
     yield
     toolkit.reset_clients()
+
+
+CONTENT_BUCKET = f"mathbank-content-ut-{ACCOUNT}"
+
+
+@pytest.fixture()
+def content_table(ddb):
+    """moto: the ``mb-content-ut`` table with GSI1/GSI2 (as provisioned) and the content bucket, next to learner/exam.
+
+    Use ``typed.put(<model>)`` to seed items and ``toolkit.client("s3").put_object(Bucket=CONTENT_BUCKET, ...)`` for snapshots."""
+    ddb.create_table(
+        TableName="mb-content-ut",
+        AttributeDefinitions=[{"AttributeName": a, "AttributeType": "S"} for a in ("PK", "SK", "GSI1PK", "GSI1SK", "GSI2PK", "GSI2SK")],
+        KeySchema=[{"AttributeName": "PK", "KeyType": "HASH"}, {"AttributeName": "SK", "KeyType": "RANGE"}],
+        GlobalSecondaryIndexes=[
+            {"IndexName": g, "KeySchema": [{"AttributeName": f"{g}PK", "KeyType": "HASH"}, {"AttributeName": f"{g}SK", "KeyType": "RANGE"}],
+             "Projection": {"ProjectionType": "ALL"}} for g in ("GSI1", "GSI2")],
+        BillingMode="PAY_PER_REQUEST",
+    )
+    toolkit.client("s3").create_bucket(Bucket=toolkit.content_bucket(), CreateBucketConfiguration={"LocationConstraint": "us-east-2"})
+    from mathbank_rest.stores.content import snapshots
+
+    snapshots.clear()
+    yield ddb
+    snapshots.clear()

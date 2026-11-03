@@ -148,6 +148,18 @@ def register_implementation(ctx: str, backend: str, target: str | Callable) -> N
     IMPLEMENTATIONS[ctx][backend] = target if isinstance(target, str) else f"{target.__module__}:{target.__qualname__}"
 
 
+# Work-package implementations, loaded lazily on first use of the flag (see `_load`).
+for _ctx, _backend, _target in (
+    ("content", "postgres", "mathbank_rest.stores.content:PostgresContentStore"),
+    ("content", "dynamodb", "mathbank_rest.stores.content:DynamoDBContentStore"),
+    ("jobs", "postgres", "mathbank_rest.stores.jobs:PostgresJobsStore"),
+    ("jobs", "dynamodb", "mathbank_rest.stores.jobs:DynamoDBJobsStore"),
+    ("notify", "postgres", "mathbank_rest.stores.notify:PostgresNotifyStore"),
+    ("notify", "dynamodb", "mathbank_rest.stores.notify:DynamoDBNotifyStore"),
+):
+    IMPLEMENTATIONS[_ctx][_backend] = _target
+
+
 def describe() -> dict[str, dict]:
     """Flag state for /health/stores: mode, backend and whether an implementation is registered."""
     out = {}
