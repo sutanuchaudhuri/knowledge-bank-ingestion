@@ -11,6 +11,7 @@ from functools import lru_cache
 from openai import OpenAI
 from sqlalchemy import text
 
+from mathbank_rest import rate_limit
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.project_credentials import configure_openai
 
@@ -37,6 +38,7 @@ def _active_model_id() -> str:
 
 def embed_query(query_text: str) -> str:
     """Returns a pgvector literal string, e.g. '[0.1,0.2,...]'."""
+    rate_limit.assert_embeddings_allowed()
     response = _client.embeddings.create(model=EMBEDDING_MODEL_NAME, input=[query_text])
     values = response.data[0].embedding
     return "[" + ",".join(repr(v) for v in values) + "]"

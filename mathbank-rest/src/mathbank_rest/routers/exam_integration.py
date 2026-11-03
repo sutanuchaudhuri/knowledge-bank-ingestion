@@ -351,7 +351,7 @@ def difficulty_distribution(concept_slug: str | None = None, technique_slug: str
             FROM core.problem p
             JOIN knowledge.problem_concept pc ON pc.problem_id = p.problem_id
             JOIN knowledge.concept c ON c.concept_id = pc.concept_id
-            WHERE c.slug = :slug AND p.difficulty_band IS NOT NULL
+            WHERE c.slug = :slug AND pc.review_status <> 'REJECTED' AND p.difficulty_band IS NOT NULL
             GROUP BY p.difficulty_band
         """)
         params = {"slug": concept_slug}
@@ -361,7 +361,7 @@ def difficulty_distribution(concept_slug: str | None = None, technique_slug: str
             FROM core.problem p
             JOIN knowledge.problem_technique pt ON pt.problem_id = p.problem_id
             JOIN knowledge.technique t ON t.technique_id = pt.technique_id
-            WHERE t.slug = :slug AND p.difficulty_band IS NOT NULL
+            WHERE t.slug = :slug AND pt.review_status <> 'REJECTED' AND p.difficulty_band IS NOT NULL
             GROUP BY p.difficulty_band
         """)
         params = {"slug": technique_slug}
@@ -387,6 +387,7 @@ class OnboardStudentRequest(BaseModel):
     email: str | None = Field(default=None, max_length=320)
     phone: str | None = Field(default=None, max_length=30)
     is_anonymous: bool = False
+    email_verified: bool = Field(default=False, description="True only when the identity provider has verified the email; required to link an existing password account")
 
 
 @router.post("/students/onboard")
@@ -400,6 +401,7 @@ def onboard_student(body: OnboardStudentRequest) -> dict:
     return create_student_for_cognito(
         cognito_sub=body.cognito_sub, first_name=body.first_name, last_name=body.last_name,
         grade=body.grade, email=body.email, phone=body.phone, is_anonymous=body.is_anonymous,
+        email_verified=body.email_verified,
     )
 
 

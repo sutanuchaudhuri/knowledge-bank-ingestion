@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -15,9 +15,10 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from mathbank_rest.db import pedagogy_admin as db
 from mathbank_rest.db import topic_pedagogy
-from mathbank_rest.security import require_admin_api_key
+from mathbank_rest.security import Actor, require_admin_api_key
 
 logger = logging.getLogger(__name__)
+AdminActor = Annotated[Actor, Depends(require_admin_api_key)]
 Kind = Literal[
     "skill",
     "skill_concept",
@@ -164,9 +165,10 @@ def queue(
 
 
 @router.post("/review")
-def review(body: ReviewRequest) -> dict:
+def review(body: ReviewRequest, actor: AdminActor) -> dict:
     return call(
-        db.decide, body.kind, body.key, body.expected_revision, body.review_status, body.note
+        db.decide, body.kind, body.key, body.expected_revision, body.review_status, body.note,
+        actor.id,
     )
 
 
@@ -176,29 +178,34 @@ def history(body: EntityRequest) -> dict:
 
 
 @router.post("/publish")
-def publish(body: PublishRequest) -> dict:
-    return call(db.publish, body.expected_fingerprint)
+def publish(body: PublishRequest, actor: AdminActor) -> dict:
+    return call(db.publish, body.expected_fingerprint, None, actor.id)
 
 
 @router.post("/bulk-review")
-def bulk_review(body: BulkReviewRequest) -> dict:
+def bulk_review(body: BulkReviewRequest, actor: AdminActor) -> dict:
     return call(
-        db.bulk_decide, [item.model_dump() for item in body.items], body.review_status, body.note
+        db.bulk_decide, [item.model_dump() for item in body.items], body.review_status, body.note,
+        actor.id,
     )
 
 
 @router.post("/approve-starter")
-def approve_starter(body: StarterReviewRequest) -> dict:
-    return call(db.approve_starter, body.expected_fingerprint, body.note)
+def approve_starter(
+    body: StarterReviewRequest, actor: AdminActor
+) -> dict:
+    return call(db.approve_starter, body.expected_fingerprint, body.note, actor.id)
 
 
 @router.post("/edit")
-def edit(body: EditRequest) -> dict:
-    return call(db.edit, body.kind, body.key, body.expected_revision, body.changes, body.note)
+def edit(body: EditRequest, actor: AdminActor) -> dict:
+    return call(
+        db.edit, body.kind, body.key, body.expected_revision, body.changes, body.note, actor.id
+    )
 
 
 @router.post("/reclassify")
-def reclassify(body: ReclassifyRequest) -> dict:
+def reclassify(body: ReclassifyRequest, actor: AdminActor) -> dict:
     from mathbank_rest.enrichment import EnrichmentUnavailable, enrich_problem
 
     try:
@@ -206,6 +213,7 @@ def reclassify(body: ReclassifyRequest) -> dict:
     except EnrichmentUnavailable as exc:
         logger.exception("Admin reclassification failed")
         raise HTTPException(502, str(exc)) from exc
+    call(db.record_reclassification, actor.id, body.problem_code, result)
     return {
         **result,
         "message": "Automatic teaching metadata regenerated; human edits and rejected records preserved. Publish to update graph.",

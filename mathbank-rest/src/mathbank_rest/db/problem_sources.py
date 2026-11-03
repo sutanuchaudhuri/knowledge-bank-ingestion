@@ -9,6 +9,8 @@ from urllib.parse import quote, urlsplit
 
 from sqlalchemy import text
 
+from mathbank_rest.db.postgres import engine
+
 log = logging.getLogger(__name__)
 PDF_ROOT = Path(__file__).resolve().parents[4] / "mathbank-data-ingestion/data/crawl_pdf"
 
@@ -34,6 +36,11 @@ def source_record(conn, code: str) -> dict | None:
         .first()
     )
     return dict(row) if row is not None else None
+
+
+def fetch_source_record(code: str) -> dict | None:
+    with engine.connect() as conn:
+        return source_record(conn, code)
 
 
 def source_pdf(record: dict) -> Path | None:

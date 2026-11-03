@@ -7,9 +7,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from mathbank_rest.config import settings
 from mathbank_rest.main import app
 
-client = TestClient(app)
+client = TestClient(app, headers={"X-Admin-Api-Key": settings.admin_api_key})
 
 
 def test_decompose_rejects_missing_problem_code() -> None:

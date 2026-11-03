@@ -1,6 +1,5 @@
 import hashlib
 import json
-from unittest.mock import MagicMock
 
 import pymupdf
 import pytest
@@ -170,8 +169,7 @@ def test_source_pdf_rejects_paths_outside_the_corpus(tmp_path, monkeypatch):
 def test_binary_route_serves_only_recorded_problem_pdf(tmp_path, monkeypatch):
     pdf = tmp_path / "problem.pdf"
     pdf.write_bytes(b"%PDF-fixture")
-    monkeypatch.setattr(routes, "engine", MagicMock())
-    monkeypatch.setattr(routes, "source_record", lambda conn, code: {"problem": True})
+    monkeypatch.setattr(routes, "fetch_source_record", lambda code: {"problem": True})
     monkeypatch.setattr(routes, "source_pdf", lambda record: pdf)
     response = routes.get_problem_source_pdf("CODE")
     assert response.media_type == "application/pdf"
@@ -184,8 +182,7 @@ def test_binary_route_serves_only_recorded_problem_pdf(tmp_path, monkeypatch):
 
 
 def test_unknown_problem_source_is_404_not_an_empty_success(monkeypatch):
-    monkeypatch.setattr(routes, "engine", MagicMock())
-    monkeypatch.setattr(routes, "source_record", lambda conn, code: None)
+    monkeypatch.setattr(routes, "fetch_source_record", lambda code: None)
     with pytest.raises(HTTPException) as error:
         routes.get_problem_source("unknown")
     assert error.value.status_code == 404

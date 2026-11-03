@@ -25,6 +25,7 @@ from mathbank_rest.routers.fluid import staff_or_student
 
 router = APIRouter(prefix="/v1/artifacts", tags=["artifacts"])
 Actor = Annotated[dict, Depends(staff_or_student)]
+StaffActor = Annotated[security.Actor, Depends(security.require_admin_api_key)]
 
 
 class GeometryPreview(runtime.ArtifactPlan):
@@ -180,15 +181,20 @@ def get_request(request_id: UUID, actor: Actor) -> dict:
     return _run(runtime.get_request, request_id, actor)
 
 
-@router.post(
-    "/requests/{request_id}/generate", dependencies=[Depends(security.require_admin_api_key)]
-)
-def generate(request_id: UUID, body: runtime.GenerateBody) -> dict:
+def _staff(staff: security.Actor) -> dict:
+    return {"role": "ADMIN", "student_id": None, "actor_id": staff.id}
+
+
+@router.post("/requests/{request_id}/generate")
+def generate(
+    request_id: UUID, body: runtime.GenerateBody,
+    staff: StaffActor,
+) -> dict:
     keys: list[str] = []
     return _run(
         runtime.generate_request,
         request_id,
-        {"role": "ADMIN", "student_id": None},
+        _staff(staff),
         body.publish,
         keys,
         object_keys=keys,
@@ -256,14 +262,19 @@ def validate_bundle(bundle_id: UUID, actor: Actor) -> dict:
     return _run(runtime.validate_bundle, bundle_id, actor)
 
 
-@router.post("/bundles/{bundle_id}/publish", dependencies=[Depends(security.require_admin_api_key)])
-def publish(bundle_id: UUID) -> dict:
-    return _run(runtime.publish_bundle, bundle_id, {"role": "ADMIN", "student_id": None})
+@router.post("/bundles/{bundle_id}/publish")
+def publish(
+    bundle_id: UUID, staff: StaffActor
+) -> dict:
+    return _run(runtime.publish_bundle, bundle_id, _staff(staff))
 
 
-@router.post("/bundles/{bundle_id}/index", dependencies=[Depends(security.require_admin_api_key)])
-def index(bundle_id: UUID, body: runtime.IndexBody) -> dict:
-    return _run(runtime.index_bundle, bundle_id, body, {"role": "ADMIN", "student_id": None})
+@router.post("/bundles/{bundle_id}/index")
+def index(
+    bundle_id: UUID, body: runtime.IndexBody,
+    staff: StaffActor,
+) -> dict:
+    return _run(runtime.index_bundle, bundle_id, body, _staff(staff))
 
 
 @router.post("/search")

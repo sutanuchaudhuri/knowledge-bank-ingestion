@@ -71,7 +71,9 @@ def live_actor(authorization: str | None = Header(default=None), x_admin_api_key
                 "student_id": None}
     if authorization and authorization.lower().startswith("bearer "):
         try:
-            sid = str(security.decode_access_token(authorization[7:].strip()))
+            student_id = security.decode_access_token(authorization[7:].strip())
+            security.assert_student_active(student_id)
+            sid = str(student_id)
             return {"actor_type": "STUDENT", "actor_id": f"student:{sid}", "role": "STUDENT", "student_id": sid}
         except (jwt.PyJWTError, ValueError, KeyError):
             pass

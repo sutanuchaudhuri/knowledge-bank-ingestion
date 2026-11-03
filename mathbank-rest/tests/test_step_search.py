@@ -82,7 +82,12 @@ def test_concept_search_route_falls_back_to_lexical_with_warning(monkeypatch):
         return [{"taxonomy_node_id": "GEO.C03.S10"}]
 
     monkeypatch.setattr(step_search, "search_taxonomy_nodes", fake)
-    body = TestClient(app).post("/v1/search/concepts", json={"query": " radical axis "}).json()
+    from mathbank_rest.config import settings
+
+    body = TestClient(app).post(
+        "/v1/search/concepts", json={"query": " radical axis "},
+        headers={"X-Admin-Api-Key": settings.admin_api_key},
+    ).json()
     assert calls == [True, False]
     assert body["results"] == [{"taxonomy_node_id": "GEO.C03.S10"}]
     assert body["retrieval"]["semantic"] == "unavailable" and body["warnings"]

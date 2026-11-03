@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from contextlib import nullcontext
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from mathbank_rest import rate_limit
+from mathbank_rest.config import settings
 from mathbank_rest.db import hybrid_search, queries, step_search
 from mathbank_rest.db import learner as learner_db
 
@@ -127,32 +130,64 @@ def get_corpus_coverage() -> list[dict]:
 @router.get("/analytics/weak-concepts", tags=["analytics"])
 def get_weak_concepts(
     min_students: int = Query(1, ge=1), limit: int = Query(20, le=100)
-) -> list[dict]:
+) -> dict:
     """Cohort-level (no PII — concept-level aggregates only), lowest average
     mastery first. Signals what to improve at the platform level: genuinely
     hard material, a thin bank of practice problems, or a retrieval gap —
-    not any individual student's data."""
-    return learner_db.get_cohort_weak_concepts(min_students=min_students, limit=limit)
+    not any individual student's data. A concept is reported only when at
+    least `cohort_min_students` learners contribute, whatever `min_students`
+    asks for; otherwise the result is empty with `suppressed: true`."""
+    floor = settings.cohort_min_students
+    results = learner_db.get_cohort_weak_concepts(min_students=max(min_students, floor), limit=limit)
+    body: dict = {"results": results, "suppressed": not results, "cohort_min_students": floor}
+    if not results:
+        body["note"] = f"No concept has at least {floor} learners; aggregates below that size are withheld."
+    return body
+
+
+def _embedding_scope(caller: rate_limit.Caller | None):
+    return rate_limit.embeddings_blocked() if caller is None else nullcontext()
+
+
+def _gate_semantic(caller: rate_limit.Caller | None, body_retrieval, *, other_sources: bool) -> tuple[bool, list[str]]:
+    """Semantic (paid embedding) retrieval needs a signed-in caller. An anonymous request that did not
+    explicitly ask for it is served from the free sources and told so; an explicit request gets 401."""
+    if not body_retrieval.semantic:
+        return False, []
+    if caller is not None:
+        rate_limit.enforce(caller, "search")
+        return True, []
+    if "semantic" in body_retrieval.model_fields_set or not other_sources:
+        raise HTTPException(
+            status_code=401,
+            detail="semantic search requires a learner token or admin credential",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return False, ["Semantic ranking requires sign-in; results use the free retrieval sources only."]
 
 
 @router.post("/search/concepts", tags=["search"])
-def search_concepts(body: ConceptSearchRequest) -> dict:
+def search_concepts(
+    body: ConceptSearchRequest, caller: Annotated[rate_limit.Caller | None, Depends(rate_limit.optional_paid_caller)]
+) -> dict:
     """Concept-level hybrid search over the embedded taxonomy (TAXONOMY_NODE vectors).
 
     Maps a topic to taxonomy nodes with their corpus slug, problem count and example problem codes.
-    If the query embedding is unavailable, falls back to lexical ranking and reports a warning.
+    Semantic ranking needs a learner token or admin credential and is rate limited per caller; anonymous
+    callers get lexical ranking. If the query embedding is unavailable, falls back to lexical ranking.
     """
     query = body.query.strip()
     if not query:
         raise HTTPException(status_code=422, detail="query must contain non-whitespace text")
     if not (body.retrieval.semantic or body.retrieval.lexical):
         raise HTTPException(status_code=400, detail="at least one retrieval source must be true")
+    semantic, warnings = _gate_semantic(caller, body.retrieval, other_sources=body.retrieval.lexical)
+    semantic_status = "queried" if semantic else "requires_sign_in" if warnings else "disabled"
     kwargs = {"node_types": body.node_types or None, "chapter_number": body.chapter_number, "limit": body.limit}
-    warnings: list[str] = []
-    semantic = body.retrieval.semantic
     try:
-        results = step_search.search_taxonomy_nodes(
-            query, semantic=semantic, lexical=body.retrieval.lexical, **kwargs)
+        with _embedding_scope(caller):
+            results = step_search.search_taxonomy_nodes(
+                query, semantic=semantic, lexical=body.retrieval.lexical, **kwargs)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception:
@@ -160,32 +195,42 @@ def search_concepts(body: ConceptSearchRequest) -> dict:
             raise
         logger.exception("Concept search semantic ranking unavailable; falling back to lexical")
         warnings.append("Semantic ranking unavailable; results are lexical only.")
-        semantic = False
+        semantic_status = "unavailable"
         results = step_search.search_taxonomy_nodes(query, semantic=False, lexical=True, **kwargs)
     return {
         "query": query,
         "results": results,
-        "retrieval": {"semantic": "queried" if semantic else "disabled" if not body.retrieval.semantic
-                      else "unavailable", "lexical": "queried" if body.retrieval.lexical else "disabled",
+        "retrieval": {"semantic": semantic_status, "lexical": "queried" if body.retrieval.lexical else "disabled",
                       "unit": "TAXONOMY_NODE", "profile": step_search.PROFILE_NAME},
         "warnings": warnings,
     }
 
 
 @router.post("/search/problems", tags=["search"])
-def search_problems(body: ProblemSearchRequest) -> dict:
+def search_problems(
+    body: ProblemSearchRequest, caller: Annotated[rate_limit.Caller | None, Depends(rate_limit.optional_paid_caller)]
+) -> dict:
+    """Hybrid problem search. Semantic ranking calls a paid embedding model, so it needs a learner token or
+    admin credential and is rate limited per caller; anonymous callers get the lexical/graph sources."""
     if not body.query.strip():
         raise HTTPException(status_code=422, detail="query must contain non-whitespace text")
     if not any((body.retrieval.semantic, body.retrieval.lexical, body.retrieval.graph)):
         raise HTTPException(status_code=400, detail="at least one retrieval source must be true")
-    return hybrid_search.search_problems(
-        body.query.strip(),
-        competition=body.filters.competition,
-        year_min=body.filters.year_min,
-        year_max=body.filters.year_max,
-        semantic=body.retrieval.semantic,
-        lexical=body.retrieval.lexical,
-        graph=body.retrieval.graph,
-        order_by=body.order_by,
-        limit=body.limit,
-    )
+    semantic, gate_warnings = _gate_semantic(
+        caller, body.retrieval, other_sources=body.retrieval.lexical or body.retrieval.graph)
+    with _embedding_scope(caller):
+        result = hybrid_search.search_problems(
+            body.query.strip(),
+            competition=body.filters.competition,
+            year_min=body.filters.year_min,
+            year_max=body.filters.year_max,
+            semantic=semantic,
+            lexical=body.retrieval.lexical,
+            graph=body.retrieval.graph,
+            order_by=body.order_by,
+            limit=body.limit,
+        )
+    if gate_warnings:
+        result["warnings"] = [*gate_warnings, *result.get("warnings", [])]
+        result.setdefault("retrieval", {})["semantic_requires_sign_in"] = True
+    return result

@@ -25,12 +25,12 @@ from mathbank_rest import mastery, security, step_diagnosis, step_recovery, step
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.db.problem_images import STUDENT_IMAGE_FILTER, list_images
 from mathbank_rest.db.problem_sources import (
+    fetch_source_record,
     highlighted_page,
     highlighted_pdf,
     problem_location,
     source_metadata,
     source_pdf,
-    source_record,
 )
 from mathbank_rest.db.step_search import similar_steps_for_step
 
@@ -389,8 +389,7 @@ def list_problem_diagrams(code: str) -> list[dict]:
 
 @router.get("/problems/by-code/{code}/source")
 def get_problem_source(code: str) -> dict | None:
-    with engine.connect() as conn:
-        record = source_record(conn, code)
+    record = fetch_source_record(code)
     if record is None:
         raise HTTPException(status_code=404, detail="problem not found")
     return source_metadata(record, code)
@@ -398,8 +397,7 @@ def get_problem_source(code: str) -> dict | None:
 
 @router.get("/problems/by-code/{code}/source-pdf", response_class=FileResponse)
 def get_problem_source_pdf(code: str):
-    with engine.connect() as conn:
-        record = source_record(conn, code)
+    record = fetch_source_record(code)
     path = source_pdf(record) if record is not None else None
     if path is None:
         raise HTTPException(status_code=404, detail="original PDF is not cached")
@@ -411,8 +409,7 @@ def get_problem_source_pdf(code: str):
 def get_problem_source_highlight(code: str, page: int | None = Query(default=None, ge=1)):
     from fastapi.responses import Response
 
-    with engine.connect() as conn:
-        record = source_record(conn, code)
+    record = fetch_source_record(code)
     path = source_pdf(record) if record else None
     location = problem_location(path, record, code) if path else None
     if location is None:
@@ -429,8 +426,7 @@ def get_problem_source_highlight(code: str, page: int | None = Query(default=Non
 def get_problem_source_marked_pdf(code: str):
     from fastapi.responses import Response
 
-    with engine.connect() as conn:
-        record = source_record(conn, code)
+    record = fetch_source_record(code)
     path = source_pdf(record) if record else None
     location = problem_location(path, record, code) if path else None
     if location is None:

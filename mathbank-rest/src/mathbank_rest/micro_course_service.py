@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import deque
 from typing import Any
 from uuid import uuid4
@@ -366,7 +367,7 @@ def get_course_preview(conn, canonical_code: str, release_id: str | None = None)
     )
     if course is None:
         raise MicroCourseNotFound("micro-course release not found")
-    return _assemble_course_reader_payload(conn, course, approved_only=False)
+    return _assemble_course_reader_payload(conn, course, approved_only=False, include_answer_keys=True)
 
 
 _ITEM_KIND_TO_LIST_KEY = {
@@ -381,6 +382,23 @@ _ITEM_KIND_ID_FIELD = {
     "learning_item": "learning_item_id",
     "activity": "activity_id",
 }
+
+
+_ANSWER_KEY_NAME = re.compile(r"correct|answer|explan|feedback|rationale|solution|reason", re.IGNORECASE)
+
+
+def _learner_options(value: Any) -> Any:
+    """Drop answer-bearing keys (correctness flags, per-option explanations) from an
+    activity's display options before a learner or anonymous caller sees them."""
+    if isinstance(value, list):
+        return [_learner_options(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _learner_options(item)
+            for key, item in value.items()
+            if not _ANSWER_KEY_NAME.search(str(key))
+        }
+    return value
 
 
 def _build_state_items(state: dict) -> list[dict]:
@@ -413,12 +431,19 @@ def _build_state_items(state: dict) -> list[dict]:
     return entries
 
 
-def _assemble_course_reader_payload(conn, course, approved_only: bool = True) -> dict:
+def _assemble_course_reader_payload(
+    conn, course, approved_only: bool = True, include_answer_keys: bool = False
+) -> dict:
     """Shared assembly for the public reader shape — used by both the public
     `get_published_course` (always approved-only content) and the admin
     `get_course_preview` (shows unapproved/draft content too, so an admin previewing
-    a draft sees exactly what they are about to publish, not an empty shell)."""
+    a draft sees exactly what they are about to publish, not an empty shell).
+    Answer keys (`correct_answer`, `answer_or_solution_seed`, `correctness_policy`) are
+    never selected unless `include_answer_keys` — only the admin preview sets it; learners
+    get them back solely from the grading endpoints after a submission or give-up."""
     result = dict(course)
+    learning_item_key_columns = "li.correct_answer, li.answer_or_solution_seed," if include_answer_keys else ""
+    activity_key_columns = "a.correctness_policy," if include_answer_keys else ""
     release_id = str(result["release_id"])
     interaction_filter = "AND i.review_status='APPROVED'" if approved_only else ""
     qa_filter = "AND review_status='APPROVED'" if approved_only else ""
@@ -530,7 +555,7 @@ def _assemble_course_reader_payload(conn, course, approved_only: bool = True) ->
             for row in conn.execute(
                 text(f"""
                 SELECT li.learning_item_id, li.question_text, li.choices,
-                       li.correct_answer, li.answer_or_solution_seed,
+                       {learning_item_key_columns}
                        si.purpose, si.ordinal, si.required, si.sequence_position
                 FROM pedagogy.micro_course_state_learning_item si
                 JOIN pedagogy.learning_item li USING (learning_item_id)
@@ -591,9 +616,9 @@ def _assemble_course_reader_payload(conn, course, approved_only: bool = True) ->
         state["activities"] = [
             dict(row)
             for row in conn.execute(
-                text("""
+                text(f"""
                 SELECT a.activity_id, a.activity_type, a.prompt, a.options,
-                       a.correctness_policy, sa.ordinal, sa.purpose, sa.required,
+                       {activity_key_columns} sa.ordinal, sa.purpose, sa.required,
                        sa.sequence_position
                 FROM pedagogy.micro_course_state_activity sa
                 JOIN activity.definition a USING (activity_id)
@@ -605,6 +630,8 @@ def _assemble_course_reader_payload(conn, course, approved_only: bool = True) ->
         ]
         for activity in state["activities"]:
             activity["activity_id"] = str(activity["activity_id"])
+            if not include_answer_keys:
+                activity["options"] = _learner_options(activity["options"])
         state["items"] = _build_state_items(state)
     result["transitions"] = [
         dict(row)
@@ -810,8 +837,8 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
         for row in conn.execute(
             text("""
             SELECT a.activity_id, a.activity_type, a.prompt, a.options,
-                   a.correctness_policy, sa.ordinal, sa.purpose, sa.required,
-                   sa.sequence_position
+                   a.correctness_policy->>'explanation' AS explanation,
+                   sa.ordinal, sa.purpose, sa.required, sa.sequence_position
             FROM pedagogy.micro_course_state_activity sa
             JOIN activity.definition a USING (activity_id)
             WHERE sa.state_id=:state_id
@@ -822,6 +849,7 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
     ]
     for activity in result["current_state"]["activities"]:
         activity["activity_id"] = str(activity["activity_id"])
+        activity["options"] = _learner_options(activity["options"])
     answered_activity_responses = {
         row["activity_id"]: row["is_correct"]
         for row in conn.execute(
@@ -839,12 +867,14 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
     for activity in result["current_state"]["activities"]:
         if activity["activity_id"] in answered_activity_responses:
             activity["answered_correctly"] = answered_activity_responses[activity["activity_id"]]
+        else:
+            activity.pop("explanation", None)
     result["current_state"]["learning_items"] = [
         dict(item)
         for item in conn.execute(
             text("""
             SELECT li.learning_item_id, li.question_text, li.choices,
-                   li.correct_answer, li.answer_or_solution_seed,
+                   li.answer_or_solution_seed AS explanation,
                    si.purpose, si.ordinal, si.required, si.sequence_position
             FROM pedagogy.micro_course_state_learning_item si
             JOIN pedagogy.learning_item li USING (learning_item_id)
@@ -879,6 +909,8 @@ def get_enrollment_runtime(conn, enrollment_id: str, student_id: str) -> dict:
     for item in result["current_state"]["learning_items"]:
         if str(item["learning_item_id"]) in answered_quiz_responses:
             item["answered_correctly"] = answered_quiz_responses[str(item["learning_item_id"])]
+        else:
+            item.pop("explanation", None)
     result["current_state"]["answered_learning_item_ids"] = sorted(
         answered_item_ids & {
             str(item["learning_item_id"])

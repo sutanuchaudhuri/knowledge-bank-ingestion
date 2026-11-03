@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 from sqlalchemy import text
 
 from mathbank_rest import object_store
+from mathbank_rest.micro_course_service import record_audit_event
 
 VERSION = "declarative-artifacts-v1"
 EMBEDDING_MODEL: Literal["text-embedding-3-small"] = "text-embedding-3-small"
@@ -781,7 +782,8 @@ def create_request(conn, plan: ArtifactPlan, actor: dict) -> dict:
         raise ArtifactError("INVALID_PROBLEM_REFERENCE", "linked problem does not exist")
     request_id = str(uuid4())
     params = {**plan.model_dump(mode="json"), "id": request_id,
-              "owner": actor["student_id"], "created_by": actor["student_id"] or "admin",
+              "owner": actor["student_id"],
+              "created_by": actor["student_id"] or actor.get("actor_id") or "admin",
               "spec": _json(plan.model_dump(mode="json"))}
     row = _one(conn, """
         INSERT INTO artifact_runtime.artifact_request
@@ -1095,6 +1097,9 @@ def generate_request(conn, request_id: UUID, actor: dict, publish: bool = False,
                          {"bid": bid, "kind": kind, "tag": tag})
     conn.execute(text("UPDATE artifact_runtime.artifact_request SET status = 'GENERATED' "
                       "WHERE artifact_request_id = CAST(:rid AS uuid)"), {"rid": str(request_id)})
+    record_audit_event(conn, "ADMIN", actor.get("actor_id"), "GENERATE", "artifact_bundle", bid,
+                       after_state={"artifact_request_id": str(request_id), "status": params["status"],
+                                    "version": version})
     return get_bundle(conn, UUID(bid), actor)
 
 
@@ -1137,12 +1142,17 @@ def publish_bundle(conn, bundle_id: UUID, actor: dict) -> dict:
         raise ArtifactError("ADMIN_REQUIRED", "only staff may publish reusable bundles", 403)
     conn.execute(text("SELECT artifact_bundle_id FROM artifact_runtime.artifact_bundle "
                       "WHERE artifact_bundle_id = CAST(:id AS uuid) FOR UPDATE"), {"id": str(bundle_id)})
+    current = get_bundle(conn, bundle_id, actor)
+    before = {"status": current["status"], "review_state": current.get("review_state")}
     report = validate_bundle(conn, bundle_id, actor)
     if not report["valid"]:
         raise ArtifactError("VALIDATION_FAILED", "; ".join(report["errors"]))
     conn.execute(text("UPDATE artifact_runtime.artifact_bundle SET status = 'PUBLISHED', "
                       "review_state = 'APPROVED', published_at = COALESCE(published_at, now()) "
                       "WHERE artifact_bundle_id = CAST(:id AS uuid)"), {"id": str(bundle_id)})
+    record_audit_event(conn, "ADMIN", actor.get("actor_id"), "PUBLISH", "artifact_bundle", str(bundle_id),
+                       before_state=before,
+                       after_state={"status": "PUBLISHED", "review_state": "APPROVED"})
     return get_bundle(conn, bundle_id, actor)
 
 
@@ -1165,6 +1175,9 @@ def index_bundle(conn, bundle_id: UUID, body: IndexBody, actor: dict) -> dict:
             search_text_sha256 = EXCLUDED.search_text_sha256, indexed_at = now()
     """), {"id": str(bundle_id), "model": body.model, "hash": body.search_text_sha256,
            "vector": _json(embedding), "dimensions": profile["dimensions"]})
+    record_audit_event(conn, "ADMIN", actor.get("actor_id"), "INDEX", "artifact_bundle", str(bundle_id),
+                       after_state={"model": body.model, "dimensions": profile["dimensions"],
+                                    "search_text_sha256": body.search_text_sha256})
     return {"artifact_bundle_id": str(bundle_id), "status": "INDEXED", "model": body.model,
             "dimensions": profile["dimensions"], "provider": profile["provider"],
             "embedding_source": "PROVIDER_EXPLICIT" if body.generate_embedding else "SUPPLIED_VECTOR"}

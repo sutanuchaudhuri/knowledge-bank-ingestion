@@ -4,6 +4,7 @@ Mirrors the CLI (interactions_cli.py) via the same service-layer functions —
 neither re-implements validation or persistence independently (ITL-13).
 """
 
+from typing import Annotated
 from uuid import UUID
 
 import httpx
@@ -15,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from mathbank_rest import interaction_catalog, interaction_validators, object_store
 from mathbank_rest.db.postgres import engine
+from mathbank_rest.micro_course_service import record_audit_event
 from mathbank_rest.scene_spec_promotion import (
     PromotionError,
     approve_scene_and_validate_asset,
@@ -22,8 +24,9 @@ from mathbank_rest.scene_spec_promotion import (
     list_promotable_candidates,
     promote_render_job,
 )
-from mathbank_rest.security import require_admin_api_key
+from mathbank_rest.security import Actor, require_admin_api_key
 
+AdminActor = Annotated[Actor, Depends(require_admin_api_key)]
 router = APIRouter(
     prefix="/v1/admin/interaction-templates",
     tags=["admin-interaction-templates"],
@@ -38,18 +41,16 @@ class PublishResult(BaseModel):
 
 
 class PromoteSceneRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
     render_job_id: str
     canonical_code: str
-    created_by: str = "admin"
 
 
 class CreateInstanceFromSceneRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
     canonical_code: str
     title: str
     learning_objective: str
-    created_by: str = "admin"
     concept_slugs: list[str] = []
     technique_slugs: list[str] = []
 
@@ -63,6 +64,17 @@ def _call(operation, *args):
 
         logging.getLogger(__name__).exception("Interaction template data unavailable")
         raise HTTPException(503, "Interaction template data unavailable.") from exc
+
+
+def _require_state(conn, sql: str, entity_id: UUID, label: str) -> str:
+    state = conn.execute(text(sql), {"id": str(entity_id)}).scalar_one_or_none()
+    if state is None:
+        raise HTTPException(404, f"{label} not found")
+    return state
+
+
+def _conflict(label: str, state: str, expected: str) -> HTTPException:
+    return HTTPException(409, f"{label} is {state}; expected {expected}")
 
 
 @router.get("")
@@ -84,18 +96,41 @@ def validate_template_version(version_id: UUID):
 
 
 @router.post("/versions/{version_id}/publish")
-def publish_template_version(version_id: UUID):
+def publish_template_version(version_id: UUID, actor: AdminActor):
+    _call(
+        _require_state,
+        "SELECT status FROM visual.interaction_template_version "
+        "WHERE interaction_template_version_id = :id",
+        version_id,
+        "template version",
+    )
     errors = _call(interaction_validators.validate_interaction_template_version, str(version_id))
     if errors:
         return PublishResult(status="REJECTED", errors=errors)
 
     def do_publish(conn):
-        conn.execute(
+        before = conn.execute(
             text("""
-            UPDATE visual.interaction_template_version
-            SET status='PUBLISHED', published_at=now() WHERE interaction_template_version_id=:id AND status IN ('DRAFT','REVIEWED')
+            SELECT status FROM visual.interaction_template_version
+            WHERE interaction_template_version_id=:id FOR UPDATE
         """),
             {"id": str(version_id)},
+        ).scalar_one_or_none()
+        if before is None:
+            raise HTTPException(404, "template version not found")
+        updated = conn.execute(
+            text("""
+            UPDATE visual.interaction_template_version
+            SET status='PUBLISHED', published_at=now(), reviewed_by=:actor, reviewed_at=now()
+            WHERE interaction_template_version_id=:id AND status IN ('DRAFT','REVIEWED')
+        """),
+            {"id": str(version_id), "actor": actor.id},
+        ).rowcount
+        if updated != 1:
+            raise _conflict("template version", before, "DRAFT or REVIEWED")
+        record_audit_event(
+            conn, "ADMIN", actor.id, "PUBLISH", "interaction_template_version", str(version_id),
+            before_state={"status": before}, after_state={"status": "PUBLISHED"},
         )
 
     _call(do_publish)
@@ -109,18 +144,40 @@ def validate_instance(instance_id: UUID):
 
 
 @router.post("/instances/{instance_id}/approve")
-def approve_instance(instance_id: UUID):
+def approve_instance(instance_id: UUID, actor: AdminActor):
+    _call(
+        _require_state,
+        "SELECT review_status FROM visual.interaction_instance WHERE interaction_instance_id = :id",
+        instance_id,
+        "interaction instance",
+    )
     errors = _call(interaction_validators.validate_interaction_instance, str(instance_id))
     if errors:
         return PublishResult(status="REJECTED", errors=errors)
 
     def do_approve(conn):
-        conn.execute(
+        before = conn.execute(
             text("""
-            UPDATE visual.interaction_instance SET review_status='APPROVED', approved_at=now()
-            WHERE interaction_instance_id=:id AND review_status='PENDING_REVIEW'
+            SELECT review_status FROM visual.interaction_instance
+            WHERE interaction_instance_id=:id FOR UPDATE
         """),
             {"id": str(instance_id)},
+        ).scalar_one_or_none()
+        if before is None:
+            raise HTTPException(404, "interaction instance not found")
+        updated = conn.execute(
+            text("""
+            UPDATE visual.interaction_instance
+            SET review_status='APPROVED', approved_by=:actor, approved_at=now()
+            WHERE interaction_instance_id=:id AND review_status='PENDING_REVIEW'
+        """),
+            {"id": str(instance_id), "actor": actor.id},
+        ).rowcount
+        if updated != 1:
+            raise _conflict("interaction instance", before, "PENDING_REVIEW")
+        record_audit_event(
+            conn, "ADMIN", actor.id, "APPROVE", "interaction_instance", str(instance_id),
+            before_state={"review_status": before}, after_state={"review_status": "APPROVED"},
         )
 
     _call(do_approve)
@@ -197,11 +254,11 @@ def get_scene_video(scene_spec_id: UUID):
 
 
 @router.post("/scenes/promote")
-def promote_scene(request: PromoteSceneRequest):
+def promote_scene(request: PromoteSceneRequest, actor: AdminActor):
     try:
         scene_spec_id = promote_render_job(
             render_job_id=request.render_job_id, canonical_code=request.canonical_code,
-            created_by=request.created_by,
+            created_by=actor.id,
         )
     except PromotionError as exc:
         raise HTTPException(409, str(exc)) from exc
@@ -217,34 +274,55 @@ def validate_scene(scene_spec_id: UUID):
 
 
 @router.post("/scenes/{scene_spec_id}/approve")
-def approve_scene(scene_spec_id: UUID, approved_by: str = "admin"):
+def approve_scene(scene_spec_id: UUID, actor: AdminActor):
+    _call(
+        _require_state,
+        "SELECT status FROM visual.scene_spec WHERE scene_spec_id = :id",
+        scene_spec_id,
+        "scene",
+    )
     errors = _call(interaction_validators.validate_scene_spec, str(scene_spec_id))
     if errors:
         return PublishResult(status="REJECTED", errors=errors)
 
     def do_approve(conn):
-        conn.execute(
+        before = conn.execute(
+            text("SELECT status FROM visual.scene_spec WHERE scene_spec_id=:id FOR UPDATE"),
+            {"id": str(scene_spec_id)},
+        ).scalar_one_or_none()
+        if before is None:
+            raise HTTPException(404, "scene not found")
+        updated = conn.execute(
             text("""
                 UPDATE visual.scene_spec SET status='APPROVED', approved_by=:approved_by,
                        approved_at=now()
                 WHERE scene_spec_id=:id AND status='DRAFT'
             """),
-            {"id": str(scene_spec_id), "approved_by": approved_by},
+            {"id": str(scene_spec_id), "approved_by": actor.id},
+        ).rowcount
+        if updated != 1:
+            raise _conflict("scene", before, "DRAFT")
+        approve_scene_and_validate_asset(conn, str(scene_spec_id), actor.id)
+        record_audit_event(
+            conn, "ADMIN", actor.id, "APPROVE", "scene_spec", str(scene_spec_id),
+            before_state={"status": before}, after_state={"status": "APPROVED"},
         )
-        approve_scene_and_validate_asset(conn, str(scene_spec_id), approved_by)
 
     _call(do_approve)
     return PublishResult(status="APPROVED")
 
 
 @router.post("/scenes/{scene_spec_id}/create-instance")
-def create_instance_from_scene(scene_spec_id: UUID, request: CreateInstanceFromSceneRequest):
+def create_instance_from_scene(
+    scene_spec_id: UUID, request: CreateInstanceFromSceneRequest,
+    actor: AdminActor,
+):
     try:
         instance_id = _call(
             lambda conn: create_video_explainer_instance(
                 conn, scene_spec_id=str(scene_spec_id), canonical_code=request.canonical_code,
                 title=request.title, learning_objective=request.learning_objective,
-                created_by=request.created_by, concept_slugs=request.concept_slugs,
+                created_by=actor.id, concept_slugs=request.concept_slugs,
                 technique_slugs=request.technique_slugs,
             )
         )

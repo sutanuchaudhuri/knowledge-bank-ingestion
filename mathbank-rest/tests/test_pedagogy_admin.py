@@ -92,7 +92,9 @@ def test_review_forwards_snapshot_and_note_to_postgres(monkeypatch):
     monkeypatch.setattr(db, "decide", operation)
     response = client.post("/v1/admin/pedagogy/review", json=BODY, headers=HEADERS)
     assert response.status_code == 200
-    operation.assert_called_once_with("skill", KEY, REVISION, "REVIEWED", BODY["note"])
+    operation.assert_called_once_with(
+        "skill", KEY, REVISION, "REVIEWED", BODY["note"], "service:admin-key"
+    )
 
 
 @pytest.mark.parametrize(

@@ -6,14 +6,16 @@ folding into `admin_taxonomy.py`'s generic concept/technique/skill/misconception
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from mathbank_rest import object_store
 from mathbank_rest import theorem_service as theorems
 from mathbank_rest.db.postgres import engine
 from mathbank_rest.security import require_admin_api_key
@@ -256,6 +258,32 @@ def search_student_theorems(
 @student_router.get("/{slug}")
 def get_student_theorem(slug: str) -> dict:
     return _call(theorems.get_theorem, slug, include_unapproved=False)
+
+
+@student_router.get("/{slug}/assets/{asset_id}/content")
+def get_student_theorem_asset(slug: str, asset_id: UUID) -> Response:
+    asset = _call(theorems.get_published_theorem_asset, slug, str(asset_id))
+    try:
+        data = object_store.read_bytes(asset["object_key"])
+    except (object_store.ObjectStoreError, OSError, ValueError) as exc:
+        logger.exception("Theorem asset is unavailable or corrupt")
+        raise HTTPException(status_code=503, detail="Theorem asset is unavailable.") from exc
+    if (
+        hashlib.sha256(data).hexdigest() != asset["content_hash"]
+        or (asset["object_size_bytes"] is not None and len(data) != asset["object_size_bytes"])
+    ):
+        logger.error("Theorem asset failed relational integrity verification")
+        raise HTTPException(status_code=503, detail="Theorem asset failed integrity verification.")
+    return Response(
+        content=data,
+        media_type=asset["mime_type"],
+        headers={
+            "Cache-Control": "private, no-store",
+            "Content-Disposition": f'inline; filename="theorem-asset-{asset_id}"',
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @student_router.get("/{slug}/prerequisites")

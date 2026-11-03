@@ -21,6 +21,7 @@ from sqlalchemy.engine import Connection
 from mathbank_rest import object_store
 from mathbank_rest.config import settings
 from mathbank_rest.db.postgres import engine
+from mathbank_rest.micro_course_service import record_audit_event
 
 
 def _json(value: Any) -> str:
@@ -141,6 +142,11 @@ def promote_render_job(*, render_job_id: str, canonical_code: str, created_by: s
                 "job_id": render_job_id,
             },
         ).scalar_one()
+        record_audit_event(
+            conn, "ADMIN", created_by, "PROMOTE", "scene_spec", str(scene_spec_id),
+            after_state={"canonical_code": canonical_code, "version": next_version,
+                         "render_job_id": render_job_id, "status": "DRAFT"},
+        )
     # `with engine.begin()` has now committed — only past this point is the new
     # scene_spec_id visible to mathbank-manim-studio's own, separate connection.
 
@@ -328,6 +334,12 @@ def create_video_explainer_instance(
             "created_by": created_by,
         },
     ).scalar_one()
+
+    record_audit_event(
+        conn, "ADMIN", created_by, "CREATE", "interaction_instance", str(instance_id),
+        after_state={"canonical_code": canonical_code, "scene_spec_id": scene_spec_id,
+                     "review_status": "PENDING_REVIEW"},
+    )
 
     for slug in concept_slugs or []:
         concept_id = conn.execute(

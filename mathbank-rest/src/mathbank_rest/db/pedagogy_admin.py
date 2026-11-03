@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from mathbank_rest.db.graph import driver
 from mathbank_rest.db.postgres import engine
+from mathbank_rest.micro_course_service import record_audit_event
 
 KINDS = {
     "skill": ("skill_id",),
@@ -68,7 +69,7 @@ JOINS = {
         "p.canonical_code || ' -> ' || c.name AS title, p.statement_text AS context, p.canonical_code AS problem_code",
     ),
 }
-REVIEWER = "shared-admin-api-key"
+ANONYMOUS = "anonymous"
 STARTER_PATH = (
     Path(__file__).resolve().parents[4] / "mathbank-db/data/pedagogy/counting-foundations.v1.json"
 )
@@ -281,8 +282,16 @@ def check_reviewed_dependencies(conn, kind: str, key: dict[str, str]) -> None:
             raise ReviewConflict("Approve the referenced skills before approving this assertion.")
 
 
+def audit(conn, actor: str, action: str, entity_type: str, entity_id: str, **states) -> None:
+    record_audit_event(
+        conn, "SYSTEM" if actor == ANONYMOUS else "ADMIN", actor, action, entity_type, entity_id,
+        **states,
+    )
+
+
 def change_decision(
-    conn, kind: str, key: dict[str, str], expected_revision: str, review_status: str, note: str
+    conn, kind: str, key: dict[str, str], expected_revision: str, review_status: str, note: str,
+    actor: str = ANONYMOUS,
 ) -> dict:
     key = validate_key(kind, key)
     where = " AND ".join(f"{field}=:{field}" for field in KINDS[kind])
@@ -317,9 +326,14 @@ def change_decision(
             "key": json.dumps(key),
             "before": json.dumps(before),
             "after": json.dumps(after),
-            "reviewer": REVIEWER,
+            "reviewer": actor,
             "note": note,
         },
+    )
+    audit(
+        conn, actor, "PEDAGOGY_REVIEW", kind, json.dumps(key, sort_keys=True),
+        before_state={"review_status": before["review_status"], "revision": revision(before)},
+        after_state={"review_status": review_status, "revision": revision(after), "note": note},
     )
     return after
 
@@ -340,11 +354,12 @@ def validate_graph(conn) -> None:
 
 
 def decide(
-    kind: str, key: dict[str, str], expected_revision: str, review_status: str, note: str
+    kind: str, key: dict[str, str], expected_revision: str, review_status: str, note: str,
+    actor: str = ANONYMOUS,
 ) -> dict:
     with engine.begin() as conn:
         lock_authoring(conn)
-        after = change_decision(conn, kind, key, expected_revision, review_status, note)
+        after = change_decision(conn, kind, key, expected_revision, review_status, note, actor)
         validate_graph(conn)
     return {
         "review_status": review_status,
@@ -419,7 +434,9 @@ def starter_items(conn) -> list[dict]:
     return items
 
 
-def apply_bulk(conn, items: list[dict], status: str, note: str) -> dict:
+def apply_bulk(
+    conn, items: list[dict], status: str, note: str, actor: str = ANONYMOUS
+) -> dict:
     identities = [
         (item["kind"], json.dumps(validate_key(item["kind"], item["key"]), sort_keys=True))
         for item in items
@@ -427,7 +444,9 @@ def apply_bulk(conn, items: list[dict], status: str, note: str) -> dict:
     if len(set(identities)) != len(items):
         raise ValueError("Duplicate assertions in bulk review")
     for item in sorted(items, key=lambda row: row["kind"] != "skill"):
-        change_decision(conn, item["kind"], item["key"], item["expected_revision"], status, note)
+        change_decision(
+            conn, item["kind"], item["key"], item["expected_revision"], status, note, actor
+        )
     validate_graph(conn)
     return {
         "updated": len(items),
@@ -436,13 +455,13 @@ def apply_bulk(conn, items: list[dict], status: str, note: str) -> dict:
     }
 
 
-def bulk_decide(items: list[dict], status: str, note: str) -> dict:
+def bulk_decide(items: list[dict], status: str, note: str, actor: str = ANONYMOUS) -> dict:
     with engine.begin() as conn:
         lock_authoring(conn)
-        return apply_bulk(conn, items, status, note)
+        return apply_bulk(conn, items, status, note, actor)
 
 
-def approve_starter(expected_fingerprint: str, note: str) -> dict:
+def approve_starter(expected_fingerprint: str, note: str, actor: str = ANONYMOUS) -> dict:
     with engine.begin() as conn:
         lock_authoring(conn)
         if fingerprint(conn) != expected_fingerprint:
@@ -450,7 +469,7 @@ def approve_starter(expected_fingerprint: str, note: str) -> dict:
         items = [item for item in starter_items(conn) if item["status"] == "PENDING"]
         if not items:
             raise ReviewConflict("No pending starter assertions remain.")
-        return apply_bulk(conn, items, "REVIEWED", note)
+        return apply_bulk(conn, items, "REVIEWED", note, actor)
 
 
 def history(kind: str, key: dict[str, str]) -> dict:
@@ -471,7 +490,9 @@ def history(kind: str, key: dict[str, str]) -> dict:
     return {"events": [dict(row) for row in rows]}
 
 
-def publish(expected_fingerprint: str, problem_codes: list[str] | None = None) -> dict:
+def publish(
+    expected_fingerprint: str, problem_codes: list[str] | None = None, actor: str = ANONYMOUS
+) -> dict:
     projector = operator_module("projector")
     author = operator_module("author")
     with engine.begin() as conn:
@@ -517,10 +538,20 @@ def publish(expected_fingerprint: str, problem_codes: list[str] | None = None) -
                 (source_fingerprint,publisher,skills_projected,edges_projected)
             VALUES (:fingerprint,:publisher,:skills,:edges) RETURNING *
         """),
-                {"fingerprint": current, "publisher": REVIEWER, "skills": skills, "edges": edges},
+                {"fingerprint": current, "publisher": actor, "skills": skills, "edges": edges},
             )
             .mappings()
             .one()
+        )
+        audit(
+            conn, actor, "PEDAGOGY_PUBLISH", "pedagogy_publication",
+            str(publication["publication_id"]),
+            after_state={
+                "source_fingerprint": current,
+                "skills_projected": skills,
+                "edges_projected": edges,
+                "problem_codes": problem_codes,
+            },
         )
         if problem_codes:
             conn.execute(
@@ -571,7 +602,10 @@ EDITABLE = {
 }
 
 
-def edit(kind: str, key: dict[str, str], expected_revision: str, changes: dict, note: str) -> dict:
+def edit(
+    kind: str, key: dict[str, str], expected_revision: str, changes: dict, note: str,
+    actor: str = ANONYMOUS,
+) -> dict:
     key = validate_key(kind, key)
     if not changes or not set(changes) <= EDITABLE[kind]:
         raise ValueError("Only editable metadata attributes may be changed.")
@@ -624,12 +658,25 @@ def edit(kind: str, key: dict[str, str], expected_revision: str, changes: dict, 
                 "key": json.dumps(key),
                 "before": json.dumps(before),
                 "after": json.dumps(after),
-                "reviewer": REVIEWER,
+                "reviewer": actor,
                 "note": note,
             },
+        )
+        audit(
+            conn, actor, "PEDAGOGY_EDIT", kind, json.dumps(key, sort_keys=True),
+            before_state={"revision": revision(before)},
+            after_state={"revision": revision(after), "changes": changes, "note": note},
         )
         validate_graph(conn)
     return {
         "message": "Admin correction saved and protected from automatic replacement. Publish to update graph.",
         "revision": revision(after),
     }
+
+
+def record_reclassification(actor: str, problem_code: str, result: dict) -> None:
+    with engine.begin() as conn:
+        audit(
+            conn, actor, "PEDAGOGY_RECLASSIFY", "problem", problem_code,
+            after_state={"result": result},
+        )

@@ -18,14 +18,17 @@ usage and avoids building a role system against a guess at future requirements.
 from __future__ import annotations
 
 import re
-from typing import Literal
+from typing import Annotated, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from mathbank_rest import security
 from mathbank_rest.db import admin as admin_db
+from mathbank_rest.db import learner as learner_db
 from mathbank_rest.db import pipeline_jobs
-from mathbank_rest.security import require_admin_api_key
+from mathbank_rest.security import Actor, admin_actor, require_admin_api_key
 
 router = APIRouter(prefix="/v1/admin", tags=["admin-pipeline"], dependencies=[Depends(require_admin_api_key)])
 
@@ -54,6 +57,31 @@ class PaperRequest(BaseModel):
 
 class PapersBatchRequest(BaseModel):
     papers: list[PaperRequest]
+
+
+ManageUsers = Annotated[Actor, Depends(admin_actor("manage_users"))]
+
+
+def _set_student_status(student_id: UUID, new_status: str, actor: Actor) -> dict:
+    try:
+        result = learner_db.set_student_status(student_id, new_status, actor.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="no such student")
+    security.invalidate_student_status(student_id)
+    return result
+
+
+@router.post("/students/{student_id}/disable")
+def disable_student(student_id: UUID, actor: ManageUsers) -> dict:
+    """Disable a learner account: its existing JWTs stop working at once and login is refused."""
+    return _set_student_status(student_id, "DISABLED", actor)
+
+
+@router.post("/students/{student_id}/enable")
+def enable_student(student_id: UUID, actor: ManageUsers) -> dict:
+    return _set_student_status(student_id, "ACTIVE", actor)
 
 
 @router.post("/competitions")

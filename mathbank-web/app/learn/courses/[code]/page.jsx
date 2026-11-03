@@ -77,10 +77,13 @@ const LEARNING_ITEM_PURPOSE_LABELS = {
   TRANSFER: "Transfer question",
 };
 
+const NOT_GRADABLE_NOTICE = "Sign in and start this lesson to check your answers.";
+
 /** Normalizes the two differently-shaped gradable item records (`activity.definition`'s
  * `prompt`/`options`/`correctness_policy` vs. `learning_item`'s `question_text`/`choices`/
  * `correct_answer`) into one field set `GradableItem` renders from — the "small adapter,
- * not a second parallel component" requirements/47 §2.4/MCN2-5 calls for. */
+ * not a second parallel component" requirements/47 §2.4/MCN2-5 calls for. Learner and
+ * anonymous payloads carry no answer key; only the admin preview does. */
 function gradableItemFields(kind, raw) {
   if (kind === "learning_item") {
     const choices = Array.isArray(raw.choices) ? raw.choices.map(choice => (typeof choice === "string" ? choice : JSON.stringify(choice))) : [];
@@ -89,9 +92,10 @@ function gradableItemFields(kind, raw) {
       prompt: raw.question_text,
       options: choices,
       isNumeric: false,
-      correctIndex: Array.isArray(raw.choices) ? raw.choices.findIndex(choice => choice === raw.correct_answer) : -1,
+      correctIndex: Array.isArray(raw.choices) && raw.correct_answer != null
+        ? raw.choices.findIndex(choice => choice === raw.correct_answer) : -1,
       correctValue: null,
-      explanation: raw.answer_or_solution_seed,
+      explanation: raw.explanation ?? raw.answer_or_solution_seed,
       title: LEARNING_ITEM_PURPOSE_LABELS[raw.purpose] || (raw.purpose || "Pre-check").replaceAll("_", " "),
       previouslyAnswered: typeof raw.answered_correctly === "boolean" ? raw.answered_correctly : null,
     };
@@ -104,7 +108,7 @@ function gradableItemFields(kind, raw) {
     isNumeric: raw.activity_type === "NUMERIC",
     correctIndex: policy.correct_index,
     correctValue: policy.correct_value,
-    explanation: policy.explanation,
+    explanation: raw.explanation ?? policy.explanation,
     title: ACTIVITY_PURPOSE_LABELS[raw.purpose] || "Quiz question",
     previouslyAnswered: typeof raw.answered_correctly === "boolean" ? raw.answered_correctly : null,
   };
@@ -177,15 +181,19 @@ function ItemHelpPanel({ itemKind, itemId, onAsk, canGiveUp, onGiveUp, disabled 
 
 /** Interactive preview quiz question, shared by `activity` and `learning_item` kinds
  * (requirements/47 §2.4, MCN2-5 — a `learning_item` now renders with the exact same
- * answerable UI as `activity` instead of a static list). Grades locally against the
- * already-visible correctness fields; when `onRespond` is given (student is enrolled),
- * the attempt is also recorded server-side. The correct answer is never pre-highlighted
- * until the student answers or gives up. */
+ * answerable UI as `activity` instead of a static list). Grading happens on the server
+ * through `onRespond` (student is enrolled); the answer key is never in the learner
+ * payload. Only the admin preview payload carries a key and can grade locally. The correct
+ * answer is shown only when the server reveals it on give-up. */
 function GradableItem({ kind, raw, onRespond, onAsk, onItemResolved }) {
   const fields = gradableItemFields(kind, raw);
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [numericValue, setNumericValue] = useState("");
   const [pending, setPending] = useState(false);
+  const [notice, setNotice] = useState("");
+  const canGradeLocally = fields.isNumeric
+    ? fields.correctValue !== undefined && fields.correctValue !== null
+    : fields.correctIndex !== undefined && fields.correctIndex >= 0;
   const [result, setResult] = useState(
     fields.previouslyAnswered !== null
       ? { is_correct: fields.previouslyAnswered, explanation: fields.explanation, previousAttempt: true }
@@ -203,6 +211,12 @@ function GradableItem({ kind, raw, onRespond, onAsk, onItemResolved }) {
     setPending(true);
     const response = onRespond ? await onRespond({ itemId: fields.id, choiceIndex: index }) : null;
     setPending(false);
+    if (!response && !canGradeLocally) {
+      setSelectedIndex(null);
+      setNotice(NOT_GRADABLE_NOTICE);
+      return;
+    }
+    setNotice("");
     resolve(response || { is_correct: index === fields.correctIndex, explanation: fields.explanation });
   }
 
@@ -212,6 +226,11 @@ function GradableItem({ kind, raw, onRespond, onAsk, onItemResolved }) {
     const value = Number(numericValue);
     const response = onRespond ? await onRespond({ itemId: fields.id, value }) : null;
     setPending(false);
+    if (!response && !canGradeLocally) {
+      setNotice(NOT_GRADABLE_NOTICE);
+      return;
+    }
+    setNotice("");
     resolve(response || {
       is_correct: fields.correctValue !== undefined && Math.abs(value - Number(fields.correctValue)) < 1e-9,
       explanation: fields.explanation,
@@ -223,6 +242,7 @@ function GradableItem({ kind, raw, onRespond, onAsk, onItemResolved }) {
       is_correct: false,
       gave_up: true,
       explanation: assistResponse.explanation ?? fields.explanation,
+      correct_choice_index: assistResponse.correct_choice_index,
     });
   }
 
@@ -245,7 +265,8 @@ function GradableItem({ kind, raw, onRespond, onAsk, onItemResolved }) {
           {fields.options.map((option, index) => {
             let variant = "btn-outline-secondary";
             if (result) {
-              if (index === fields.correctIndex) variant = "btn-outline-success";
+              const revealedIndex = result.correct_choice_index ?? (canGradeLocally ? fields.correctIndex : null);
+              if (index === revealedIndex || (index === selectedIndex && result.is_correct)) variant = "btn-outline-success";
               else if (index === selectedIndex) variant = "btn-outline-danger";
             }
             return (
@@ -257,6 +278,7 @@ function GradableItem({ kind, raw, onRespond, onAsk, onItemResolved }) {
           })}
         </div>
       )}
+      {notice && <p className="mt-2 mb-0 small text-secondary" role="status">{notice}</p>}
       {result && (
         <div className="mt-2 small d-flex align-items-start gap-2">
           <Icon name={result.is_correct ? "check-circle-fill" : "x-circle-fill"} />

@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from neo4j.exceptions import ServiceUnavailable
 
 from mathbank_rest import pedagogy, route_runtime, solution_guidance, tutor
+from mathbank_rest.config import settings
 from mathbank_rest.main import app
 
 
@@ -30,19 +31,24 @@ def test_read_only_learning_context_never_enriches(monkeypatch):
     monkeypatch.setattr(pedagogy, "learning_context", lambda code: {
         "problem": PROBLEM, "metadata_status": "unenriched", "warnings": ["No reviewed skills."],
     })
+    monkeypatch.setattr(routes, "enrichment_status", lambda code: "not_enriched")
     response = client.get("/v1/tutor/learning-context/FIXTURE?enrich=false")
     assert response.status_code == 200
     assert response.json()["metadata_status"] == "unenriched"
 
 
-def test_default_learning_context_preserves_enrichment(monkeypatch):
+def test_default_learning_context_never_enriches(monkeypatch):
     from mathbank_rest.routers import pedagogy as routes
 
     calls = []
     monkeypatch.setattr(routes, "ensure_learning_metadata", lambda code: calls.append(code))
-    monkeypatch.setattr(pedagogy, "learning_context", lambda code: {"problem": PROBLEM})
-    assert client.get("/v1/tutor/learning-context/FIXTURE").status_code == 200
-    assert calls == ["FIXTURE"]
+    monkeypatch.setattr(routes, "enrichment_status", lambda code: "not_enriched")
+    monkeypatch.setattr(
+        pedagogy, "learning_context", lambda code: {"problem": PROBLEM, "metadata_status": "unenriched"}
+    )
+    response = client.get("/v1/tutor/learning-context/FIXTURE")
+    assert response.status_code == 200 and response.json()["enrichment_status"] == "not_enriched"
+    assert calls == []
 
 
 SKILL = {
@@ -347,8 +353,6 @@ def test_query_bounds(url):
 
 
 def test_refusal_returns_502(monkeypatch):
-    from mathbank_rest.routers import pedagogy as routes
-    monkeypatch.setattr(routes, "ensure_learning_metadata", lambda code: {})
     def fail(body):
         raise pedagogy.CoachingUnavailable("Refused")
 
@@ -360,5 +364,6 @@ def test_refusal_returns_502(monkeypatch):
             "diagnosis": "concept",
             "student_attempt": "A subset.",
         },
+        headers={"X-Admin-Api-Key": settings.admin_api_key},
     )
     assert response.status_code == 502 and response.json()["detail"] == "Refused"

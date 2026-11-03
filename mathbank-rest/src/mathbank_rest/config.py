@@ -4,7 +4,7 @@ from __future__ import annotations
 import warnings
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 INSECURE_DEFAULT_JWT_SECRET = "dev-only-insecure-secret-change-me"
@@ -94,6 +94,12 @@ class Settings(BaseSettings):
     store_flags_refresh_seconds: int = 60
     ddb_env: str = "dev"                      # table names are mb-<context>-<ddb_env>
     ddb_region: str = "us-east-2"
+    # Local development: the AWS CLI profile to use for DynamoDB / S3 / S3 Vectors (e.g. in mathbank-rest/.env).
+    # Empty = boto3's default chain (environment, shared config, or the Lambda execution role).
+    aws_profile: str = Field(default="", validation_alias=AliasChoices("MB_AWS_PROFILE", "AWS_PROFILE"))
+    # When any store (or the vector store) uses AWS, verify credentials/tables at startup and refuse to start with an
+    # actionable message instead of failing on the first request.
+    ddb_startup_check: bool = True
     ddb_endpoint_url: str = ""                # DynamoDB Local / moto server; empty = AWS
     data_bucket: str = ""                     # default mathbank-data-<ddb_env>-<account>
     content_bucket: str = ""
@@ -103,6 +109,9 @@ class Settings(BaseSettings):
     auth_status_cache_seconds: int = 30
     # Anonymous GET /v1/problems* returns official_answer today. Recommendation: false (requirement 70 §12).
     content_public_answers: bool = True
+    # WP1: per-caller cap on paid (embedding / model) requests, and the smallest cohort a public aggregate may describe.
+    search_rate_limit_per_minute: int = Field(default=30, ge=1)
+    cohort_min_students: int = Field(default=10, ge=1)
 
     @property
     def postgres_dsn(self) -> str:

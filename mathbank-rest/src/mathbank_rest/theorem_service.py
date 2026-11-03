@@ -218,6 +218,25 @@ def reject_theorem(conn, slug: str, *, actor: str, reason: str | None = None) ->
     return result
 
 
+def _public_asset(slug: str, asset: dict) -> dict:
+    """Learner/anonymous view of a theorem diagram: never the storage `uri`. Private
+    object-store diagrams are served through `content_url`; external ones expose only
+    their `source_url`."""
+    uri = str(asset.get("uri") or "")
+    public = {
+        "asset_id": str(asset["asset_id"]),
+        "ordinal": asset["ordinal"],
+        "caption": asset["caption"],
+        "mime_type": asset["mime_type"],
+        "private_object": uri.startswith("object-store:"),
+    }
+    if public["private_object"]:
+        public["content_url"] = f"/v1/theorems/{slug}/assets/{public['asset_id']}/content"
+    else:
+        public["source_url"] = asset.get("source_url")
+    return public
+
+
 def get_theorem(conn, slug: str, *, include_unapproved: bool = False) -> dict:
     """Full detail: the theorem row plus its sources, diagrams and taxonomy links.
     `include_unapproved=False` (the default, used by every student-facing/agent-facing
@@ -242,16 +261,20 @@ def get_theorem(conn, slug: str, *, include_unapproved: bool = False) -> dict:
         {"tid": result["theorem_id"]},
     ).mappings()
     result["sources"] = [_row_to_dict(s) for s in sources]
+    asset_filter = "" if include_unapproved else "AND a.validation_status = 'VALID'"
     assets = conn.execute(
-        text("""
-            SELECT ta.asset_id, ta.ordinal, ta.caption, a.uri, a.mime_type
+        text(f"""
+            SELECT ta.asset_id, ta.ordinal, ta.caption, a.uri, a.mime_type, a.source_url
             FROM knowledge.theorem_asset ta JOIN visual.asset a ON a.asset_id = ta.asset_id
-            WHERE ta.theorem_id = :tid
+            WHERE ta.theorem_id = :tid {asset_filter}
             ORDER BY ta.ordinal
         """),
         {"tid": result["theorem_id"]},
     ).mappings()
-    result["assets"] = [_row_to_dict(a) for a in assets]
+    result["assets"] = [
+        _row_to_dict(a) if include_unapproved else _public_asset(result["slug"], _row_to_dict(a))
+        for a in assets
+    ]
     links = conn.execute(
         text("""
             SELECT tl.taxonomy_node_id, tl.role, tn.node_type, tn.name
@@ -642,3 +665,28 @@ def search_theorems(
         params,
     ).mappings()
     return {"items": [_row_to_dict(r) for r in rows]}
+
+
+def get_published_theorem_asset(conn, slug: str, asset_id: str) -> dict:
+    """Storage coordinates of a diagram of an APPROVED theorem, VALID assets only."""
+    asset = conn.execute(
+        text("""
+            SELECT a.uri, a.mime_type, a.content_hash, a.object_size_bytes
+            FROM knowledge.theorem t
+            JOIN knowledge.theorem_asset ta ON ta.theorem_id = t.theorem_id
+            JOIN visual.asset a ON a.asset_id = ta.asset_id
+            WHERE t.slug = :slug AND t.review_status = 'APPROVED'
+              AND a.asset_id = :asset_id AND a.validation_status = 'VALID'
+        """),
+        {"slug": slug, "asset_id": str(asset_id)},
+    ).mappings().first()
+    if asset is None:
+        raise TheoremNotFound("theorem asset not found")
+    if not str(asset["uri"]).startswith("object-store:"):
+        raise TheoremConflict("theorem asset is not stored in the private object store")
+    return {
+        "object_key": asset["uri"].removeprefix("object-store:"),
+        "mime_type": asset["mime_type"],
+        "content_hash": asset["content_hash"],
+        "object_size_bytes": asset["object_size_bytes"],
+    }

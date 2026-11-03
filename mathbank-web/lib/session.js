@@ -8,8 +8,8 @@
 // requirements/12_STUDENT_PROFILE_AND_ADMIN_LOGIN_UI_REQUIREMENTS.md).
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
+import { STUDENT_COOKIE } from "./studentCookie.mjs";
 
-const STUDENT_COOKIE = "mb_student_token";
 const ADMIN_COOKIE = "mb_admin_session";
 const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || "dev-only-insecure-admin-session-secret-change-me";
 const SEVEN_DAYS = 60 * 60 * 24 * 7;

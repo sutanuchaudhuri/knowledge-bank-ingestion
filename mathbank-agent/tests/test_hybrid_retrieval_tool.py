@@ -14,11 +14,24 @@ def test_tutor_explicitly_requests_graph_vector_lexical_and_preserves_warnings(m
     payload = {"results": [], "warnings": ["Graph unavailable"], "retrieval": {"graph": "unavailable"}}
     client.post.return_value.json.return_value = payload
     monkeypatch.setattr(tools, "_client", lambda: client)
+    monkeypatch.setenv("MATHBANK_ADMIN_API_KEY", "service-key")
     assert tools.search_problems("similar circles", competition="SMT", year_min=2020) == payload
     body = client.post.call_args.kwargs["json"]
     assert body["retrieval"] == {"semantic": True, "lexical": True, "graph": True}
+    client.headers.update.assert_called_with({"X-Admin-Api-Key": "service-key"})
     assert body["filters"] == {"competition": "SMT", "year_min": 2020}
     client.post.return_value.raise_for_status.assert_called_once()
+
+
+def test_search_problems_without_a_service_key_stays_off_the_paid_semantic_path(monkeypatch):
+    client = MagicMock()
+    client.__enter__.return_value = client
+    client.post.return_value.json.return_value = {"results": []}
+    monkeypatch.setattr(tools, "_client", lambda: client)
+    monkeypatch.delenv("MATHBANK_ADMIN_API_KEY", raising=False)
+    tools.search_problems("similar circles")
+    assert client.post.call_args.kwargs["json"]["retrieval"]["semantic"] is False
+    client.headers.update.assert_called_with({})
 
 
 def test_search_concepts_posts_taxonomy_query_with_parsed_filters(monkeypatch):

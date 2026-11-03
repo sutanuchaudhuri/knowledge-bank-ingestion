@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import csv
 import math
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -173,7 +174,9 @@ def main() -> int:
     args = parser.parse_args()
 
     rows = []
-    with httpx.Client(base_url=args.base_url, timeout=30.0) as client:
+    # Semantic ranking needs a credential; without ADMIN_API_KEY the run measures lexical/graph retrieval only.
+    headers = {"X-Admin-Api-Key": os.environ["ADMIN_API_KEY"]} if os.environ.get("ADMIN_API_KEY") else {}
+    with httpx.Client(base_url=args.base_url, timeout=30.0, headers=headers) as client:
         for case in GOLDEN_CASES:
             relevant = fetch_ground_truth(client, case)
             retrieved = run_search(client, case, args.k)

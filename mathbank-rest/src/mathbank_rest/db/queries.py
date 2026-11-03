@@ -79,7 +79,8 @@ def list_problems(
         clauses.append(
             "EXISTS (SELECT 1 FROM knowledge.problem_concept pc "
             "JOIN knowledge.concept c ON c.concept_id = pc.concept_id "
-            "WHERE pc.problem_id = p.problem_id AND c.slug = :concept)"
+            "WHERE pc.problem_id = p.problem_id AND c.slug = :concept "
+            "AND pc.review_status <> 'REJECTED')"
         )
         params["concept"] = concept
     if technique:
@@ -136,7 +137,7 @@ def get_problem_by_code(canonical_code: str) -> dict | None:
                 SELECT c.slug, c.name, pc.role, pc.confidence
                 FROM knowledge.problem_concept pc
                 JOIN knowledge.concept c ON c.concept_id = pc.concept_id
-                WHERE pc.problem_id = :pid
+                WHERE pc.problem_id = :pid AND pc.review_status <> 'REJECTED'
                 """
             ),
             {"pid": result["problem_id"]},
@@ -221,6 +222,7 @@ def get_concept_problems(slug: str, *, limit: int = 25, offset: int = 0) -> list
             FROM knowledge.problem_concept pc
             JOIN concept_closure cc ON cc.concept_id = pc.concept_id
             JOIN knowledge.concept c ON c.concept_id = pc.concept_id
+            WHERE pc.review_status <> 'REJECTED'
             ORDER BY pc.problem_id, (pc.role = 'PRIMARY') DESC, pc.confidence DESC NULLS LAST
         )
         SELECT p.canonical_code, p.problem_number, comp.name AS competition, ed.year,
@@ -315,8 +317,10 @@ def corpus_coverage() -> list[dict]:
         JOIN core.competition_edition ed ON ed.competition_id = comp.competition_id
         JOIN core.paper pa ON pa.edition_id = ed.edition_id
         JOIN core.problem p ON p.paper_id = pa.paper_id
-        LEFT JOIN knowledge.problem_concept pc ON pc.problem_id = p.problem_id
-        LEFT JOIN knowledge.problem_technique pt ON pt.problem_id = p.problem_id
+        LEFT JOIN knowledge.problem_concept pc
+               ON pc.problem_id = p.problem_id AND pc.review_status <> 'REJECTED'
+        LEFT JOIN knowledge.problem_technique pt
+               ON pt.problem_id = p.problem_id AND pt.review_status <> 'REJECTED'
         GROUP BY comp.name
         ORDER BY comp.name
         """

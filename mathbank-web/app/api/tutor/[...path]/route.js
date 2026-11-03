@@ -1,4 +1,5 @@
-import { restGet, restPost } from "../../../../lib/restClient.js";
+import { restAuthPost, restGet, restPost } from "../../../../lib/restClient.js";
+import { studentTokenFromRequest } from "../../../../lib/studentCookie.mjs";
 import { prepareProblemPresentation } from "../../../../lib/problemPresentation.mjs";
 
 const READ_PATHS = new Set(["workspace", "learning-context", "prerequisites", "practice"]);
@@ -39,7 +40,10 @@ export async function POST(request, context) {
     return Response.json({ error: "Request body must be valid JSON" }, { status: 400 });
   }
   try {
-    return Response.json(await restPost(`/v1/tutor/${path[0]}`, body));
+    // Published hints are public; generating a new coaching hint needs the student's own token.
+    const token = studentTokenFromRequest(request);
+    const url = `/v1/tutor/${path[0]}`;
+    return Response.json(token ? await restAuthPost(url, token, body) : await restPost(url, body));
   } catch (err) {
     return Response.json({ error: err.message }, { status: err.status || 502 });
   }

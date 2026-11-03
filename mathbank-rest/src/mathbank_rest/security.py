@@ -6,6 +6,8 @@ only pure crypto/token logic, so it can be unit-tested without a database.
 from __future__ import annotations
 
 import hmac
+import threading
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
@@ -15,6 +17,7 @@ import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.exc import SQLAlchemyError
 
 from mathbank_rest.config import settings
 
@@ -56,10 +59,59 @@ def decode_access_token(token: str) -> UUID:
     return UUID(payload["sub"])
 
 
+_status_cache: dict[UUID, tuple[float, str]] = {}
+_status_cache_lock = threading.Lock()
+_STATUS_CACHE_MAX = 10_000
+
+
+def invalidate_student_status(student_id: UUID) -> None:
+    """Drop the cached status so the next request re-reads it (called on disable/enable/delete)."""
+    with _status_cache_lock:
+        _status_cache.pop(student_id, None)
+
+
+def _load_student_status(student_id: UUID) -> str | None:
+    from mathbank_rest.db import learner as learner_db  # lazy: keeps this module free of the database layer
+
+    return learner_db.get_student_status(student_id)
+
+
+def assert_student_active(student_id: UUID) -> None:
+    """Reject (401) a token whose student is missing, DISABLED or DELETED. The status read is cached for
+    `auth_status_cache_seconds` per student so it is not a query on every request."""
+    ttl = settings.auth_status_cache_seconds
+    now = time.monotonic()
+    with _status_cache_lock:
+        cached = _status_cache.get(student_id)
+    if cached is not None and cached[0] > now:
+        account_status = cached[1]
+    else:
+        try:
+            account_status = _load_student_status(student_id)
+        except SQLAlchemyError:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="account status unavailable"
+            ) from None
+        if account_status is not None and ttl > 0:
+            with _status_cache_lock:
+                if len(_status_cache) >= _STATUS_CACHE_MAX:
+                    for key in [k for k, (expires, _) in _status_cache.items() if expires <= now]:
+                        del _status_cache[key]
+                    if len(_status_cache) >= _STATUS_CACHE_MAX:
+                        _status_cache.clear()
+                _status_cache[student_id] = (now + ttl, account_status)
+    if account_status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 def get_current_student_id(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
 ) -> UUID:
-    """FastAPI dependency: require a valid `Authorization: Bearer <token>` header."""
+    """FastAPI dependency: require a valid `Authorization: Bearer <token>` header for an ACTIVE student."""
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -67,13 +119,15 @@ def get_current_student_id(
             headers={"WWW-Authenticate": "Bearer"},
         )
     try:
-        return decode_access_token(credentials.credentials)
-    except jwt.PyJWTError:
+        student_id = decode_access_token(credentials.credentials)
+    except (jwt.PyJWTError, ValueError, KeyError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
+    assert_student_active(student_id)
+    return student_id
 
 
 def get_optional_student_id(

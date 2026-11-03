@@ -19,6 +19,19 @@ def _client() -> httpx.Client:
     return httpx.Client(base_url=REST_BASE_URL, timeout=30.0)
 
 
+def _paid_credential() -> dict[str, str]:
+    """Search embeddings, hint generation and decomposition spend money, so mathbank-rest only serves them to a
+    signed-in caller. The agent authenticates with the service key; without it those calls degrade or return 401."""
+    key = os.environ.get("MATHBANK_ADMIN_API_KEY", "")
+    return {"X-Admin-Api-Key": key} if key else {}
+
+
+def _paid_client() -> httpx.Client:
+    client = _client()
+    client.headers.update(_paid_credential())
+    return client
+
+
 def search_problems(
     query: str,
     competition: str = "",
@@ -60,7 +73,7 @@ def search_problems(
     """
     body: dict = {
         "query": query, "limit": min(limit, 100), "filters": {},
-        "retrieval": {"semantic": True, "lexical": True, "graph": True},
+        "retrieval": {"semantic": bool(_paid_credential()), "lexical": True, "graph": True},
     }
     if competition:
         body["filters"]["competition"] = competition
@@ -70,7 +83,7 @@ def search_problems(
         body["filters"]["year_max"] = year_max
     if recent_first:
         body["order_by"] = "year_desc"
-    with _client() as client:
+    with _paid_client() as client:
         response = client.post("/v1/search/problems", json=body)
         response.raise_for_status()
         return response.json()
@@ -273,7 +286,7 @@ def search_concepts(
         body["node_types"] = types
     if chapter_number:
         body["chapter_number"] = chapter_number
-    with _client() as client:
+    with _paid_client() as client:
         response = client.post("/v1/search/concepts", json=body)
         response.raise_for_status()
         return response.json()
@@ -306,7 +319,7 @@ def decompose_problem(problem_code: str, max_steps: int = 3) -> dict:
     Returns:
         {"problem_code", "subproblems": [{"step", "prompt", "targets_skill"}]}
     """
-    with _client() as client:
+    with _paid_client() as client:
         response = client.post(
             "/v1/tutor/decompose",
             json={"problem_code": problem_code, "max_steps": max_steps},
@@ -329,7 +342,7 @@ def check_subproblem_answer(subproblem_prompt: str, student_answer: str) -> dict
     Returns:
         {"correct": bool, "feedback": str}
     """
-    with _client() as client:
+    with _paid_client() as client:
         response = client.post(
             "/v1/tutor/check-subproblem",
             json={"subproblem_prompt": subproblem_prompt, "student_answer": student_answer},
@@ -409,7 +422,7 @@ def get_next_hint(
     Only escalate on explicit request after the learner tries the previous hint.
     Generated content is PENDING, not an expert-reviewed hint ladder.
     """
-    with _client() as client:
+    with _paid_client() as client:
         response = client.post("/v1/tutor/coach", json={
             "problem_code": problem_code, "diagnosis": diagnosis,
             "student_attempt": student_attempt, "hint_level": hint_level,

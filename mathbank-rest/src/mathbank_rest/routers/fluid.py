@@ -8,7 +8,7 @@
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 import jwt
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -18,8 +18,11 @@ from sqlalchemy import text
 from mathbank_rest import authoring, live_runtime, math_format, security, widgets
 from mathbank_rest.config import settings
 from mathbank_rest.db.postgres import engine
+from mathbank_rest.micro_course_service import record_audit_event
+from mathbank_rest.security import Actor
 
 router = APIRouter(prefix="/v1", tags=["fluid-widgets"])
+AdminActor = Annotated[Actor, Depends(security.require_admin_api_key)]
 FORMATTER = math_format.openai_formatter  # injectable; tests replace it
 PLAN_LLM_PARSER = None  # optional NL → patch fallback; deterministic parser is the default
 
@@ -37,10 +40,12 @@ def staff_or_student(authorization: str | None = Header(default=None),
                      x_admin_api_key: str | None = Header(default=None)) -> dict:
     """Accept either the admin API key (staff) or a student bearer token."""
     if x_admin_api_key and x_admin_api_key == settings.admin_api_key:
-        return {"role": "ADMIN", "student_id": None}
+        return {"role": "ADMIN", "student_id": None, "actor_id": security.SERVICE_ACTOR.id}
     if authorization and authorization.lower().startswith("bearer "):
         try:
-            return {"role": "STUDENT", "student_id": str(security.decode_access_token(authorization[7:].strip()))}
+            student_id = security.decode_access_token(authorization[7:].strip())
+            security.assert_student_active(student_id)
+            return {"role": "STUDENT", "student_id": str(student_id)}
         except (jwt.PyJWTError, ValueError, KeyError):
             pass
     raise HTTPException(status_code=401, detail="admin API key or student bearer token required")
@@ -68,7 +73,6 @@ class StoreBody(BaseModel):
 
 class ReviewBody(BaseModel):
     decision: Literal["NOMINATE", "PROMOTE", "REJECT"]
-    reviewer: str = "admin"
 
 
 @router.get("/widgets/registry")
@@ -97,15 +101,15 @@ def widget_generate(body: GenerateBody, caller: dict = Depends(staff_or_student)
         check = widgets.validate(composed["spec"], live_runtime._ref_checker(conn))
         out = {**composed, "validation": {k: check[k] for k in ("valid", "errors", "warnings")}}
         if body.store and check["valid"]:
-            out["stored"] = live_runtime.store_widget_spec(conn, composed["spec"], body.source_type, "composer")
+            out["stored"] = live_runtime.store_widget_spec(
+                conn, composed["spec"], body.source_type, caller["actor_id"])
         return out
     return _run(go)
 
 
 @router.post("/widgets/specs", status_code=201)
-def widget_store(body: StoreBody, x_actor_id: str | None = Header(default=None),
-                 _: None = Depends(security.require_admin_api_key)) -> dict:
-    return _run(live_runtime.store_widget_spec, body.spec, body.source_type, x_actor_id or "admin",
+def widget_store(body: StoreBody, actor: AdminActor) -> dict:
+    return _run(live_runtime.store_widget_spec, body.spec, body.source_type, actor.id,
                 body.live_session_id)
 
 
@@ -127,18 +131,28 @@ def widget_specs(lifecycle: str | None = None, persistence: str | None = None, l
 
 
 @router.get("/widgets/specs/{spec_id}")
-def widget_spec(spec_id: str, _: dict = Depends(staff_or_student)) -> dict:
+def widget_spec(spec_id: str, caller: dict = Depends(staff_or_student)) -> dict:
     def go(conn):
         row = conn.execute(text(f"SELECT {_SPEC_COLS} FROM visual.widget_spec WHERE widget_spec_id::text = :i"),
                            {"i": spec_id}).mappings().first()
         if not row:
             raise live_runtime.LiveError(404, "WIDGET_NOT_FOUND", "widget spec not found")
-        return live_runtime._jsonable(dict(row))
+        if caller["role"] == "ADMIN":
+            return live_runtime._jsonable(dict(row))
+        if row["lifecycle"] in ("REJECTED", "EXPIRED"):
+            raise live_runtime.LiveError(404, "WIDGET_NOT_FOUND", "widget spec not found")
+        if row["persistence"] != "STATIC" and not (row["live_session_id"] and conn.execute(text(
+                "SELECT 1 FROM live.participant WHERE live_session_id = CAST(:s AS uuid) "
+                "AND student_id = CAST(:st AS uuid) LIMIT 1"),
+                {"s": row["live_session_id"], "st": caller["student_id"]}).first()):
+            raise live_runtime.LiveError(403, "WIDGET_FORBIDDEN", "widget spec belongs to another session")
+        learner_view = {k: v for k, v in dict(row).items() if k not in ("created_by", "reviewed_by", "reviewed_at")}
+        return live_runtime._jsonable(learner_view)
     return _run(go)
 
 
 @router.post("/widgets/specs/{spec_id}/review")
-def widget_review(spec_id: str, body: ReviewBody, _: None = Depends(security.require_admin_api_key)) -> dict:
+def widget_review(spec_id: str, body: ReviewBody, actor: AdminActor) -> dict:
     """Persistence promotion (fluid 19/20): agent-created → candidate → admin-approved STATIC template."""
     transitions = {"NOMINATE": ("PROMOTION_CANDIDATE", None), "PROMOTE": ("PROMOTED_TO_TEMPLATE", "STATIC"),
                    "REJECT": ("REJECTED", None)}
@@ -151,10 +165,17 @@ def widget_review(spec_id: str, body: ReviewBody, _: None = Depends(security.req
         if body.decision == "PROMOTE" and row[0] != "PROMOTION_CANDIDATE":
             raise live_runtime.LiveError(409, "NOT_A_CANDIDATE", "nominate the widget before promoting it")
         lifecycle, persistence = transitions[body.decision]
-        conn.execute(text(
+        if row[0] == lifecycle:
+            raise live_runtime.LiveError(409, "ALREADY_REVIEWED", f"widget spec is already {lifecycle}")
+        updated = conn.execute(text(
             "UPDATE visual.widget_spec SET lifecycle = :l, persistence = COALESCE(:p, persistence), "
             "expires_at = CASE WHEN :p = 'STATIC' THEN NULL ELSE expires_at END, reviewed_by = :r, reviewed_at = now() "
-            "WHERE widget_spec_id::text = :i"), {"l": lifecycle, "p": persistence, "r": body.reviewer, "i": spec_id})
+            "WHERE widget_spec_id::text = :i"), {"l": lifecycle, "p": persistence, "r": actor.id, "i": spec_id}).rowcount
+        if updated != 1:
+            raise live_runtime.LiveError(409, "REVIEW_NOT_APPLIED", "widget spec was not updated")
+        record_audit_event(conn, "ADMIN", actor.id, body.decision, "widget_spec", spec_id,
+                           before_state={"lifecycle": row[0]},
+                           after_state={"lifecycle": lifecycle, "persistence": persistence or "unchanged"})
         return {"widget_spec_id": spec_id, "lifecycle": lifecycle, "persistence": persistence or "unchanged"}
     return _run(go)
 

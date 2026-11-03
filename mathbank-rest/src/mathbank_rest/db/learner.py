@@ -9,6 +9,7 @@ import secrets
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+from fastapi import HTTPException
 from sqlalchemy import text
 
 from mathbank_rest.db.postgres import engine
@@ -22,7 +23,8 @@ def get_practice_progress(student_id: UUID) -> dict:
         theme_problems AS (
             SELECT 'concept' AS kind, c.slug, c.name, pc.problem_id
             FROM knowledge.concept c
-            LEFT JOIN knowledge.problem_concept pc USING(concept_id)
+            LEFT JOIN knowledge.problem_concept pc
+                ON pc.concept_id=c.concept_id AND pc.review_status <> 'REJECTED'
             UNION
             SELECT 'technique', t.slug, t.name, te.problem_id
             FROM knowledge.technique t
@@ -119,9 +121,65 @@ def get_student_by_cognito_sub(cognito_sub: str) -> dict | None:
         return dict(row) if row else None
 
 
+class EmailAlreadyRegistered(HTTPException):
+    """Onboarding found an account with this email that this Cognito identity may not take over."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=409,
+            detail={
+                "code": "EMAIL_ALREADY_REGISTERED",
+                "message": "an account with this email already exists; sign in with its password",
+            },
+        )
+
+
+def get_student_status(student_id: UUID) -> str | None:
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT status FROM learner.student_profile WHERE student_id = :id"),
+            {"id": str(student_id)},
+        ).scalar()
+
+
+def set_student_status(student_id: UUID, new_status: str, actor_id: str) -> dict | None:
+    """Disable or re-enable an account and audit it in the same transaction. None = no such student.
+    A DELETED account is terminal and raises ValueError."""
+    if new_status not in ("ACTIVE", "DISABLED"):
+        raise ValueError(f"unsupported status {new_status!r}")
+    from mathbank_rest.micro_course_service import record_audit_event
+
+    with engine.begin() as conn:
+        current = conn.execute(
+            text("SELECT status FROM learner.student_profile WHERE student_id = :id FOR UPDATE"),
+            {"id": str(student_id)},
+        ).scalar()
+        if current is None:
+            return None
+        if current == "DELETED":
+            raise ValueError("account is deleted")
+        row = conn.execute(
+            text(
+                "UPDATE learner.student_profile SET status = :status, "
+                "disabled_at = CASE WHEN :status = 'DISABLED' THEN COALESCE(disabled_at, now()) ELSE NULL END "
+                "WHERE student_id = :id "
+                "RETURNING student_id, status, disabled_at"
+            ),
+            {"status": new_status, "id": str(student_id)},
+        ).mappings().first()
+        record_audit_event(
+            conn, "ADMIN", actor_id,
+            "STUDENT_DISABLED" if new_status == "DISABLED" else "STUDENT_ENABLED",
+            "STUDENT", str(student_id),
+            before_state={"status": current}, after_state={"status": new_status},
+        )
+        return dict(row)
+
+
 def create_student_for_cognito(
     *, cognito_sub: str | None, first_name: str, last_name: str, grade: str | None = None,
     email: str | None = None, phone: str | None = None, is_anonymous: bool = False,
+    email_verified: bool = False,
 ) -> dict:
     """Creates the `learner.student_profile` row at onboarding time (both the named
     Cognito-signup path and the anonymous path create a row here — requirements/64
@@ -131,28 +189,27 @@ def create_student_for_cognito(
     table (a real, pre-existing constraint — every other code path always supplies one),
     so a synthetic placeholder is generated when the student gave none; it is never a
     real, reachable address and is distinguishable from a real one by its fixed
-    `@mathbank.anonymous.invalid` domain."""
+    `@mathbank.anonymous.invalid` domain.
+
+    When the email already belongs to a profile, that profile is returned only if it is
+    already bound to this same `cognito_sub`. A password account that has no Cognito
+    identity yet is linked only when the caller vouches that Cognito verified the email
+    (`email_verified`); every other collision raises EmailAlreadyRegistered (409) and
+    leaves the existing profile untouched (LRN-F02)."""
     display_name = f"{first_name} {last_name}".strip() or "Student"
     placeholder_id = cognito_sub or uuid4()
     email = email or f"anon-{placeholder_id}@mathbank.anonymous.invalid"
+    columns = "student_id, email, first_name, last_name, display_name, grade, phone, status"
     with engine.begin() as conn:
         row = conn.execute(
-            text("""
+            text(f"""
                 INSERT INTO learner.student_profile
                     (cognito_sub, email, password_hash, first_name, last_name, display_name,
                      grade, phone, is_anonymous)
                 VALUES (:sub, :email, :hash, :first_name, :last_name, :display_name,
                         :grade, :phone, :is_anonymous)
-                -- A student who already registered the old password-based way (e.g. the
-                -- seeded demo accounts, or the e2e regression student) has a row here
-                -- under the same email, with cognito_sub still NULL. First-ever Cognito
-                -- login for that same email must link the existing row, never insert a
-                -- duplicate (email is NOT NULL UNIQUE) or silently 500 on the conflict.
-                -- Only cognito_sub is touched — every other existing column (profile,
-                -- password_hash, student_id) is left exactly as it was.
-                ON CONFLICT (email) DO UPDATE
-                    SET cognito_sub = COALESCE(learner.student_profile.cognito_sub, EXCLUDED.cognito_sub)
-                RETURNING student_id, email, first_name, last_name, display_name, grade, phone, status
+                ON CONFLICT (email) DO NOTHING
+                RETURNING {columns}
             """),
             {
                 "sub": cognito_sub, "email": email, "hash": secrets.token_hex(32),
@@ -160,7 +217,25 @@ def create_student_for_cognito(
                 "grade": grade, "phone": phone, "is_anonymous": is_anonymous,
             },
         ).mappings().first()
-        return dict(row)
+        if row is not None:
+            return dict(row)
+        existing = conn.execute(
+            text(f"SELECT {columns}, cognito_sub FROM learner.student_profile WHERE email = :email FOR UPDATE"),
+            {"email": email},
+        ).mappings().first()
+        if existing is None:
+            raise EmailAlreadyRegistered()
+        existing = dict(existing)
+        bound_sub = existing.pop("cognito_sub")
+        if cognito_sub is not None and bound_sub == cognito_sub:
+            return existing
+        if cognito_sub is None or bound_sub is not None or not email_verified:
+            raise EmailAlreadyRegistered()
+        conn.execute(
+            text("UPDATE learner.student_profile SET cognito_sub = :sub WHERE student_id = :id AND cognito_sub IS NULL"),
+            {"sub": cognito_sub, "id": str(existing["student_id"])},
+        )
+        return existing
 
 
 def get_problem_id_by_code(canonical_code: str) -> UUID | None:
@@ -236,7 +311,8 @@ def get_concepts_and_techniques_for_problem(problem_id: UUID) -> dict:
             r[0]
             for r in conn.execute(
                 text(
-                    "SELECT concept_id FROM knowledge.problem_concept WHERE problem_id = :id"
+                    "SELECT DISTINCT concept_id FROM knowledge.problem_concept "
+                    "WHERE problem_id = :id AND review_status <> 'REJECTED'"
                 ),
                 {"id": str(problem_id)},
             ).all()
@@ -245,7 +321,8 @@ def get_concepts_and_techniques_for_problem(problem_id: UUID) -> dict:
             r[0]
             for r in conn.execute(
                 text(
-                    "SELECT technique_id FROM knowledge.problem_technique WHERE problem_id = :id"
+                    "SELECT DISTINCT technique_id FROM knowledge.problem_technique "
+                    "WHERE problem_id = :id AND review_status <> 'REJECTED'"
                 ),
                 {"id": str(problem_id)},
             ).all()
@@ -262,6 +339,7 @@ def get_attempts_for_concept(student_id: UUID, concept_id: UUID) -> list[dict]:
                 "JOIN knowledge.problem_concept pc ON pc.problem_id = a.problem_id "
                 "JOIN core.problem p ON p.problem_id = a.problem_id "
                 "WHERE a.student_id = :student_id AND pc.concept_id = :concept_id "
+                "AND pc.review_status <> 'REJECTED' "
                 "AND a.is_correct IS NOT NULL "
                 "UNION ALL "
                 # requirements/53 QZ-7: blend quiz-generated-question performance into the
@@ -290,6 +368,7 @@ def get_attempts_for_technique(student_id: UUID, technique_id: UUID) -> list[dic
                 "JOIN knowledge.problem_technique pt ON pt.problem_id = a.problem_id "
                 "JOIN core.problem p ON p.problem_id = a.problem_id "
                 "WHERE a.student_id = :student_id AND pt.technique_id = :technique_id "
+                "AND pt.review_status <> 'REJECTED' "
                 "AND a.is_correct IS NOT NULL "
                 "UNION ALL "
                 # Same blending as get_attempts_for_concept above, for technique_mastery.

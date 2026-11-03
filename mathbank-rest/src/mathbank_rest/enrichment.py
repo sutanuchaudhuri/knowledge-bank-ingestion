@@ -58,6 +58,19 @@ class EnrichmentUnavailable(RuntimeError):
     pass
 
 
+def enrichment_status(code: str) -> str:
+    """Read-only: the recorded enrichment job state for a problem, `not_enriched` when none exists."""
+    with engine.connect() as conn:
+        status = conn.execute(
+            text(
+                "SELECT j.status FROM knowledge.enrichment_job j "
+                "JOIN core.problem p USING(problem_id) WHERE p.canonical_code=:code"
+            ),
+            {"code": code},
+        ).scalar_one_or_none()
+    return status.lower() if status else "not_enriched"
+
+
 def ensure_learning_metadata(code: str) -> dict:
     from mathbank_rest.pedagogy import problem_statement
     from mathbank_rest.publication import publish_current
