@@ -174,6 +174,17 @@ New settings in `config.py` (all with safe defaults that keep today's behaviour)
 `AUTH_STATUS_CACHE_SECONDS=30`, `CONTENT_PUBLIC_ANSWERS`, plus the per-context options named in the C1–C6
 designs. `postgres_dsn` becomes optional at import time.
 
+### 2.9 Local development (UI + backend, real DynamoDB)
+
+Local runs must use real AWS, not emulators. The `dev` environment holds the migrated data; `test` is empty and used only by the integration suite.
+
+1. `aws login --profile aws-sutanu-admin` (any profile with access to account 848941468793, us-east-2).
+2. In `mathbank-rest/.env`: `MB_AWS_PROFILE=<profile>`, `DDB_ENV=dev`, and `<CTX>_STORE=dynamodb` for each context to exercise (e.g. `LEARNER_STORE=dynamodb`); `VECTOR_STORE=s3vectors` once WP2 lands.
+3. `make aws-check` (add `WRITE=1` for a write/read/delete round trip, `CTX="learner exam"` to narrow). It verifies credentials, every table ACTIVE, both buckets and the S3 Vectors bucket, and prints the exact `aws login` command if credentials are missing or expired.
+4. `make run` (combined app), `make run-runtime` (no Postgres engine) or `make run-admin`; then the web/live apps as usual.
+
+Guard rails: a context set to `dynamodb` makes startup fail fast with an actionable message when AWS is unreachable (`DDB_STARTUP_CHECK=false` disables it); `GET /health/stores?deep=true` re-runs the check (503 on failure); `python -m mathbank_rest.stores.doctor` is the same check as a CLI; the doctor warns when `DDB_ENV=prod`. With every store on `postgres` (today's default) nothing calls AWS. Integration tests always target `test` (`make test-ddb-integration`), never `dev`.
+
 ## 3. Work packages
 
 Sizes are from the module inventory in [Appendix B](#appendix-b--module-inventory-per-work-package).
@@ -246,7 +257,15 @@ Must land first, because the read model and `mb-exam`/`mb-learner` should not in
   publish, `author` → authoring writes). Routes that mutate content require a staff actor once WP10 lands;
   the shared key keeps read-only and service use.
 - `CONTENT_PUBLIC_ANSWERS` flag introduced (default as decided).
-- **Gate:** the 20 WP1 IDs `DONE`; serializer snapshot tests pass.
+- **Gate:** the WP1 IDs `DONE`; serializer snapshot tests pass.
+
+**Delivered (commit `914fdc2`, 16 IDs DONE, `make findings-check WP=WP1` passes):**
+- Answer keys: anonymous micro-course reader/runtime no longer select keys or per-option explanations (explanation only after answering); theorem assets are `VALID`-only with no raw `uri`; the web course player grades through the server.
+- Side effects/paid calls: learning-context GET never enriches (`POST .../enrich` is authenticated and rate limited); anonymous search is lexical-only (`semantic_requires_sign_in`); per-caller search bucket; cohort floor `cohort_min_students=10`; REJECTED concept/technique tags excluded from public reads and mastery.
+- Identity: `student_profile.status` enforced on every learner request (migration `055_student_status.sql`, admin disable/enable with audit); Cognito onboarding no longer links by email unless `email_verified`.
+- Actor attribution: template/scene/artifact/widget/pedagogy-governance mutations record `staff:<id>` or `service:admin-key` and write audit rows; widget specs are owner-scoped.
+- Behaviour changes needing sign-off: `weak-concepts` returns `{results, suppressed, cohort_min_students}`; learners no longer see the correct option after a wrong (non-give-up) answer; learner `GET /v1/widgets/specs/{id}` is 403 outside the learner's sessions; default-semantic anonymous search downgrades to lexical rather than 401; status cache is per process (up to 30 s stale after a disable).
+- Follow-ups: clients must send `email_verified=true` after real verification (`mathbank-exam-agent` sign-up, `cognitoBridge.js` in web/live) and handle 409 `EMAIL_ALREADY_REGISTERED`; `micro_course_assist` still passes the key to the LLM prompt; `topic_pedagogy.resolve_feedback` has no actor/audit; PMC-F21 remainder (unrouted writer, release detail) moved to WP10.
 
 ### WP2 Vectors
 
