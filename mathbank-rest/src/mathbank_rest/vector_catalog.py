@@ -171,7 +171,14 @@ class ArtifactPrivateMeta(VectorMetadata):
 
 
 class QuizQuestionMeta(VectorMetadata):
-    NON_FILTERABLE = frozenset({"topic_key_sha256"})
+    """Two vectors per pool question: ``<pool_id>#prompt`` (kind ``prompt``) and ``<pool_id>#topic`` (kind ``topic``). ``difficulty_band``
+    is ``NONE`` for a null band; ``status`` (ACTIVE | RETIRED) is updated when the question is retired. No learner data or free text."""
+
+    NON_FILTERABLE = frozenset({"topic_key_sha256", "content_hash", "model"})
+    kind: StrictStr | None = None
+    status: StrictStr | None = None
+    content_hash: StrictStr | None = None
+    model: StrictStr | None = None
     style: StrictStr | None = None
     question_type: StrictStr | None = None
     difficulty_band: StrictStr | None = None

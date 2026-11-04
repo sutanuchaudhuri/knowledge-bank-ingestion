@@ -15,10 +15,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import text
 
-from mathbank_rest import quiz_runtime, stores
-from mathbank_rest.db.postgres import engine
+from mathbank_rest import stores
+from mathbank_rest.quiz_logic import QuizError
 from mathbank_rest.security import create_access_token, require_admin_api_key
 from mathbank_rest.stores.errors import StoreFrozen
 
@@ -27,6 +26,11 @@ router = APIRouter(
     prefix="/v1/quiz-integration", tags=["quiz-integration"],
     dependencies=[Depends(require_admin_api_key)],
 )
+
+
+def _exam() -> Any:
+    """The quiz handlers below go through the exam store (WP6); the identity handlers use the learner store (WP5)."""
+    return stores.get_store("exam")
 
 
 # Learner identity and mastery go through the learner store (WP5). The wrappers keep the historical module-level names.
@@ -49,7 +53,7 @@ def get_student_profile(student_id: UUID) -> dict | None:
 def _call(operation, *args: Any, **kwargs: Any) -> dict:
     try:
         return operation(*args, **kwargs)
-    except quiz_runtime.QuizError as exc:
+    except QuizError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
 
 
@@ -171,7 +175,7 @@ class GenerationEventRequest(BaseModel):
 @router.post("/papers")
 def import_paper(body: ImportPaperRequest) -> dict:
     return _call(
-        quiz_runtime.import_paper,
+        _exam().import_paper,
         body.student_id,
         style=body.style, title=body.title, instructions=body.instructions,
         requested_question_count=body.requested_question_count,
@@ -190,7 +194,7 @@ def start_paper(body: StartPaperRequest) -> dict:
     back right away, well before any question is drafted, so it can start polling
     generation-events for this quiz_id while a later call does the actual work."""
     quiz_id = _call(
-        quiz_runtime.start_paper,
+        _exam().start_paper,
         body.student_id,
         style=body.style, title=body.title, instructions=body.instructions,
         requested_question_count=body.requested_question_count,
@@ -207,7 +211,7 @@ def finalize_paper(quiz_id: UUID, body: FinalizePaperRequest) -> dict:
     """Inserts every question for an already-start_paper'd quiz_id and flips its status
     to READY (requirements/64 continued)."""
     return _call(
-        quiz_runtime.finalize_paper, quiz_id, body.student_id,
+        _exam().finalize_paper, quiz_id, body.student_id,
         questions=[q.model_dump() for q in body.questions], generated_by=body.generated_by,
         pool_topic=body.pool_topic, pool_concept_slugs=body.pool_concept_slugs,
     )
@@ -215,7 +219,7 @@ def finalize_paper(quiz_id: UUID, body: FinalizePaperRequest) -> dict:
 
 @router.post("/papers/{quiz_id}/fail")
 def fail_paper(quiz_id: UUID, body: FailPaperRequest) -> dict:
-    return _call(quiz_runtime.fail_paper, quiz_id, body.student_id, body.error_message)
+    return _call(_exam().fail_paper, quiz_id, body.student_id, body.error_message)
 
 
 @router.post("/question-pool/match")
@@ -224,7 +228,7 @@ def match_question_pool(body: MatchPoolRequest) -> list[dict]:
     request — same style/question type/difficulty plus a similar topic or overlapping
     concept, never one this student was already served (migration 052). The exam agent
     fills as many paper slots as possible from here before drafting anything new."""
-    return quiz_runtime.match_pool_questions(
+    return stores.get_store("exam").match_pool_questions(
         body.student_id, style=body.style, question_types=body.question_types,
         difficulty_band=body.difficulty_band, topic=body.topic,
         concept_slugs=body.concept_slugs, limit=body.limit,
@@ -236,7 +240,8 @@ def post_generation_event(quiz_id: UUID, body: GenerationEventRequest) -> dict:
     """Appends one row to the generation-progress log (requirements/64 continued) —
     the web UI's live "what is the agent doing right now" view polls the GET below for
     exactly these rows."""
-    quiz_runtime.post_generation_event(
+    _call(
+        _exam().post_generation_event,
         quiz_id, ordinal=body.ordinal, phase=body.phase, status=body.status,
         question_ordinal=body.question_ordinal, detail=body.detail,
     )
@@ -245,7 +250,7 @@ def post_generation_event(quiz_id: UUID, body: GenerationEventRequest) -> dict:
 
 @router.get("/papers/{quiz_id}/generation-events")
 def get_generation_events(quiz_id: UUID, student_id: UUID, since_ordinal: int = 0) -> list[dict]:
-    return _call(quiz_runtime.list_generation_events, quiz_id, student_id, since_ordinal=since_ordinal)
+    return _call(_exam().list_generation_events, quiz_id, student_id, since_ordinal=since_ordinal)
 
 
 @router.get("/papers/mine")
@@ -254,12 +259,12 @@ def list_my_papers(student_id: UUID, limit: int = 20) -> list[dict]:
     via Cognito (or an anonymous session), not mathbank-rest's own JWT, so it cannot use
     the student-bearer-token-gated endpoint at all (requirements/64 continued §0's
     "exam-taking flow is proxied through mathbank-exam-agent, not called directly")."""
-    return quiz_runtime.list_my_quizzes(student_id, limit=limit)
+    return _exam().list_my_quizzes(student_id, limit=limit)
 
 
 @router.get("/papers/{quiz_id}")
 def get_paper(quiz_id: UUID, student_id: UUID) -> dict:
-    return _call(quiz_runtime.get_quiz, quiz_id, student_id)
+    return _call(_exam().get_quiz, quiz_id, student_id)
 
 
 class SaveExamProgressRequest(BaseModel):
@@ -277,7 +282,7 @@ def save_exam_progress(quiz_id: UUID, body: SaveExamProgressRequest) -> dict:
         ("selected_key", body.selected_key), ("response_text", body.response_text),
     ) if v is not None}
     return _call(
-        quiz_runtime.save_exam_progress, quiz_id, body.student_id,
+        _exam().save_exam_progress, quiz_id, body.student_id,
         current_question_ordinal=body.current_question_ordinal,
         question_id=body.question_id, raw_response=raw_response or None,
     )
@@ -299,24 +304,24 @@ def respond(quiz_id: UUID, question_id: UUID, body: RespondRequest) -> dict:
     if not raw_response:
         raise HTTPException(422, "supply selected_key (MCQ) or response_text (FREE_TEXT/PROOF)")
     return _call(
-        quiz_runtime.submit_response, quiz_id, question_id, body.student_id,
+        _exam().submit_response, quiz_id, question_id, body.student_id,
         raw_response=raw_response, time_spent_seconds=body.time_spent_seconds,
     )
 
 
 @router.get("/papers/{quiz_id}/review")
 def review(quiz_id: UUID, student_id: UUID) -> dict:
-    return _call(quiz_runtime.get_review, quiz_id, student_id)
+    return _call(_exam().get_review, quiz_id, student_id)
 
 
 @router.post("/papers/{quiz_id}/submit")
 def submit_exam(quiz_id: UUID, student_id: UUID) -> dict:
-    return _call(quiz_runtime.submit_exam, quiz_id, student_id)
+    return _call(_exam().submit_exam, quiz_id, student_id)
 
 
 @router.get("/papers/{quiz_id}/diagnosis-input")
 def diagnosis_input(quiz_id: UUID, student_id: UUID) -> dict:
-    return _call(quiz_runtime.get_paper_for_diagnosis, quiz_id, student_id)
+    return _call(_exam().get_paper_for_diagnosis, quiz_id, student_id)
 
 
 class WriteDiagnosisRequest(BaseModel):
@@ -332,7 +337,7 @@ class WriteDiagnosisRequest(BaseModel):
 @router.post("/papers/{quiz_id}/diagnosis")
 def write_diagnosis(quiz_id: UUID, body: WriteDiagnosisRequest) -> dict:
     return _call(
-        quiz_runtime.write_diagnosis, quiz_id, body.student_id,
+        _exam().write_diagnosis, quiz_id, body.student_id,
         time_management_verdict=body.time_management_verdict,
         pacing_notes=body.pacing_notes, reasoning_guidance=body.reasoning_guidance,
         improvement_areas=body.improvement_areas, generated_by=body.generated_by,
@@ -357,34 +362,12 @@ def difficulty_distribution(concept_slug: str | None = None, technique_slug: str
     than overloading either of those already-audited retrieval paths."""
     if not concept_slug and not technique_slug:
         raise HTTPException(422, "supply concept_slug or technique_slug")
-    if concept_slug:
-        query = text("""
-            SELECT p.difficulty_band, count(*) AS n
-            FROM core.problem p
-            JOIN knowledge.problem_concept pc ON pc.problem_id = p.problem_id
-            JOIN knowledge.concept c ON c.concept_id = pc.concept_id
-            WHERE c.slug = :slug AND pc.review_status <> 'REJECTED' AND p.difficulty_band IS NOT NULL
-            GROUP BY p.difficulty_band
-        """)
-        params = {"slug": concept_slug}
-    else:
-        query = text("""
-            SELECT p.difficulty_band, count(*) AS n
-            FROM core.problem p
-            JOIN knowledge.problem_technique pt ON pt.problem_id = p.problem_id
-            JOIN knowledge.technique t ON t.technique_id = pt.technique_id
-            WHERE t.slug = :slug AND pt.review_status <> 'REJECTED' AND p.difficulty_band IS NOT NULL
-            GROUP BY p.difficulty_band
-        """)
-        params = {"slug": technique_slug}
-    with engine.connect() as conn:
-        rows = conn.execute(query, params).mappings().all()
-    return {"distribution": {r["difficulty_band"]: r["n"] for r in rows}}
+    return _exam().get_difficulty_distribution(concept_slug=concept_slug, technique_slug=technique_slug)
 
 
 @router.get("/papers/{quiz_id}/diagnosis")
 def get_diagnosis(quiz_id: UUID, student_id: UUID) -> dict:
-    return _call(quiz_runtime.get_diagnosis, quiz_id, student_id)
+    return _call(_exam().get_diagnosis, quiz_id, student_id)
 
 
 # --------------------------------------------------------------------------- requirements/64
@@ -472,7 +455,7 @@ class LogEventRequest(BaseModel):
 @router.post("/papers/{quiz_id}/questions/{question_id}/events")
 def log_event(quiz_id: UUID, question_id: UUID, body: LogEventRequest) -> dict:
     return _call(
-        quiz_runtime.log_response_event, quiz_id, question_id, body.student_id,
+        _exam().log_response_event, quiz_id, question_id, body.student_id,
         event_type=body.event_type, option_key=body.option_key,
         client_timestamp_ms=body.client_timestamp_ms,
     )
@@ -480,4 +463,4 @@ def log_event(quiz_id: UUID, question_id: UUID, body: LogEventRequest) -> dict:
 
 @router.get("/papers/{quiz_id}/events")
 def get_events(quiz_id: UUID, student_id: UUID) -> list[dict]:
-    return _call(quiz_runtime.get_response_events, quiz_id, student_id)
+    return _call(_exam().get_response_events, quiz_id, student_id)

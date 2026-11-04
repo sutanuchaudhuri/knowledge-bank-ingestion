@@ -104,6 +104,10 @@ class Settings(BaseSettings):
     data_bucket: str = ""                     # default mathbank-data-<ddb_env>-<account>
     content_bucket: str = ""
     vector_bucket: str = ""                   # default mathbank-vectors-<ddb_env>
+    # WP6 question pool (requirement 70 C2): cosine similarity floors of the vector match; calibrate on a real index before freezing.
+    quiz_pool_topic_min_sim: float = Field(default=0.80, ge=0.0, le=1.0)
+    quiz_pool_dup_min_sim: float = Field(default=0.95, ge=0.0, le=1.0)
+    quiz_pool_vector_index: str = "quiz-question-te3small-1536-v1"
     next_token_secret: SecretStr = SecretStr("")  # empty = derived from jwt_secret
     idempotency_ttl_days: int = 7
     # WP5: record_interaction_event evaluates deterministically and applies misconception evidence (requirement 70 C1 T24).
@@ -116,6 +120,13 @@ class Settings(BaseSettings):
     cohort_min_students: int = Field(default=10, ge=1)
     # WP5: idle days after which the `learner-abandon-stale` job abandons an IN_PROGRESS solve attempt.
     abandon_idle_days: int = Field(default=30, ge=1)
+    # WP6 (requirement 70 C2 section 6, QUZ-S01/S02): an exam-mode respond returns only {saved, question_id, answered_count}, and a
+    # respond/submit needs a paper in the right status. On by default for both exam backends; false restores the full respond body and, on
+    # PostgreSQL, the old unchecked respond/submit. DynamoDB always enforces the status conditions: they are transaction conditions.
+    quiz_strict_exam_policy: bool = True
+    # WP6: recompute the mastery of a response's tags right after its transaction (what _absorb_mastery_feedback always did) until the
+    # `exam-mastery-fanout` stream consumer takes over; the recompute is idempotent, so both may run.
+    quiz_mastery_inline: bool = True
 
     @property
     def postgres_dsn(self) -> str:

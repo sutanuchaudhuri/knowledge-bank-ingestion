@@ -284,19 +284,24 @@ ORDER BY ae.artifact_bundle_id""",
 )
 
 # quiz.question_pool has no embedding column today, so the index is created empty and filled by the
-# vector-sync worker once pool questions are embedded.
+# exam-pool-vector-indexer (two vectors per pool question: <id>#prompt and <id>#topic, requirement 70 C2 section 3).
+# The index is immutable once created: an index created before content_hash/model were declared non-filterable has to be
+# recreated (it is empty) for them to be excluded from filtering.
 QUIZ_QUESTION = VectorIndex(
     name=_name("quiz-question"),
     sql="""
-SELECT q.pool_question_id::text AS key, NULL::text AS embedding, q.style, q.question_type, q.difficulty_band,
-       q.concept_slugs, encode(sha256(convert_to(q.topic_key, 'UTF8')), 'hex') AS topic_key_sha256
+SELECT q.pool_question_id::text AS key, NULL::text AS embedding, 'prompt'::text AS kind, q.style, q.question_type,
+       coalesce(q.difficulty_band, 'NONE') AS difficulty_band, 'ACTIVE'::text AS status, q.content_hash,
+       'text-embedding-3-small'::text AS model, q.concept_slugs,
+       encode(sha256(convert_to(q.topic_key, 'UTF8')), 'hex') AS topic_key_sha256
 FROM quiz.question_pool q
 WHERE false
 ORDER BY q.pool_question_id""",
-    metadata=lambda r: {"style": r["style"], "question_type": r["question_type"],
+    metadata=lambda r: {"kind": r["kind"], "status": r["status"], "content_hash": r["content_hash"], "model": r["model"],
+                        "style": r["style"], "question_type": r["question_type"],
                         "difficulty_band": r["difficulty_band"], "concept_slugs": _strs(r["concept_slugs"]),
                         "topic_key_sha256": r["topic_key_sha256"]},
-    non_filterable=("topic_key_sha256",),
+    non_filterable=("topic_key_sha256", "content_hash", "model"),
     expected_source="SELECT count(*) AS n FROM quiz.question_pool q WHERE false",
     note="no source vectors (quiz.question_pool has no embedding column).",
 )

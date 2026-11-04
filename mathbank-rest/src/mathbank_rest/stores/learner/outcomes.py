@@ -169,6 +169,18 @@ def _read_evidence(student_id: UUID | str, kind: str, tag_id: UUID | str) -> lis
             return out
 
 
+def _evidence_rows(student_id: UUID | str, kind: str, tag_id: UUID | str) -> list[dict]:
+    """The attempt rows a tag's mastery is computed from. With the exam store on DynamoDB the quiz part comes from its QUIZ_EVIDENCE
+    (``get_quiz_evidence``, A18) and the learner's migrated copy of the same responses (``src_kind`` QZ) is left out, so a response is
+    counted once; with the exam store on PostgreSQL nothing changes."""
+    items = _read_evidence(student_id, kind, tag_id)
+    exam = stores.get_store("exam")
+    if getattr(exam, "backend", None) != "dynamodb":
+        return [_evidence_row(e) for e in items]
+    rows = [_evidence_row(e) for e in items if e.src_kind != "QZ"] + exam.get_quiz_evidence(UUID(str(student_id)), kind, UUID(str(tag_id)))
+    return sorted(rows, key=lambda r: r["attempted_at"])
+
+
 def _summarise(rows: list[dict]) -> tuple[float, int, int, datetime]:
     """(score, attempts_count, correct_count, last_attempt_at) exactly as ``recompute_*_mastery`` derived them."""
     rows = sorted(rows, key=lambda r: r["attempted_at"])
@@ -245,7 +257,7 @@ class OutcomesDynamoDB:
     # -- T7 ----------------------------------------------------------------------------------------------------------
 
     def _tag_state(self, student_id: UUID | str, kind: str, tag_id: UUID, new: dict | None) -> tuple[MasteryItem | None, tuple]:
-        rows = [_evidence_row(e) for e in _read_evidence(student_id, kind, tag_id)]
+        rows = _evidence_rows(student_id, kind, tag_id)
         if new is not None:
             rows.append(new)
         return _load_mastery(student_id, kind, tag_id), _summarise(rows)
@@ -381,10 +393,10 @@ class OutcomesDynamoDB:
     # -- A7 / mastery ------------------------------------------------------------------------------------------------
 
     def get_attempts_for_concept(self, student_id: UUID, concept_id: UUID) -> list[dict]:
-        return [_evidence_row(e) for e in _read_evidence(student_id, "C", concept_id)]
+        return _evidence_rows(student_id, "C", concept_id)
 
     def get_attempts_for_technique(self, student_id: UUID, technique_id: UUID) -> list[dict]:
-        return [_evidence_row(e) for e in _read_evidence(student_id, "T", technique_id)]
+        return _evidence_rows(student_id, "T", technique_id)
 
     def _put_mastery(self, student_id: UUID, kind: str, tag_id: UUID, summary: tuple) -> None:
         def attempt() -> None:

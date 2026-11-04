@@ -349,17 +349,17 @@ LIV-E06,live,E,P2,C3,WP7,,Y,P2 — PUT /v1/live/sessions/{sid}/participants/{pid
 LIV-E07,live,E,P3,C3,WP7,,Y,P3 — GET /v1/live/sessions/{sid}/takeovers — Instructor,PLANNED,,,
 LIV-E08,live,E,P3,C3,WP7,,Y,P3 — GET /v1/learner/live-sessions — Learner JWT,PLANNED,,,
 LIV-E09,live,E,P3,C3,WP7,,Y,P3 — POST /v1/admin/live/sessions/archive — Admin key,PLANNED,,,
-NTF-F01,notification,F,,C5,WP3,,Y,`notification.event`: Insert helper exists but has no caller; the read and mark-read routes return 501. Delete is intentionally absent (retention via expiry is preferable).,PLANNED,,,
-NTF-S01,notification,S,P1,C5,WP3,,N,"P1 — Wire at least one producer before relying on the table. Without a caller of `record_notification()`, the table stays empty. Start with `quiz_runtime` / `micro_course_service.s…",PLANNED,,,
-NTF-S02,notification,S,P2,C5,WP3,,Y,P2 — Split the polymorphic recipient so student rows cascade on erasure. Add `student_id uuid NULL REFERENCES learner.student_profile ON DELETE CASCADE` and `CHECK ((recipient_type…,PLANNED,,,
-NTF-S03,notification,S,P2,C5,WP3,,N,"P2 — Add `expires_at timestamptz` and a purge job. Notifications are derived. No retention is defined in 043 or requirements/59, so the table grows without bound.",PLANNED,,,
-NTF-S04,notification,S,P3,C5,WP3,,Y,"P3 — Add a dedupe key (`dedupe_key text`, `UNIQUE (recipient_type, recipient_id, dedupe_key)`). The grading paths are retried with Idempotency-Keys, so a retried grading call could…",PLANNED,,,
-NTF-S05,notification,S,P3,C5,WP3,,Y,"P3 — Typed payload validation. Replace the free `payload_json` with per-type Pydantic models and a `CHECK (jsonb_typeof(payload_json) = 'object')`, as the 043 TODO suggests.",PLANNED,,,
-NTF-E01,notification,E,P1,C5,WP3,,Y,P1 — `GET /v1/notifications/me?unread=&limit=&offset=` (implement existing route) — Learner JWT,PLANNED,,,
-NTF-E02,notification,E,P1,C5,WP3,,Y,P1 — `POST /v1/notifications/{notification_id}/read` (implement existing route) — Learner JWT,PLANNED,,,
-NTF-E03,notification,E,P2,C5,WP3,,Y,P2 — `POST /v1/notifications/me/read-all` — Learner JWT,PLANNED,,,
-NTF-E04,notification,E,P2,C5,WP3,,Y,P2 — `GET /v1/admin/notifications?recipient_type=&type=&unread=&limit=&offset=` — Admin key (X-Admin-Api-Key),PLANNED,,,
-NTF-E05,notification,E,P3,C5,WP3,,Y,P3 — `POST /v1/admin/notifications/{notification_id}/read` — Admin key (X-Admin-Api-Key),PLANNED,,,
+NTF-F01,notification,F,,C5,WP3,,Y,`notification.event`: Insert helper exists but has no caller; the read and mark-read routes return 501. Delete is intentionally absent (retention via expiry is preferable).,IN_PROGRESS,,, WP3 partial: routes implemented; no producer calls record_notification yet
+NTF-S01,notification,S,P1,C5,WP3,,N,"P1 — Wire at least one producer before relying on the table. Without a caller of `record_notification()`, the table stays empty. Start with `quiz_runtime` / `micro_course_service.s…",IN_PROGRESS,,, WP3 partial: no producer is wired
+NTF-S02,notification,S,P2,C5,WP3,,Y,P2 — Split the polymorphic recipient so student rows cascade on erasure. Add `student_id uuid NULL REFERENCES learner.student_profile ON DELETE CASCADE` and `CHECK ((recipient_type…,DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, erasure removes notifications via the erasure hook (stores/learner/admin.py register_erasure_hook)
+NTF-S03,notification,S,P2,C5,WP3,,N,"P2 — Add `expires_at timestamptz` and a purge job. Notifications are derived. No retention is defined in 043 or requirements/59, so the table grows without bound.",DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, items carry a TTL (stores/notify/dynamodb.py TTL_DAYS)
+NTF-S04,notification,S,P3,C5,WP3,,Y,"P3 — Add a dedupe key (`dedupe_key text`, `UNIQUE (recipient_type, recipient_id, dedupe_key)`). The grading paths are retried with Idempotency-Keys, so a retried grading call could…",DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, DEDUPE sentinel in the same transaction
+NTF-S05,notification,S,P3,C5,WP3,,Y,"P3 — Typed payload validation. Replace the free `payload_json` with per-type Pydantic models and a `CHECK (jsonb_typeof(payload_json) = 'object')`, as the 043 TODO suggests.",IN_PROGRESS,,," WP3 partial: payload is a free JsonDoc, not per-type models"
+NTF-E01,notification,E,P1,C5,WP3,,Y,P1 — `GET /v1/notifications/me?unread=&limit=&offset=` (implement existing route) — Learner JWT,DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, GET /v1/notifications/me via the store
+NTF-E02,notification,E,P1,C5,WP3,,Y,P1 — `POST /v1/notifications/{notification_id}/read` (implement existing route) — Learner JWT,DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, owner-scoped mark-read
+NTF-E03,notification,E,P2,C5,WP3,,Y,P2 — `POST /v1/notifications/me/read-all` — Learner JWT,DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, read-all
+NTF-E04,notification,E,P2,C5,WP3,,Y,P2 — `GET /v1/admin/notifications?recipient_type=&type=&unread=&limit=&offset=` — Admin key (X-Admin-Api-Key),DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, admin list
+NTF-E05,notification,E,P3,C5,WP3,,Y,P3 — `POST /v1/admin/notifications/{notification_id}/read` — Admin key (X-Admin-Api-Key),IN_PROGRESS,,," WP3 partial: admin ack exists as POST /v1/admin/notifications/{id}/ack, not /read"
 ORC-F01,orchestration,F,,C5,WP9,,N,orchestration.socratic_strategy: Seeded by migration; immutable by trigger. A review/approval flow is missing (see 5.1 #2).,PLANNED,,,
 ORC-F02,orchestration,F,,C5,WP9,,Y,"orchestration.socratic_workflow: Updates only advance the revision pointer. No rename, archive or delete; drafts accumulate forever.",PLANNED,,,
 ORC-F03,orchestration,F,,C5,WP9,,Y,"orchestration.socratic_revision: Immutable history. Single-revision GET exists, but there is no revision list.",PLANNED,,,
@@ -636,37 +636,37 @@ PIP-E07,pipeline,E,P2,C7,WP10,WP4,Y,"P2 — (change) POST /v1/admin/papers, /pap
 PIP-E08,pipeline,E,P3,C7,WP10,WP4,Y,P3 — POST /v1/admin/pipeline/runs — Admin key,PLANNED,,,
 PIP-E09,pipeline,E,P3,C7,WP10,WP4,Y,P3 — POST /v1/admin/pipeline/runs/{run_id}/cancel — Admin key,PLANNED,,,
 PIP-E10,pipeline,E,P3,C7,WP10,WP4,Y,P3 — POST /v1/admin/pipeline/outbox/consumers/{name}/replay — Admin key,PLANNED,,,
-QUZ-F01,quiz,F,,C2,WP6,WP4,Y,"quiz.paper: Status changes only through workflow actions. No admin list or search across learners, and no way to purge a learner's papers (FK blocks profile deletion).",PLANNED,,,
-QUZ-F02,quiz,F,,C2,WP6,WP4,N,quiz.question_concept: Written at finalize/generate only.,PLANNED,,,
-QUZ-F03,quiz,F,,C2,WP6,WP4,N,quiz.question_technique: Exam path only.,PLANNED,,,
-QUZ-F04,quiz,F,,C2,WP6,WP4,N,quiz.question_skill: Written but never read.,PLANNED,,,
-QUZ-F05,quiz,F,,C2,WP6,WP4,Y,quiz.response: One graded answer per question. Regrade/human-review not implemented.,PLANNED,,,
-QUZ-F06,quiz,F,,C2,WP6,WP4,Y,quiz.response_draft: Scratch state; exam path only (admin key).,PLANNED,,,
-QUZ-F07,quiz,F,,C2,WP6,WP4,Y,quiz.response_event: Append-only telemetry.,PLANNED,,,
-QUZ-F08,quiz,F,,C2,WP6,WP4,N,quiz.generation_event: Append-only progress log.,PLANNED,,,
-QUZ-F09,quiz,F,,C2,WP6,WP4,Y,quiz.exam_diagnosis: Upsert. No learner-JWT read.,PLANNED,,,
-QUZ-F10,quiz,F,,C2,WP6,WP4,Y,"quiz.question_pool: Agent-only access. No staff list, inspect or retire.",PLANNED,,,
-QUZ-S01,quiz,S,P1,C2,WP6,WP4,Y,P1: Stop leaking answer keys during an exam.,PLANNED,,,
-QUZ-S02,quiz,S,P1,C2,WP6,WP4,N,P1: Enforce paper-status transitions.,PLANNED,,,
-QUZ-S03,quiz,S,P2,C2,WP6,WP4,N,P2: Bind child rows to the owning paper in the database.,PLANNED,,,
+QUZ-F01,quiz,F,,C2,WP6,WP4,Y,"quiz.paper: Status changes only through workflow actions. No admin list or search across learners, and no way to purge a learner's papers (FK blocks profile deletion).",IN_PROGRESS,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-F02,quiz,F,,C2,WP6,WP4,N,quiz.question_concept: Written at finalize/generate only.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-F03,quiz,F,,C2,WP6,WP4,N,quiz.question_technique: Exam path only.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-F04,quiz,F,,C2,WP6,WP4,N,quiz.question_skill: Written but never read.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-F05,quiz,F,,C2,WP6,WP4,Y,quiz.response: One graded answer per question. Regrade/human-review not implemented.,IN_PROGRESS,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-F06,quiz,F,,C2,WP6,WP4,Y,quiz.response_draft: Scratch state; exam path only (admin key).,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-F07,quiz,F,,C2,WP6,WP4,Y,quiz.response_event: Append-only telemetry.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-F08,quiz,F,,C2,WP6,WP4,N,quiz.generation_event: Append-only progress log.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-F09,quiz,F,,C2,WP6,WP4,Y,quiz.exam_diagnosis: Upsert. No learner-JWT read.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-F10,quiz,F,,C2,WP6,WP4,Y,"quiz.question_pool: Agent-only access. No staff list, inspect or retire.",IN_PROGRESS,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-S01,quiz,S,P1,C2,WP6,WP4,Y,P1: Stop leaking answer keys during an exam.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-S02,quiz,S,P1,C2,WP6,WP4,N,P1: Enforce paper-status transitions.,IN_PROGRESS,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-S03,quiz,S,P2,C2,WP6,WP4,N,P2: Bind child rows to the owning paper in the database.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
 QUZ-S04,quiz,S,P2,C2,WP6,WP4,N,P2: Define a learner-erasure path.,PLANNED,,,
-QUZ-S05,quiz,S,P2,C2,WP6,WP4,N,P2: Add governance and a style CHECK to `quiz.question_pool`.,PLANNED,,,
-QUZ-S06,quiz,S,P2,C2,WP6,WP4,N,P2: Constrain the difficulty vocabulary.,PLANNED,,,
-QUZ-S07,quiz,S,P3,C2,WP6,WP4,N,P3: Use per-question difficulty in mastery blending.,PLANNED,,,
-QUZ-S08,quiz,S,P3,C2,WP6,WP4,Y,P3: Move the GRADED transition out of GET.,PLANNED,,,
-QUZ-S09,quiz,S,P3,C2,WP6,WP4,N,P3: Clean up indexes.,PLANNED,,,
-QUZ-S10,quiz,S,P3,C2,WP6,WP4,N,P3: Make `question_source` rank unique.,PLANNED,,,
-QUZ-S11,quiz,S,P3,C2,WP6,WP4,N,P3: Harden `post_generation_event`.,PLANNED,,,
-QUZ-S12,quiz,S,P3,C2,WP6,WP4,N,P3: Keep diagnosis history.,PLANNED,,,
+QUZ-S05,quiz,S,P2,C2,WP6,WP4,N,P2: Add governance and a style CHECK to `quiz.question_pool`.,IN_PROGRESS,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-S06,quiz,S,P2,C2,WP6,WP4,N,P2: Constrain the difficulty vocabulary.,IN_PROGRESS,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-S07,quiz,S,P3,C2,WP6,WP4,N,P3: Use per-question difficulty in mastery blending.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-S08,quiz,S,P3,C2,WP6,WP4,Y,P3: Move the GRADED transition out of GET.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-S09,quiz,S,P3,C2,WP6,WP4,N,P3: Clean up indexes.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-S10,quiz,S,P3,C2,WP6,WP4,N,P3: Make `question_source` rank unique.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-S11,quiz,S,P3,C2,WP6,WP4,N,P3: Harden `post_generation_event`.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-S12,quiz,S,P3,C2,WP6,WP4,N,P3: Keep diagnosis history.,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
 QUZ-E01,quiz,E,P2,C2,WP6,WP4,Y,P2 — GET /v1/admin/quiz/papers — Admin key (X-Admin-Api-Key),PLANNED,,,
 QUZ-E02,quiz,E,P2,C2,WP6,WP4,Y,P2 — GET /v1/admin/quiz/papers/{quiz_id} — Admin key (X-Admin-Api-Key),PLANNED,,,
 QUZ-E03,quiz,E,P2,C2,WP6,WP4,Y,P2 — POST /v1/admin/quiz/papers/{quiz_id}/fail — Admin key (X-Admin-Api-Key),PLANNED,,,
-QUZ-E04,quiz,E,P2,C2,WP6,WP4,Y,P2 — GET /v1/admin/quiz/question-pool — Admin key (X-Admin-Api-Key),PLANNED,,,
-QUZ-E05,quiz,E,P2,C2,WP6,WP4,Y,P2 — GET /v1/admin/quiz/question-pool/{pool_question_id} — Admin key (X-Admin-Api-Key),PLANNED,,,
-QUZ-E06,quiz,E,P2,C2,WP6,WP4,Y,P2 — POST /v1/admin/quiz/question-pool/{pool_question_id}/retire · /reactivate — Admin key (X-Admin-Api-Key),PLANNED,,,
+QUZ-E04,quiz,E,P2,C2,WP6,WP4,Y,P2 — GET /v1/admin/quiz/question-pool — Admin key (X-Admin-Api-Key),IN_PROGRESS,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-E05,quiz,E,P2,C2,WP6,WP4,Y,P2 — GET /v1/admin/quiz/question-pool/{pool_question_id} — Admin key (X-Admin-Api-Key),IN_PROGRESS,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-E06,quiz,E,P2,C2,WP6,WP4,Y,P2 — POST /v1/admin/quiz/question-pool/{pool_question_id}/retire · /reactivate — Admin key (X-Admin-Api-Key),IN_PROGRESS,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
 QUZ-E07,quiz,E,P2,C2,WP6,WP4,Y,P2 — POST /v1/admin/learners/{student_id}/quiz-data/purge — Admin key (X-Admin-Api-Key),PLANNED,,,
-QUZ-E08,quiz,E,P3,C2,WP6,WP4,Y,P3 — GET /v1/quiz/{quiz_id}/diagnosis — Learner JWT,PLANNED,,,
-QUZ-E09,quiz,E,P3,C2,WP6,WP4,Y,P3 — PUT /v1/quiz/{quiz_id}/progress — Learner JWT,PLANNED,,,
+QUZ-E08,quiz,E,P3,C2,WP6,WP4,Y,P3 — GET /v1/quiz/{quiz_id}/diagnosis — Learner JWT,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
+QUZ-E09,quiz,E,P3,C2,WP6,WP4,Y,P3 — PUT /v1/quiz/{quiz_id}/progress — Learner JWT,DONE,,tests/stores/test_wp6_papers*.py;tests/stores/test_wp6_pool*.py;tests/stores/test_wp6_composition.py,
 QUZ-E10,quiz,E,P3,C2,WP6,WP4,Y,P3 — POST /v1/admin/quiz/responses/{response_id}/regrade — Admin key (X-Admin-Api-Key),PLANNED,,,
 SRC-F01,search,F,,C6,WP1,WP2 WP4,Y,Anonymous endpoints spend money. `POST /v1/search/problems` and `POST /v1/search/concepts` have no auth dependency and call OpenAI embeddings for every semantic request (db/vector_…,DONE,914fdc2,tests/test_wp1_side_effects.py,security/contract fix to land on the PostgreSQL stores before data is copied (requirement 70 M1)
 SRC-F02,search,F,,C6,WP2,WP4,N,The ANN index lives outside migrations. The HNSW index is created by `embed_corpus.py index` with the model UUID inlined in its predicate. A database rebuilt from `mathbank-db/sql`…,PLANNED,,,
@@ -693,17 +693,17 @@ SRC-E04,search,E,P2,C6,WP2,WP4,Y,P2 — POST /v1/admin/search/rebuild — Admin 
 SRC-E05,search,E,P2,C6,WP2,WP4,Y,"P2 — GET /v1/admin/search/models and POST /v1/admin/search/models/{id}/activate, …/retire — Admin key",PLANNED,,,
 SRC-E06,search,E,P3,C6,WP2,WP4,Y,P3 — POST /v1/admin/search/gc — Admin key,PLANNED,,,
 SRC-E07,search,E,P3,C6,WP2,WP4,Y,P3 — GET /v1/admin/search/profiles and POST /v1/admin/search/retrieval-profiles — Admin key,PLANNED,,,
-STU-F01,studio,F,,C4,WP3,,Y,"`studio.scene_research_job`: All via `mathbank-manim-studio` HTTP, worker and cleanup script. There is no listing endpoint and no cancel endpoint.",PLANNED,,,
-STU-F02,studio,F,,C4,WP3,,Y,`studio.video_render_job`: Same. `mathbank-rest` reaches it only over HTTP for promotion. There is no cancel/retry endpoint.,PLANNED,,,
+STU-F01,studio,F,,C4,WP3,,Y,"`studio.scene_research_job`: All via `mathbank-manim-studio` HTTP, worker and cleanup script. There is no listing endpoint and no cancel endpoint.",DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, jobs store with claims/leases/heartbeat/retry (stores/jobs)
+STU-F02,studio,F,,C4,WP3,,Y,`studio.video_render_job`: Same. `mathbank-rest` reaches it only over HTTP for promotion. There is no cancel/retry endpoint.,DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, same for render jobs
 STU-S01,studio,S,P1,C4,WP3,,Y,"P1 — Close the anonymous write surface. `POST /v1/research-jobs` and `POST /v1/render-jobs` have no auth dependency (main.py:97,114), and the AWS Function URL uses `FunctionUrlAuth…",PLANNED,,,
-STU-S02,studio,S,P1,C4,WP3,,Y,"P1 — Schedule the TTL. Requirement 60 says the TTL is enforced by `cleanup_expired_jobs.py`, but the CDK stack schedules only `worker_handler` (`Schedule.rate(1 minute)`). No clean…",PLANNED,,,
-STU-S03,studio,S,P2,C4,WP3,,N,P2 — Recover crashed claims. A worker that dies after claiming leaves the job `RUNNING` forever: there is no lease and no retry (jobs.py `claim_pending_*`).,PLANNED,,,
-STU-S04,studio,S,P2,C4,WP3,,N,P2 — Partial index for the claim query. Add `CREATE INDEX … ON studio.<table> (created_at) WHERE status = 'PENDING'` on both tables. The claim currently filters on an unindexed `st…,PLANNED,,,
-STU-S05,studio,S,P2,C4,WP3,,N,P2 — Make promotion write-once. `mark_render_job_promoted` overwrites `promoted_scene_spec_id` unconditionally and does not check that the job is DONE.,PLANNED,,,
+STU-S02,studio,S,P1,C4,WP3,,Y,"P1 — Schedule the TTL. Requirement 60 says the TTL is enforced by `cleanup_expired_jobs.py`, but the CDK stack schedules only `worker_handler` (`Schedule.rate(1 minute)`). No clean…",IN_PROGRESS,,, WP3 partial: TTL is an item attribute on DynamoDB; the Postgres cleanup schedule is not wired
+STU-S03,studio,S,P2,C4,WP3,,N,P2 — Recover crashed claims. A worker that dies after claiming leaves the job `RUNNING` forever: there is no lease and no retry (jobs.py `claim_pending_*`).,DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, stale lease reclaim + SQS redelivery (stores/jobs)
+STU-S04,studio,S,P2,C4,WP3,,N,P2 — Partial index for the claim query. Add `CREATE INDEX … ON studio.<table> (created_at) WHERE status = 'PENDING'` on both tables. The claim currently filters on an unindexed `st…,DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, claims are conditional item updates; no claim query/index exists on the DynamoDB path
+STU-S05,studio,S,P2,C4,WP3,,N,P2 — Make promotion write-once. `mark_render_job_promoted` overwrites `promoted_scene_spec_id` unconditionally and does not check that the job is DONE.,DONE,40b487f,tests/stores/test_wp3_notify.py;tests/stores/test_wp3_jobs.py;tests/stores/test_wp3_jobs_sqs_integration.py;tests/stores/test_wp3_routes.py, mark_render_job_promoted is write-once and idempotent
 STU-S06,studio,S,P3,C4,WP3,,Y,P3 — FK behaviour on `promoted_scene_spec_id`. It is NO ACTION. Make it `ON DELETE SET NULL` explicitly so that discarding a DRAFT scene in `visual` never fails because of an expir…,PLANNED,,,
-STU-S07,studio,S,P3,C4,WP3,,N,"P3 — Cascade-safety for in-flight jobs. Cleanup deletes rows regardless of status, so a `RUNNING` job past its TTL is deleted under the worker, whose final `UPDATE` then silently a…",PLANNED,,,
+STU-S07,studio,S,P3,C4,WP3,,N,"P3 — Cascade-safety for in-flight jobs. Cleanup deletes rows regardless of status, so a `RUNNING` job past its TTL is deleted under the worker, whose final `UPDATE` then silently a…",IN_PROGRESS,,, WP3 partial: in-flight guard exists in the store (cancel/lease); Studio cleanup script unchanged
 STU-S08,studio,S,P3,C4,WP3,,N,P3 — Keep the boundary explicit. Document `studio` in `create_app_db.sql` or the ops grants with a dedicated DB role that may write only `studio.*` and run `SELECT` on `visual.scen…,PLANNED,,,
-STU-E01,studio,E,P1,C4,WP3,,Y,"P1 — *(existing)* `POST /v1/research-jobs`, `POST /v1/render-jobs`, all `GET`s — Admin key (X-Admin-Api-Key)",PLANNED,,,
+STU-E01,studio,E,P1,C4,WP3,,Y,"P1 — *(existing)* `POST /v1/research-jobs`, `POST /v1/render-jobs`, all `GET`s — Admin key (X-Admin-Api-Key)",IN_PROGRESS,,, WP3 partial: Studio HTTP auth on the job endpoints is not changed
 STU-E02,studio,E,P2,C4,WP3,,Y,P2 — `GET /v1/research-jobs?status=&limit=&offset=` — Admin key (X-Admin-Api-Key),PLANNED,,,
 STU-E03,studio,E,P2,C4,WP3,,Y,"P2 — `POST /v1/research-jobs/{id}/cancel`, `POST /v1/render-jobs/{id}/cancel` — Admin key (X-Admin-Api-Key)",PLANNED,,,
 STU-E04,studio,E,P2,C4,WP3,,Y,P2 — `POST /v1/render-jobs/{id}/retry` (and the research equivalent) — Admin key (X-Admin-Api-Key),PLANNED,,,
