@@ -1,0 +1,57 @@
+meta {
+  name: [WRITE] POST /v1/quiz-integration/papers/start
+  type: http
+  seq: 14
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/papers/start
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "student_id": "{{studentId}}",
+    "style": "AIME",
+    "title": "Bruno practice paper",
+    "instructions": "",
+    "requested_question_count": 1,
+    "requested_question_types": [
+      "example"
+    ],
+    "generated_by": "bruno",
+    "exam_mode": true
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Start Paper**
+
+  `POST /v1/quiz-integration/papers/start`
+
+  Mints a quiz_id immediately, status GENERATING (requirements/64 continued —
+  parallel generation + live progress). The caller (mathbank-exam-agent) gets this id
+  back right away, well before any question is drafted, so it can start polling
+  generation-events for this quiz_id while a later call does the actual work.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

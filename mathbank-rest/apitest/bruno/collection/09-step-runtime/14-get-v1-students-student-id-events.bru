@@ -1,0 +1,36 @@
+meta {
+  name: GET /v1/students/{student_id}/events
+  type: http
+  seq: 14
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/students/{{studentId}}/events?limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~attempt_id: {{attemptId}}
+  limit: 20
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **List Events**
+
+  `GET /v1/students/{student_id}/events`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

@@ -1,0 +1,39 @@
+meta {
+  name: [WRITE] POST /v1/micro-courses/enrollments/{enrollment_id}/abandon
+  type: http
+  seq: 7
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/micro-courses/enrollments/{{enrollmentId}}/abandon
+  body: none
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Abandon Enrollment**
+
+  `POST /v1/micro-courses/enrollments/{enrollment_id}/abandon`
+
+  Leave an in-progress enrollment for good (LRN-E12); enrolling again starts a fresh one.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

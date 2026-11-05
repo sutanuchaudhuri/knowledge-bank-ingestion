@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/micro-courses/{canonical_code}
+  type: http
+  seq: 2
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/micro-courses/{{microCourseCode}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Get Student Course**
+
+  `GET /v1/micro-courses/{canonical_code}`
+
+  Auth: none (public).
+}

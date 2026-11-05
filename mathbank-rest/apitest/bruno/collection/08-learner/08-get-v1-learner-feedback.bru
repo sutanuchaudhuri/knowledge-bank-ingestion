@@ -1,0 +1,45 @@
+meta {
+  name: GET /v1/learner/feedback
+  type: http
+  seq: 8
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/learner/feedback?limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  limit: 20
+  ~next_token: example
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.feedback_id) bru.setVar("feedbackId", String(first.feedback_id));
+}
+
+docs {
+  **List My Feedback**
+
+  `GET /v1/learner/feedback`
+
+  The learner's own retrieval reports with their review state (LRN-E14): ``{items, next_token}``.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

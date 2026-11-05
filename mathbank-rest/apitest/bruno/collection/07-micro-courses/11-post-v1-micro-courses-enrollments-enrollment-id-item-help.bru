@@ -1,0 +1,48 @@
+meta {
+  name: [WRITE] POST /v1/micro-courses/enrollments/{enrollment_id}/item-help
+  type: http
+  seq: 11
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/micro-courses/enrollments/{{enrollmentId}}/item-help
+  body: json
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "item_kind": "asset",
+    "item_id": "{{itemId}}",
+    "intent": "help"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Item Help**
+
+  `POST /v1/micro-courses/enrollments/{enrollment_id}/item-help`
+
+  Scoped "Help me?" / "Give up" assist for the single current item of the
+  student's active state (requirements/47 §3, MCN2-6/MCN2-7). The key applies to a give-up only.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

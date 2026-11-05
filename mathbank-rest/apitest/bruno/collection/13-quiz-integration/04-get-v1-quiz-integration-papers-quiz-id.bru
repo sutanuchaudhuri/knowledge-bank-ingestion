@@ -1,0 +1,39 @@
+meta {
+  name: GET /v1/quiz-integration/papers/{quiz_id}
+  type: http
+  seq: 4
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz-integration/papers/{{quizId}}?student_id={{studentId}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  student_id: {{studentId}}
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Paper**
+
+  `GET /v1/quiz-integration/papers/{quiz_id}`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

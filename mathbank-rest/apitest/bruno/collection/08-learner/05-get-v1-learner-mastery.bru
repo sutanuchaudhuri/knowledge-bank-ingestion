@@ -1,0 +1,31 @@
+meta {
+  name: GET /v1/learner/mastery
+  type: http
+  seq: 5
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/learner/mastery
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Mastery Summary**
+
+  `GET /v1/learner/mastery`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

@@ -1,0 +1,37 @@
+meta {
+  name: GET /v1/admin/recovery-plans/{plan_id}
+  type: http
+  seq: 13
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/admin/recovery-plans/{{planId}}
+  body: none
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Admin Recovery Plan**
+
+  `GET /v1/admin/recovery-plans/{plan_id}`
+
+  Internal (X-Admin-Api-Key): one plan with grader evidence for every item.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

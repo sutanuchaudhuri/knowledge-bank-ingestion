@@ -1,0 +1,48 @@
+meta {
+  name: [WRITE] POST /v1/attempts/{attempt_id}/steps/{step_id}/outcome
+  type: http
+  seq: 25
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/attempts/{{attemptId}}/steps/{{stepId}}/outcome
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "result": "SUCCESS",
+    "state_version": 1,
+    "actor_type": "TUTOR"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Record Step Outcome**
+
+  `POST /v1/attempts/{attempt_id}/steps/{step_id}/outcome`
+
+  Internal (X-Admin-Api-Key): apply an evaluated result and advance to the next eligible step.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

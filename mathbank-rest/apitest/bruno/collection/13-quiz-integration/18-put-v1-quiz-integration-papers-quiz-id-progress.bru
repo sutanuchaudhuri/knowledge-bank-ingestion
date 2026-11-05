@@ -1,0 +1,44 @@
+meta {
+  name: [WRITE] PUT /v1/quiz-integration/papers/{quiz_id}/progress
+  type: http
+  seq: 18
+  tags: [
+    write
+    admin
+  ]
+}
+
+put {
+  url: {{baseUrl}}/v1/quiz-integration/papers/{{quizId}}/progress
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "student_id": "{{studentId}}",
+    "current_question_ordinal": 1
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Save Exam Progress**
+
+  `PUT /v1/quiz-integration/papers/{quiz_id}/progress`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

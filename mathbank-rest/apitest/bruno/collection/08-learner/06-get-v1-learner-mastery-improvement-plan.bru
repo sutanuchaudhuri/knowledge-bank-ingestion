@@ -1,0 +1,38 @@
+meta {
+  name: GET /v1/learner/mastery/improvement-plan
+  type: http
+  seq: 6
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/learner/mastery/improvement-plan
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~max_focus_areas: 5
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Improvement Plan**
+
+  `GET /v1/learner/mastery/improvement-plan`
+
+  Actionable 'what to improve next' view: weakest concepts/techniques
+  (not yet 'solid'), each with a few recommended practice problems.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

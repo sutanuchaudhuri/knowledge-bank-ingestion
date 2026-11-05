@@ -1,0 +1,43 @@
+meta {
+  name: GET /v1/admin/recovery-plans
+  type: http
+  seq: 12
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/admin/recovery-plans?limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~student_id: {{studentId}}
+  ~status: ACTIVE
+  limit: 20
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Admin Recovery Plans**
+
+  `GET /v1/admin/recovery-plans`
+
+  Internal (X-Admin-Api-Key): recovery plans with item outcome counts.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

@@ -1,0 +1,31 @@
+meta {
+  name: GET /v1/problems/by-code/{code}/source-highlight
+  type: http
+  seq: 19
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/problems/by-code/{{canonicalCode}}/source-highlight
+  body: none
+  auth: none
+}
+
+params:query {
+  ~page: 1
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Get Problem Source Highlight**
+
+  `GET /v1/problems/by-code/{code}/source-highlight`
+
+  Auth: none (public).
+}

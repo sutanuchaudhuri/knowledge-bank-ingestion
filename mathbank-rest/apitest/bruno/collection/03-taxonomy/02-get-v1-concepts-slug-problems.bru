@@ -1,0 +1,32 @@
+meta {
+  name: GET /v1/concepts/{slug}/problems
+  type: http
+  seq: 2
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/concepts/{{conceptSlug}}/problems?limit=20
+  body: none
+  auth: none
+}
+
+params:query {
+  limit: 20
+  ~offset: 0
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Get Concept Problems**
+
+  `GET /v1/concepts/{slug}/problems`
+
+  Auth: none (public).
+}

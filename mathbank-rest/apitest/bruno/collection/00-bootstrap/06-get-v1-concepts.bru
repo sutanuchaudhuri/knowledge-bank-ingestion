@@ -1,0 +1,40 @@
+meta {
+  name: GET /v1/concepts
+  type: http
+  seq: 6
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/concepts?limit=20
+  body: none
+  auth: none
+}
+
+params:query {
+  ~domain: example
+  limit: 20
+  ~offset: 0
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.slug) bru.setVar("conceptSlug", String(first.slug));
+}
+
+docs {
+  **Get Concepts**
+
+  `GET /v1/concepts`
+
+  Auth: none (public).
+}

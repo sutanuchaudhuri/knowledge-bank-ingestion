@@ -1,0 +1,38 @@
+meta {
+  name: GET /v1/quiz/mine
+  type: http
+  seq: 11
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz/mine
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.quiz_id) bru.setVar("quizId", String(first.quiz_id));
+}
+
+docs {
+  **Mine**
+
+  `GET /v1/quiz/mine`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

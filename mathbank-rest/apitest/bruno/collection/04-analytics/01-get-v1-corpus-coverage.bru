@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/corpus/coverage
+  type: http
+  seq: 1
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/corpus/coverage
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Get Corpus Coverage**
+
+  `GET /v1/corpus/coverage`
+
+  Auth: none (public).
+}

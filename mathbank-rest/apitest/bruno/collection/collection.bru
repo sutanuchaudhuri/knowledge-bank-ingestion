@@ -1,0 +1,14 @@
+auth {
+  mode: none
+}
+
+docs {
+  # MathBank REST (runtime profile)
+
+  117 operations generated from the OpenAPI document of `apitest.app:app`; see `apitest/bruno/README.md`.
+
+  - Run `00-bootstrap` first: it checks health, registers/logs in a learner and seeds the id variables.
+  - Fill the secret `adminKey` environment variable from `mathbank-rest/.env` (`ADMIN_API_KEY`).
+  - `[WRITE]` requests change state: `dev-readonly` refuses them (423), `test-writable` writes only to `-test` resources.
+  - Headless without writes: `bru run --env local-dev-readonly --exclude-tags=write`.
+}

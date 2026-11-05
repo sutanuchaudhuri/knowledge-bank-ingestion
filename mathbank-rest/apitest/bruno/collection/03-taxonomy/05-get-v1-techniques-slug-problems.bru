@@ -1,0 +1,32 @@
+meta {
+  name: GET /v1/techniques/{slug}/problems
+  type: http
+  seq: 5
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/techniques/{{techniqueSlug}}/problems?limit=20
+  body: none
+  auth: none
+}
+
+params:query {
+  limit: 20
+  ~offset: 0
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Get Technique Problems**
+
+  `GET /v1/techniques/{slug}/problems`
+
+  Auth: none (public).
+}

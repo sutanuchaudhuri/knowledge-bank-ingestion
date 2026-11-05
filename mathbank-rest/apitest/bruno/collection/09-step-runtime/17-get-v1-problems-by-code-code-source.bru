@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/problems/by-code/{code}/source
+  type: http
+  seq: 17
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/problems/by-code/{{canonicalCode}}/source
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Get Problem Source**
+
+  `GET /v1/problems/by-code/{code}/source`
+
+  Auth: none (public).
+}

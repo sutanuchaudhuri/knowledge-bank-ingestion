@@ -1,0 +1,45 @@
+meta {
+  name: [WRITE] POST /v1/micro-courses/enrollments/{enrollment_id}/interaction-events
+  type: http
+  seq: 10
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/micro-courses/enrollments/{{enrollmentId}}/interaction-events
+  body: json
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "interaction_instance_id": "3f2b8c1e-6d4a-4b7e-9a15-2c0d5e8f1a73",
+    "event_type": "example",
+    "semantic_action": "example"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Record Interaction Event Endpoint**
+
+  `POST /v1/micro-courses/enrollments/{enrollment_id}/interaction-events`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

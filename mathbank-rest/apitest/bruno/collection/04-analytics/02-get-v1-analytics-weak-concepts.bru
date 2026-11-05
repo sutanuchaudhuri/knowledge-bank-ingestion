@@ -1,0 +1,39 @@
+meta {
+  name: GET /v1/analytics/weak-concepts
+  type: http
+  seq: 2
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/analytics/weak-concepts?limit=20
+  body: none
+  auth: none
+}
+
+params:query {
+  ~min_students: 1
+  limit: 20
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Get Weak Concepts**
+
+  `GET /v1/analytics/weak-concepts`
+
+  Cohort-level (no PII — concept-level aggregates only), lowest average
+  mastery first. Signals what to improve at the platform level: genuinely
+  hard material, a thin bank of practice problems, or a retrieval gap —
+  not any individual student's data. A concept is reported only when at
+  least `cohort_min_students` learners contribute, whatever `min_students`
+  asks for; otherwise the result is empty with `suppressed: true`.
+
+  Auth: none (public).
+}

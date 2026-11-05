@@ -1,0 +1,41 @@
+meta {
+  name: GET /v1/learner/events
+  type: http
+  seq: 11
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/learner/events?limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~attempt_id: {{attemptId}}
+  ~after: example
+  limit: 20
+  ~next_token: example
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **List My Events**
+
+  `GET /v1/learner/events`
+
+  The learner's own event feed (LRN-E01): newest first, or oldest first after the ``after`` instant, optionally for one
+  attempt. ``{items, limit, next_token}``; the payload shows only what a learner may see (LRN-F01), never teacher evidence.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

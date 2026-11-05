@@ -1,0 +1,41 @@
+meta {
+  name: [WRITE] POST /v1/quiz/{quiz_id}/questions/{question_id}/respond
+  type: http
+  seq: 7
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz/{{quizId}}/questions/{{questionId}}/respond
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "selected_key": "example",
+    "response_text": "example",
+    "time_spent_seconds": 1
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Respond**
+
+  `POST /v1/quiz/{quiz_id}/questions/{question_id}/respond`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

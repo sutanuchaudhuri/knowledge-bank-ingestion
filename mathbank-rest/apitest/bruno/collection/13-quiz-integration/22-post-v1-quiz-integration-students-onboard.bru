@@ -1,0 +1,53 @@
+meta {
+  name: [WRITE] POST /v1/quiz-integration/students/onboard
+  type: http
+  seq: 22
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/students/onboard
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "first_name": "Bruno",
+    "last_name": "Learner",
+    "is_anonymous": false,
+    "email_verified": false
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Onboard Student**
+
+  `POST /v1/quiz-integration/students/onboard`
+
+  Creates the one `learner.student_profile` row for a new identity — both the
+  named (Cognito signup) and anonymous paths call this, each exactly once per new
+  identity (requirements/64 continued: "in both cases StudentId is created during
+  onboarding"). The caller (mathbank-exam-agent) is responsible for only calling this
+  once per Cognito `sub` — see GET /students/by-cognito-sub/{sub} for the "does this
+  identity already have a student_id" check that makes that safe across repeat logins.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

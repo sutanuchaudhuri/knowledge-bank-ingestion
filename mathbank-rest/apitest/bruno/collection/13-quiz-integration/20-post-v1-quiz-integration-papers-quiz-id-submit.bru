@@ -1,0 +1,41 @@
+meta {
+  name: [WRITE] POST /v1/quiz-integration/papers/{quiz_id}/submit
+  type: http
+  seq: 20
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/papers/{{quizId}}/submit?student_id={{studentId}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  student_id: {{studentId}}
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Submit Exam**
+
+  `POST /v1/quiz-integration/papers/{quiz_id}/submit`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

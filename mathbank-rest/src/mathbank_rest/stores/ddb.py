@@ -25,6 +25,7 @@ import logging
 import math
 import os
 import random
+import re
 import threading
 import time
 import uuid
@@ -80,7 +81,72 @@ def _make(service: str):
     kw: dict[str, Any] = {"config": _cfg(service)}
     if settings.ddb_endpoint_url and service in ("dynamodb",):
         kw["endpoint_url"] = settings.ddb_endpoint_url
-    return session.client(service, **kw)
+    c = session.client(service, **kw)
+    if guard_active():
+        install_readonly_guard(c)
+    return c
+
+
+class ReadOnlyViolation(RuntimeError):
+    """A mutating AWS call was refused by the write guard (MB_AWS_READONLY / MB_AWS_WRITE_ENVS)."""
+
+
+_READ_PREFIXES = ("Get", "List", "Describe", "Query", "Scan", "BatchGet", "TransactGet", "Head", "Select", "Search")
+_ENV_TOKEN = re.compile(r"(?:^|[-/])(dev|test|prod|ut)(?:-|$|/)")
+BLOCKED_WRITES: list[str] = []
+
+
+def write_targets(params: dict) -> list[str]:
+    """Every resource name (table / bucket / vector bucket / queue) a request would mutate."""
+    names: list[str] = []
+    for key in ("TableName", "Bucket", "vectorBucketName", "QueueUrl", "TopicArn"):
+        if params.get(key):
+            names.append(str(params[key]))
+    names.extend(params.get("RequestItems") or {})
+    for item in params.get("TransactItems") or []:
+        for op in item.values():
+            if isinstance(op, dict) and op.get("TableName"):
+                names.append(str(op["TableName"]))
+    return names
+
+
+def _write_allowed(params: dict) -> bool:
+    allowed = set() if settings.aws_readonly else {e.strip() for e in settings.aws_write_envs.split(",") if e.strip()}
+    targets = write_targets(params)
+    if not targets or not allowed:
+        return False
+    for name in targets:
+        m = _ENV_TOKEN.search(name)
+        if m is None or m.group(1) not in allowed:
+            return False
+    return True
+
+
+def install_readonly_guard(c) -> None:
+    """Refuse every operation that is not an explicit read (allow-list), and writes outside MB_AWS_WRITE_ENVS."""
+    service = c.meta.service_model.service_name
+
+    def _guard(params, model, **_kw):
+        if model.name.startswith(_READ_PREFIXES) or _write_allowed(params):
+            return None
+        BLOCKED_WRITES.append(f"{service}.{model.name}")
+        raise ReadOnlyViolation(f"AWS write guard blocked {service}.{model.name}")
+
+    c.meta.events.register("before-parameter-build.*.*", _guard)
+
+
+def guard_active() -> bool:
+    return bool(settings.aws_readonly or settings.aws_write_envs.strip())
+
+
+def env_for(ctx: str) -> str:
+    """Environment of one data plane. MB_DDB_ENV_OVERRIDES="content=dev,vectors=dev" lets a `test` server read published
+    content and vectors from `dev` while every runtime write goes to `test`."""
+    for part in settings.ddb_env_overrides.split(","):
+        k, _, v = part.partition("=")
+        if k.strip() == ctx and v.strip():
+            return v.strip()
+    return settings.ddb_env
 
 
 def client(service: str = "dynamodb"):
@@ -100,7 +166,7 @@ def reset_clients() -> None:
 
 
 def table_name(ctx: str) -> str:
-    return f"mb-{ctx.replace('_', '-')}-{settings.ddb_env}"
+    return f"mb-{ctx.replace('_', '-')}-{env_for(ctx)}"
 
 
 def account_id() -> str:
@@ -111,11 +177,11 @@ def account_id() -> str:
 
 
 def data_bucket() -> str:
-    return settings.data_bucket or f"mathbank-data-{settings.ddb_env}-{account_id()}"
+    return settings.data_bucket or f"mathbank-data-{env_for('data')}-{account_id()}"
 
 
 def content_bucket() -> str:
-    return settings.content_bucket or f"mathbank-content-{settings.ddb_env}-{account_id()}"
+    return settings.content_bucket or f"mathbank-content-{env_for('content')}-{account_id()}"
 
 
 # ------------------------------------------------------------------ keys, time, ids
@@ -676,7 +742,7 @@ def check_connectivity(contexts: Iterable[str] = (), *, write_check: bool = Fals
             except Exception as exc:  # noqa: BLE001
                 fail(f"s3:{kind}", exc)
     if vectors:
-        vb = settings.vector_bucket or f"mathbank-vectors-{settings.ddb_env}"
+        vb = settings.vector_bucket or f"mathbank-vectors-{env_for('vectors')}"
         try:
             n = len(client("s3vectors").list_indexes(vectorBucketName=vb, maxResults=100).get("indexes", []))
             out["buckets"][vb] = f"ok ({n} indexes)"

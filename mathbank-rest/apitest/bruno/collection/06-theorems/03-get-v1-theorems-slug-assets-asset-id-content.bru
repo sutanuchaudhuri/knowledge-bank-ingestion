@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/theorems/{slug}/assets/{asset_id}/content
+  type: http
+  seq: 3
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/theorems/{{theoremSlug}}/assets/{{assetId}}/content
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Student Theorem Asset**
+
+  `GET /v1/theorems/{slug}/assets/{asset_id}/content`
+
+  Auth: none (public).
+}

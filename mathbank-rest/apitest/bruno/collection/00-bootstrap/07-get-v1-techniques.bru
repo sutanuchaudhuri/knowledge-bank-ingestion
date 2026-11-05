@@ -1,0 +1,40 @@
+meta {
+  name: GET /v1/techniques
+  type: http
+  seq: 7
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/techniques?limit=20
+  body: none
+  auth: none
+}
+
+params:query {
+  ~q: triangle
+  limit: 20
+  ~offset: 0
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.slug) bru.setVar("techniqueSlug", String(first.slug));
+}
+
+docs {
+  **Get Techniques**
+
+  `GET /v1/techniques`
+
+  Auth: none (public).
+}

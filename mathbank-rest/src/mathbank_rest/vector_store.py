@@ -245,7 +245,7 @@ class S3VectorsStore:
 
     @property
     def bucket(self) -> str:
-        return self._bucket or settings.vector_bucket or f"mathbank-vectors-{settings.ddb_env}"
+        return self._bucket or settings.vector_bucket or f"mathbank-vectors-{ddb.env_for('vectors')}"
 
     @property
     def c(self) -> Any:

@@ -1,0 +1,50 @@
+meta {
+  name: [WRITE] POST /v1/attempts/{attempt_id}/steps/{step_id}/responses
+  type: http
+  seq: 23
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/attempts/{{attemptId}}/steps/{{stepId}}/responses
+  body: json
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "response_text": "example",
+    "state_version": 1,
+    "evaluate": true
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Submit Step Response**
+
+  `POST /v1/attempts/{attempt_id}/steps/{step_id}/responses`
+
+  Save the response, then grade it (unless ``evaluate=false``) and advance on success.
+
+  ``evaluation_status``: EVALUATED, PENDING (not requested / superseded by a newer action) or
+  UNAVAILABLE (model error; the response is kept and the student can resubmit).
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

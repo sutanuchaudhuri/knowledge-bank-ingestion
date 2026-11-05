@@ -1,0 +1,40 @@
+meta {
+  name: GET /v1/quiz-integration/papers/{quiz_id}/generation-events
+  type: http
+  seq: 2
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz-integration/papers/{{quizId}}/generation-events?student_id={{studentId}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  student_id: {{studentId}}
+  ~since_ordinal: 0
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Generation Events**
+
+  `GET /v1/quiz-integration/papers/{quiz_id}/generation-events`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

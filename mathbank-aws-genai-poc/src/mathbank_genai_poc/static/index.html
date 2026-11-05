@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MathBank · Live voice tutor (POC)</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="bar">
+    <div>
+      <h1>Live voice tutor</h1>
+      <p class="muted">Strands BidiAgent · Amazon Nova Sonic · grounded in MathBank S3 Vectors</p>
+    </div>
+    <div class="bar-right">
+      <span class="pill" id="state" role="status" aria-live="polite">Not connected</span>
+      <span class="pill" id="timer" aria-label="Time left in this session">—</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card talk" aria-label="Conversation">
+      <div class="controls">
+        <button id="start" class="primary" type="button">Start talking</button>
+        <button id="stop" type="button" disabled>End session</button>
+        <meter id="level" min="0" max="1" value="0" aria-label="Microphone level"></meter>
+      </div>
+      <p class="notice">Prototype. Audio is streamed to Amazon Bedrock while a session is active; sessions stop
+        automatically at the time limit. Headphones avoid echo.</p>
+      <div class="chips" aria-label="Topic ideas">
+        <button type="button" class="chip" data-topic="Explain the angle bisector theorem">Angle bisector theorem</button>
+        <button type="button" class="chip" data-topic="Help me understand the power of a point">Power of a point</button>
+        <button type="button" class="chip" data-topic="How does inversion help with circles?">Inversion</button>
+        <button type="button" class="chip" data-topic="When are two triangles similar?">Similar triangles</button>
+      </div>
+      <ol id="transcript" class="transcript" aria-live="polite" aria-label="Transcript"></ol>
+      <form id="text-form" class="text-form">
+        <label for="text" class="sr-only">Type instead of speaking</label>
+        <input id="text" maxlength="500" placeholder="Type a question (optional, mic stays live)" autocomplete="off" disabled>
+        <button type="submit" disabled id="send">Send</button>
+      </form>
+    </section>
+
+    <aside class="card sources" aria-label="Sources from MathBank">
+      <h2>Grounding</h2>
+      <p class="muted" id="sources-empty">When the tutor searches MathBank, the matched concepts and practice problems appear here.</p>
+      <div id="sources"></div>
+    </aside>
+  </main>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+meta {
+  name: [WRITE] POST /v1/learner/register
+  type: http
+  seq: 3
+  tags: [
+    write
+    public
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/learner/register
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{learnerEmail}}",
+    "password": "{{learnerPassword}}",
+    "first_name": "Bruno",
+    "last_name": "Learner"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+script:post-response {
+  const body = res.body || {};
+  if (body.access_token) bru.setVar("learnerToken", body.access_token);
+  if (body.student_id) bru.setVar("studentId", body.student_id);
+}
+
+docs {
+  **Register**
+
+  `POST /v1/learner/register`
+
+  Auth: none (public).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

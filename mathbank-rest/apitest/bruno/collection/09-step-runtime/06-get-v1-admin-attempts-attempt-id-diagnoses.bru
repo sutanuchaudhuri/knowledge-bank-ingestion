@@ -1,0 +1,37 @@
+meta {
+  name: GET /v1/admin/attempts/{attempt_id}/diagnoses
+  type: http
+  seq: 6
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/admin/attempts/{{attemptId}}/diagnoses
+  body: none
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Admin List Diagnoses**
+
+  `GET /v1/admin/attempts/{attempt_id}/diagnoses`
+
+  Internal (X-Admin-Api-Key): full diagnoses with failure modes, confidences and evidence.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

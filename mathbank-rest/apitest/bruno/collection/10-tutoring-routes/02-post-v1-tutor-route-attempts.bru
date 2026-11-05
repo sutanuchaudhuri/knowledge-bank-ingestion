@@ -1,0 +1,45 @@
+meta {
+  name: [WRITE] POST /v1/tutor/route-attempts
+  type: http
+  seq: 2
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/tutor/route-attempts
+  body: json
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "problem_code": "{{canonicalCode}}"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Start**
+
+  `POST /v1/tutor/route-attempts`
+
+  Start a route attempt; with a DynamoDB learner store the open attempt of the release is resumed (200).
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

@@ -1,0 +1,37 @@
+meta {
+  name: GET /v1/quiz/{quiz_id}
+  type: http
+  seq: 2
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz/{{quizId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+script:post-response {
+  const questions = (res.body && res.body.questions) || [];
+  const first = questions[0] || {};
+  if (first.question_id || first.id) bru.setVar("questionId", String(first.question_id || first.id));
+}
+
+docs {
+  **Get Quiz**
+
+  `GET /v1/quiz/{quiz_id}`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

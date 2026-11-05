@@ -1,0 +1,31 @@
+meta {
+  name: GET /v1/theorems/{slug}/prerequisites
+  type: http
+  seq: 4
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/theorems/{{theoremSlug}}/prerequisites
+  body: none
+  auth: none
+}
+
+params:query {
+  ~max_depth: 4
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Student Theorem Prerequisites**
+
+  `GET /v1/theorems/{slug}/prerequisites`
+
+  Auth: none (public).
+}

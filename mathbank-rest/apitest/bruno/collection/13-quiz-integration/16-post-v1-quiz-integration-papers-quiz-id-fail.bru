@@ -1,0 +1,44 @@
+meta {
+  name: [WRITE] POST /v1/quiz-integration/papers/{quiz_id}/fail
+  type: http
+  seq: 16
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/papers/{{quizId}}/fail
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "student_id": "{{studentId}}",
+    "error_message": "generation failed"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Fail Paper**
+
+  `POST /v1/quiz-integration/papers/{quiz_id}/fail`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

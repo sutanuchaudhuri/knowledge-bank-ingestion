@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "MathBank REST (runtime profile)",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

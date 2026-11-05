@@ -1,0 +1,44 @@
+meta {
+  name: [WRITE] POST /v1/micro-courses/enrollments/{enrollment_id}/responses
+  type: http
+  seq: 8
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/micro-courses/enrollments/{{enrollmentId}}/responses
+  body: json
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "learning_item_id": "example",
+    "gave_up": false
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Submit Response**
+
+  `POST /v1/micro-courses/enrollments/{enrollment_id}/responses`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

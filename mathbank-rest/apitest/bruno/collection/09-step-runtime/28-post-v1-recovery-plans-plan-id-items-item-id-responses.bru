@@ -1,0 +1,48 @@
+meta {
+  name: [WRITE] POST /v1/recovery-plans/{plan_id}/items/{item_id}/responses
+  type: http
+  seq: 28
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/recovery-plans/{{planId}}/items/{{itemId}}/responses
+  body: json
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "state_version": 1,
+    "acknowledged": false
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Answer Recovery Item**
+
+  `POST /v1/recovery-plans/{plan_id}/items/{item_id}/responses`
+
+  Answer the current item. MCQs are graded deterministically, subproblems by the step evaluator
+  (outside the attempt lock), worked examples by acknowledging. The plan then adapts: advance,
+  confirmation item, retry, alternate item or a prerequisite branch.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

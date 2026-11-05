@@ -115,10 +115,19 @@ def install_common(app: FastAPI) -> FastAPI:
 
     install_error_handlers(app)
 
+    from fastapi.responses import JSONResponse
+
+    from mathbank_rest.stores.ddb import BLOCKED_WRITES, ReadOnlyViolation
+
+    @app.exception_handler(ReadOnlyViolation)
+    async def _readonly(_request, exc: ReadOnlyViolation):
+        return JSONResponse(status_code=status.HTTP_423_LOCKED, content={"error": "AWS_READONLY", "detail": str(exc)})
+
     @app.get("/health/stores", tags=["ops"])
     def health_stores(response: Response, deep: bool = False) -> dict:
         """Store flags per context. `?deep=true` also proves AWS connectivity (credentials, tables, buckets)."""
-        body: dict = {"profile": stores.settings.app_profile, "stores": stores.describe()}
+        body: dict = {"profile": stores.settings.app_profile, "stores": stores.describe(),
+                      "aws_readonly": stores.settings.aws_readonly, "blocked_writes": sorted(set(BLOCKED_WRITES))}
         if deep:
             aws = _aws_connectivity()
             body["aws"] = aws

@@ -1,0 +1,46 @@
+meta {
+  name: [WRITE] POST /v1/attempts/{attempt_id}/steps/{step_id}/hint
+  type: http
+  seq: 24
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/attempts/{{attemptId}}/steps/{{stepId}}/hint
+  body: json
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "state_version": 1
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Request Hint**
+
+  `POST /v1/attempts/{attempt_id}/steps/{step_id}/hint`
+
+  Escalate help one level (1–5) and return its text: 1 directional, 2 concept reminder,
+  3 strategic, 4 near-explicit, 5 the reference step itself. Any help → later success is WITH_HELP.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

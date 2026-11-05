@@ -1,0 +1,36 @@
+meta {
+  name: GET /v1/learner/practice-progress
+  type: http
+  seq: 1
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/learner/practice-progress
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Practice Progress**
+
+  `GET /v1/learner/practice-progress`
+
+  Distinct available/attempted/unattempted problems per exact corpus theme.
+
+  All recorded learner attempts count, including ungraded work. Coverage is
+  not correctness or mastery. Technique eligibility matches the corpus filter.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

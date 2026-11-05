@@ -1,0 +1,43 @@
+meta {
+  name: [WRITE] PATCH /v1/learner/me
+  type: http
+  seq: 15
+  tags: [
+    write
+    learner
+  ]
+}
+
+patch {
+  url: {{baseUrl}}/v1/learner/me
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "first_name": "Bruno",
+    "last_name": "Learner",
+    "display_name": "Bruno Learner"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Update Me**
+
+  `PATCH /v1/learner/me`
+
+  Edit names, grade and phone (LRN-E06); the display name follows the names unless it is sent. Returns the profile.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

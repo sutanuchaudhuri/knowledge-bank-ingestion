@@ -1,0 +1,38 @@
+meta {
+  name: GET /v1/solution-steps/{step_id}/practice
+  type: http
+  seq: 15
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/solution-steps/{{stepId}}/practice?limit=5
+  body: none
+  auth: bearer
+}
+
+params:query {
+  limit: 5
+  ~same_skill: true
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Practice For Step**
+
+  `GET /v1/solution-steps/{step_id}/practice`
+
+  Similar steps from *other* problems exercising the same skill (hybrid vector + lexical, no step text).
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

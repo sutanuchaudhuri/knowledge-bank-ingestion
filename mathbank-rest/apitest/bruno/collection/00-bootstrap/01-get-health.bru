@@ -1,0 +1,27 @@
+meta {
+  name: GET /health
+  type: http
+  seq: 1
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/health
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Health**
+
+  `GET /health`
+
+  Auth: none (public).
+}

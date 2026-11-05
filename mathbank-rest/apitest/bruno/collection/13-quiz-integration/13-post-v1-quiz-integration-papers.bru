@@ -1,0 +1,62 @@
+meta {
+  name: [WRITE] POST /v1/quiz-integration/papers
+  type: http
+  seq: 13
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/papers
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "student_id": "{{studentId}}",
+    "style": "AIME",
+    "title": "Bruno practice paper",
+    "instructions": "",
+    "requested_question_count": 1,
+    "requested_question_types": [
+      "example"
+    ],
+    "generated_by": "bruno",
+    "exam_mode": true,
+    "questions": [
+      {
+        "question_type": "MCQ",
+        "prompt_text": "example",
+        "correct_answer": {},
+        "solution_text": "example",
+        "key_insight": "",
+        "add_to_pool": false
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Import Paper**
+
+  `POST /v1/quiz-integration/papers`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

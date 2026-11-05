@@ -1,0 +1,31 @@
+meta {
+  name: GET /v1/quiz/{quiz_id}/review
+  type: http
+  seq: 3
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz/{{quizId}}/review
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Review**
+
+  `GET /v1/quiz/{quiz_id}/review`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

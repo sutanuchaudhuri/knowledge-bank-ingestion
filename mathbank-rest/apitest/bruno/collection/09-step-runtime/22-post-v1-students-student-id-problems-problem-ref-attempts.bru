@@ -1,0 +1,39 @@
+meta {
+  name: [WRITE] POST /v1/students/{student_id}/problems/{problem_ref}/attempts
+  type: http
+  seq: 22
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/students/{{studentId}}/problems/{{canonicalCode}}/attempts
+  body: none
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Start Attempt**
+
+  `POST /v1/students/{student_id}/problems/{problem_ref}/attempts`
+
+  Start the step-by-step session for a problem (uuid or canonical code), or resume the open one.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

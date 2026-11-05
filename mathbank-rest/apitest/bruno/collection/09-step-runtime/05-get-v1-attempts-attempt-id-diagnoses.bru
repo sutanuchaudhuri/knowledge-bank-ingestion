@@ -1,0 +1,33 @@
+meta {
+  name: GET /v1/attempts/{attempt_id}/diagnoses
+  type: http
+  seq: 5
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/attempts/{{attemptId}}/diagnoses
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **List Diagnoses**
+
+  `GET /v1/attempts/{attempt_id}/diagnoses`
+
+  Your diagnoses for this attempt, newest first (student view: no failure modes or raw scores).
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

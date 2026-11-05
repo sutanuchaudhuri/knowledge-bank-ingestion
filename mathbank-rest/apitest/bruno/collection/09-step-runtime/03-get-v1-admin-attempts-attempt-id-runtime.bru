@@ -1,0 +1,38 @@
+meta {
+  name: GET /v1/admin/attempts/{attempt_id}/runtime
+  type: http
+  seq: 3
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/admin/attempts/{{attemptId}}/runtime
+  body: none
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Admin Attempt Runtime**
+
+  `GET /v1/admin/attempts/{attempt_id}/runtime`
+
+  Internal (X-Admin-Api-Key; TUT-E01): where an attempt stands, without any step text: its session block, the current step id
+  and the state of every step the learner has seen. The owner is resolved from the attempt id (no learner token).
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

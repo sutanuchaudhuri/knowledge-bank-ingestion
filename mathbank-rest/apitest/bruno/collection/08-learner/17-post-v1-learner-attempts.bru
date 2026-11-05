@@ -1,0 +1,46 @@
+meta {
+  name: [WRITE] POST /v1/learner/attempts
+  type: http
+  seq: 17
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/learner/attempts
+  body: json
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "problem_code": "{{canonicalCode}}",
+    "is_correct": true,
+    "hint_count": 0,
+    "source": "web"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Submit Attempt**
+
+  `POST /v1/learner/attempts`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

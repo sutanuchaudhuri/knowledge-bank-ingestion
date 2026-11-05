@@ -1,0 +1,33 @@
+meta {
+  name: GET /health/stores
+  type: http
+  seq: 1
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/health/stores?deep=true
+  body: none
+  auth: none
+}
+
+params:query {
+  deep: true
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Health Stores**
+
+  `GET /health/stores`
+
+  Store flags per context. `?deep=true` also proves AWS connectivity (credentials, tables, buckets).
+
+  Auth: none (public).
+}

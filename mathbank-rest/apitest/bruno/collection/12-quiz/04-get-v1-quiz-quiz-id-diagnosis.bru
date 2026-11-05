@@ -1,0 +1,33 @@
+meta {
+  name: GET /v1/quiz/{quiz_id}/diagnosis
+  type: http
+  seq: 4
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz/{{quizId}}/diagnosis
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Diagnosis**
+
+  `GET /v1/quiz/{quiz_id}/diagnosis`
+
+  The learner's own read of the post-exam diagnosis (QUZ-E08): the latest version; 404 until one is written.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

@@ -1,0 +1,41 @@
+meta {
+  name: [WRITE] PUT /v1/quiz/{quiz_id}/progress
+  type: http
+  seq: 6
+  tags: [
+    write
+    learner
+  ]
+}
+
+put {
+  url: {{baseUrl}}/v1/quiz/{{quizId}}/progress
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "current_question_ordinal": 1
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Save Progress**
+
+  `PUT /v1/quiz/{quiz_id}/progress`
+
+  The learner's own save-progress (QUZ-E09): current position and an optional unsubmitted draft.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

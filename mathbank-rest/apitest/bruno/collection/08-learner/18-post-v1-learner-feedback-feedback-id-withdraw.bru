@@ -1,0 +1,35 @@
+meta {
+  name: [WRITE] POST /v1/learner/feedback/{feedback_id}/withdraw
+  type: http
+  seq: 18
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/learner/feedback/{{feedbackId}}/withdraw
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Withdraw Feedback**
+
+  `POST /v1/learner/feedback/{feedback_id}/withdraw`
+
+  Withdraw an own PENDING report (it becomes DISMISSED); someone else's is 404, a reviewed one 409.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

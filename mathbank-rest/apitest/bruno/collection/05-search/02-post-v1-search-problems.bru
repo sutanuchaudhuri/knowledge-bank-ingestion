@@ -1,0 +1,52 @@
+meta {
+  name: POST /v1/search/problems
+  type: http
+  seq: 2
+  tags: [
+    read
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/search/problems
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "query": "triangle",
+    "filters": {},
+    "retrieval": {
+      "semantic": true,
+      "lexical": true,
+      "graph": true
+    },
+    "order_by": "relevance",
+    "limit": 25
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Search Problems**
+
+  `POST /v1/search/problems`
+
+  Hybrid problem search. Semantic ranking calls a paid embedding model, so it needs a learner token or
+  admin credential and is rate limited per caller; anonymous callers get the lexical/graph sources.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

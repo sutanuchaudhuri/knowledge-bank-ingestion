@@ -1,0 +1,46 @@
+meta {
+  name: GET /v1/learner/solve-attempts
+  type: http
+  seq: 12
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/learner/solve-attempts?limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~status: IN_PROGRESS
+  limit: 20
+  ~next_token: example
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.attempt_id) bru.setVar("attemptId", String(first.attempt_id));
+}
+
+docs {
+  **List My Solve Attempts**
+
+  `GET /v1/learner/solve-attempts`
+
+  The learner's own step-by-step sessions, newest first (LRN-E10): ``{items, limit, next_token}``.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

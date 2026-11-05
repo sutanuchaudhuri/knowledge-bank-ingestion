@@ -1,0 +1,48 @@
+meta {
+  name: POST /v1/quiz-integration/question-pool/match
+  type: http
+  seq: 1
+  tags: [
+    read
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/question-pool/match
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "student_id": "{{studentId}}",
+    "style": "AIME",
+    "limit": 20
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Match Question Pool**
+
+  `POST /v1/quiz-integration/question-pool/match`
+
+  Cached, critic-approved questions (with full solutions) for an "almost the same"
+  request — same style/question type/difficulty plus a similar topic or overlapping
+  concept, never one this student was already served (migration 052). The exam agent
+  fills as many paper slots as possible from here before drafting anything new.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

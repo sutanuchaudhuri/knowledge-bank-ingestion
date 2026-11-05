@@ -1,0 +1,35 @@
+meta {
+  name: GET /v1/quiz-integration/students/{student_id}
+  type: http
+  seq: 11
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz-integration/students/{{studentId}}
+  body: none
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Student Profile**
+
+  `GET /v1/quiz-integration/students/{student_id}`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

@@ -1,0 +1,33 @@
+meta {
+  name: GET /v1/attempts/{attempt_id}/steps/{step_id}/hints
+  type: http
+  seq: 4
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/attempts/{{attemptId}}/steps/{{stepId}}/hints
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **List Hints**
+
+  `GET /v1/attempts/{attempt_id}/steps/{step_id}/hints`
+
+  Hints already revealed to this student for a step (levels 1..help_level_used), for refresh/restore.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

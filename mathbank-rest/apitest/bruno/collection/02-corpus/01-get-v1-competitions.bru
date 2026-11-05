@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/competitions
+  type: http
+  seq: 1
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/competitions
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Get Competitions**
+
+  `GET /v1/competitions`
+
+  Auth: none (public).
+}

@@ -1,0 +1,45 @@
+meta {
+  name: [WRITE] POST /v1/quiz-integration/papers/{quiz_id}/diagnosis
+  type: http
+  seq: 21
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/papers/{{quizId}}/diagnosis
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "student_id": "{{studentId}}",
+    "time_management_verdict": "example",
+    "generated_by": "bruno"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Write Diagnosis**
+
+  `POST /v1/quiz-integration/papers/{quiz_id}/diagnosis`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

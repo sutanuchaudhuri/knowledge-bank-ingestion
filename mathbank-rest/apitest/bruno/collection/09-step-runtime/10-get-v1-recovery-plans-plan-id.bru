@@ -1,0 +1,34 @@
+meta {
+  name: GET /v1/recovery-plans/{plan_id}
+  type: http
+  seq: 10
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/recovery-plans/{{planId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Recovery Plan**
+
+  `GET /v1/recovery-plans/{plan_id}`
+
+  Plan, stage progress and mastery-policy progress. Item content only for the current item and
+  finished items; answers only after an item is finished.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

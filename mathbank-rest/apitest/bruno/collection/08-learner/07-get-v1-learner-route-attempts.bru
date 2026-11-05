@@ -1,0 +1,47 @@
+meta {
+  name: GET /v1/learner/route-attempts
+  type: http
+  seq: 7
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/learner/route-attempts?limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~route_release_id: 3f2b8c1e-6d4a-4b7e-9a15-2c0d5e8f1a73
+  ~status: IN_PROGRESS
+  limit: 20
+  ~next_token: example
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.route_attempt_id || first.attempt_id) bru.setVar("routeAttemptId", String(first.route_attempt_id || first.attempt_id));
+}
+
+docs {
+  **List Route Attempts**
+
+  `GET /v1/learner/route-attempts`
+
+  The learner's own route attempts, newest first (LRN-E13): ``{items, next_token}``.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

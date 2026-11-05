@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/concepts/{slug}/neighbors
+  type: http
+  seq: 3
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/concepts/{{conceptSlug}}/neighbors
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Get Concept Neighbors**
+
+  `GET /v1/concepts/{slug}/neighbors`
+
+  Auth: none (public).
+}

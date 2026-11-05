@@ -1,0 +1,39 @@
+meta {
+  name: GET /v1/quiz-integration/papers/{quiz_id}/diagnosis-input
+  type: http
+  seq: 6
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz-integration/papers/{{quizId}}/diagnosis-input?student_id={{studentId}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  student_id: {{studentId}}
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Diagnosis Input**
+
+  `GET /v1/quiz-integration/papers/{quiz_id}/diagnosis-input`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

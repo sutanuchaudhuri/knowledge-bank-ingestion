@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/problems/by-code/{code}/source-marked-pdf
+  type: http
+  seq: 20
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/problems/by-code/{{canonicalCode}}/source-marked-pdf
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **Get Problem Source Marked Pdf**
+
+  `GET /v1/problems/by-code/{code}/source-marked-pdf`
+
+  Auth: none (public).
+}

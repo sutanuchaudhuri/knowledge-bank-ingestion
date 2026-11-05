@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/theorems/by-technique/{technique_slug}
+  type: http
+  seq: 6
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/theorems/by-technique/{{techniqueSlug}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **List Student Theorems For Technique**
+
+  `GET /v1/theorems/by-technique/{technique_slug}`
+
+  Auth: none (public).
+}

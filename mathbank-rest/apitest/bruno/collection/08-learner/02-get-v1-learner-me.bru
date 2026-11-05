@@ -1,0 +1,31 @@
+meta {
+  name: GET /v1/learner/me
+  type: http
+  seq: 2
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/learner/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Me**
+
+  `GET /v1/learner/me`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

@@ -1,0 +1,40 @@
+meta {
+  name: GET /v1/attempts/{attempt_id}/recovery-plans
+  type: http
+  seq: 9
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/attempts/{{attemptId}}/recovery-plans
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.plan_id) bru.setVar("planId", String(first.plan_id));
+}
+
+docs {
+  **List Recovery Plans**
+
+  `GET /v1/attempts/{attempt_id}/recovery-plans`
+
+  Your detours for this attempt, newest first.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

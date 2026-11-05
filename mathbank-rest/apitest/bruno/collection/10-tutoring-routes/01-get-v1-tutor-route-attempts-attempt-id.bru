@@ -1,0 +1,31 @@
+meta {
+  name: GET /v1/tutor/route-attempts/{attempt_id}
+  type: http
+  seq: 1
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/tutor/route-attempts/{{routeAttemptId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Current**
+
+  `GET /v1/tutor/route-attempts/{attempt_id}`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

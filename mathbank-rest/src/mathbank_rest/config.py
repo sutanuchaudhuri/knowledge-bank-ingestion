@@ -100,6 +100,12 @@ class Settings(BaseSettings):
     # When any store (or the vector store) uses AWS, verify credentials/tables at startup and refuse to start with an
     # actionable message instead of failing on the first request.
     ddb_startup_check: bool = True
+    # API test runs against a real environment (e.g. dev): every AWS client refuses non-read operations.
+    aws_readonly: bool = Field(default=False, validation_alias=AliasChoices("MB_AWS_READONLY"))
+    # Write guard: with MB_AWS_WRITE_ENVS=test only resources of that environment may be mutated (reads are never blocked).
+    aws_write_envs: str = Field(default="", validation_alias=AliasChoices("MB_AWS_WRITE_ENVS"))
+    # "content=dev,vectors=dev": read these planes from another environment than DDB_ENV (API test runs against real data).
+    ddb_env_overrides: str = Field(default="", validation_alias=AliasChoices("MB_DDB_ENV_OVERRIDES"))
     ddb_endpoint_url: str = ""                # DynamoDB Local / moto server; empty = AWS
     data_bucket: str = ""                     # default mathbank-data-<ddb_env>-<account>
     content_bucket: str = ""

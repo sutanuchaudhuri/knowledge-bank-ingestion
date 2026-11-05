@@ -1,0 +1,46 @@
+meta {
+  name: [WRITE] POST /v1/quiz-integration/students/{student_id}/mint-session-token
+  type: http
+  seq: 23
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/students/{{studentId}}/mint-session-token
+  body: none
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Mint Session Token**
+
+  `POST /v1/quiz-integration/students/{student_id}/mint-session-token`
+
+  Issues a normal `mathbank-rest` student JWT (`security.create_access_token`,
+  the exact same token type/verification `/v1/learner/login` already issues and every
+  `/v1/learner/*`/`/v1/quiz/*` endpoint already accepts) for an identity a caller has
+  *already* authenticated some other way — Cognito, here. This is the one bridge point
+  that lets `mathbank-web`/`mathbank-live` move their login UX to Cognito while every
+  other student-facing endpoint in this service stays completely unchanged: Cognito
+  replaces the password check and the login *screen*, not the ongoing API session
+  token or any downstream authorization logic.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

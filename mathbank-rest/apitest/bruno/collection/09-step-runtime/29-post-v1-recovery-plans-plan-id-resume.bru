@@ -1,0 +1,45 @@
+meta {
+  name: [WRITE] POST /v1/recovery-plans/{plan_id}/resume
+  type: http
+  seq: 29
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/recovery-plans/{{planId}}/resume
+  body: json
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "state_version": 1
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Resume From Recovery**
+
+  `POST /v1/recovery-plans/{plan_id}/resume`
+
+  Return to the exact step the detour started from (the plan must be COMPLETED or EXHAUSTED).
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

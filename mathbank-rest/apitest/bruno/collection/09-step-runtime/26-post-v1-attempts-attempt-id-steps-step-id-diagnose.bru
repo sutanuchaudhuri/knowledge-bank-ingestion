@@ -1,0 +1,43 @@
+meta {
+  name: [WRITE] POST /v1/attempts/{attempt_id}/steps/{step_id}/diagnose
+  type: http
+  seq: 26
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/attempts/{{attemptId}}/steps/{{stepId}}/diagnose
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "trigger": "STUDENT_REQUEST"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Diagnose Step**
+
+  `POST /v1/attempts/{attempt_id}/steps/{step_id}/diagnose`
+
+  Rank what may be blocking you on a presented step (local skill first, then the skills of the steps
+  it builds on). Deterministic and free; identical evidence returns the existing diagnosis
+  (``reused``). Every hypothesis is persisted; this does not change mode or ``state_version``.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

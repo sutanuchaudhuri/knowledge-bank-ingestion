@@ -1,0 +1,56 @@
+meta {
+  name: [WRITE] POST /v1/quiz-integration/papers/{quiz_id}/finalize
+  type: http
+  seq: 15
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/papers/{{quizId}}/finalize
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "student_id": "{{studentId}}",
+    "questions": [
+      {
+        "question_type": "MCQ",
+        "prompt_text": "example",
+        "correct_answer": {},
+        "solution_text": "example",
+        "key_insight": "",
+        "add_to_pool": false
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Finalize Paper**
+
+  `POST /v1/quiz-integration/papers/{quiz_id}/finalize`
+
+  Inserts every question for an already-start_paper'd quiz_id and flips its status
+  to READY (requirements/64 continued).
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/problem-images/{image_id}
+  type: http
+  seq: 21
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/problem-images/{{imageId}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Problem Image**
+
+  `GET /v1/problem-images/{image_id}`
+
+  Auth: none (public).
+}

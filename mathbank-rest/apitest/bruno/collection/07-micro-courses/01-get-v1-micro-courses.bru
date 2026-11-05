@@ -1,0 +1,39 @@
+meta {
+  name: GET /v1/micro-courses
+  type: http
+  seq: 1
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/micro-courses?limit=20
+  body: none
+  auth: none
+}
+
+params:query {
+  limit: 20
+  ~offset: 0
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.canonical_code) bru.setVar("microCourseCode", String(first.canonical_code));
+}
+
+docs {
+  **List Student Courses**
+
+  `GET /v1/micro-courses`
+
+  Auth: none (public).
+}

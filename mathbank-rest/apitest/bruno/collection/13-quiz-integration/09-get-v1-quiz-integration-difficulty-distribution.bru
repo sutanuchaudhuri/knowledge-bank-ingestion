@@ -1,0 +1,46 @@
+meta {
+  name: GET /v1/quiz-integration/difficulty-distribution
+  type: http
+  seq: 9
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz-integration/difficulty-distribution
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~concept_slug: {{conceptSlug}}
+  ~technique_slug: {{techniqueSlug}}
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Difficulty Distribution**
+
+  `GET /v1/quiz-integration/difficulty-distribution`
+
+  Real, corpus-grounded core.problem.difficulty_band counts for a resolved
+  concept/technique (requirements/64 §5 point 1) — neither hybrid_search.search_problems
+  nor the mathbank-mcp-competitions search_problems MCP tool project this column today
+  (confirmed live, requirements/64), so this is a small, new, additive query rather
+  than overloading either of those already-audited retrieval paths.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

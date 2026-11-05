@@ -1,0 +1,42 @@
+meta {
+  name: GET /v1/admin/students/{student_id}/knowledge-gaps
+  type: http
+  seq: 7
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/admin/students/{{studentId}}/knowledge-gaps?limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~status: UNRESOLVED
+  limit: 20
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Admin Student Gaps**
+
+  `GET /v1/admin/students/{student_id}/knowledge-gaps`
+
+  Internal (X-Admin-Api-Key): a student's knowledge-gap hypotheses across attempts.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

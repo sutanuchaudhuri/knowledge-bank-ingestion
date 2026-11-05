@@ -1,0 +1,43 @@
+meta {
+  name: GET /v1/theorems/search
+  type: http
+  seq: 1
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/theorems/search?q=triangle&limit=10
+  body: none
+  auth: none
+}
+
+params:query {
+  q: triangle
+  ~field: 
+  ~kind: 
+  limit: 10
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.slug) bru.setVar("theoremSlug", String(first.slug));
+}
+
+docs {
+  **Search Student Theorems**
+
+  `GET /v1/theorems/search`
+
+  APPROVED-only hybrid search (doc 61 §12.1) — no drafts, student or agent alike.
+
+  Auth: none (public).
+}

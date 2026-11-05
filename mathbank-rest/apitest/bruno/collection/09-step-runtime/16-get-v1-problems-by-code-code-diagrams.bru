@@ -1,0 +1,29 @@
+meta {
+  name: GET /v1/problems/by-code/{code}/diagrams
+  type: http
+  seq: 16
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/problems/by-code/{{canonicalCode}}/diagrams
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  **List Problem Diagrams**
+
+  `GET /v1/problems/by-code/{code}/diagrams`
+
+  Problem-statement diagrams (never solution diagrams) for the workspace.
+
+  Auth: none (public).
+}

@@ -1,0 +1,49 @@
+meta {
+  name: [WRITE] POST /v1/attempts/{attempt_id}/recovery-plans
+  type: http
+  seq: 27
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/attempts/{{attemptId}}/recovery-plans
+  body: json
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "state_version": 1,
+    "trigger": "STUDENT_REQUEST"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Create Recovery Plan**
+
+  `POST /v1/attempts/{attempt_id}/recovery-plans`
+
+  Start a detour from the current step: worked example → recognise → use once → use in context →
+  transfer → return. Persisted before the first item is shown; the step becomes DETOURED and the
+  runtime enters RECOVERY. If a detour is already running it is returned (``resumed``).
+  409 NO_RECOVERY_MATERIAL when no approved practice exists for the target skill.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

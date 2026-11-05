@@ -1,0 +1,56 @@
+meta {
+  name: POST /v1/search/concepts
+  type: http
+  seq: 1
+  tags: [
+    read
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/search/concepts
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "query": "triangle",
+    "retrieval": {
+      "semantic": true,
+      "lexical": true
+    },
+    "limit": 10
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Search Concepts**
+
+  `POST /v1/search/concepts`
+
+  Concept-level hybrid search over the embedded taxonomy (TAXONOMY_NODE vectors).
+
+  Maps a topic to taxonomy nodes with their corpus slug, problem count and example problem codes.
+  Semantic ranking needs a learner token or admin credential and is rate limited per caller; anonymous
+  callers get lexical ranking. If the query embedding is unavailable, falls back to lexical ranking.
+
+  With S3 Vectors on (``VECTOR_STORE=s3vectors``) ranking is semantic only: lexical is reported as ``not_applied``
+  (never a Postgres fallback), so anonymous callers need to sign in and an unavailable query embedding is a 503
+  ``SEMANTIC_UNAVAILABLE``.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

@@ -1,0 +1,44 @@
+meta {
+  name: [WRITE] POST /v1/quiz-integration/papers/{quiz_id}/questions/{question_id}/events
+  type: http
+  seq: 24
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/papers/{{quizId}}/questions/{{questionId}}/events
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "student_id": "{{studentId}}",
+    "event_type": "VIEW"
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Log Event**
+
+  `POST /v1/quiz-integration/papers/{quiz_id}/questions/{question_id}/events`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

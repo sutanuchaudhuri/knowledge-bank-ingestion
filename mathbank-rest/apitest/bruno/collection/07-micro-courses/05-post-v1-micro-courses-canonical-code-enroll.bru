@@ -1,0 +1,40 @@
+meta {
+  name: [WRITE] POST /v1/micro-courses/{canonical_code}/enroll
+  type: http
+  seq: 5
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/micro-courses/{{microCourseCode}}/enroll
+  body: none
+  auth: bearer
+}
+
+headers {
+  ~Idempotency-Key: {{$guid}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Enroll In Course**
+
+  `POST /v1/micro-courses/{canonical_code}/enroll`
+
+  Create (or resume) the logged-in student's in-progress enrollment and return
+  the pinned release's current state, exactly as the shared service layer defines it.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

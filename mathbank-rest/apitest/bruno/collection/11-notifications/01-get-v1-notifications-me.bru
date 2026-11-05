@@ -1,0 +1,45 @@
+meta {
+  name: GET /v1/notifications/me
+  type: http
+  seq: 1
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/notifications/me?limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  limit: 20
+  ~offset: 0
+  ~next_token: example
+  ~unread: false
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.notification_id || first.id) bru.setVar("notificationId", String(first.notification_id || first.id));
+}
+
+docs {
+  **List My Notifications**
+
+  `GET /v1/notifications/me`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

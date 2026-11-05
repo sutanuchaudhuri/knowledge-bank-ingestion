@@ -1,0 +1,50 @@
+meta {
+  name: [WRITE] POST /v1/quiz-integration/papers/{quiz_id}/generation-events
+  type: http
+  seq: 17
+  tags: [
+    write
+    admin
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz-integration/papers/{{quizId}}/generation-events
+  body: json
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "ordinal": 1,
+    "phase": "INTAKE",
+    "status": "STARTED",
+    "detail": ""
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Post Generation Event**
+
+  `POST /v1/quiz-integration/papers/{quiz_id}/generation-events`
+
+  Appends one row to the generation-progress log (requirements/64 continued) —
+  the web UI's live "what is the agent doing right now" view polls the GET below for
+  exactly these rows.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

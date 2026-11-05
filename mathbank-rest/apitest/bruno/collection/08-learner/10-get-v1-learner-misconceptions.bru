@@ -1,0 +1,33 @@
+meta {
+  name: GET /v1/learner/misconceptions
+  type: http
+  seq: 10
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/learner/misconceptions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **List My Misconceptions**
+
+  `GET /v1/learner/misconceptions`
+
+  The learner's running confidence per misconception, strongest first (LRN-E20): ``{items, total}``.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

@@ -1,0 +1,40 @@
+meta {
+  name: GET /v1/attempts/{attempt_id}/runtime
+  type: http
+  seq: 1
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/attempts/{{attemptId}}/runtime
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+script:post-response {
+  const body = res.body || {};
+  const first = (body.steps || [])[0] || {};
+  const stepId = body.current_step_id || first.step_id || first.solution_step_id;
+  if (stepId) bru.setVar("stepId", String(stepId));
+}
+
+docs {
+  **Get Runtime**
+
+  `GET /v1/attempts/{attempt_id}/runtime`
+
+  Current step metadata, your own responses and progress counts — never canonical step text.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

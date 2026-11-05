@@ -1,0 +1,40 @@
+meta {
+  name: GET /v1/quiz-integration/students/{student_id}/mastery-summary
+  type: http
+  seq: 8
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz-integration/students/{{studentId}}/mastery-summary
+  body: none
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Mastery Summary**
+
+  `GET /v1/quiz-integration/students/{student_id}/mastery-summary`
+
+  Admin-gated equivalent of /v1/learner/mastery (which derives student_id from a
+  student's own bearer token) — the generator agent (requirements/64 §5 point 2) needs
+  a *specific* student's mastery for personalization, not the caller's own, so it
+  cannot use the student-facing endpoint at all.
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

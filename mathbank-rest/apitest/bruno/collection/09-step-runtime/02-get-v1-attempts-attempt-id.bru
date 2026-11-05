@@ -1,0 +1,33 @@
+meta {
+  name: GET /v1/attempts/{attempt_id}
+  type: http
+  seq: 2
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/attempts/{{attemptId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Runtime**
+
+  `GET /v1/attempts/{attempt_id}`
+
+  Current step metadata, your own responses and progress counts — never canonical step text.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/theorems/{slug}
+  type: http
+  seq: 2
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/theorems/{{theoremSlug}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Student Theorem**
+
+  `GET /v1/theorems/{slug}`
+
+  Auth: none (public).
+}

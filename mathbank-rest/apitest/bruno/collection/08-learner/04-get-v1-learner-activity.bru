@@ -1,0 +1,41 @@
+meta {
+  name: GET /v1/learner/activity
+  type: http
+  seq: 4
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/learner/activity?limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~from: 2026-01-15
+  ~to: 2026-01-15
+  limit: 20
+  ~offset: 0
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Activity**
+
+  `GET /v1/learner/activity`
+
+  The caller's own daily engagement counters (ANL-E01): UTC days from `from` to `to` (default the last 30 days, at most
+  366 days), oldest first, as `{items, total, limit, offset}`. Days without activity are absent.
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

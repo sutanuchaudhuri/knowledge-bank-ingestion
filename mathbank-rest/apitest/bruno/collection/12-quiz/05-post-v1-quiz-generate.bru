@@ -1,0 +1,40 @@
+meta {
+  name: [WRITE] POST /v1/quiz/generate
+  type: http
+  seq: 5
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/quiz/generate
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+body:json {
+  {
+    "style": "AIME",
+    "question_count": 5
+  }
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Generate**
+
+  `POST /v1/quiz/generate`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

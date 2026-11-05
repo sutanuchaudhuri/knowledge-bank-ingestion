@@ -1,0 +1,31 @@
+meta {
+  name: GET /v1/micro-courses/enrollments/{enrollment_id}
+  type: http
+  seq: 4
+  tags: [
+    read
+    learner
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/micro-courses/enrollments/{{enrollmentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Get Enrollment**
+
+  `GET /v1/micro-courses/enrollments/{enrollment_id}`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+}

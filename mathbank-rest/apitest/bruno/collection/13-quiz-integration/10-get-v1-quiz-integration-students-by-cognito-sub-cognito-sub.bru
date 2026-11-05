@@ -1,0 +1,35 @@
+meta {
+  name: GET /v1/quiz-integration/students/by-cognito-sub/{cognito_sub}
+  type: http
+  seq: 10
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz-integration/students/by-cognito-sub/{{cognitoSub}}
+  body: none
+  auth: bearer
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Student By Cognito Sub**
+
+  `GET /v1/quiz-integration/students/by-cognito-sub/{cognito_sub}`
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

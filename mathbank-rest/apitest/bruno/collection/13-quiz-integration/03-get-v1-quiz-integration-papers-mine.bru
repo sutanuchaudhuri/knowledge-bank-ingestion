@@ -1,0 +1,52 @@
+meta {
+  name: GET /v1/quiz-integration/papers/mine
+  type: http
+  seq: 3
+  tags: [
+    read
+    admin
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/quiz-integration/papers/mine?student_id={{studentId}}&limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  student_id: {{studentId}}
+  limit: 20
+}
+
+headers {
+  X-Admin-Api-Key: {{adminKey}}
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+script:post-response {
+  const body = res.body;
+  const rows = Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  const first = rows[0] || {};
+  if (first.quiz_id) bru.setVar("quizId", String(first.quiz_id));
+}
+
+docs {
+  **List My Papers**
+
+  `GET /v1/quiz-integration/papers/mine`
+
+  Admin-gated equivalent of /v1/quiz/mine — mathbank-exam-agent resolves identity
+  via Cognito (or an anonymous session), not mathbank-rest's own JWT, so it cannot use
+  the student-bearer-token-gated endpoint at all (requirements/64 continued §0's
+  "exam-taking flow is proxied through mathbank-exam-agent, not called directly").
+
+  Auth: learner bearer token (`{{learnerToken}}`) and admin key (`{{adminKey}}`).
+}

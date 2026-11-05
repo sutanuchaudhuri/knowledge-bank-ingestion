@@ -1,0 +1,33 @@
+meta {
+  name: [WRITE] POST /v1/notifications/me/read-all
+  type: http
+  seq: 2
+  tags: [
+    write
+    learner
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/notifications/me/read-all
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{learnerToken}}
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **Mark All My Notifications Read**
+
+  `POST /v1/notifications/me/read-all`
+
+  Auth: learner bearer token (`{{learnerToken}}`).
+
+  **[WRITE]** changes server state. `dev-readonly` answers 423 (AWS_READONLY); `test-writable` writes only to the `-test` resources.
+}

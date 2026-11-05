@@ -1,0 +1,27 @@
+meta {
+  name: GET /v1/theorems/by-taxonomy/{taxonomy_node_id}
+  type: http
+  seq: 5
+  tags: [
+    read
+    public
+  ]
+}
+
+get {
+  url: {{baseUrl}}/v1/theorems/by-taxonomy/{{taxonomyNodeId}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: lt 500
+}
+
+docs {
+  **List Student Theorems For Taxonomy**
+
+  `GET /v1/theorems/by-taxonomy/{taxonomy_node_id}`
+
+  Auth: none (public).
+}
